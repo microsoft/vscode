@@ -44,6 +44,8 @@ import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/t
 
 import { ipcRenderer as ipc, webFrame } from 'electron';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { extname } from "vs/base/common/paths";
+import { WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -114,9 +116,9 @@ export class ElectronWindow extends Themable {
 			if (!draggedExternalResources) {
 				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
 
-				// Find out if folders are dragged and show the appropiate feedback then
-				this.includesFolder(draggedExternalResources).done(includesFolder => {
-					if (includesFolder) {
+				// Find out if folders/workspaces are dragged and show the appropiate feedback then
+				this.shouldOpenAsWorkspace(draggedExternalResources).done(openAsWorkspace => {
+					if (openAsWorkspace) {
 						const activeContrastBorderColor = this.getColor(activeContrastBorder);
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
 							.div({
@@ -138,7 +140,7 @@ export class ElectronWindow extends Themable {
 								let doOpen = true;
 								if (draggedExternalResources.length > 20) {
 									doOpen = this.messageService.confirm({
-										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
+										message: nls.localize('confirmOpen', "Are you sure you want to open {0} workspaces?", draggedExternalResources.length),
 										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
 										type: 'question'
 									});
@@ -447,8 +449,13 @@ export class ElectronWindow extends Themable {
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
 	}
 
-	private includesFolder(resources: URI[]): TPromise<boolean> {
+	private shouldOpenAsWorkspace(resources: URI[]): TPromise<boolean> {
 		return TPromise.join(resources.map(resource => {
+			if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+				return TPromise.as(true); // Workspace
+			}
+
+			// Check for Folder
 			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
 		})).then(res => res.some(res => !!res));
 	}

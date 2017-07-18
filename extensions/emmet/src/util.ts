@@ -61,7 +61,7 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
  * Parses the given document using emmet parsing modules
- * @param document 
+ * @param document
  */
 export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
@@ -252,4 +252,13 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
 
-
+export function getEmmetConfiguration() {
+	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	return {
+		useNewEmmet: emmetConfig['useNewEmmet'],
+		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
+		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
+		syntaxProfiles: emmetConfig['syntaxProfiles'],
+		variables: emmetConfig['variables']
+	};
+}

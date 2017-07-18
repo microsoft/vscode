@@ -23,6 +23,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
+		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
 			if (proc) {

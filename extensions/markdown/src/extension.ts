@@ -158,7 +158,14 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		previewSecuritySelector.showSecutitySelectorForWorkspace(resource ? vscode.Uri.parse(resource).query : undefined);
+		if (resource) {
+			const source = vscode.Uri.parse(resource).query;
+			previewSecuritySelector.showSecutitySelectorForResource(vscode.Uri.parse(source));
+		} else {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
+				previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
+			}
+		}
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {

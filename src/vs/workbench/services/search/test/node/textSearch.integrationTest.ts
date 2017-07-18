@@ -3,265 +3,277 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// 'use strict';
+'use strict';
 
-// import path = require('path');
-// import assert = require('assert');
+import path = require('path');
+import assert = require('assert');
 
-// import { TPromise } from 'vs/base/common/winjs.base';
-// import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-// import { ISerializedFileMatch, IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/search';
-// import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
-// import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
-// import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
+import * as glob from 'vs/base/common/glob';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
+import { ISerializedFileMatch, IRawSearch, IFolderSearch } from 'vs/workbench/services/search/node/search';
+import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
+import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 
-// function countAll(matches: ISerializedFileMatch[]): number {
-// 	return matches.reduce((acc, m) => acc + m.numMatches, 0);
-// }
+function countAll(matches: ISerializedFileMatch[]): number {
+	return matches.reduce((acc, m) => acc + m.numMatches, 0);
+}
 
-// const TEST_ROOT_FOLDER = path.normalize(require.toUrl('./fixtures'));
-// function rootFolderQueries(): IFolderSearch[] {
-// 	return [
-// 		{ folder: TEST_ROOT_FOLDER }
-// 	];
-// }
+const TEST_FIXTURES = path.normalize(require.toUrl('./fixtures'));
+const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
+const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
+const TEST_ROOT_FOLDER: IFolderSearch = { folder: TEST_FIXTURES };
+const ROOT_FOLDER_QUERY: IFolderSearch[] = [
+	TEST_ROOT_FOLDER
+];
 
-// const textSearchWorkerProvider = new TextSearchWorkerProvider();
+const MULTIROOT_QUERIES: IFolderSearch[] = [
+	{ folder: EXAMPLES_FIXTURES },
+	{ folder: MORE_FIXTURES }
+];
 
-// function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
-// 	return new TPromise<void>((resolve, reject) => {
-// 		let engine = new TextSearchEngine(config, new FileWalker(config), textSearchWorkerProvider);
+const textSearchWorkerProvider = new TextSearchWorkerProvider();
 
-// 		let c = 0;
-// 		engine.search((result) => {
-// 			if (result) {
-// 				c += countAll(result);
-// 			}
-// 		}, () => { }, (error) => {
-// 			try {
-// 				assert.ok(!error);
-// 				if (typeof expectedResultCount === 'function') {
-// 					assert(expectedResultCount(c));
-// 				} else {
-// 					assert.equal(c, expectedResultCount);
-// 				}
-// 			} catch (e) {
-// 				reject(e);
-// 			}
+function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
+	return new TPromise<void>((resolve, reject) => {
+		let engine = new TextSearchEngine(config, new FileWalker(config), textSearchWorkerProvider);
 
-// 			resolve(undefined);
-// 		});
-// 	});
-// }
+		let c = 0;
+		engine.search((result) => {
+			if (result) {
+				c += countAll(result);
+			}
+		}, () => { }, (error) => {
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
+			}
 
-// function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
-// 	return new TPromise<void>((resolve, reject) => {
-// 		let engine = new RipgrepEngine(config);
+			resolve(undefined);
+		});
+	});
+}
 
-// 		let c = 0;
-// 		engine.search((result) => {
-// 			if (result) {
-// 				c += result.numMatches;
-// 			}
-// 		}, () => { }, (error) => {
-// 			try {
-// 				assert.ok(!error);
-// 				if (typeof expectedResultCount === 'function') {
-// 					assert(expectedResultCount(c));
-// 				} else {
-// 					assert.equal(c, expectedResultCount);
-// 				}
-// 			} catch (e) {
-// 				reject(e);
-// 			}
+function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
+	return new TPromise<void>((resolve, reject) => {
+		let engine = new RipgrepEngine(config);
 
-// 			resolve(undefined);
-// 		});
-// 	});
-// }
+		let c = 0;
+		engine.search((result) => {
+			if (result) {
+				c += result.numMatches;
+			}
+		}, () => { }, (error) => {
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
+			}
 
-// function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
-// 	return doLegacySearchTest(config, expectedResultCount)
-// 		.then(() => doRipgrepSearchTest(config, expectedResultCount))
-// 		.then(done, done);
-// }
+			resolve(undefined);
+		});
+	});
+}
 
-// suite('Search-integration', () => {
-// 	test('Text: GameOfLife', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
+	return doLegacySearchTest(config, expectedResultCount)
+		.then(() => doRipgrepSearchTest(config, expectedResultCount))
+		.then(done, done);
+}
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: 'GameOfLife', modifiers: 'i' },
-// 		};
+suite('Search-integration', function () {
+	this.timeout(1000 * 60); // increase timeout for this suite
 
-// 		doSearchTest(config, 4, done);
-// 	});
+	test('Text: GameOfLife', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'GameOfLife' },
+		};
 
-// 	test('Text: GameOfLife (RegExp)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 4, done);
+	});
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
-// 		};
+	test('Text: GameOfLife (RegExp)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'Game.?fL\\w?fe', isRegExp: true }
+		};
 
-// 		doSearchTest(config, 4, done);
-// 	});
+		doSearchTest(config, 4, done);
+	});
 
-// 	test('Text: GameOfLife (RegExp to EOL)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Text: GameOfLife (RegExp to EOL)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
+		};
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
-// 		};
+		doSearchTest(config, 4, done);
+	});
 
-// 		doSearchTest(config, 4, done);
-// 	});
+	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
+		};
 
-// 	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 4, done);
+	});
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: 'GameOfLife', isWordMatch: true, isCaseSensitive: true }
-// 		};
+	test('Text: GameOfLife (Word Match, Spaces)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
+		};
 
-// 		doSearchTest(config, 4, done);
-// 	});
+		doSearchTest(config, 1, done);
+	});
 
-// 	test('Text: GameOfLife (Word Match, Spaces)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: ', as =', isWordMatch: true }
+		};
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
-// 		};
+		doSearchTest(config, 1, done);
+	});
 
-// 		doSearchTest(config, 1, done);
-// 	});
+	test('Text: Helvetica (UTF 16)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'Helvetica' }
+		};
 
-// 	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 3, done);
+	});
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.js',
-// 			contentPattern: { pattern: ', as =', isWordMatch: true }
-// 		};
+	test('Text: e', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' }
+		};
 
-// 		doSearchTest(config, 1, done);
-// 	});
+		doSearchTest(config, 776, done);
+	});
 
-// 	test('Text: Helvetica (UTF 16)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Text: e (with excludes)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: { '**/examples': true }
+		};
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.css',
-// 			contentPattern: { pattern: 'Helvetica', modifiers: 'i' }
-// 		};
+		doSearchTest(config, 394, done);
+	});
 
-// 		doSearchTest(config, 3, done);
-// 	});
+	test('Text: e (with includes)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: { '**/examples/**': true }
+		};
 
-// 	test('Text: e', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 382, done);
+	});
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'e', modifiers: 'i' }
-// 		};
+	test('Text: e (with includes and exclude)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: { '**/examples/**': true },
+			excludePattern: { '**/examples/small.js': true }
+		};
 
-// 		doSearchTest(config, 776, done);
-// 	});
+		doSearchTest(config, 361, done);
+	});
 
-// 	test('Text: e (with excludes)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Text: a (capped)', function (done: () => void) {
+		const maxResults = 520;
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'a' },
+			maxResults
+		};
 
-// 		let config: any = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'e', modifiers: 'i' },
-// 			excludePattern: { '**/examples': true }
-// 		};
+		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
+		// But the worst-case scenario should be 2*max-1
+		return doLegacySearchTest(config, count => count < maxResults * 2)
+			.then(() => doRipgrepSearchTest(config, maxResults))
+			.then(done, done);
+	});
 
-// 		doSearchTest(config, 394, done);
-// 	});
+	test('Text: a (no results)', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'ahsogehtdas' }
+		};
 
-// 	test('Text: e (with includes)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 0, done);
+	});
 
-// 		let config: any = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'e', modifiers: 'i' },
-// 			includePattern: { '**/examples/**': true }
-// 		};
+	test('Text: -size', function (done: () => void) {
+		const config = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: '-size' }
+		};
 
-// 		doSearchTest(config, 382, done);
-// 	});
+		doSearchTest(config, 9, done);
+	});
 
-// 	test('Text: e (with includes and exclude)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Multiroot: Conway', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: MULTIROOT_QUERIES,
+			contentPattern: { pattern: 'conway' }
+		};
 
-// 		let config: any = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'e', modifiers: 'i' },
-// 			includePattern: { '**/examples/**': true },
-// 			excludePattern: { '**/examples/small.js': true }
-// 		};
+		doSearchTest(config, 8, done);
+	});
 
-// 		doSearchTest(config, 361, done);
-// 	});
+	test('Multiroot: e with partial global exclude', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: MULTIROOT_QUERIES,
+			contentPattern: { pattern: 'e' },
+			excludePattern: makeExpression('**/*.txt')
+		};
 
-// 	test('Text: a (capped)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+		doSearchTest(config, 382, done);
+	});
 
-// 		const maxResults = 520;
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'a', modifiers: 'i' },
-// 			maxResults
-// 		};
+	test('Multiroot: e with global excludes', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: MULTIROOT_QUERIES,
+			contentPattern: { pattern: 'e' },
+			excludePattern: makeExpression('**/*.txt', '**/*.js')
+		};
 
-// 		// (Legacy) search can go over the maxResults because it doesn't trim the results from its worker processes to the exact max size.
-// 		// But the worst-case scenario should be 2*max-1
-// 		return doLegacySearchTest(config, count => count < maxResults * 2)
-// 			.then(() => doRipgrepSearchTest(config, maxResults))
-// 			.then(done, done);
-// 	});
+		doSearchTest(config, 0, done);
+	});
 
-// 	test('Text: a (no results)', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
+	test('Multiroot: e with folder exclude', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: [
+				{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
+				{ folder: MORE_FIXTURES }
+			],
+			contentPattern: { pattern: 'e' }
+		};
 
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.*',
-// 			contentPattern: { pattern: 'ahsogehtdas', modifiers: 'i' }
-// 		};
+		doSearchTest(config, 286, done);
+	});
+});
 
-// 		doSearchTest(config, 0, done);
-// 	});
-
-// 	test('Text: -size', function (done: () => void) {
-// 		this.timeout(1000 * 60); // increase timeout for this one test
-
-// 		let config = {
-// 			folderQueries: rootFolderQueries(),
-// 			filePattern: '*.css',
-// 			contentPattern: { pattern: '-size', modifiers: 'i' }
-// 		};
-
-// 		doSearchTest(config, 9, done);
-// 	});
-// });
+function makeExpression(...patterns: string[]): glob.IExpression {
+	return patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
+}

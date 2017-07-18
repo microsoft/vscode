@@ -12,7 +12,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
-import { SnippetParser, walk, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 import emmet = require('emmet');
 
@@ -114,11 +114,11 @@ export class EditorAccessor implements emmet.Editor {
 		// string to string conversion that tries to fix the
 		// snippet in-place
 
-		let marker = new SnippetParser().parse(template);
+		let snippet = new SnippetParser().parse(template);
 		let maxIndex = -Number.MIN_VALUE;
 
 		// find highest placeholder index
-		walk(marker, candidate => {
+		snippet.walk(candidate => {
 			if (candidate instanceof Placeholder) {
 				let index = candidate.index;
 				if (index > maxIndex) {
@@ -129,7 +129,7 @@ export class EditorAccessor implements emmet.Editor {
 		});
 
 		// rewrite final tabstops
-		walk(marker, candidate => {
+		snippet.walk(candidate => {
 			if (candidate instanceof Placeholder) {
 				if (candidate.isFinalTabstop) {
 					candidate.index = ++maxIndex;
@@ -159,7 +159,7 @@ export class EditorAccessor implements emmet.Editor {
 				throw new Error('unexpected marker: ' + marker);
 			}
 		}
-		return marker.map(toSnippetString).join('');
+		return snippet.children.map(toSnippetString).join('');
 	}
 
 	public getRangeToReplace(value: string, start: number, end: number): Range {

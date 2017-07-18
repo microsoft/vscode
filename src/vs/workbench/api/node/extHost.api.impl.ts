@@ -470,6 +470,9 @@ export function createApiFactory(
 			startDebugSession(config: vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugSession(config);
 			},
+			onDidStartDebugSession(listener, thisArg?, disposables?) {
+				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
+			},
 			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
 			},
@@ -528,7 +531,7 @@ export function createApiFactory(
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
-			Uri: URI,
+			Uri: extHostTypes.Uri,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,

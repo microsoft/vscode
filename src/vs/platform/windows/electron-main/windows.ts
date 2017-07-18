@@ -6,10 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
@@ -57,12 +56,14 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	newWorkspace(win?: ICodeWindow): void;
+	openWorkspace(win?: ICodeWindow): void;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
+	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowClose(windowId: number): TPromise<void>;

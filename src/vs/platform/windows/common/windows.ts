@@ -16,6 +16,16 @@ import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
+export interface INativeOpenDialogOptions {
+	windowId?: number;
+	forceNewWindow?: boolean;
+
+	dialogOptions?: Electron.OpenDialogOptions;
+
+	telemetryEventName?: string;
+	telemetryExtraData?: ITelemetryData;
+}
+
 export interface IWindowsService {
 
 	_serviceBrand: any;
@@ -23,13 +33,15 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
+	openWorkspace(windowId: number): TPromise<void>;
+	newWorkspace(windowId: number): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: string[]): TPromise<void>;
@@ -58,8 +70,6 @@ export interface IWindowsService {
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
-	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
 
 	// This needs to be handled from browser process to prevent
@@ -77,13 +87,15 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	getCurrentWindowId(): number;
-	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void>;
-	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
+	openWorkspace(): TPromise<void>;
+	newWorkspace(): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;

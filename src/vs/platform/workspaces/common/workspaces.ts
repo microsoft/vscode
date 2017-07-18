@@ -13,7 +13,7 @@ import { basename, dirname, join } from "vs/base/common/paths";
 import { isLinux } from "vs/base/common/platform";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
 import Event from 'vs/base/common/event';
-import { tildify } from "vs/base/common/labels";
+import { tildify, getPathLabel } from "vs/base/common/labels";
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -47,10 +47,10 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
 	onWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	resolveWorkspaceSync(path: string): IWorkspaceIdentifier;
+	resolveWorkspaceSync(path: string): IStoredWorkspace;
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void;
+	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 }
 
 export interface IWorkspacesService {
@@ -76,10 +76,10 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	const filename = basename(workspace.configPath);
 	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", join(tildify(dirname(workspace.configPath), environmentService.userHome), workspaceName));
+		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), null, environmentService));
 	}
 
-	return localize('workspaceName', "{0} - Workspace", workspaceName);
+	return localize('workspaceName', "{0} (Workspace)", workspaceName);
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {

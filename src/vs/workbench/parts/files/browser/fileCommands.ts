@@ -54,7 +54,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 
-	windowService.pickFolderAndOpen(forceNewWindow);
+	windowService.pickFolderAndOpen({ forceNewWindow });
 };
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
@@ -68,7 +68,7 @@ export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
 
 	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-	windowService.pickFileAndOpen(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
 };
 
 export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {

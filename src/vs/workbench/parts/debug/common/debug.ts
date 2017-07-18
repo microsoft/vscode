@@ -23,6 +23,7 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
+export const CONTEXT_IS_NODE_DEBUG_TYPE = new RawContextKey<boolean>('_isNodeDebugType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', undefined);
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -330,6 +331,7 @@ export interface IEnvConfig {
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
 	__restart?: any;
+	__sessionId?: string;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;
@@ -439,6 +441,11 @@ export interface IDebugService {
 	 * Allows to register on debug state changes.
 	 */
 	onDidChangeState: Event<State>;
+
+	/**
+	 * Allows to register on new process events.
+	 */
+	onDidNewProcess: Event<IProcess>;
 
 	/**
 	 * Allows to register on end process events.

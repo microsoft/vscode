@@ -726,8 +726,8 @@ export class ExplorerView extends CollapsibleView {
 		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		} else if (this.contextService.hasFolderWorkspace()) {
-			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace
+		} else if (this.contextService.hasFolderWorkspace() || (this.contextService.hasMultiFolderWorkspace() && this.model.roots.length === 1)) {
+			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace and multi folder workspace with only 1 root
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session

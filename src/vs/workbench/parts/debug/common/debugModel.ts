@@ -366,7 +366,7 @@ export class StackFrame implements IStackFrame {
 
 			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
 				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
-			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
+			return scopesContainingRange.length ? scopesContainingRange : scopes;
 		});
 	}
 
