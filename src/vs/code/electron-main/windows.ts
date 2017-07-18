@@ -32,6 +32,7 @@ import { TPromise } from "vs/base/common/winjs.base";
 import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 import { mnemonicButtonLabel } from "vs/base/common/labels";
+import URI from "vs/base/common/uri";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -285,7 +286,7 @@ export class WindowsManager implements IWindowsMainService {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
-					defaultPath: path.dirname(resolvedWorkspace.folders[0]) // pick the parent of the first root by default
+					defaultPath: path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath) // pick the parent of the first root by default
 				});
 
 				if (target) {
@@ -516,12 +517,34 @@ export class WindowsManager implements IWindowsMainService {
 				reuseWindow: openConfig.forceReuseWindow,
 				context: openConfig.context,
 				filePath: fileToCheck && fileToCheck.filePath,
-				userHome: this.environmentService.userHome
+				userHome: this.environmentService.userHome,
+				workspaceResolver: workspace => this.workspacesService.resolveWorkspaceSync(workspace.configPath)
 			});
 
-			// We found a suitable window to open the files within: send the files to open over
-			if (bestWindowOrFolder instanceof CodeWindow && bestWindowOrFolder.openedFolderPath) {
-				foldersToOpen.push(bestWindowOrFolder.openedFolderPath);
+			// We found a window to open the files in
+			if (bestWindowOrFolder instanceof CodeWindow) {
+
+				// Window is workspace
+				if (bestWindowOrFolder.openedWorkspace) {
+					workspacesToOpen.push(bestWindowOrFolder.openedWorkspace);
+				}
+
+				// Window is single folder
+				else if (bestWindowOrFolder.openedFolderPath) {
+					foldersToOpen.push(bestWindowOrFolder.openedFolderPath);
+				}
+
+				// Window is empty
+				else {
+
+					// Do open files
+					usedWindows.push(this.doOpenFilesInExistingWindow(bestWindowOrFolder, filesToOpen, filesToCreate, filesToDiff));
+
+					// Reset these because we handled them
+					filesToOpen = [];
+					filesToCreate = [];
+					filesToDiff = [];
+				}
 			}
 
 			// We found a suitable folder to open: add it to foldersToOpen
