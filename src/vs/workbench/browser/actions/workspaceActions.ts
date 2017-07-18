@@ -111,10 +111,10 @@ export abstract class BaseWorkspacesAction extends Action {
 	}
 }
 
-export class NewWorkspaceAction extends BaseWorkspacesAction {
+export class NewWorkspaceFromExistingAction extends BaseWorkspacesAction {
 
-	static ID = 'workbench.action.newWorkspace';
-	static LABEL = nls.localize('newWorkspace', "New Workspace...");
+	static ID = 'workbench.action.newWorkspaceFromExisting';
+	static LABEL = nls.localize('newWorkspaceFormExisting', "New Workspace From Existing...");
 
 	constructor(
 		id: string,
@@ -131,32 +131,17 @@ export class NewWorkspaceAction extends BaseWorkspacesAction {
 	public run(): TPromise<any> {
 		let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
 		if (folders && folders.length) {
-			return this.createWorkspace(folders.map(folder => URI.file(folder)));
-		}
-
-		return TPromise.as(null);
-	}
-
-	protected createWorkspace(folders: URI[]): TPromise<void> {
-		return this.workspacesService.createWorkspace(distinct(folders.map(folder => folder.toString(true /* encoding */))))
-			.then(({ configPath }) => this.windowsService.openWindow([configPath]));
-	}
-}
-
-export class NewWorkspaceFromExistingAction extends NewWorkspaceAction {
-
-	static ID = 'workbench.action.newWorkspaceFromExisting';
-	static LABEL = nls.localize('newWorkspaceFormExisting', "New Workspace From Existing...");
-
-	public run(): TPromise<any> {
-		let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
-		if (folders && folders.length) {
 			if (this.contextService.hasWorkspace()) {
 				return this.createWorkspace([this.contextService.getWorkspace().roots[0], ...folders.map(folder => URI.file(folder))]);
 			}
 		}
 
 		return TPromise.as(null);
+	}
+
+	private createWorkspace(folders: URI[]): TPromise<void> {
+		return this.workspacesService.createWorkspace(distinct(folders.map(folder => folder.toString(true /* encoding */))))
+			.then(({ configPath }) => this.windowsService.openWindow([configPath]));
 	}
 }
 
@@ -316,5 +301,24 @@ export class OpenWorkspaceAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.windowService.openWorkspace();
+	}
+}
+
+export class NewWorkspaceAction extends Action {
+
+	static ID = 'workbench.action.newWorkspace';
+	static LABEL = nls.localize('newWorkspace', "New Workspace...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.windowService.newWorkspace();
 	}
 }

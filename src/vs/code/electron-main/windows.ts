@@ -29,7 +29,7 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } fr
 import { IHistoryMainService } from "vs/platform/history/common/history";
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 import { mnemonicButtonLabel } from "vs/base/common/labels";
 import URI from "vs/base/common/uri";
@@ -210,110 +210,6 @@ export class WindowsManager implements IWindowsMainService {
 		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
 	}
 
-	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
-		const windowClosing = e.reason === UnloadReason.CLOSE;
-		const windowLoading = e.reason === UnloadReason.LOAD;
-		if (!windowClosing && !windowLoading) {
-			return; // only interested when window is closing or loading
-		}
-
-		const workspace = e.window.openedWorkspace;
-		if (!workspace || !this.workspacesService.isUntitledWorkspace(workspace)) {
-			return; // only care about untitled workspaces to ask for saving
-		}
-
-		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
-			return; // Windows/Linux: quits when last window is closed, so do not ask then
-		}
-
-		this.promptToSaveUntitledWorkspace(e, workspace);
-	}
-
-	private promptToSaveUntitledWorkspace(e: IWindowUnloadEvent, workspace: IWorkspaceIdentifier): void {
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
-		}
-
-		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
-		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
-
-		const buttons: { label: string; result: ConfirmResult; }[] = [];
-		if (isWindows) {
-			buttons.push(save, dontSave, cancel);
-		} else if (isLinux) {
-			buttons.push(dontSave, cancel, save);
-		} else {
-			buttons.push(save, cancel, dontSave);
-		}
-
-		const options: Electron.ShowMessageBoxOptions = {
-			title: this.environmentService.appNameLong,
-			message: localize('saveWorkspaceMessage', "Do you want to save the workspace opened in this window?"),
-			detail: localize('saveWorkspaceDetail', "Your workspace will be deleted if you don't save it."),
-			noLink: true,
-			type: 'warning',
-			buttons: buttons.map(button => button.label),
-			cancelId: buttons.indexOf(cancel)
-		};
-
-		if (isLinux) {
-			options.defaultId = 2;
-		}
-
-		const res = dialog.showMessageBox(e.window.win, options);
-
-		switch (buttons[res].result) {
-
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				e.veto(true);
-				break;
-
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				this.workspacesService.deleteUntitledWorkspaceSync(workspace);
-				e.veto(false);
-				break;
-
-			// Save: save workspace, but do not veto unload
-			case ConfirmResult.SAVE: {
-				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
-				let defaultPath: string;
-				if (resolvedWorkspace) {
-					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
-				}
-
-				const target = dialog.showSaveDialog(e.window.win, {
-					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
-					title: localize('saveWorkspace', "Save Workspace"),
-					filters: WORKSPACE_FILTER,
-					defaultPath
-				});
-
-				if (target) {
-					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
-				} else {
-					e.veto(true); // keep veto if no target was provided
-				}
-			}
-		}
-	}
-
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// A workspace was saved to a different config location. Make sure to update our
-		// window states with this new location.
-		const states = [this.lastClosedWindowState, this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
-		states.forEach(state => {
-			if (state && state.workspace && state.workspace.id === e.workspace.id && state.workspace.configPath !== e.workspace.configPath) {
-				state.workspace.configPath = e.workspace.configPath;
-			}
-		});
-	}
-
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
 	//          the onBeforeQuit() event followed by N onbeforeWindowClose() events for each window
@@ -400,41 +296,6 @@ export class WindowsManager implements IWindowsMainService {
 			backupPath: win.backupPath,
 			uiState: win.serializeWindowState()
 		};
-	}
-
-	public closeWorkspace(win: CodeWindow): void {
-		this.openInBrowserWindow({
-			cli: this.environmentService.args,
-			windowToUse: win
-		});
-	}
-
-	public openWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
-
-		// Pick a good default path based on window workspace if we have one
-		let defaultPath: string;
-		if (window) {
-			if (window.openedFolderPath) {
-				defaultPath = path.dirname(window.openedFolderPath);
-			} else if (window.openedWorkspace) {
-				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(window.openedWorkspace.configPath);
-				if (resolvedWorkspace) {
-					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
-				}
-			}
-		}
-
-		// Pick workspace and open
-		this.pickFileAndOpen({
-			windowId: window ? window.id : void 0,
-			dialogOptions: {
-				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
-				title: localize('openWorkspaceTitle', "Open Workspace"),
-				filters: WORKSPACE_FILTER,
-				properties: ['openFile'],
-				defaultPath
-			}
-		});
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
@@ -1307,6 +1168,162 @@ export class WindowsManager implements IWindowsMainService {
 
 				// Emit
 				this._onWindowReload.fire(win.id);
+			}
+		});
+	}
+
+	public closeWorkspace(win: CodeWindow): void {
+		this.openInBrowserWindow({
+			cli: this.environmentService.args,
+			windowToUse: win
+		});
+	}
+
+	public newWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
+		const folders = dialog.showOpenDialog(window ? window.win : void 0, {
+			buttonLabel: mnemonicButtonLabel(localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")),
+			title: localize('selectWorkspace', "Select Folders for Workspace"),
+			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
+			defaultPath: this.getWorkspaceDialogDefaultPath(window ? (window.openedWorkspace || window.openedFolderPath) : void 0)
+		});
+
+		if (folders && folders.length) {
+			this.workspacesService.createWorkspace(folders.map(folder => URI.file(folder).toString(true /* encoding */))).then(workspace => {
+				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: [workspace.configPath] });
+			});
+		}
+	}
+
+	public openWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
+		let defaultPath: string;
+		if (window && window.openedWorkspace && !this.workspacesService.isUntitledWorkspace(window.openedWorkspace)) {
+			defaultPath = path.dirname(window.openedWorkspace.configPath);
+		} else {
+			defaultPath = this.getWorkspaceDialogDefaultPath(window ? (window.openedWorkspace || window.openedFolderPath) : void 0);
+		}
+
+		this.pickFileAndOpen({
+			windowId: window ? window.id : void 0,
+			dialogOptions: {
+				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
+				title: localize('openWorkspaceTitle', "Open Workspace"),
+				filters: WORKSPACE_FILTER,
+				properties: ['openFile'],
+				defaultPath
+			}
+		});
+	}
+
+	private getWorkspaceDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+		let defaultPath: string;
+		if (workspace) {
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				defaultPath = path.dirname(workspace);
+			} else {
+				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
+				if (resolvedWorkspace) {
+					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
+				}
+			}
+		}
+
+		return defaultPath;
+	}
+
+	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
+		const windowClosing = e.reason === UnloadReason.CLOSE;
+		const windowLoading = e.reason === UnloadReason.LOAD;
+		if (!windowClosing && !windowLoading) {
+			return; // only interested when window is closing or loading
+		}
+
+		const workspace = e.window.openedWorkspace;
+		if (!workspace || !this.workspacesService.isUntitledWorkspace(workspace)) {
+			return; // only care about untitled workspaces to ask for saving
+		}
+
+		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
+			return; // Windows/Linux: quits when last window is closed, so do not ask then
+		}
+
+		this.promptToSaveUntitledWorkspace(e, workspace);
+	}
+
+	private promptToSaveUntitledWorkspace(e: IWindowUnloadEvent, workspace: IWorkspaceIdentifier): void {
+		enum ConfirmResult {
+			SAVE,
+			DONT_SAVE,
+			CANCEL
+		}
+
+		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
+
+		const buttons: { label: string; result: ConfirmResult; }[] = [];
+		if (isWindows) {
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
+		} else {
+			buttons.push(save, cancel, dontSave);
+		}
+
+		const options: Electron.ShowMessageBoxOptions = {
+			title: this.environmentService.appNameLong,
+			message: localize('saveWorkspaceMessage', "Do you want to save the workspace opened in this window?"),
+			detail: localize('saveWorkspaceDetail', "Your workspace will be deleted if you don't save it."),
+			noLink: true,
+			type: 'warning',
+			buttons: buttons.map(button => button.label),
+			cancelId: buttons.indexOf(cancel)
+		};
+
+		if (isLinux) {
+			options.defaultId = 2;
+		}
+
+		const res = dialog.showMessageBox(e.window.win, options);
+
+		switch (buttons[res].result) {
+
+			// Cancel: veto unload
+			case ConfirmResult.CANCEL:
+				e.veto(true);
+				break;
+
+			// Don't Save: delete workspace
+			case ConfirmResult.DONT_SAVE:
+				this.workspacesService.deleteUntitledWorkspaceSync(workspace);
+				e.veto(false);
+				break;
+
+			// Save: save workspace, but do not veto unload
+			case ConfirmResult.SAVE: {
+				const target = dialog.showSaveDialog(e.window.win, {
+					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+					title: localize('saveWorkspace', "Save Workspace"),
+					filters: WORKSPACE_FILTER,
+					defaultPath: this.getWorkspaceDialogDefaultPath(workspace)
+				});
+
+				if (target) {
+					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
+				} else {
+					e.veto(true); // keep veto if no target was provided
+				}
+			}
+		}
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// A workspace was saved to a different config location. Make sure to update our
+		// window states with this new location.
+		const states = [this.lastClosedWindowState, this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
+		states.forEach(state => {
+			if (state && state.workspace && state.workspace.id === e.workspace.id && state.workspace.configPath !== e.workspace.configPath) {
+				state.workspace.configPath = e.workspace.configPath;
 			}
 		});
 	}
