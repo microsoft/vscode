@@ -376,14 +376,14 @@ export class CallStackDataSource implements IDataSource {
 			if (callStack.length === 1) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
-				return callStack.concat(thread.getStaleCallStack().slice(1));
+				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
 			}
 
 			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+				callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
-				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+				callStack = callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 			}
 
 			return callStack;
