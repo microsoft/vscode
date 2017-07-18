@@ -17,6 +17,7 @@ import { copy, delSync } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
 import Event, { Emitter } from "vs/base/common/event";
 import { ILogService } from "vs/platform/log/common/log";
+import { isEqual } from "vs/base/common/paths";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -105,6 +106,13 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
+
+		// Return early if target is same as source
+		if (isEqual(workspace.configPath, target, !isLinux)) {
+			return TPromise.as(workspace);
+		}
+
+		// Copy to new target
 		return nfcall(copy, workspace.configPath, target).then(() => {
 			const savedWorkspace = this.resolveWorkspaceSync(target);
 

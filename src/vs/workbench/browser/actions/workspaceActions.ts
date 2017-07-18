@@ -22,6 +22,7 @@ import { IEnvironmentService } from "vs/platform/environment/common/environment"
 import { isLinux } from "vs/base/common/platform";
 import { dirname } from "vs/base/common/paths";
 import { mnemonicButtonLabel } from "vs/base/common/labels";
+import { isParent } from "vs/platform/files/common/files";
 
 export class OpenFolderAction extends Action {
 
@@ -278,12 +279,24 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	private getNewWorkspaceConfiPath(): string {
+		const workspace = this.contextService.getWorkspace();
+		let defaultPath: string;
+		if (this.contextService.hasMultiFolderWorkspace() && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
+			defaultPath = workspace.configuration.fsPath;
+		} else {
+			defaultPath = dirname(this.contextService.getWorkspace().roots[0].fsPath); // pick the parent of the first root by default
+		}
+
 		return this.windowService.showSaveDialog({
 			buttonLabel: nls.localize('save', "Save"),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultPath: dirname(this.contextService.getWorkspace().roots[0].fsPath) // pick the parent of the first root by default
+			defaultPath
 		});
+	}
+
+	private isUntitledWorkspace(path: string): boolean {
+		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 }
 
