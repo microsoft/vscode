@@ -180,6 +180,13 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (isMacintosh) {
+	workbenchProperties['workbench.fontAliasing'] = {
+		'type': 'string',
+		'enum': ['default', 'antialiased', 'none'],
+		'default': 'default',
+		'description': nls.localize('fontAliasing', "Controls font aliasing method in workbench.")
+	};
+
 	workbenchProperties['workbench.editor.swipeToNavigate'] = {
 		'type': 'boolean',
 		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),

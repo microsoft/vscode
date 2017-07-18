@@ -160,6 +160,8 @@ export class Workbench implements IPartService {
 
 	private static closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 
+	private static fontAliasingConfigurationKey = 'workbench.fontAliasing';
+
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
@@ -202,6 +204,7 @@ export class Workbench implements IPartService {
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
+	private fontAliasing: string;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -644,6 +647,9 @@ export class Workbench implements IPartService {
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
 
+		// Font aliasing
+		this.fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
+
 		// Zen mode
 		this.zenMode = {
 			active: false,
@@ -910,6 +916,11 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
+	private setFontAliasing(aliasing: string) {
+		this.fontAliasing = aliasing;
+		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
+	}
+
 	public dispose(): void {
 		if (this.isStarted()) {
 			this.shutdownComponents();
@@ -1037,6 +1048,11 @@ export class Workbench implements IPartService {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
+		const fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
+		if (fontAliasing !== this.fontAliasing) {
+			this.setFontAliasing(fontAliasing);
+		}
+
 		if (!this.zenMode.active) {
 			const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
 			if (newStatusbarHiddenValue !== this.statusBarHidden) {
@@ -1084,6 +1100,8 @@ export class Workbench implements IPartService {
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
 		}
+
+		this.setFontAliasing(this.fontAliasing);
 
 		// Apply title style if shown
 		const titleStyle = this.getCustomTitleBarStyle();
