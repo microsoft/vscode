@@ -233,8 +233,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget | URI): TPromise<EditorInput> {
 		const resource = this.getEditableSettingsURI(target);
-		return this.createSettingsIfNotExists(target)
-			.then(() => <EditorInput>this.editorService.createInput({ resource }));
+		if (resource) {
+			return this.createSettingsIfNotExists(target)
+				.then(() => <EditorInput>this.editorService.createInput({ resource }));
+		}
+		return TPromise.wrapError<EditorInput>(new Error('Unknown target ' + (target instanceof URI ? target.toString(false) : target.toString())));
 	}
 
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget): TPromise<SettingsEditorModel> {
