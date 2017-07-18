@@ -316,18 +316,14 @@ export class OpenWorkspaceAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const files = this.windowService.showOpenDialog({
-			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")),
-			title: nls.localize('openWorkspace', "Open Workspace"),
-			filters: WORKSPACE_FILTER,
-			properties: ['openFile'],
-			defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
+		return this.windowService.pickFileAndOpen({
+			dialogOptions: {
+				buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")),
+				title: nls.localize('openWorkspace', "Open Workspace"),
+				filters: WORKSPACE_FILTER,
+				properties: ['openFile'],
+				defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
+			}
 		});
-
-		if (!files || !files.length) {
-			return TPromise.as(null);
-		}
-
-		return this.windowsService.openWindow([files[0]]);
 	}
 }

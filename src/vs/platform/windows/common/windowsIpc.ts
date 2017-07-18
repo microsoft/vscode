@@ -65,9 +65,9 @@ export class WindowsChannel implements IWindowsChannel {
 		switch (command) {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
-			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg[0]);
-			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg[0]);
-			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg[0]);
+			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
+			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
+			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
