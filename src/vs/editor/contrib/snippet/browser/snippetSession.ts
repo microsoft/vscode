@@ -290,7 +290,9 @@ export class SnippetSession {
 			const start = snippetSelection.getStartPosition();
 			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate, enforceFinalTabstop).resolveVariables(new EditorSnippetVariableResolver(model, selection));
+			const snippet = new SnippetParser()
+				.parse(adjustedTemplate, true, enforceFinalTabstop)
+				.resolveVariables(new EditorSnippetVariableResolver(model, selection));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);

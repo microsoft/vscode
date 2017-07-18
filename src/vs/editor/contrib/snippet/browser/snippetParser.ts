@@ -245,7 +245,8 @@ export class Variable extends Marker {
 		return ret;
 	}
 }
-export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
+
+function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 	const stack = [...marker];
 	while (stack.length > 0) {
 		const marker = stack.shift();
@@ -270,7 +271,7 @@ export class TextmateSnippet extends Marker {
 		if (!this._placeholders) {
 			// fill in placeholders
 			this._placeholders = [];
-			walk(this.children, candidate => {
+			this.walk(candidate => {
 				if (candidate instanceof Placeholder) {
 					this.placeholders.push(candidate);
 				}
@@ -283,7 +284,7 @@ export class TextmateSnippet extends Marker {
 	offset(marker: Marker): number {
 		let pos = 0;
 		let found = false;
-		walk(this.children, candidate => {
+		this.walk(candidate => {
 			if (candidate === marker) {
 				found = true;
 				return false;
@@ -324,7 +325,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	resolveVariables(resolver: { resolve(name: string): string }): this {
-		walk(this.children, candidate => {
+		this.walk(candidate => {
 			if (candidate instanceof Variable) {
 				candidate.resolvedValue = resolver.resolve(candidate.name);
 				if (candidate.isDefined) {
@@ -349,6 +350,10 @@ export class TextmateSnippet extends Marker {
 	clone(): TextmateSnippet {
 		return new TextmateSnippet(this.children.map(child => child.clone()));
 	}
+
+	walk(visitor: (marker: Marker) => boolean): void {
+		walk(this.children, visitor);
+	}
 }
 
 export class SnippetParser {
@@ -357,20 +362,14 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
-	static parse(template: string, enforceFinalTabstop?: boolean): TextmateSnippet {
-		const marker = new SnippetParser().parse(template, true, enforceFinalTabstop);
-		return new TextmateSnippet(marker);
-	}
-
 	private _scanner = new Scanner();
 	private _token: Token;
 
-
 	text(value: string): string {
-		return Marker.toString(this.parse(value));
+		return this.parse(value).text;
 	}
 
-	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): Marker[] {
+	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
 		const marker: Marker[] = [];
 
 		this._scanner.text(value);
@@ -423,7 +422,7 @@ export class SnippetParser {
 			marker.push(new Placeholder(0, []));
 		}
 
-		return marker;
+		return new TextmateSnippet(marker);
 	}
 
 	private _accept(type: TokenType): boolean;
