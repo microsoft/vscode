@@ -9,13 +9,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
 import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
@@ -51,19 +50,20 @@ export class WindowsService implements IWindowsService, IDisposable {
 			.on(this.openExtensionForURI, this, this.disposables);
 	}
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.pickFileFolderAndOpen(forceNewWindow, data);
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileFolderAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.pickFileAndOpen(forceNewWindow, path, undefined, data);
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.pickFolderAndOpen(forceNewWindow, codeWindow, data);
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFolderAndOpen(options);
 
 		return TPromise.as(null);
 	}

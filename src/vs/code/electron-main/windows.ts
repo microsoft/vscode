@@ -19,11 +19,11 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
-import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEqual } from 'vs/base/common/paths';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService } from "vs/platform/history/common/history";
@@ -1418,16 +1418,49 @@ export class WindowsManager implements IWindowsMainService {
 		this._onWindowClose.fire(win.id);
 	}
 
-	public pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFolders: true, pickFiles: true, forceNewWindow }, 'openFileFolder', data);
+	public pickFileFolderAndOpen(options: INativeOpenDialogOptions): void {
+		this.doPickAndOpen(options, true /* pick folders */, true /* pick files */);
 	}
 
-	public pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFiles: true, forceNewWindow, path, window, title: localize('openFile', "Open File") }, 'openFile', data);
+	public pickFolderAndOpen(options: INativeOpenDialogOptions): void {
+		this.doPickAndOpen(options, true /* pick folders */, false /* pick files */);
 	}
 
-	public pickFolderAndOpen(forceNewWindow?: boolean, window?: CodeWindow, data?: ITelemetryData): void {
-		this.fileDialog.pickAndOpen({ pickFolders: true, forceNewWindow, window, title: localize('openFolder', "Open Folder") }, 'openFolder', data);
+	public pickFileAndOpen(options: INativeOpenDialogOptions): void {
+		this.doPickAndOpen(options, false /* pick folders */, true /* pick files */);
+	}
+
+	private doPickAndOpen(options: INativeOpenDialogOptions, pickFolders: boolean, pickFiles: boolean): void {
+		const internalOptions = options as IInternalNativeOpenDialogOptions;
+
+		internalOptions.pickFolders = pickFolders;
+		internalOptions.pickFiles = pickFiles;
+
+		if (!internalOptions.dialogOptions) {
+			internalOptions.dialogOptions = Object.create(null);
+		}
+
+		if (!internalOptions.dialogOptions.title) {
+			if (pickFolders && pickFiles) {
+				internalOptions.dialogOptions.title = localize('open', "Open");
+			} else if (pickFolders) {
+				internalOptions.dialogOptions.title = localize('openFolder', "Open Folder");
+			} else {
+				internalOptions.dialogOptions.title = localize('openFile', "Open File");
+			}
+		}
+
+		if (!internalOptions.telemetryEventName) {
+			if (pickFolders && pickFiles) {
+				internalOptions.telemetryEventName = 'openFileFolder';
+			} else if (pickFolders) {
+				internalOptions.telemetryEventName = 'openFolder';
+			} else {
+				internalOptions.telemetryEventName = 'openFile';
+			}
+		}
+
+		this.fileDialog.pickAndOpen(internalOptions);
 	}
 
 	public quit(): void {
@@ -1448,14 +1481,9 @@ export class WindowsManager implements IWindowsMainService {
 	}
 }
 
-interface INativeOpenDialogOptions {
-	title?: string;
+interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 	pickFolders?: boolean;
 	pickFiles?: boolean;
-	path?: string;
-	forceNewWindow?: boolean;
-	window?: CodeWindow;
-	buttonLabel?: string;
 }
 
 class FileDialog {
@@ -1470,47 +1498,64 @@ class FileDialog {
 	) {
 	}
 
-	public pickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
+	public pickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
-			const nOfPaths = paths ? paths.length : 0;
-			if (nOfPaths) {
+			const numberOfPaths = paths ? paths.length : 0;
+
+			// Telemetry
+			if (options.telemetryEventName) {
+				this.telemetryService.publicLog(options.telemetryEventName, {
+					...options.telemetryExtraData,
+					outcome: numberOfPaths ? 'success' : 'canceled',
+					numberOfPaths
+				});
+			}
+
+			// Open
+			if (numberOfPaths) {
 				this.windowsMainService.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
-			this.telemetryService.publicLog(eventName, {
-				...data,
-				outcome: nOfPaths ? 'success' : 'canceled',
-				nOfPaths
-			});
 		});
 	}
 
-	public getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		const workingDir = options.path || this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
-		const focussedWindow = options.window || this.windowsMainService.getFocusedWindow();
+	public getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 
-		let pickerProperties: ('openFile' | 'openDirectory' | 'multiSelections' | 'createDirectory')[];
-		if (options.pickFiles && options.pickFolders) {
-			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
-		} else {
-			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
+		// Ensure dialog options
+		if (!options.dialogOptions) {
+			options.dialogOptions = Object.create(null);
 		}
 
-		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
-			title: options && options.title ? options.title : void 0,
-			defaultPath: workingDir,
-			properties: pickerProperties,
-			buttonLabel: options && options.buttonLabel ? options.buttonLabel : void 0
-		}, paths => {
+		// Ensure defaultPath
+		if (!options.dialogOptions.defaultPath) {
+			options.dialogOptions.defaultPath = this.storageService.getItem<string>(FileDialog.workingDirPickerStorageKey);
+		}
+
+		// Ensure properties
+		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
+			options.dialogOptions.properties = void 0; // let it override based on the booleans
+
+			if (options.pickFiles && options.pickFolders) {
+				options.dialogOptions.properties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
+			}
+		}
+
+		if (!options.dialogOptions.properties) {
+			options.dialogOptions.properties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
+		}
+
+		// Show Dialog
+		const focussedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
+		dialog.showOpenDialog(focussedWindow && focussedWindow.win, options.dialogOptions, paths => {
 			if (paths && paths.length > 0) {
 
 				// Remember path in storage for next time
 				this.storageService.setItem(FileDialog.workingDirPickerStorageKey, path.dirname(paths[0]));
 
 				// Return
-				clb(paths);
-			} else {
-				clb(void (0));
+				return clb(paths);
 			}
+
+			return clb(void (0));
 		});
 	}
 }

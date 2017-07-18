@@ -38,7 +38,7 @@ export class OpenFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFolderAndOpen(undefined, data);
+		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data });
 	}
 }
 
@@ -56,7 +56,7 @@ export class OpenFileFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileFolderAndOpen(undefined, data);
+		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data });
 	}
 }
 
