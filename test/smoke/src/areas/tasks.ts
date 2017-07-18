@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../spectron/application';
+import { IntegratedTerminal } from "./integrated-terminal";
 
 export class Tasks {
 
-	private readonly outputViewSelector = 'div[id="workbench.panel.output"] .view-lines';
+	private readonly outputViewSelector = IntegratedTerminal.terminalRowsSelector;
 	private readonly workbenchPanelSelector = 'div[id="workbench.parts.panel"]';
 	private readonly problemsViewSelector = 'div[id="workbench.panel.markers"] .monaco-tree-row.expanded';
 
@@ -20,16 +21,18 @@ export class Tasks {
 		await this.spectron.wait(); // wait for build to finish
 
 		// Validate that it has finished
-		let inProgress = true, trial = 0;
-		while (inProgress && trial < 3) {
+		let trial = 0;
+		while (trial < 3) {
 			// Determine build status based on the statusbar indicator, don't continue until task has been terminated
-			const hidden = !!await this.spectron.client.getAttribute('.task-statusbar-item-progress', 'aria-hidden');
-			if (hidden) {
-				return Promise.resolve();
+			try {
+				return await this.spectron.client.getValue('.task-statusbar-item-progress.builder-hidden');
+			} catch (e) {
+				await this.spectron.wait();
+				trial++;
 			}
-			await this.spectron.wait();
-			trial++;
 		}
+
+		return Promise.reject('Could not determine if the task was terminated based on status bar progress spinner.');
 	}
 
 	public openProblemsView(): Promise<any> {
@@ -46,7 +49,9 @@ export class Tasks {
 		return false;
 	}
 
-	public selectOutputViewType(type: string): Promise<any> {
+	public async selectOutputViewType(type: string): Promise<any> {
+		await this.openOutputView();
+
 		try {
 			return this.spectron.client.selectByValue(`${this.workbenchPanelSelector} .select-box`, type);
 		} catch (e) {
@@ -71,6 +76,14 @@ export class Tasks {
 			return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .monaco-count-badge`);
 		} catch (e) {
 			return Promise.reject('Failed to get problem count from Problems view: ' + e);
+		}
+	}
+
+	private openOutputView(): Promise<any> {
+		try {
+			return this.spectron.command('workbench.action.output.toggleOutput');
+		} catch (e) {
+			return Promise.reject('Failed to toggle output view');
 		}
 	}
 }

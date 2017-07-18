@@ -91,6 +91,7 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!build/**/*.init',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'
@@ -98,6 +99,7 @@ const copyrightFilter = [
 
 const eslintFilter = [
 	'src/**/*.js',
+	'build/gulpfile.*.js',
 	'!src/vs/loader.js',
 	'!src/vs/css.js',
 	'!src/vs/nls.js',

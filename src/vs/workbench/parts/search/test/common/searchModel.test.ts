@@ -142,7 +142,7 @@ suite('SearchModel', () => {
 		assert.ok(target.calledOnce);
 		const data = target.args[0];
 		data[1].duration = -1;
-		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2, options: {}, duration: -1 }], data);
+		assert.deepEqual(['searchResultsShown', { count: 3, fileCount: 2, options: {}, duration: -1, useRipgrep: undefined }], data);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', function (done) {

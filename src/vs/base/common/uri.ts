@@ -59,60 +59,48 @@ export default class URI {
 	private static _driveLetterPath = /^\/[a-zA-z]:/;
 	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
 
-	private _scheme: string;
-	private _authority: string;
-	private _path: string;
-	private _query: string;
-	private _fragment: string;
-	private _formatted: string;
-	private _fsPath: string;
-
-	protected constructor() {
-		this._scheme = URI._empty;
-		this._authority = URI._empty;
-		this._path = URI._empty;
-		this._query = URI._empty;
-		this._fragment = URI._empty;
-
-		this._formatted = null;
-		this._fsPath = null;
-	}
-
 	/**
 	 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
 	 * The part before the first colon.
 	 */
-	get scheme() {
-		return this._scheme;
-	}
+	readonly scheme: string;
 
 	/**
 	 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
 	 * The part between the first double slashes and the next slash.
 	 */
-	get authority() {
-		return this._authority;
-	}
+	readonly authority: string;
 
 	/**
 	 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
 	 */
-	get path() {
-		return this._path;
-	}
+	readonly path: string;
 
 	/**
 	 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
 	 */
-	get query() {
-		return this._query;
-	}
+	readonly query: string;
 
 	/**
 	 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
 	 */
-	get fragment() {
-		return this._fragment;
+	readonly fragment: string;
+
+	private _formatted: string = null;
+	private _fsPath: string = null;
+
+	/**
+	 * @internal
+	 */
+	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
+
+		this.scheme = scheme || URI._empty;
+		this.authority = authority || URI._empty;
+		this.path = path || URI._empty;
+		this.query = query || URI._empty;
+		this.fragment = fragment || URI._empty;
+
+		this._validate(this);
 	}
 
 	// ---- filesystem path -----------------------
@@ -123,18 +111,18 @@ export default class URI {
 	 * uses the platform specific path separator. Will *not* validate the path for
 	 * invalid characters and semantics. Will *not* look at the scheme of this URI.
 	 */
-	get fsPath() {
+	get fsPath(): string {
 		if (!this._fsPath) {
-			var value: string;
-			if (this._authority && this._path && this.scheme === 'file') {
+			let value: string;
+			if (this.authority && this.path && this.scheme === 'file') {
 				// unc path: file://shares/c$/far/boo
-				value = `//${this._authority}${this._path}`;
-			} else if (URI._driveLetterPath.test(this._path)) {
+				value = `//${this.authority}${this.path}`;
+			} else if (URI._driveLetterPath.test(this.path)) {
 				// windows drive letter: file:///c:/far/boo
-				value = this._path[1].toLowerCase() + this._path.substr(2);
+				value = this.path[1].toLowerCase() + this.path.substr(2);
 			} else {
 				// other path
-				value = this._path;
+				value = this.path;
 			}
 			if (platform.isWindows) {
 				value = value.replace(/\//g, '\\');
@@ -188,37 +176,31 @@ export default class URI {
 			return this;
 		}
 
-		const ret = new URI();
-		ret._scheme = scheme;
-		ret._authority = authority;
-		ret._path = path;
-		ret._query = query;
-		ret._fragment = fragment;
-		URI._validate(ret);
-		return ret;
+		return new URI(scheme, authority, path, query, fragment);
 	}
 
 	// ---- parse & validate ------------------------
 
 	public static parse(value: string): URI {
-		const ret = new URI();
-		const data = URI._parseComponents(value);
-		ret._scheme = data.scheme;
-		ret._authority = decodeURIComponent(data.authority);
-		ret._path = decodeURIComponent(data.path);
-		ret._query = decodeURIComponent(data.query);
-		ret._fragment = decodeURIComponent(data.fragment);
-		URI._validate(ret);
-		return ret;
+		const match = URI._regexp.exec(value);
+		if (!match) {
+			return new URI(URI._empty, URI._empty, URI._empty, URI._empty, URI._empty);
+		}
+		return new URI(
+			match[2] || URI._empty,
+			decodeURIComponent(match[4] || URI._empty),
+			decodeURIComponent(match[5] || URI._empty),
+			decodeURIComponent(match[7] || URI._empty),
+			decodeURIComponent(match[9] || URI._empty),
+		);
 	}
 
 	public static file(path: string): URI {
 
-		const ret = new URI();
-		ret._scheme = 'file';
+		let authority = URI._empty;
 
 		// normalize to fwd-slashes on windows,
-		// on other systems bwd-slaches are valid
+		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
 		if (platform.isWindows) {
 			path = path.replace(/\\/g, URI._slash);
@@ -229,56 +211,38 @@ export default class URI {
 		if (path[0] === URI._slash && path[0] === path[1]) {
 			let idx = path.indexOf(URI._slash, 2);
 			if (idx === -1) {
-				ret._authority = path.substring(2);
+				authority = path.substring(2);
+				path = URI._empty;
 			} else {
-				ret._authority = path.substring(2, idx);
-				ret._path = path.substring(idx);
+				authority = path.substring(2, idx);
+				path = path.substring(idx);
 			}
-		} else {
-			ret._path = path;
 		}
 
 		// Ensure that path starts with a slash
 		// or that it is at least a slash
-		if (ret._path[0] !== URI._slash) {
-			ret._path = URI._slash + ret._path;
+		if (path[0] !== URI._slash) {
+			path = URI._slash + path;
 		}
 
-		URI._validate(ret);
-
-		return ret;
-	}
-
-	private static _parseComponents(value: string): UriComponents {
-
-		const ret: UriComponents = {
-			scheme: URI._empty,
-			authority: URI._empty,
-			path: URI._empty,
-			query: URI._empty,
-			fragment: URI._empty,
-		};
-
-		const match = URI._regexp.exec(value);
-		if (match) {
-			ret.scheme = match[2] || ret.scheme;
-			ret.authority = match[4] || ret.authority;
-			ret.path = match[5] || ret.path;
-			ret.query = match[7] || ret.query;
-			ret.fragment = match[9] || ret.fragment;
-		}
-		return ret;
+		return new URI('file', authority, path, URI._empty, URI._empty);
 	}
 
 	public static from(components: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new URI().with(components);
+		return new URI(
+			components.scheme,
+			components.authority,
+			components.path,
+			components.query,
+			components.fragment,
+		);
 	}
 
 	private static _schemePattern = /^\w[\w\d+.-]*$/;
 	private static _singleSlashStart = /^\//;
 	private static _doubleSlashStart = /^\/\//;
 
-	private static _validate(ret: URI): void {
+	private _validate(ret: URI): void {
 		// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 		// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 		if (ret.scheme && !URI._schemePattern.test(ret.scheme)) {
@@ -412,15 +376,15 @@ export default class URI {
 	}
 
 	static revive(data: any): URI {
-		let result = new URI();
-		result._scheme = (<UriState>data).scheme || URI._empty;
-		result._authority = (<UriState>data).authority || URI._empty;
-		result._path = (<UriState>data).path || URI._empty;
-		result._query = (<UriState>data).query || URI._empty;
-		result._fragment = (<UriState>data).fragment || URI._empty;
+		let result = new URI(
+			(<UriState>data).scheme,
+			(<UriState>data).authority,
+			(<UriState>data).path,
+			(<UriState>data).query,
+			(<UriState>data).fragment
+		);
 		result._fsPath = (<UriState>data).fsPath;
 		result._formatted = (<UriState>data).external;
-		URI._validate(result);
 		return result;
 	}
 }

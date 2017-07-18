@@ -152,7 +152,7 @@ export class WorkspaceStats {
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
 		tags['workspace.empty'] = !workspace;
 
@@ -332,7 +332,7 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		const uris = workspace && workspace.roots;
 		if (uris && uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);

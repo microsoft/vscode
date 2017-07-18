@@ -26,17 +26,16 @@ export interface ISearchService {
 	clearCache(cacheKey: string): TPromise<void>;
 }
 
-export interface IFolderQueryOptions {
+export interface IFolderQuery {
 	folder: uri;
 	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	fileEncoding?: string;
 }
 
-export interface IQueryOptions {
+export interface ICommonQueryOptions {
 	extraFileResources?: uri[];
-	filePattern?: string;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
 	sortByScore?: boolean;
@@ -44,13 +43,20 @@ export interface IQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
-	searchPaths?: string[];
 }
 
-export interface ISearchQuery extends IQueryOptions {
+export interface IQueryOptions extends ICommonQueryOptions {
+	excludePattern?: string;
+	includePattern?: string;
+}
+
+export interface ISearchQuery extends ICommonQueryOptions {
 	type: QueryType;
+
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
-	folderQueries?: IFolderQueryOptions[];
+	folderQueries?: IFolderQuery[];
 }
 
 export enum QueryType {

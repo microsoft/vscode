@@ -16,7 +16,7 @@ import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -151,26 +151,23 @@ export class TextDiffEditor extends BaseTextEditor {
 			const diffEditor = <IDiffEditor>this.getControl();
 			diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
 
-			// Respect text diff editor options
-			let autoRevealFirstChange = true;
-			if (options instanceof TextDiffEditorOptions) {
-				const textDiffOptions = (<TextDiffEditorOptions>options);
-				autoRevealFirstChange = !types.isUndefinedOrNull(textDiffOptions.autoRevealFirstChange) ? textDiffOptions.autoRevealFirstChange : autoRevealFirstChange;
+			// Handle TextOptions
+			let alwaysRevealFirst = true;
+			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+				const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
+				if (hadOptions) {
+					alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+				}
 			}
 
-			// listen on diff updated changes to reveal the first change
+			// Listen on diff updated changes to reveal the first change
 			this.diffNavigator = new DiffNavigator(diffEditor, {
-				alwaysRevealFirst: autoRevealFirstChange
+				alwaysRevealFirst
 			});
 			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
 				this.nextDiffAction.updateEnablement();
 				this.previousDiffAction.updateEnablement();
 			});
-
-			// Handle TextOptions
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
-			}
 		}, error => {
 
 			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.

@@ -10,6 +10,7 @@ import Event from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IAction } from "vs/base/common/actions";
 
 export interface IFilePickOpenEntry extends IPickOpenEntry {
 	resource: uri;
@@ -24,6 +25,7 @@ export interface IPickOpenEntry {
 	separator?: ISeparator;
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
+	action?: IAction;
 }
 
 export interface ISeparator {

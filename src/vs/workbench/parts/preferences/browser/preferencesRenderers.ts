@@ -185,6 +185,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
+	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
 	private settingsHeaderRenderer: SettingsHeaderRenderer;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
@@ -203,14 +204,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(preferencesModel);
-		this._register(_associatedPreferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(SettingsHeaderRenderer, editor));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));

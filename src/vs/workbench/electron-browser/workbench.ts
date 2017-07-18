@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -47,9 +47,11 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -156,6 +158,10 @@ export class Workbench implements IPartService {
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
+	private static closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
+
+	private static fontAliasingConfigurationKey = 'workbench.fontAliasing';
+
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
@@ -193,10 +199,12 @@ export class Workbench implements IPartService {
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
+	private closeEmptyWindowScheduler: RunOnceScheduler;
 	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
+	private fontAliasing: string;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -215,7 +223,7 @@ export class Workbench implements IPartService {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: WorkspaceConfigurationService,
+		@IConfigurationService private configurationService: WorkspaceService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService
@@ -236,7 +244,9 @@ export class Workbench implements IPartService {
 
 		this.toDispose = [];
 		this.toShutdown = [];
+
 		this.editorBackgroundDelayer = new Delayer<void>(50);
+		this.closeEmptyWindowScheduler = new RunOnceScheduler(() => this.onAllEditorsClosed(), 50);
 
 		this._onTitleBarVisibilityChange = new Emitter<void>();
 
@@ -339,13 +349,16 @@ export class Workbench implements IPartService {
 				}
 
 				return editorOpenPromise.then(editors => {
-					this.onEditorsChanged(); // make sure we show the proper background in the editor area
+					this.handleEditorBackground(); // make sure we show the proper background in the editor area
 					editorRestoreStopWatch.stop();
+
 					for (const editor of editors) {
-						if (editor.input) {
-							restoredEditors.push(editor.input.getName());
-						} else {
-							restoredEditors.push(`other:${editor.getId()}`);
+						if (editor) {
+							if (editor.input) {
+								restoredEditors.push(editor.input.getName());
+							} else {
+								restoredEditors.push(`other:${editor.getId()}`);
+							}
 						}
 					}
 				});
@@ -471,12 +484,15 @@ export class Workbench implements IPartService {
 
 	private openUntitledFile() {
 		const startupEditor = this.configurationService.lookup('workbench.startupEditor');
+
+		// Fallback to previous workbench.welcome.enabled setting in case startupEditor is not defined
 		if (!startupEditor.user && !startupEditor.workspace) {
 			const welcomeEnabled = this.configurationService.lookup('workbench.welcome.enabled');
-			if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
+			if (typeof welcomeEnabled.value === 'boolean') {
 				return !welcomeEnabled.value;
 			}
 		}
+
 		return startupEditor.value === 'newUntitledFile';
 	}
 
@@ -572,6 +588,10 @@ export class Workbench implements IPartService {
 		// Text Model Resolver Service
 		serviceCollection.set(ITextModelService, new SyncDescriptor(TextModelResolverService));
 
+		// JSON Editing
+		const jsonEditingService = this.instantiationService.createInstance(JSONEditingService);
+		serviceCollection.set(IJSONEditingService, jsonEditingService);
+
 		// Configuration Editing
 		this.configurationEditingService = this.instantiationService.createInstance(ConfigurationEditingService);
 		serviceCollection.set(IConfigurationEditingService, this.configurationEditingService);
@@ -626,6 +646,9 @@ export class Workbench implements IPartService {
 		// Activity bar visibility
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
+
+		// Font aliasing
+		this.fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
 
 		// Zen mode
 		this.zenMode = {
@@ -893,6 +916,12 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
+	private setFontAliasing(aliasing: string) {
+		this.fontAliasing = aliasing;
+
+		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
+	}
+
 	public dispose(): void {
 		if (this.isStarted()) {
 			this.shutdownComponents();
@@ -978,8 +1007,23 @@ export class Workbench implements IPartService {
 	private onEditorsChanged(): void {
 		const visibleEditors = this.editorService.getVisibleEditors().length;
 
+		// Close when empty: check if we should close the window based on the setting
+		// Overruled by: window has a workspace opened or this window is for extension development
+		// or setting is disabled. Also enabled when running with --wait from the command line.
+		if (visibleEditors === 0 && !this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment) {
+			const closeWhenEmpty = this.configurationService.lookup<boolean>(Workbench.closeWhenEmptyConfigurationKey).value;
+			if (closeWhenEmpty || this.environmentService.args.wait) {
+				this.closeEmptyWindowScheduler.schedule();
+			}
+		}
+
 		// We update the editorpart class to indicate if an editor is opened or not
 		// through a delay to accomodate for fast editor switching
+		this.handleEditorBackground();
+	}
+
+	private handleEditorBackground(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
 
 		const editorContainer = this.editorPart.getContainer();
 		if (visibleEditors === 0) {
@@ -991,11 +1035,23 @@ export class Workbench implements IPartService {
 		}
 	}
 
+	private onAllEditorsClosed(): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+		if (visibleEditors === 0) {
+			this.windowService.closeWindow();
+		}
+	}
+
 	private onDidUpdateConfiguration(skipLayout?: boolean): void {
 		const newSidebarPositionValue = this.configurationService.lookup<string>(Workbench.sidebarPositionConfigurationKey).value;
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
+		}
+
+		const fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
+		if (fontAliasing !== this.fontAliasing) {
+			this.setFontAliasing(fontAliasing);
 		}
 
 		if (!this.zenMode.active) {
@@ -1045,6 +1101,9 @@ export class Workbench implements IPartService {
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
 		}
+
+		// Apply font aliasing
+		this.setFontAliasing(this.fontAliasing);
 
 		// Apply title style if shown
 		const titleStyle = this.getCustomTitleBarStyle();

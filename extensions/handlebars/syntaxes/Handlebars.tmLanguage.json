@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/daaain/Handlebars/commit/790f2b0222098a3a236bd9e91bb9a039eeca4d8e",
 	"name": "Handlebars",
 	"repository": {
 		"html_tags": {
@@ -332,7 +333,7 @@
 			]
 		},
 		"end_block": {
-			"begin": "(\\{\\{~?/)([a-zA-Z0-9/_\\.-]+)\\s*",
+			"begin": "(\\{\\{)(~?/)([a-zA-Z0-9/_\\.-]+)\\s*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.end.handlebars",
 			"endCaptures": {
@@ -345,7 +346,10 @@
 					"name": "support.constant.handlebars"
 				},
 				"2": {
-					"name": "support.constant.handlebars"
+					"name": "support.constant.handlebars keyword.control"
+				},
+				"3": {
+					"name": "support.constant.handlebars keyword.control"
 				}
 			},
 			"patterns": []
@@ -433,7 +437,7 @@
 			]
 		},
 		"block_helper": {
-			"begin": "(\\{\\{~?\\#)([-a-zA-Z0-9_\\./>]+)\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*",
+			"begin": "(\\{\\{)(~?\\#)([-a-zA-Z0-9_\\./>]+)\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.start.handlebars",
 			"endCaptures": {
@@ -446,18 +450,21 @@
 					"name": "support.constant.handlebars"
 				},
 				"2": {
-					"name": "support.constant.handlebars"
+					"name": "support.constant.handlebars keyword.control"
 				},
 				"3": {
-					"name": "variable.parameter.handlebars"
+					"name": "support.constant.handlebars keyword.control"
 				},
 				"4": {
-					"name": "support.constant.handlebars"
-				},
-				"5": {
 					"name": "variable.parameter.handlebars"
 				},
+				"5": {
+					"name": "support.constant.handlebars"
+				},
 				"6": {
+					"name": "variable.parameter.handlebars"
+				},
+				"7": {
 					"name": "support.constant.handlebars"
 				}
 			},
@@ -610,12 +617,15 @@
 			]
 		},
 		"else_token": {
-			"begin": "(\\{\\{~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\./]+))?",
+			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\./]+))?",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.else.handlebars",
 			"beginCaptures": {
 				"1": {
 					"name": "support.constant.handlebars"
+				},
+				"2": {
+					"name": "support.constant.handlebars keyword.control"
 				},
 				"3": {
 					"name": "support.constant.handlebars"

@@ -295,7 +295,7 @@
 				]
 			},
 			{
-				"target": "**/vs/workbench/electron-browser/workbench.main.ts",
+				"target": "**/vs/workbench/workbench.main.ts",
 				"restrictions": [
 					"**"
 				]

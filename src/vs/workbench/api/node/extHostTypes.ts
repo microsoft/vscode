@@ -488,7 +488,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { }
+export class Uri extends URI {
+
+	private constructor() {
+		super(undefined, undefined, undefined, undefined, undefined);
+	}
+}
 
 export class WorkspaceEdit {
 
@@ -1042,7 +1047,7 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
-	public static Test: TaskGroup = new TaskGroup('clean', 'Clean');
+	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
 	constructor(id: string, label: string) {
 		if (typeof id !== 'string') {
@@ -1158,6 +1163,7 @@ export class Task implements vscode.Task {
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
+	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: TaskGroup;
@@ -1170,10 +1176,13 @@ export class Task implements vscode.Task {
 		this.execution = execution;
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
+			this._hasDefinedMatchers = true;
 		} else if (Array.isArray(problemMatchers)) {
 			this._problemMatchers = problemMatchers;
+			this._hasDefinedMatchers = true;
 		} else {
 			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
 		}
 		this._isBackground = false;
 	}
@@ -1227,9 +1236,16 @@ export class Task implements vscode.Task {
 
 	set problemMatchers(value: string[]) {
 		if (!Array.isArray(value)) {
-			value = [];
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+			return;
 		}
 		this._problemMatchers = value;
+		this._hasDefinedMatchers = true;
+	}
+
+	get hasDefinedMatchers(): boolean {
+		return this._hasDefinedMatchers;
 	}
 
 	get isBackground(): boolean {

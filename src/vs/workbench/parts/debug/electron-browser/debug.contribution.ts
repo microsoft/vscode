@@ -94,10 +94,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-ViewsRegistry.registerViews([{ id: 'workbench.debug.variablesView', name: '', ctor: VariablesView, order: 10, size: 40, location: ViewLocation.Debug }]);
-ViewsRegistry.registerViews([{ id: 'workbench.debug.watchExpressionsView', name: '', ctor: WatchExpressionsView, order: 20, size: 10, location: ViewLocation.Debug }]);
-ViewsRegistry.registerViews([{ id: 'workbench.debug.callStackView', name: '', ctor: CallStackView, order: 30, size: 30, location: ViewLocation.Debug }]);
-ViewsRegistry.registerViews([{ id: 'workbench.debug.breakPointsView', name: '', ctor: BreakpointsView, order: 40, size: 20, location: ViewLocation.Debug }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.variablesView', name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, size: 40, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.watchExpressionsView', name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, size: 10, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.callStackView', name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, size: 30, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.breakPointsView', name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, size: 20, location: ViewLocation.Debug, canToggleVisibility: true }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);

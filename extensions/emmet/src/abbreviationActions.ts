@@ -91,13 +91,31 @@ export function expandAbbreviation(args) {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	editor.selections.forEach(selection => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string] => {
 		let rangeToReplace: vscode.Range = selection;
-		let position = selection.isReversed ? selection.anchor : selection.active;
-		let abbreviation = editor.document.getText(rangeToReplace);
-		if (rangeToReplace.isEmpty) {
-			[rangeToReplace, abbreviation] = extractAbbreviation(editor.document, position);
+		let abbreviation = document.getText(rangeToReplace);
+		if (!rangeToReplace.isEmpty) {
+			return [rangeToReplace, abbreviation];
 		}
+
+		// Expand cases like <div to <div></div> explicitly
+		// else we will end up with <<div></div>
+		if (isHtml) {
+			const currentLine = editor.document.lineAt(position.line).text;
+			const textTillPosition = currentLine.substr(0, position.character);
+			let matches = textTillPosition.match(/<(\w+)$/);
+			if (matches) {
+				abbreviation = matches[1];
+				rangeToReplace = new vscode.Range(position.translate(0, -(abbreviation.length + 1)), position);
+				return [rangeToReplace, abbreviation];
+			}
+		}
+		return extractAbbreviation(editor.document, position);
+	};
+
+	editor.selections.forEach(selection => {
+		let position = selection.isReversed ? selection.anchor : selection.active;
+		let [rangeToReplace, abbreviation] = getAbbreviation(editor.document, selection, position, syntax === 'html');
 		if (!isAbbreviationValid(syntax, abbreviation)) {
 			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
@@ -180,7 +198,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	const anyExpandAbbrInput = expandAbbrList[0];
 	let expandedText = expandAbbr(anyExpandAbbrInput, newLine);
 	let allRanges = expandAbbrList.map(value => {
-		return value.rangeToReplace;
+		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
 	});
 	if (expandedText) {
 		editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
@@ -192,10 +210,12 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  * If there is textToWrap, then given preceedingWhiteSpace is applied
  */
 function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
+	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
 	// Expand the abbreviation
 	let expandedText;
 	try {
-		expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
+		expandedText = expand(input.abbreviation, expandOptions);
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
@@ -204,7 +224,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 		return;
 	}
 
-	// If no text to wrap, then return the expanded text	
+	// If no text to wrap, then return the expanded text
 	if (!input.textToWrap) {
 		return expandedText;
 	}
@@ -235,19 +255,15 @@ function getSyntaxFromArgs(args: any): string {
 		vscode.window.showInformationMessage('No editor is active.');
 		return;
 	}
-	if (typeof args !== 'object' || !args['language']) {
-		vscode.window.showInformationMessage('Cannot resolve language at cursor.');
-		return;
-	}
 
 	const mappedModes = getMappingForIncludedLanguages();
-	let language: string = args['language'];
-	let parentMode: string = args['parentMode'];
-
-	let syntax = getEmmetMode(mappedModes[language] ? mappedModes[language] : language);
+	let language: string = (typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
+	let parentMode: string = typeof args === 'object' ? args['parentMode'] : undefined;
+	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] ? vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] : [];
+	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (syntax) {
 		return syntax;
 	}
 
-	return getEmmetMode(mappedModes[parentMode] ? mappedModes[parentMode] : parentMode);
+	return getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
 }

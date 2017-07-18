@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -53,6 +54,16 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var ops: editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
+			// We have to adjust to possible inner white space
+			// For Space after startToken, add Space to startToken - range math will work out
+			if (model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+				startToken += ' ';
+			}
+			// For Space before endToken, add Space before endToken and shift index one left
+			if (model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+				endToken = ' ' + endToken;
+				endTokenIndex -= 1;
+			}
 			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
 				new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
 			);

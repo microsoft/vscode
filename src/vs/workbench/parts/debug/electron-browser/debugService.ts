@@ -25,7 +25,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -48,8 +48,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -68,7 +68,9 @@ export class DebugService implements debug.IDebugService {
 
 	private sessionStates: Map<string, debug.State>;
 	private _onDidChangeState: Emitter<debug.State>;
+	private _onDidNewProcess: Emitter<debug.IProcess>;
 	private _onDidEndProcess: Emitter<debug.IProcess>;
+	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -78,6 +80,7 @@ export class DebugService implements debug.IDebugService {
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private inDebugMode: IContextKey<boolean>;
 	private debugType: IContextKey<string>;
+	private isNodeDebugType: IContextKey<boolean>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
 	private launchJsonChanged: boolean;
@@ -91,7 +94,8 @@ export class DebugService implements debug.IDebugService {
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
+		@IBroadcastService private broadcastService: IBroadcastService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -108,12 +112,15 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 		this._onDidChangeState = new Emitter<debug.State>();
+		this._onDidNewProcess = new Emitter<debug.IProcess>();
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
+		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this.sessionStates = new Map<string, debug.State>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
+		this.isNodeDebugType = debug.CONTEXT_IS_NODE_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
@@ -144,7 +151,7 @@ export class DebugService implements debug.IDebugService {
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
 
-		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
 			if (event.sourceConfig) {
 				const names = this.configurationManager.getConfigurationNames();
@@ -159,20 +166,26 @@ export class DebugService implements debug.IDebugService {
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
-		// Optimally the broadcast would contain the id of the session
-		// We are only interested if we have an active debug session for extensionHost
-		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
+		const process = this.model.getProcesses().filter(p => p.getId() === broadcast.payload.debugId).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			setTimeout(() => this.rawAttach(session, broadcast.payload.port), 300);
+			if (session) {
+				session.attach({ port: broadcast.payload.port }).done(undefined, errors.onUnexpectedError);
+				return;
+			}
+
+			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
+			this.configurationManager.resolveConfiguration(config).done(resolvedConfig => {
+				resolvedConfig.request = 'attach';
+				resolvedConfig.port = broadcast.payload.port;
+				this.doCreateProcess(resolvedConfig);
+			}, errors.onUnexpectedError);
+
 			return;
 		}
 
-		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			if (session) {
-				this.onSessionEnd(session);
-			}
+		if (session && broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
+			this.onSessionEnd(session);
 			return;
 		}
 
@@ -183,7 +196,7 @@ export class DebugService implements debug.IDebugService {
 
 		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
-			let extensionOutput: ILogEntry = broadcast.payload;
+			let extensionOutput: ILogEntry = broadcast.payload.logEntry;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
 			let args: any[] = [];
@@ -268,7 +281,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 		if (thread.stoppedDetails) {
-			this.windowService.getWindow().focus();
+			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 		}
 
@@ -276,7 +289,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private registerSessionListeners(process: Process, session: RawDebugSession): void {
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session);
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -399,11 +414,18 @@ export class DebugService implements debug.IDebugService {
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
 				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
-				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace2().roots.map(r => r.fsPath));
+				this.broadcastService.broadcast({
+					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
+					payload: this.contextService.getWorkspace().roots.map(r => r.fsPath)
+				});
 			}
 			if (session && session.getId() === event.body.sessionId) {
 				this.onSessionEnd(session);
 			}
+		}));
+
+		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidCustomEvent(event => {
+			this._onDidCustomEvent.fire(event);
 		}));
 	}
 
@@ -484,8 +506,16 @@ export class DebugService implements debug.IDebugService {
 		return this._onDidChangeState.event;
 	}
 
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return this._onDidNewProcess.event;
+	}
+
 	public get onDidEndProcess(): Event<debug.IProcess> {
 		return this._onDidEndProcess.event;
+	}
+
+	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+		return this._onDidCustomEvent.event;
 	}
 
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
@@ -627,7 +657,7 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
+					return TPromise.join(compound.configurations.map(name => name !== configName ? this.startDebugging(name) : TPromise.as(null)));
 				}
 				if (configName && !config) {
 					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
@@ -666,9 +696,18 @@ export class DebugService implements debug.IDebugService {
 		));
 	}
 
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		const processes = this.getModel().getProcesses();
+		const result = processes.filter(process => process.getId() === uuid);
+		if (result.length > 0) {
+			return result[0];	// there can only be one
+		}
+		return null;
+	}
+
 	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
-			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			this.configurationManager.resolveConfiguration(config).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
@@ -728,6 +767,7 @@ export class DebugService implements debug.IDebugService {
 
 	private doCreateProcess(configuration: debug.IConfig): TPromise<debug.IProcess> {
 		const sessionId = generateUuid();
+		configuration.__sessionId = sessionId;
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
@@ -788,9 +828,7 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-				if (!this.viewModel.focusedProcess) {
-					this.focusStackFrameAndEvaluate(null, process);
-				}
+				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
 				if (internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && internalConsoleOptions === 'openOnFirstSessionStart')) {
@@ -806,10 +844,12 @@ export class DebugService implements debug.IDebugService {
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 				this.inDebugMode.set(true);
 				this.debugType.set(configuration.type);
+				this.isNodeDebugType.set(configuration.type === 'node' || configuration.type === 'node2' || configuration.type === 'extensionHost');
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
 				}
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
+				this._onDidNewProcess.fire(process);
 
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -818,7 +858,7 @@ export class DebugService implements debug.IDebugService {
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
-					launchJsonExists: this.contextService.hasWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: this.contextService.getWorkspace().resource }) // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
+					launchJsonExists: this.contextService.hasWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: this.contextService.getLegacyWorkspace().resource }) // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29245)
 				});
 			}).then(() => process, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
@@ -857,13 +897,13 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// task is already running - nothing to do.
-			if (this.lastTaskEvent && (this.lastTaskEvent.taskName === taskName || this.lastTaskEvent.taskId === task._id)) {
+			if (this.lastTaskEvent && this.lastTaskEvent.taskId === task._id) {
 				return TPromise.as(null);
 			}
 
 			if (this.lastTaskEvent) {
 				// there is a different task running currently.
-				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "There is a task {0} running. Can not run pre launch task {1}.", this.lastTaskEvent.taskName, taskName)));
+				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "The task '{0}' is already running. Cannot run pre-launch task '{1}'.", this.lastTaskEvent.taskName, taskName)));
 			}
 
 			// no task running, execute the preLaunchTask.
@@ -879,19 +919,6 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			return taskPromise;
-		});
-	}
-
-	private rawAttach(session: RawDebugSession, port: number): TPromise<any> {
-		if (session) {
-			return session.attach({ port });
-		}
-
-		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
-		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
-			resolvedConfig.request = 'attach';
-			resolvedConfig.port = port;
-			this.doCreateProcess(resolvedConfig);
 		});
 	}
 
@@ -981,6 +1008,7 @@ export class DebugService implements debug.IDebugService {
 
 			this.inDebugMode.reset();
 			this.debugType.reset();
+			this.isNodeDebugType.reset();
 			this.viewModel.setMultiProcessView(false);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {

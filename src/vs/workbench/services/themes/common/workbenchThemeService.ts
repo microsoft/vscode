@@ -11,7 +11,7 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export let IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
+export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
 export const VS_LIGHT_THEME = 'vs';
 export const VS_DARK_THEME = 'vs-dark';
@@ -19,8 +19,10 @@ export const VS_HC_THEME = 'hc-black';
 
 export const COLOR_THEME_SETTING = 'workbench.colorTheme';
 export const ICON_THEME_SETTING = 'workbench.iconTheme';
-export const CUSTOM_COLORS_SETTING = 'workbench.colorCustomizations';
+export const CUSTOM_WORKBENCH_COLORS_SETTING = 'workbench.colorCustomizations';
 export const DEPRECATED_CUSTOM_COLORS_SETTING = 'workbench.experimental.colorCustomizations';
+export const CUSTOM_EDITOR_COLORS_SETTING = 'editor.tokenColorCustomizations';
+export const CUSTOM_EDITOR_SCOPE_COLORS_SETTING = 'textMateRules';
 
 export interface IColorTheme extends ITheme {
 	readonly id: string;
@@ -59,6 +61,17 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getFileIconTheme(): IFileIconTheme;
 	getFileIconThemes(): TPromise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
+}
+
+export interface ITokenColorCustomizations {
+	comments?: string | ITokenColorizationSetting;
+	strings?: string | ITokenColorizationSetting;
+	numbers?: string | ITokenColorizationSetting;
+	keywords?: string | ITokenColorizationSetting;
+	types?: string | ITokenColorizationSetting;
+	functions?: string | ITokenColorizationSetting;
+	variables?: string | ITokenColorizationSetting;
+	textMateRules?: ITokenColorizationRule[];
 }
 
 export interface ITokenColorizationRule {

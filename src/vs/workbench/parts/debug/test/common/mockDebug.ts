@@ -15,6 +15,14 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
+	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+		return null;
+	}
+
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
 	public get onDidEndProcess(): Event<debug.IProcess> {
 		return null;
 	}
@@ -81,6 +89,10 @@ export class MockDebugService implements debug.IDebugService {
 
 	public createProcess(config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
+	}
+
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		return null;
 	}
 
 	public restartProcess(): TPromise<any> {

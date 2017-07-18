@@ -14,6 +14,10 @@ import TypeScriptServiceClient from '../typescriptServiceClient';
 import TsConfigProvider from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 const exists = (file: string): Promise<boolean> =>
 	new Promise<boolean>((resolve, _reject) => {
 		fs.exists(file, (value: boolean) => {
@@ -43,18 +47,27 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
-		const rootPath = vscode.workspace.rootPath;
-		if (!rootPath) {
+		const folders = vscode.workspace.workspaceFolders;
+		if (!folders || !folders.length) {
 			return [];
 		}
 
-		const command = await this.getCommand();
+		const rootPath = folders[0].uri;
+		const command = await this.getCommand(rootPath);
 		const projects = await this.getAllTsConfigs(token);
 
 		return projects.map(configFile => {
-			const configFileName = path.relative(rootPath, configFile);
-			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName };
-			const buildTask = new vscode.Task(identifier, `build ${configFileName}`, 'tsc', new vscode.ShellExecution(`${command} -p "${configFile}"`), '$tsc');
+			const configFileName = path.relative(rootPath.fsPath, configFile);
+			const watch = this.shouldUseWatchForBuild(configFile);
+			const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: configFileName, watch: watch };
+			const buildTask = new vscode.Task(
+				identifier,
+				watch
+					? localize('buildAndWatchTscLabel', 'watch {0}', configFileName)
+					: localize('buildTscLabel', 'build {0}', configFileName),
+				'tsc',
+				new vscode.ShellExecution(`${command} ${watch ? '--watch' : ''} -p "${configFile}"`),
+				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});
@@ -108,15 +121,27 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace());
 	}
 
-	private async getCommand(): Promise<string> {
+	private async getCommand(root: vscode.Uri): Promise<string> {
 		const platform = process.platform;
-		if (platform === 'win32' && await exists(path.join(vscode.workspace.rootPath!, 'node_modules', '.bin', 'tsc.cmd'))) {
+		if (platform === 'win32' && await exists(path.join(root.fsPath, 'node_modules', '.bin', 'tsc.cmd'))) {
 			return path.join('.', 'node_modules', '.bin', 'tsc.cmd');
-		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(vscode.workspace.rootPath!, 'node_modules', '.bin', 'tsc'))) {
+		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(root.fsPath, 'node_modules', '.bin', 'tsc'))) {
 			return path.join('.', 'node_modules', '.bin', 'tsc');
 		} else {
 			return 'tsc';
 		}
+	}
+
+	private shouldUseWatchForBuild(configFile: string): boolean {
+		try {
+			const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+			if (config) {
+				return !!config.compileOnSave;
+			}
+		} catch (e) {
+			// noop
+		}
+		return false;
 	}
 
 	private getActiveTypeScriptFile(): string | null {

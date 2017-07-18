@@ -23,6 +23,7 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
+export const CONTEXT_IS_NODE_DEBUG_TYPE = new RawContextKey<boolean>('_isNodeDebugType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', undefined);
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -273,6 +274,7 @@ export interface IViewModel extends ITreeElement {
 
 	isMultiProcessView(): boolean;
 
+	onDidFocusProcess: Event<IProcess | undefined>;
 	onDidFocusStackFrame: Event<IStackFrame>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
@@ -329,6 +331,7 @@ export interface IEnvConfig {
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
 	__restart?: any;
+	__sessionId?: string;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;
@@ -394,7 +397,7 @@ export interface IConfigurationManager {
 	 * Returns the resolved configuration.
 	 * Replaces os specific values, system variables, interactive variables.
 	 */
-	resloveConfiguration(config: IConfig): TPromise<IConfig>;
+	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
 	 * Returns a compound with the specified name.
@@ -440,9 +443,19 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on new process events.
+	 */
+	onDidNewProcess: Event<IProcess>;
+
+	/**
 	 * Allows to register on end process events.
 	 */
 	onDidEndProcess: Event<IProcess>;
+
+	/**
+	 * Allows to register on custom DAP events.
+	 */
+	onDidCustomEvent: Event<DebugProtocol.Event>;
 
 	/**
 	 * Gets the current configuration manager.
@@ -450,7 +463,7 @@ export interface IDebugService {
 	getConfigurationManager(): IConfigurationManager;
 
 	/**
-	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
+	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
 	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 
@@ -540,6 +553,11 @@ export interface IDebugService {
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
 	createProcess(config: IConfig): TPromise<IProcess>;
+
+	/**
+	 * Find process by ID.
+	 */
+	findProcessByUUID(uuid: string): IProcess | null;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

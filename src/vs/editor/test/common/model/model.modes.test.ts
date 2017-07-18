@@ -186,7 +186,7 @@ suite('Editor Model - Model Modes 2', () => {
 	function invalidEqual(model: Model, expected: number[]): void {
 		let actual: number[] = [];
 		for (let i = 0, len = model.getLineCount(); i < len; i++) {
-			if (model._lines[i].isInvalid) {
+			if (model._lines[i].isInvalid()) {
 				actual.push(i);
 			}
 		}

@@ -7,6 +7,7 @@ import 'vs/css!./selectBox';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -19,7 +20,7 @@ export interface ISelectBoxStyles {
 	selectBorder?: Color;
 }
 
-const defaultStyles = {
+export const defaultStyles = {
 	selectBackground: Color.fromHex('#3C3C3C'),
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C')
@@ -54,6 +55,12 @@ export class SelectBox extends Widget {
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
 			this._onDidSelect.fire(e.target.value);
+		}));
+		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
+			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
+				// Space is used to expand select box, do not propagate it (prevent action bar action run)
+				e.stopPropagation();
+			}
 		}));
 	}
 

@@ -100,7 +100,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace2().roots.length : 0;
+		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace().roots.length : 0;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -128,7 +128,7 @@ export class FileService implements IFileService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots.length : 0;
+		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
 
 		let restartWorkspaceWatcher = false;
 		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {
@@ -166,7 +166,7 @@ export class FileService implements IFileService {
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace2().roots.length > 1) {
+		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().roots.length > 1) {
 			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 

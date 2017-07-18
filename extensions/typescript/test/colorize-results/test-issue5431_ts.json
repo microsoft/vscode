@@ -368,8 +368,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -412,8 +412,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},

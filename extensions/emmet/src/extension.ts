@@ -19,6 +19,7 @@ import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
@@ -110,10 +111,23 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 
+	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+	if (extensionsPath) {
+		if (!path.isAbsolute(extensionsPath)) {
+			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+		}
+		updateExtensionsPath(extensionsPath);
+	}
 
-	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		updateExtensionsPath();
+		let newExtensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+		if (newExtensionsPath && !path.isAbsolute(newExtensionsPath)) {
+			newExtensionsPath = path.join(vscode.workspace.rootPath, newExtensionsPath);
+		}
+		if (extensionsPath !== newExtensionsPath) {
+			updateExtensionsPath(newExtensionsPath);
+			extensionsPath = newExtensionsPath;
+		}
 		registerCompletionProviders(context);
 	}));
 }
@@ -132,7 +146,9 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 
 	let includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
-		if(registeredCompletionProviders.includes(language)) return;
+		if (registeredCompletionProviders.includes(language)) {
+			return;
+		}
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
 		context.subscriptions.push(provider);
 		registeredCompletionProviders.push(language);
