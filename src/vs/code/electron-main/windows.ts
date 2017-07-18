@@ -281,12 +281,16 @@ export class WindowsManager implements IWindowsMainService {
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
 				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
+				let defaultPath: string;
+				if (resolvedWorkspace) {
+					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
+				}
 
 				const target = dialog.showSaveDialog(e.window.win, {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
-					defaultPath: path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath) // pick the parent of the first root by default
+					defaultPath
 				});
 
 				if (target) {
@@ -402,6 +406,34 @@ export class WindowsManager implements IWindowsMainService {
 		this.openInBrowserWindow({
 			cli: this.environmentService.args,
 			windowToUse: win
+		});
+	}
+
+	public openWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
+
+		// Pick a good default path based on window workspace if we have one
+		let defaultPath: string;
+		if (window) {
+			if (window.openedFolderPath) {
+				defaultPath = path.dirname(window.openedFolderPath);
+			} else if (window.openedWorkspace) {
+				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(window.openedWorkspace.configPath);
+				if (resolvedWorkspace) {
+					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
+				}
+			}
+		}
+
+		// Pick workspace and open
+		this.pickFileAndOpen({
+			windowId: window ? window.id : void 0,
+			dialogOptions: {
+				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
+				title: localize('openWorkspaceTitle', "Open Workspace"),
+				filters: WORKSPACE_FILTER,
+				properties: ['openFile'],
+				defaultPath
+			}
 		});
 	}
 

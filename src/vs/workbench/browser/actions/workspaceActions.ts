@@ -309,21 +309,12 @@ export class OpenWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return this.windowService.pickFileAndOpen({
-			dialogOptions: {
-				buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")),
-				title: nls.localize('openWorkspace', "Open Workspace"),
-				filters: WORKSPACE_FILTER,
-				properties: ['openFile'],
-				defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
-			}
-		});
+		return this.windowService.openWorkspace();
 	}
 }

@@ -57,6 +57,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
+	openWorkspace(): TPromise<void> {
+		return this.windowsService.openWorkspace(this.windowId);
+	}
+
 	closeWindow(): TPromise<void> {
 		return this.windowsService.closeWindow(this.windowId);
 	}
