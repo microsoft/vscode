@@ -454,12 +454,10 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	if (config.includePattern) {
-		// I don't think includePattern can have siblingClauses
-		foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
-			args.push('-g', globArg);
-		});
-	}
+	// includePattern can't have siblingClauses
+	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
+		args.push('-g', globArg);
+	});
 
 	let siblingClauses: glob.IExpression;
 	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);

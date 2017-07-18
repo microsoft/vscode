@@ -127,7 +127,7 @@ export class QueryBuilder {
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
 					searchPath: uri.parse(searchPath),
-					pattern: globPortion && paths.join(searchPath, globPortion)
+					pattern: globPortion
 				};
 			});
 		}));
