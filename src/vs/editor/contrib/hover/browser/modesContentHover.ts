@@ -22,6 +22,7 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { Color } from 'vs/base/common/color';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -80,7 +81,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
-			let contents: MarkedString[];
+			let contents: MarkedString[] | Color;
 
 			if (d.options.hoverMessage) {
 				if (Array.isArray(d.options.hoverMessage)) {
@@ -88,6 +89,10 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 				} else {
 					contents = [d.options.hoverMessage];
 				}
+			}
+
+			if (d.options.color) {
+				contents = d.options.color;
 			}
 
 			return { contents, range };
@@ -241,29 +246,37 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			msg.contents
-				.filter(contents => !!contents)
-				.forEach(contents => {
-					const renderedContents = renderMarkedString(contents, {
-						actionCallback: (content) => {
-							this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-						},
-						codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-							// In markdown,
-							// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-							// it is possible no alias is given in which case we fall back to the current editor lang
-							const modeId = languageAlias
-								? this._modeService.getModeIdForLanguageName(languageAlias)
-								: this._editor.getModel().getLanguageIdentifier().language;
+			if (Array.isArray(msg.contents)) {
+				msg.contents
+					.filter(contents => !!contents)
+					.forEach(contents => {
+						const renderedContents = renderMarkedString(contents, {
+							actionCallback: (content) => {
+								this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+							},
+							codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+								// In markdown,
+								// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
+								// it is possible no alias is given in which case we fall back to the current editor lang
+								const modeId = languageAlias
+									? this._modeService.getModeIdForLanguageName(languageAlias)
+									: this._editor.getModel().getLanguageIdentifier().language;
 
-							return this._modeService.getOrCreateMode(modeId).then(_ => {
-								return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
-							});
-						}
+								return this._modeService.getOrCreateMode(modeId).then(_ => {
+									return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+								});
+							}
+						});
+
+						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
+			} else {
+				const container = document.createElement('div');
+				fragment.appendChild(container);
 
-					fragment.appendChild($('div.hover-row', null, renderedContents));
-				});
+				// RENDER WIDGET inside container
+			}
+
 		});
 
 		// show

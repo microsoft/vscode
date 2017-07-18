@@ -12,11 +12,12 @@ import { ICommonCodeEditor, IEditorContribution } from "vs/editor/common/editorC
 import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { Disposable } from "vs/base/common/lifecycle";
+import { Disposable, empty as EmptyDisposable } from "vs/base/common/lifecycle";
 import { ColorPickerModel, ColorModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
 import { Color, RGBA } from "vs/base/common/color";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @editorContribution
 export class ColorPickerController extends Disposable implements IEditorContribution {
@@ -64,6 +65,54 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 		if (this.widget.visible) {
 			this.widget.dispose();
 		}
+	}
+}
+
+@editorContribution
+export class FakeColorDecorations extends Disposable implements IEditorContribution {
+
+	private static ID: string = 'editor.contrib.fakeColorDecorations';
+
+	private decorationsDisposable = EmptyDisposable;
+
+	private static decorationOptions = ModelDecorationOptions.register({
+		inlineClassName: 'detected-color',
+		color: Color.red
+	});
+
+	constructor(private editor: ICodeEditor) {
+		super();
+
+		this._register(editor.onDidChangeModel(e => {
+			this.decorationsDisposable.dispose();
+
+			const model = editor.getModel();
+			const decoration = {
+				range: {
+					startLineNumber: 4,
+					startColumn: 1,
+					endLineNumber: 4,
+					endColumn: 10
+				},
+				options: FakeColorDecorations.decorationOptions
+			};
+
+			const old = model.deltaDecorations([], [decoration]);
+
+			this.decorationsDisposable = {
+				dispose: () => {
+					model.deltaDecorations(old, []);
+				}
+			};
+		}));
+	}
+
+	public getId(): string {
+		return FakeColorDecorations.ID;
+	}
+
+	dispose(): void {
+		super.dispose();
 	}
 }
 

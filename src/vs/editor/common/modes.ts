@@ -160,7 +160,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[];
+	contents: MarkedString[] | Color;
 
 	/**
 	 * The range to which this hover applies. When missing, the
@@ -659,6 +659,22 @@ export interface LinkProvider {
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
+// TODO
+export type RGBA = null;
+
+/**
+ * A color inside the editor.
+ */
+export interface IColor {
+	range: IRange;
+	color: Color;
+}
+/**
+ * A provider of links.
+ */
+export interface ColorProvider {
+	provideColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColor[] | Thenable<IColor[]>;
+}
 
 export interface IResourceEdit {
 	resource: URI;
@@ -772,6 +788,11 @@ export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<
  * @internal
  */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+
+/**
+ * @internal
+ */
+export const ColorProviderRegistry = new LanguageFeatureRegistry<ColorProvider>();
 
 /**
  * @internal
