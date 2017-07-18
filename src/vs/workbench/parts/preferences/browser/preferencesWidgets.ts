@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup, IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -299,7 +298,7 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private updateLabel(): void {
-		this.targetLabel.textContent = this.getLabel(this.target);
+		this.targetLabel.textContent = getSettingsTargetName(this.target, this.workspaceContextService);
 		const details = this.target instanceof URI ? localize('folderSettingsDetails', "Folder Settings") : '';
 		this.targetDetails.textContent = details;
 		DOM.toggleClass(this.targetDetails, 'empty', !details);
@@ -319,7 +318,7 @@ export class SettingsTargetsWidget extends Widget {
 		const actions: IAction[] = [];
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
-			label: this.getLabel(ConfigurationTarget.USER),
+			label: getSettingsTargetName(ConfigurationTarget.USER, this.workspaceContextService),
 			checked: this.target === ConfigurationTarget.USER,
 			enabled: true,
 			run: () => this.onTargetClicked(ConfigurationTarget.USER)
@@ -328,7 +327,7 @@ export class SettingsTargetsWidget extends Widget {
 		if (this.workspaceContextService.hasWorkspace()) {
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
-				label: this.getLabel(ConfigurationTarget.WORKSPACE),
+				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, this.workspaceContextService),
 				checked: this.target === ConfigurationTarget.WORKSPACE,
 				enabled: true,
 				run: () => this.onTargetClicked(ConfigurationTarget.WORKSPACE)
@@ -340,7 +339,7 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(new ContextSubMenu(localize('folderSettings', "Folder Settings"), this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: this.getLabel(root),
+					label: getSettingsTargetName(root, this.workspaceContextService),
 					checked: this.target instanceof URI && this.target.fsPath === root.fsPath,
 					enabled: true,
 					run: () => this.onTargetClicked(root)
@@ -349,19 +348,6 @@ export class SettingsTargetsWidget extends Widget {
 		}
 
 		return actions;
-	}
-
-	private getLabel(target: ConfigurationTarget | URI): string {
-		if (target instanceof URI) {
-			const root = this.workspaceContextService.getRoot(target);
-			return root ? paths.basename(root.fsPath) : '';
-		}
-		switch (target) {
-			case ConfigurationTarget.USER:
-				return localize('userSettingsTarget', "User Settings");
-			case ConfigurationTarget.WORKSPACE:
-				return localize('workspaceSettingsTarget', "Workspace Settings");
-		}
 	}
 
 	private onTargetClicked(target: ConfigurationTarget | URI): void {

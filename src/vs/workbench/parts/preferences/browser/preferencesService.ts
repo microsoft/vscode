@@ -13,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -27,7 +27,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
@@ -164,7 +164,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (activeEditorInput instanceof PreferencesEditorInput) {
 			return this.getOrCreateEditableSettingsEditorInput(target)
 				.then(toInput => {
-					const replaceWith = new PreferencesEditorInput(toInput.getName(), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource), toInput);
+					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource), toInput);
 					return this.editorService.replaceEditors([{
 						toReplace: this.lastOpenedSettingsInput,
 						replaceWith
@@ -216,12 +216,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(editableSettingsEditorInput => {
 				if (openDefaultSettings) {
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource);
-					const preferencesEditorInput = new PreferencesEditorInput(editableSettingsEditorInput.getName(), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
+					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
 					return this.editorService.openEditor(preferencesEditorInput, { pinned: true });
 				}
 				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: true });
 			});
+	}
+
+	private getPreferencesEditorInputName(target: ConfigurationTarget | URI): string {
+		const name = getSettingsTargetName(target, this.contextService);
+		return target instanceof URI ? nls.localize('folderSettingsName', "{0} (Folder Settings)", name) : name;
 	}
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget | URI): TPromise<EditorInput> {
