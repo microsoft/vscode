@@ -91,10 +91,11 @@ export function expandAbbreviation(args) {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [string, vscode.Range] => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string] => {
 		let rangeToReplace: vscode.Range = selection;
+		let abbreviation = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			return [document.getText(rangeToReplace), rangeToReplace];
+			return [rangeToReplace, abbreviation];
 		}
 
 		// Expand cases like <div to <div></div> explicitly
@@ -104,9 +105,9 @@ export function expandAbbreviation(args) {
 			const textTillPosition = currentLine.substr(0, position.character);
 			let matches = textTillPosition.match(/<(\w+)$/);
 			if (matches) {
-				let abbreviation = matches[1];
+				abbreviation = matches[1];
 				rangeToReplace = new vscode.Range(position.translate(0, -(abbreviation.length + 1)), position);
-				return [abbreviation, rangeToReplace];
+				return [rangeToReplace, abbreviation];
 			}
 		}
 		return extractAbbreviation(editor.document, position);
@@ -114,7 +115,7 @@ export function expandAbbreviation(args) {
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [abbreviation, rangeToReplace] = getAbbreviation(editor.document, selection, position, syntax === 'html');
+		let [rangeToReplace, abbreviation] = getAbbreviation(editor.document, selection, position, syntax === 'html');
 		if (!isAbbreviationValid(syntax, abbreviation)) {
 			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
