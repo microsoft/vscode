@@ -15,8 +15,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { join } from 'path';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import * as actions from 'vs/base/common/actions';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
@@ -24,34 +24,27 @@ import * as platform from 'vs/platform/registry/common/platform';
 import * as snippetsTracker from './snippetsTracker';
 import * as tmSnippets from './TMSnippets';
 import * as winjs from 'vs/base/common/winjs.base';
-import * as workbenchActionRegistry from 'vs/workbench/common/actionRegistry';
 import * as workbenchContributions from 'vs/workbench/common/contributions';
 
-class OpenSnippetsAction extends actions.Action {
+namespace OpenSnippetsAction {
 
-	public static ID = 'workbench.action.openSnippets';
-	public static LABEL = nls.localize('openSnippet.label', "Open User Snippets");
+	const id = 'workbench.action.openSnippets';
 
-	constructor(
-		id: string,
-		label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IModeService private modeService: IModeService,
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
+	CommandsRegistry.registerCommand(id, accessor => {
 
-	private openFile(filePath: string): winjs.TPromise<void> {
-		return this.windowsService.openWindow([filePath], { forceReuseWindow: true });
-	}
+		const modeService = accessor.get(IModeService);
+		const quickOpenService = accessor.get(IQuickOpenService);
+		const environmentService = accessor.get(IEnvironmentService);
+		const windowsService = accessor.get(IWindowsService);
 
-	public run(): winjs.Promise {
-		var modeIds = this.modeService.getRegisteredModes();
+		function openFile(filePath: string): winjs.TPromise<void> {
+			return windowsService.openWindow([filePath], { forceReuseWindow: true });
+		}
+
+		var modeIds = modeService.getRegisteredModes();
 		var picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
-			var name = this.modeService.getLanguageName(modeId);
+			var name = modeService.getLanguageName(modeId);
 			if (name) {
 				picks.push({ label: name, id: modeId });
 			}
@@ -60,12 +53,12 @@ class OpenSnippetsAction extends actions.Action {
 			e1.label.localeCompare(e2.label)
 		);
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
+		return quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
 			if (language) {
-				var snippetPath = join(this.environmentService.appSettingsHome, 'snippets', language.id + '.json');
+				var snippetPath = join(environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
-						return this.openFile(snippetPath);
+						return openFile(snippetPath);
 					}
 					var defaultContent = [
 						'{',
@@ -87,7 +80,7 @@ class OpenSnippetsAction extends actions.Action {
 						'}'
 					].join('\n');
 					return writeFile(snippetPath, defaultContent).then(() => {
-						return this.openFile(snippetPath);
+						return openFile(snippetPath);
 					}, (err) => {
 						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
 					});
@@ -95,13 +88,16 @@ class OpenSnippetsAction extends actions.Action {
 			}
 			return winjs.TPromise.as(null);
 		});
-	}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id,
+			title: { value: nls.localize('openSnippet.label', "Open User Snippets"), original: 'Preferences: Open User Snippets' },
+			category: nls.localize('preferences', "Preferences")
+		}
+	});
 }
-
-var preferencesCategory = nls.localize('preferences', "Preferences");
-var workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry>platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
-
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSnippetsAction, OpenSnippetsAction.ID, OpenSnippetsAction.LABEL), 'Preferences: Open User Snippets', preferencesCategory);
 
 (<workbenchContributions.IWorkbenchContributionsRegistry>platform.Registry.as(workbenchContributions.Extensions.Workbench)).registerWorkbenchContribution(
 	snippetsTracker.SnippetsTracker
