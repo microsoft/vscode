@@ -5,17 +5,19 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { EmmetCompletionItemProvider, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
+import { doComplete, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parse } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, getEmmetConfiguration } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
 		const mappedLanguages = getMappingForIncludedLanguages();
+		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
 		let isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let syntax = getEmmetMode(isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId);
+		let excludedLanguages = emmetConfig['exlcudeLanguages'] ? emmetConfig['exlcudeLanguages'] : [];
+		let syntax = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
 
 		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {
 			// Document can be html/css parsed
@@ -25,12 +27,27 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		if (!syntax
 			|| ((isSyntaxMapped || syntax === 'jsx')
-				&& vscode.workspace.getConfiguration('emmet')['showExpandedAbbreviation'] !== 'always')) {
+				&& emmetConfig['showExpandedAbbreviation'] !== 'always')) {
 			return;
 		}
 
-		const emmetCompletionProvider = new EmmetCompletionItemProvider(syntax);
-		return emmetCompletionProvider.provideCompletionItems(document, position, token);
+		let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
+		let newItems: vscode.CompletionItem[] = [];
+		result.items.forEach(item => {
+			let newItem = new vscode.CompletionItem(item.label);
+			newItem.documentation = item.documentation;
+			newItem.detail = item.detail;
+			newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
+			let oldrange = item.textEdit.range;
+			newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
+
+			newItem.filterText = item.filterText;
+			newItem.sortText = item.sortText;
+			newItems.push(newItem);
+		});
+
+
+		return Promise.resolve(new vscode.CompletionList(newItems, true));
 	}
 
 	/**

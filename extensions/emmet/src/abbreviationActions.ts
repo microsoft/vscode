@@ -180,7 +180,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	const anyExpandAbbrInput = expandAbbrList[0];
 	let expandedText = expandAbbr(anyExpandAbbrInput, newLine);
 	let allRanges = expandAbbrList.map(value => {
-		return value.rangeToReplace;
+		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
 	});
 	if (expandedText) {
 		editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
@@ -192,10 +192,12 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  * If there is textToWrap, then given preceedingWhiteSpace is applied
  */
 function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
+	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
 	// Expand the abbreviation
 	let expandedText;
 	try {
-		expandedText = expand(input.abbreviation, getExpandOptions(input.syntax, input.textToWrap));
+		expandedText = expand(input.abbreviation, expandOptions);
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
@@ -239,11 +241,11 @@ function getSyntaxFromArgs(args: any): string {
 	const mappedModes = getMappingForIncludedLanguages();
 	let language: string = (typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
 	let parentMode: string = typeof args === 'object' ? args['parentMode'] : undefined;
-
-	let syntax = getEmmetMode(mappedModes[language] ? mappedModes[language] : language);
+	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] ? vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] : [];
+	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (syntax) {
 		return syntax;
 	}
 
-	return getEmmetMode(mappedModes[parentMode] ? mappedModes[parentMode] : parentMode);
+	return getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
 }
