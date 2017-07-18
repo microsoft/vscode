@@ -44,6 +44,19 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
+	public $startDebugging(nameOrConfiguration: string | IConfig): TPromise<boolean> {
+
+		if (typeof nameOrConfiguration === 'string') {
+			return this.debugService.startDebugging(nameOrConfiguration).then(x => {
+				return true;
+			}, err => {
+				return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
+			});
+		} else {
+			return TPromise.wrapError(new Error('startDebugging with configuration object not yet implemented'));
+		}
+	}
+
 	public $startDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));

@@ -467,6 +467,9 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
+			startDebugging: proposedApiFunction(extension, (nameOrConfig: string | vscode.DebugConfiguration) => {
+				return extHostDebugService.startDebugging(nameOrConfig);
+			}),
 			startDebugSession(config: vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugSession(config);
 			},

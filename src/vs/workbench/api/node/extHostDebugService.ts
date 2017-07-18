@@ -45,6 +45,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 		this._debugServiceProxy = threadService.get(MainContext.MainThreadDebugService);
 	}
 
+	public startDebugging(nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
+
+		return this._debugServiceProxy.$startDebugging(nameOrConfig);
+	}
+
 	public startDebugSession(config: vscode.DebugConfiguration): TPromise<vscode.DebugSession> {
 
 		return this._debugServiceProxy.$startDebugSession(config).then((id: DebugSessionUUID) => {
