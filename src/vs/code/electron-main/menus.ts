@@ -361,7 +361,7 @@ export class CodeMenu {
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
 
 		const workspacesMenu = new Menu();
-		const workspaces = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWorkspaces', comment: ['&& denotes a mnemonic'] }, "Workspaces")), submenu: workspacesMenu });
+		const workspaces = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWorkspaces', comment: ['&& denotes a mnemonic'] }, "&&Workspaces")), submenu: workspacesMenu });
 
 		const newWorkspace = this.createMenuItem(nls.localize({ key: 'miNewWorkspace', comment: ['&& denotes a mnemonic'] }, "&&New Workspace..."), 'workbench.action.newWorkspace');
 		const openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace..."), 'workbench.action.openWorkspace');
