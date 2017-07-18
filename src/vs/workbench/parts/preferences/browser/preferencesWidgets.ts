@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import URI from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { Dimension } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -16,19 +18,23 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { IContextViewService, IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { ISettingsGroup, IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ISelectBoxStyles, defaultStyles } from "vs/base/browser/ui/selectBox/selectBox";
+import { Separator } from "vs/base/browser/ui/actionbar/actionbar";
+import { Color } from "vs/base/common/color";
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
+import { IMouseEvent } from "vs/base/browser/mouseEvent";
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -245,45 +251,138 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class SettingsTabsWidget extends Widget {
+export class SettingsTargetsWidget extends Widget {
 
-	private settingsSwitcherBar: ActionBar;
-	private userSettings: Action;
-	private workspaceSettings: Action;
+	public actionRunner: IActionRunner;
+	private settingsTargetsContainer: HTMLSelectElement;
+	private targetLabel: HTMLSelectElement;
+	private targetDetails: HTMLSelectElement;
 
-	private _onSwitch: Emitter<void> = new Emitter<void>();
-	public readonly onSwitch: Event<void> = this._onSwitch.event;
+	private _onDidTargetChange: Emitter<ConfigurationTarget | URI> = new Emitter<ConfigurationTarget | URI>();
+	public readonly onDidTargetChange: Event<ConfigurationTarget | URI> = this._onDidTargetChange.event;
 
-	constructor(parent: HTMLElement, @IWorkspaceContextService private contextService: IWorkspaceContextService, ) {
+	private borderColor: Color;
+
+	constructor(parent: HTMLElement, private target: ConfigurationTarget | URI,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService) {
 		super();
+
+		this.borderColor = defaultStyles.selectBorder;
 		this.create(parent);
+		this._register(attachSelectBoxStyler(this, themeService, {
+			selectBackground: SIDE_BAR_BACKGROUND
+		}));
+	}
+
+	public setTarget(target: ConfigurationTarget | URI): void {
+		this.target = target;
+		this.updateLabel();
 	}
 
 	private create(parent: HTMLElement): void {
-		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
-			animated: false
-		}));
-		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.onClick(this.userSettings));
-		this.userSettings.tooltip = this.userSettings.label;
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', this.contextService.hasWorkspace(), () => this.onClick(this.workspaceSettings));
-		this.workspaceSettings.tooltip = this.workspaceSettings.label;
+		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.hasMultiFolderWorkspace() ? '200px' : '150px';
 
-		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings]);
+		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
+		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
+		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
+		this.updateLabel();
+
+		this.onclick(parent, e => this.showContextMennu(e));
+
+		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
+
+		this.applyStyles();
 	}
 
-	public show(configurationTarget: ConfigurationTarget): void {
-		this.userSettings.checked = ConfigurationTarget.USER === configurationTarget;
-		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === configurationTarget;
+	private updateLabel(): void {
+		this.targetLabel.textContent = this.getLabel(this.target);
+		const details = this.target instanceof URI ? localize('folderSettingsDetails', "Folder Settings") : '';
+		this.targetDetails.textContent = details;
+		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
 
-	private onClick(action: Action): TPromise<any> {
-		if (!action.checked) {
-			this._onSwitch.fire();
+	private showContextMennu(event: IMouseEvent): void {
+		const actions = this.getSettingsTargetsActions();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.settingsTargetsContainer,
+			getActions: () => TPromise.wrap(actions)
+		});
+		event.stopPropagation();
+		event.preventDefault();
+	}
+
+	private getSettingsTargetsActions(): IAction[] {
+		const actions: IAction[] = [];
+		actions.push(<IAction>{
+			id: 'userSettingsTarget',
+			label: this.getLabel(ConfigurationTarget.USER),
+			checked: this.target === ConfigurationTarget.USER,
+			enabled: true,
+			run: () => this.onTargetClicked(ConfigurationTarget.USER)
+		});
+
+		if (this.workspaceContextService.hasWorkspace()) {
+			actions.push(<IAction>{
+				id: 'workspaceSettingsTarget',
+				label: this.getLabel(ConfigurationTarget.WORKSPACE),
+				checked: this.target === ConfigurationTarget.WORKSPACE,
+				enabled: true,
+				run: () => this.onTargetClicked(ConfigurationTarget.WORKSPACE)
+			});
 		}
-		return TPromise.as(null);
+
+		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+			actions.push(new Separator());
+			actions.push(new ContextSubMenu(localize('folderSettings', "Folder Settings"), this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+				return <IAction>{
+					id: 'folderSettingsTarget' + index,
+					label: this.getLabel(root),
+					checked: this.target instanceof URI && this.target.fsPath === root.fsPath,
+					enabled: true,
+					run: () => this.onTargetClicked(root)
+				};
+			})));
+		}
+
+		return actions;
+	}
+
+	private getLabel(target: ConfigurationTarget | URI): string {
+		if (target instanceof URI) {
+			const root = this.workspaceContextService.getRoot(target);
+			return root ? paths.basename(root.fsPath) : '';
+		}
+		switch (target) {
+			case ConfigurationTarget.USER:
+				return localize('userSettingsTarget', "User Settings");
+			case ConfigurationTarget.WORKSPACE:
+				return localize('workspaceSettingsTarget', "Workspace Settings");
+		}
+	}
+
+	private onTargetClicked(target: ConfigurationTarget | URI): void {
+		if (this.target instanceof URI && target instanceof URI && this.target.fsPath === target.fsPath) {
+			return;
+		}
+		if (this.target === target) {
+			return;
+		}
+		this._onDidTargetChange.fire(target);
+	}
+
+	style(styles: ISelectBoxStyles): void {
+		this.borderColor = styles.selectBorder;
+		this.applyStyles();
+	}
+
+	private applyStyles(): void {
+		if (this.settingsTargetsContainer) {
+			this.settingsTargetsContainer.style.border = this.borderColor ? `1px solid ${this.borderColor}` : null;
+		}
 	}
 }
 

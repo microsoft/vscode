@@ -8,6 +8,7 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
@@ -157,13 +158,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.doOpenSettings(ConfigurationTarget.WORKSPACE);
 	}
 
-	switchSettings(): TPromise<void> {
+	switchSettings(target: URI | ConfigurationTarget): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeEditorInput = activeEditor.input;
 		if (activeEditorInput instanceof PreferencesEditorInput) {
-			const fromTarget = this.getSettingsConfigurationTarget(activeEditorInput);
-			const toTarget = ConfigurationTarget.USER === fromTarget ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-			return this.getOrCreateEditableSettingsEditorInput(toTarget)
+			return this.getOrCreateEditableSettingsEditorInput(target)
 				.then(toInput => {
 					const replaceWith = new PreferencesEditorInput(toInput.getName(), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource), toInput);
 					return this.editorService.replaceEditors([{
@@ -225,9 +224,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private getOrCreateEditableSettingsEditorInput(configurationTarget: ConfigurationTarget): TPromise<EditorInput> {
-		const resource = this.getEditableSettingsURI(configurationTarget);
-		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(configurationTarget);
+	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget | URI): TPromise<EditorInput> {
+		const resource = this.getEditableSettingsURI(target);
+		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(target);
 		return this.createIfNotExists(resource, editableSettingsEmptyContent)
 			.then(() => <EditorInput>this.editorService.createInput({ resource }));
 	}
@@ -241,31 +240,41 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap<SettingsEditorModel>(null);
 	}
 
-	private getEmptyEditableSettingsContent(configurationTarget: ConfigurationTarget): string {
-		switch (configurationTarget) {
-			case ConfigurationTarget.USER:
-				const emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
-				return '// ' + emptySettingsHeader + '\n{\n}';
-			case ConfigurationTarget.WORKSPACE:
-				return [
-					'// ' + nls.localize('emptySettingsHeader1', "Place your settings in this file to overwrite default and user settings."),
-					'{',
-					'}'
-				].join('\n');
+	private getEmptyEditableSettingsContent(target: ConfigurationTarget | URI): string {
+		if (target === ConfigurationTarget.USER) {
+			const emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
+			return '// ' + emptySettingsHeader + '\n{\n}';
 		}
+		return [
+			'// ' + nls.localize('emptySettingsHeader1', "Place your settings in this file to overwrite default and user settings."),
+			'{',
+			'}'
+		].join('\n');
 	}
 
-	private getEditableSettingsURI(configurationTarget: ConfigurationTarget): URI {
+	private getEditableSettingsURI(configurationTarget: ConfigurationTarget | URI): URI {
+		if (configurationTarget instanceof URI) {
+			const root = this.contextService.getRoot(configurationTarget);
+			return root ? this.toResource(paths.join('.vscode', 'settings.json'), root) : null;
+		}
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
 				const workspace = this.contextService.getWorkspace();
-				if (workspace) {
-					return workspace.configuration || this.contextService.toResource('.vscode/settings.json');
+				if (this.contextService.hasFolderWorkspace()) {
+					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
 				}
+				if (this.contextService.hasMultiFolderWorkspace()) {
+					return workspace.configuration;
+				}
+				return null;
 		}
 		return null;
+	}
+
+	private toResource(relativePath: string, root: URI): URI {
+		return URI.file(paths.join(root.fsPath, relativePath));
 	}
 
 	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
@@ -278,14 +287,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 			return TPromise.wrapError<boolean>(error);
 		});
-	}
-
-	private getSettingsConfigurationTarget(preferencesEditorInput: PreferencesEditorInput): ConfigurationTarget {
-		if (preferencesEditorInput) {
-			const resource = toResource(preferencesEditorInput.master);
-			return resource.toString() === this.userSettingsResource.toString() ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
-		}
-		return ConfigurationTarget.USER;
 	}
 
 	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {

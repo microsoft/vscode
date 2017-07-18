@@ -22,70 +22,43 @@
 	position: relative;
 }
 
-.settings-tabs-widget {
+.settings-targets-widget {
+	flex-wrap: wrap;
+	line-height: 20px;
+    margin-left: 18px;
+    margin-top: 8px;
 	display: flex;
-	flex-wrap: wrap;
-	line-height: 28px;
-}
-
-.settings-tabs-widget > .monaco-action-bar > .actions-container {
-	flex-wrap: wrap;
-}
-
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	text-transform: uppercase;
-	font-size: 11px;
-	margin-left: 33px;
-	margin-right: 0px;
-	padding-top: 6px;
+    border-radius: 4px;
+    padding: 0 8px;
 	cursor: pointer;
-	padding-bottom: 4px; /* puts the bottom border down */
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.disabled {
-	cursor: default;
+.settings-targets-widget > .settings-target {
+	font-size: 11px;
+	padding-right: 4px;
+	white-space: nowrap;
+    overflow: hidden;
+	flex: 1;
+	display: flex;
 }
 
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
-	color: #424242;
-	opacity: 0.75;
+.settings-targets-widget > .settings-target > .settings-target-label {
+	text-transform: uppercase;
 }
 
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
-	color: #e7e7e7;
-	opacity: 0.5;
+.settings-targets-widget > .settings-target > .settings-target-details {
+    margin-left: 0.5em;
+    font-size: 10px;
+    opacity: 0.7;
 }
 
-.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.disabled) {
-	color: #fff;
+.settings-targets-widget > .settings-target > .settings-target-details.empty {
+	margin-left: 0;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label:not(.disabled),
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(.disabled) {
-	opacity: 1;
-}
-
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom: 1px solid;
-}
-
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom-color: #ccceda;
-}
-
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom-color: #404047;
-}
-
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-	border-bottom: 1px solid #007ACC;
-	outline: none !important;
-}
-
-.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-	border-bottom: 1px solid #f38518;
-	outline: none !important;
+.settings-targets-widget > .settings-target-dropdown-icon {
+	padding-top: 4px;
+	font-size: 12px;
 }
 
 .preferences-header > .settings-header-widget {

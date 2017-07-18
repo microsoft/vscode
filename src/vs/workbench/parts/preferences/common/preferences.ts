@@ -10,6 +10,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
+import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
 
 export interface ISettingsGroup {
 	id: string;
@@ -72,7 +73,7 @@ export interface IPreferencesService {
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openSettings(): TPromise<IEditor>;
-	switchSettings(): TPromise<void>;
+	switchSettings(target: URI | ConfigurationTarget): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
