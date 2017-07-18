@@ -80,7 +80,7 @@ export class QueryBuilder {
 	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
 	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}
 	 */
-	private getSearchPaths(pattern: string): { searchPaths: ISearchPathPattern[]; includePattern: glob.IExpression } {
+	private getSearchPaths(pattern: string): { searchPaths: ISearchPathPattern[]; includePattern?: glob.IExpression } {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./
 			return paths.isAbsolute(segment) || strings.startsWith(segment, './');
@@ -193,7 +193,9 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 }
 
 function patternListToIExpression(patterns: string[]): glob.IExpression {
-	return patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
+	return patterns.length ?
+		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
+		null;
 }
 
 function splitGlobPattern(pattern: string): string[] {
