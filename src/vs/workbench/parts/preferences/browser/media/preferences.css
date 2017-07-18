@@ -24,7 +24,6 @@
 
 .settings-targets-widget {
 	flex-wrap: wrap;
-	line-height: 20px;
     margin-left: 18px;
     margin-top: 8px;
 	display: flex;
@@ -35,7 +34,7 @@
 
 .settings-targets-widget > .settings-target {
 	font-size: 11px;
-	padding-right: 4px;
+	padding: 2px 4px 0 0;
 	white-space: nowrap;
     overflow: hidden;
 	flex: 1;
@@ -49,7 +48,7 @@
 .settings-targets-widget > .settings-target > .settings-target-details {
     margin-left: 0.5em;
     font-size: 10px;
-    opacity: 0.7;
+	opacity: 0.7;
 }
 
 .settings-targets-widget > .settings-target > .settings-target-details.empty {
@@ -57,6 +56,7 @@
 }
 
 .settings-targets-widget > .settings-target-dropdown-icon {
+	padding-left: 0.5em;
 	padding-top: 4px;
 	font-size: 12px;
 }
