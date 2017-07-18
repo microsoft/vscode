@@ -19,7 +19,6 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
 import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
 import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export class WindowsService implements IWindowsService, IDisposable {
@@ -279,16 +278,6 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		console[severity].apply(console, ...messages);
-		return TPromise.as(null);
-	}
-
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
-		extensionDevelopmentPaths.map(extensionDevelopmentPath => findExtensionDevelopmentWindow(this.windowsMainService.getWindows(), extensionDevelopmentPath)).forEach(extensionDevelopmentWindow => {
-			if (extensionDevelopmentWindow) {
-				extensionDevelopmentWindow.win.close();
-			}
-		});
-
 		return TPromise.as(null);
 	}
 

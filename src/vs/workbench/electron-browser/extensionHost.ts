@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -34,11 +34,13 @@ import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protoco
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
-import { IBroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { isEqual } from "vs/base/common/paths";
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
 export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
+export const EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL = 'vscode:extensionCloseExtensionHost';
 
 export interface ILogEntry {
 	type: string;
@@ -108,6 +110,19 @@ export class ExtensionHostProcessWorker {
 
 		lifecycleService.onWillShutdown(this._onWillShutdown, this);
 		lifecycleService.onShutdown(reason => this.terminate());
+
+		broadcastService.onBroadcast(b => this.onBroadcast(b));
+	}
+
+	private onBroadcast(broadcast: IBroadcast): void {
+
+		// Close Ext Host Window Request
+		if (broadcast.channel === EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL && this.isExtensionDevelopmentHost) {
+			const extensionPaths = broadcast.payload as string[];
+			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
+				this.windowService.closeWindow();
+			}
+		}
 	}
 
 	public start(extensionService: MainProcessExtensionService): void {

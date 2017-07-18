@@ -146,23 +146,3 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 
 	return null;
 }
-
-export function findExtensionDevelopmentWindow<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath?: string): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
-
-			// match on extension development path
-			if (typeof extensionDevelopmentPath === 'string' && paths.isEqual(w.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
-				return true;
-			}
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
-		}
-	}
-
-	return null;
-}

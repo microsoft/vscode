@@ -1096,11 +1096,6 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	showItemInFolder(path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
