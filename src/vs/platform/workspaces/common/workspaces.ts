@@ -79,7 +79,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), null, environmentService));
 	}
 
-	return localize('workspaceName', "{0} - Workspace", workspaceName);
+	return localize('workspaceName', "{0} (Workspace)", workspaceName);
 }
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
