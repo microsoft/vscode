@@ -129,7 +129,7 @@ export class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		let folders = this.pickFolders(nls.localize('select', "Select"), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+		let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
 		if (folders && folders.length) {
 			return this.createWorkspace(folders.map(folder => URI.file(folder)));
 		}
@@ -149,7 +149,7 @@ export class NewWorkspaceFromExistingAction extends NewWorkspaceAction {
 	static LABEL = nls.localize('newWorkspaceFormExisting', "New Workspace From Existing...");
 
 	public run(): TPromise<any> {
-		let folders = this.pickFolders(nls.localize('select', "Select"), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+		let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
 		if (folders && folders.length) {
 			if (this.contextService.hasWorkspace()) {
 				return this.createWorkspace([this.contextService.getWorkspace().roots[0], ...folders.map(folder => URI.file(folder))]);
@@ -190,7 +190,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 			return TPromise.as(null);
 		}
 
-		const folders = super.pickFolders(nls.localize('add', "Add"), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
+		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
 		if (!folders || !folders.length) {
 			return TPromise.as(null);
 		}
@@ -288,7 +288,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		}
 
 		return this.windowService.showSaveDialog({
-			buttonLabel: nls.localize('save', "Save"),
+			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultPath
@@ -317,7 +317,7 @@ export class OpenWorkspaceAction extends Action {
 
 	public run(): TPromise<any> {
 		const files = this.windowService.showOpenDialog({
-			buttonLabel: nls.localize('open', "Open"),
+			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")),
 			title: nls.localize('openWorkspace', "Open Workspace"),
 			filters: WORKSPACE_FILTER,
 			properties: ['openFile'],
