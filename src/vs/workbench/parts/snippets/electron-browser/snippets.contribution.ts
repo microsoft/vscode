@@ -8,25 +8,24 @@ import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
-import nls = require('vs/nls');
-import winjs = require('vs/base/common/winjs.base');
-import { join } from 'path';
-import actions = require('vs/base/common/actions');
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import platform = require('vs/platform/registry/common/platform');
-import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
-import workbenchContributions = require('vs/workbench/common/contributions');
-import snippetsTracker = require('./snippetsTracker');
-import tmSnippets = require('./TMSnippets');
-import * as pfs from 'vs/base/node/pfs';
-import errors = require('vs/base/common/errors');
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { fileExists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import fs = require('fs');
+import { join } from 'path';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import * as actions from 'vs/base/common/actions';
+import * as errors from 'vs/base/common/errors';
+import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import * as nls from 'vs/nls';
+import * as platform from 'vs/platform/registry/common/platform';
+import * as snippetsTracker from './snippetsTracker';
+import * as tmSnippets from './TMSnippets';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as workbenchActionRegistry from 'vs/workbench/common/actionRegistry';
+import * as workbenchContributions from 'vs/workbench/common/contributions';
 
 class OpenSnippetsAction extends actions.Action {
 
@@ -87,7 +86,7 @@ class OpenSnippetsAction extends actions.Action {
 						'*/',
 						'}'
 					].join('\n');
-					return pfs.writeFile(snippetPath, defaultContent).then(() => {
+					return writeFile(snippetPath, defaultContent).then(() => {
 						return this.openFile(snippetPath);
 					}, (err) => {
 						errors.onUnexpectedError(nls.localize('openSnippet.errorOnCreate', 'Unable to create {0}', snippetPath));
@@ -97,22 +96,6 @@ class OpenSnippetsAction extends actions.Action {
 			return winjs.TPromise.as(null);
 		});
 	}
-}
-
-function fileExists(path: string): winjs.TPromise<boolean> {
-	return new winjs.TPromise<boolean>((c, e, p) => {
-		fs.stat(path, (err, stats) => {
-			if (err) {
-				return c(false);
-			}
-
-			if (stats.isFile()) {
-				return c(true);
-			}
-
-			c(false);
-		});
-	});
 }
 
 var preferencesCategory = nls.localize('preferences', "Preferences");
