@@ -918,6 +918,7 @@ export class Workbench implements IPartService {
 
 	private setFontAliasing(aliasing: string) {
 		this.fontAliasing = aliasing;
+
 		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
 	}
 
@@ -1101,6 +1102,7 @@ export class Workbench implements IPartService {
 			this.workbench.addClass('nopanel');
 		}
 
+		// Apply font aliasing
 		this.setFontAliasing(this.fontAliasing);
 
 		// Apply title style if shown
