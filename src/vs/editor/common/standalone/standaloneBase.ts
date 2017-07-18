@@ -239,7 +239,7 @@ export function createMonacoBaseAPI(): typeof monaco {
 		SelectionDirection: SelectionDirection,
 		Severity: Severity,
 		Promise: TPromise,
-		Uri: URI,
+		Uri: class extends URI { constructor() { super(undefined, undefined, undefined, undefined, undefined); } },
 		Token: Token
 	};
 }
