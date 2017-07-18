@@ -38,6 +38,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IJSONEditingService } from "vs/workbench/services/configuration/common/jsonEditing";
 
 
 interface IWorkbenchSettingsConfiguration {
@@ -72,7 +73,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private modelService: IModelService
+		@IModelService private modelService: IModelService,
+		@IJSONEditingService private jsonEditingService: IJSONEditingService
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
@@ -231,8 +233,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget | URI): TPromise<EditorInput> {
 		const resource = this.getEditableSettingsURI(target);
-		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(target);
-		return this.createIfNotExists(resource, editableSettingsEmptyContent)
+		return this.createSettingsIfNotExists(target)
 			.then(() => <EditorInput>this.editorService.createInput({ resource }));
 	}
 
@@ -280,6 +281,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private toResource(relativePath: string, root: URI): URI {
 		return URI.file(paths.join(root.fsPath, relativePath));
+	}
+
+	private createSettingsIfNotExists(target: ConfigurationTarget | URI): TPromise<void> {
+		const resource = this.getEditableSettingsURI(target);
+		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
+			if (!this.configurationService.keys().workspace.length) {
+				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
+			}
+			return TPromise.as(null);
+		}
+		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(target);
+		return this.createIfNotExists(resource, editableSettingsEmptyContent).then(() => { });
 	}
 
 	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
