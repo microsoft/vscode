@@ -5,7 +5,7 @@
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js textmate/r.tmbundle Syntaxes/R.plist ./syntaxes/r.tmLanguage.json"
-	},
+ 	},
 	"contributes": {
 		"languages": [{
 			"id": "r",
