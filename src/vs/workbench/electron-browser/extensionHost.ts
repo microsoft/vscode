@@ -202,7 +202,10 @@ export class ExtensionHostProcessWorker {
 			if (this.isExtensionDevelopmentHost && port) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-					payload: { port }
+					payload: {
+						debugId: this.environmentService.debugExtensionHost.debugId,
+						port
+					}
 				});
 			}
 
@@ -344,7 +347,10 @@ export class ExtensionHostProcessWorker {
 		else if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
 			this.broadcastService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
-				payload: logEntry
+				payload: {
+					logEntry,
+					debugId: this.environmentService.debugExtensionHost.debugId
+				}
 			});
 		}
 	}
@@ -411,7 +417,9 @@ export class ExtensionHostProcessWorker {
 		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebug) {
 			this.broadcastService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
-				payload: true
+				payload: {
+					debugId: this.environmentService.debugExtensionHost.debugId
+				}
 			});
 
 			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));

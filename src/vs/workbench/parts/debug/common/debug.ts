@@ -331,6 +331,7 @@ export interface IEnvConfig {
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
 	__restart?: any;
+	__sessionId?: string;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;

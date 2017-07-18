@@ -31,6 +31,7 @@ export interface ParsedArgs {
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugBrkPluginHost?: string;
+	debugId?: string;
 	debugPluginHost?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
@@ -71,7 +72,8 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; };
+	debugExtensionHost: { port: number; break: boolean; debugId: string };
+
 
 	logExtensionHostCommunication: boolean;
 

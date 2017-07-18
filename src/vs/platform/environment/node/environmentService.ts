@@ -109,7 +109,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
 	@memoize
-	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugExtensionHost(): { port: number; break: boolean; debugId: string } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
@@ -142,11 +142,11 @@ export class EnvironmentService implements IEnvironmentService {
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; debugId: string } {
 	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
 	const port = Number(portStr) || (!isBuild ? 5870 : null);
 	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
-	return { port, break: brk };
+	return { port, break: brk, debugId: args.debugId };
 }
 
 function parsePathArg(arg: string, process: NodeJS.Process): string {

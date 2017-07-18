@@ -166,16 +166,12 @@ export class DebugService implements debug.IDebugService {
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
-		if (!process) {
-			return; // TODO@Andre TODO@Isidor the broadcast should carry over the session ID so that we can do the correct thing here (see https://github.com/Microsoft/vscode/issues/30698)
-		}
-
+		const process = this.model.getProcesses().filter(p => p.getId() === broadcast.payload.debugId).pop();
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			if (session) {
-				// Only support one extension host session at a time. More details #29884
-				this.onSessionEnd(session);
+				session.attach({ port: broadcast.payload.port }).done(undefined, errors.onUnexpectedError);
+				return;
 			}
 
 			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
@@ -188,10 +184,8 @@ export class DebugService implements debug.IDebugService {
 			return;
 		}
 
-		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			if (session) {
-				this.onSessionEnd(session);
-			}
+		if (session && broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
+			this.onSessionEnd(session);
 			return;
 		}
 
@@ -202,7 +196,7 @@ export class DebugService implements debug.IDebugService {
 
 		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
-			let extensionOutput: ILogEntry = broadcast.payload;
+			let extensionOutput: ILogEntry = broadcast.payload.logEntry;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
 			let args: any[] = [];
@@ -773,6 +767,7 @@ export class DebugService implements debug.IDebugService {
 
 	private doCreateProcess(configuration: debug.IConfig): TPromise<debug.IProcess> {
 		const sessionId = generateUuid();
+		configuration.__sessionId = sessionId;
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
