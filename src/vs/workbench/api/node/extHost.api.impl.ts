@@ -35,6 +35,7 @@ import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFe
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
+import { ExtHostCredentials } from 'vs/workbench/api/node/extHostCredentials';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
@@ -94,6 +95,7 @@ export function createApiFactory(
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
 	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService, extHostCommands));
 	const extHostTask = col.define(ExtHostContext.ExtHostTask).set<ExtHostTask>(new ExtHostTask(threadService));
+	const extHostCredentials = col.define(ExtHostContext.ExtHostCredentials).set<ExtHostCredentials>(new ExtHostCredentials(threadService));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
 
@@ -487,6 +489,19 @@ export function createApiFactory(
 			}
 		};
 
+		// namespace: credentials
+		const credentials: typeof vscode.credentials = {
+			readSecret(service: string, account: string): Thenable<string | undefined> {
+				return extHostCredentials.readSecret(service, account);
+			},
+			writeSecret(service: string, account: string, secret: string): Thenable<void> {
+				return extHostCredentials.writeSecret(service, account, secret);
+			},
+			deleteSecret(service: string, account: string): Thenable<boolean> {
+				return extHostCredentials.deleteSecret(service, account);
+			}
+		};
+
 
 		return {
 			version: pkg.version,
@@ -499,6 +514,11 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
+			get credentials() {
+				return proposedApiFunction(extension, () => {
+					return credentials;
+				})();
+			},
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,

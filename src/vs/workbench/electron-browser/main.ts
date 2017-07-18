@@ -42,6 +42,8 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CredentialsChannelClient } from 'vs/platform/credentials/node/credentialsIpc';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -228,6 +230,9 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient): Servic
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
+
+	const credentialsChannel = mainProcessClient.getChannel('credentials');
+	serviceCollection.set(ICredentialsService, new CredentialsChannelClient(credentialsChannel));
 
 	return serviceCollection;
 }

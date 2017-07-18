@@ -33,6 +33,7 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
+    "keytar": "^4.0.3",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
     "node-pty": "0.6.9",
@@ -48,6 +49,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@types/keytar": "^4.0.0",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
