@@ -111,7 +111,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 		if (reload) {
 			this.doConfirm(
-				localize('relaunchWorkspaceMessage', "You changed the first folder of the workspace.\n\nPlease reload the window for a better experience when using extensions."),
+				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
 				void 0,
 				localize('reload', "Reload"),
 				() => this.windowService.reloadWindow()
