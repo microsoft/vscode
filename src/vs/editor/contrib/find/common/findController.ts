@@ -206,10 +206,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		// overwritten in subclass
 	}
 
-	public getSelectionSearchString(): string {
-		return getSelectionSearchString(this._editor);
-	}
-
 	protected _start(opts: IFindStartOptions): void {
 		this.disposeModel();
 
@@ -224,7 +220,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 		// Consider editor selection and overwrite the state with it
 		if (opts.seedSearchStringFromSelection && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection) {
-			let selectionSearchString = this.getSelectionSearchString();
+			let selectionSearchString = getSelectionSearchString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
 					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
@@ -411,7 +407,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		let selectionSearchString = controller.getSelectionSearchString();
+		let selectionSearchString = getSelectionSearchString(editor);
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
