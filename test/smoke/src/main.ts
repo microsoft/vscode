@@ -85,6 +85,10 @@ function fail(errorMessage): void {
 }
 
 function toUri(path: string): string {
+	if (os === 'win') {
+		return `file:///${path.replace(/\\/g, '/')}`;
+	}
+
 	return `file://${path}`;
 }
 
