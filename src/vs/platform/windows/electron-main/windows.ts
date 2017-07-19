@@ -49,6 +49,7 @@ export interface IWindowsMainService {
 
 	// events
 	onWindowReady: Event<ICodeWindow>;
+	onActiveWindowChanged: Event<ICodeWindow>;
 	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
