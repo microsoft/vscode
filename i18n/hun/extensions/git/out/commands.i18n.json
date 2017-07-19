@@ -6,6 +6,7 @@
 {
 	"tag at": "Címke, a következőre mutat: {0}",
 	"remote branch at": "Távoli ág, a következőre mutat: {0}",
+	"create branch": "$(plus) Új ág létrehozása",
 	"repourl": "Forráskódtár URL-címe",
 	"parent": "Szülőkönyvtár",
 	"cloning": "Git-forráskódtár klónozása...",

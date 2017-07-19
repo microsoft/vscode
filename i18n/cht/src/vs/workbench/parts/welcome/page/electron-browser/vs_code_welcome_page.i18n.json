@@ -16,6 +16,7 @@
 	"welcomePage.help": "說明",
 	"welcomePage.keybindingsCheatsheet": "閱覽鍵盤快速鍵",
 	"welcomePage.introductoryVideos": "簡介影片",
+	"welcomePage.tipsAndTricks": "秘訣與提示",
 	"welcomePage.productDocumentation": "產品文件",
 	"welcomePage.gitHubRepository": "GitHub 存放庫",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -31,13 +32,9 @@
 	"welcomePage.colorThemeDescription": "將編輯器及您的程式碼設定成您喜愛的外觀",
 	"welcomePage.learn": "深入了解",
 	"welcomePage.showCommands": "尋找及執行所有命令",
+	"welcomePage.showCommandsDescription": "從命令選擇區快速存取及搜尋命令 ({0})",
 	"welcomePage.interfaceOverview": "介面概觀",
 	"welcomePage.interfaceOverviewDescription": "使用視覺覆疊效果強調顯示 UI 的主要元件",
 	"welcomePage.interactivePlayground": "Interactive Playground",
-	"welcomePage.interactivePlaygroundDescription": "嘗試使用逐步解說短片中的一些基本編輯器功能",
-	"welcomePage.quickLinks": "快速連結",
-	"welcomePage.keybindingsReference": "鍵盤快速鍵參考",
-	"welcomePage.keybindingsReferenceDescription": "可列印的 PDF，附有最常用的鍵盤快速鍵",
-	"welcomePage.configureSettings": "組態設定",
-	"welcomePage.configureSettingsDescription": "微調設定就能發揮 VS Code 的所有功能"
+	"welcomePage.interactivePlaygroundDescription": "嘗試使用逐步解說短片中的一些基本編輯器功能"
 }

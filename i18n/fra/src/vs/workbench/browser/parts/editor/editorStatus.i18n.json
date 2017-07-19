@@ -10,6 +10,8 @@
 	"multiSelection": "{0} sélections",
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
+	"tabFocusModeEnabled": "La touche Tab déplace le focus",
+	"screenReaderDetected": "Lecteur d'écran détecté",
 	"screenReaderDetectedExtra": "Si vous n'utilisez pas de lecteur d'écran, définissez le paramètre 'editor.accessibilitySupport' sur \"désactivé\".",
 	"disableTabMode": "Désactiver le mode d'accessibilité",
 	"gotoLine": "Atteindre la ligne",

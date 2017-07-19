@@ -9,6 +9,8 @@
 	"workbench.action.terminal.kill.short": "Encerrar Terminal",
 	"workbench.action.terminal.copySelection": "Copiar Seleção",
 	"workbench.action.terminal.selectAll": "Selecionar Tudo",
+	"workbench.action.terminal.deleteWordLeft": "Excluir Palavra à Esquerda",
+	"workbench.action.terminal.deleteWordRight": "Excluir Palavra à Direita",
 	"workbench.action.terminal.new": "Criar Novo Terminal Integrado",
 	"workbench.action.terminal.new.short": "Novo Terminal",
 	"workbench.action.terminal.focus": "Focalizar Terminal",

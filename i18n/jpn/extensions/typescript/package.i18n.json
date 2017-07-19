@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "左右の空でないかっこの間のスペース処理を定義します。TypeScript が 2.3.0 以上である必要があります。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "テンプレート文字列の始め波かっこの後と終わり波かっこの前のスペース処理を定義します。TypeScript が 2.0.6 以上である必要があります。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "JSX 式の始め波かっこの後と終わり波かっこの前のスペース処理を定義します。TypeScript が 2.0.6 以上である必要があります。",
+	"format.insertSpaceAfterTypeAssertion": "TypeScript の型アサーションの後のスペース処理を定義します。TypeScript が 2.4 以上である必要があります。",
 	"format.placeOpenBraceOnNewLineForFunctions": "新しい行に関数の始め波かっこを配置するかどうかを定義します。",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "新しい行にコントロール ブロックの始め波かっこを配置するかどうかを定義します。",
 	"javascript.validate.enable": "JavaScript の検証を有効/無効にします。",
@@ -44,5 +45,7 @@
 	"typescript.npm": "型定義の自動取得に使用される NPM 実行可能ファイルへのパスを指定します。TypeScript 2.3.4 以上が必要です。",
 	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認します。",
 	"javascript.nameSuggestions": "JavaScript の候補リスト内でファイルから一意の名前を含むかどうかを有効/無効にします。",
-	"typescript.tsc.autoDetect": "tsc タスクの自動検出をオンにするかオフにするかを制御します。"
+	"typescript.tsc.autoDetect": "tsc タスクの自動検出をオンにするかオフにするかを制御します。",
+	"typescript.problemMatchers.tsc.label": "TypeScript の問題",
+	"typescript.problemMatchers.tscWatch.label": "TypeScript の問題 (ウォッチ モード)"
 }

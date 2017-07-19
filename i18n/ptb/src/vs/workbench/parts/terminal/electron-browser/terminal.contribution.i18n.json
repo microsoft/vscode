@@ -24,6 +24,9 @@
 	"terminal.integrated.cwd": "Um caminho de início explícito onde o terminal será lançado, isso é usado como o diretório de trabalho atual (cwd) para o processo shell. Isto pode ser particularmente útil em configurações de espaço de trabalho se o diretório raiz não é um cwd conveniente.",
 	"terminal.integrated.confirmOnExit": "Confirmar na saída se ainda houverem sessões de terminal ativas.",
 	"terminal.integrated.commandsToSkipShell": "Um conjunto de IDs de comando, cujas combinações de teclas não serão enviadas para o shell e sempre serão tratadas por código. Isto permite o uso de combinações de teclas que normalmente seriam consumidas pelo shell para agir da mesma forma quando o terminal não é focado, por exemplo ctrl+p para Execução Rápida.",
+	"terminal.integrated.env.osx": "Objeto com variáveis de ambiente que serão adicionadas ao VS Code e utilizadas pelo terminal no Mac OS X",
+	"terminal.integrated.env.linux": "Objeto com variáveis de ambiente que serão adicionadas ao VS Code e utilizadas pelo terminal no Linux",
+	"terminal.integrated.env.windows": "Objeto com variáveis de ambiente que serão adicionadas ao VS Code e utilizadas pelo terminal no Windows",
 	"terminal": "Terminal",
 	"terminalCategory": "Terminal",
 	"viewCategory": "Exibir"
