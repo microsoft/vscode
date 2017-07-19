@@ -94,6 +94,10 @@ function getNpmCommandLine(script: string): string {
 	return `npm run ${script}`;
 }
 
+function isNotPreOrPostScript(script: string): boolean {
+	return !(script.startsWith('pre') || script.startsWith('post'));
+}
+
 async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 
@@ -108,11 +112,6 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 		return emptyTasks;
 	}
 
-	let silent = '';
-	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
-		silent = '--silent';
-	}
-
 	try {
 		var contents = await readFile(packageJson);
 		var json = JSON.parse(contents);
@@ -121,7 +120,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 		}
 
 		const result: vscode.Task[] = [];
-		Object.keys(json.scripts).forEach(each => {
+		Object.keys(json.scripts).filter(isNotPreOrPostScript).forEach(each => {
 			const kind: NpmTaskDefinition = {
 				type: 'npm',
 				script: each
@@ -135,7 +134,7 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			}
 			result.push(task);
 		});
-		// add some 'well known' npm tasks
+		// always add npm install (without a problem matcher)
 		result.push(new vscode.Task({ type: 'npm', script: 'install' } as NpmTaskDefinition, `install`, 'npm', new vscode.ShellExecution(`npm install`), []));
 		return Promise.resolve(result);
 	} catch (e) {
