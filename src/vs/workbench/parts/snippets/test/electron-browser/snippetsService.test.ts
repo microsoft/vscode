@@ -90,4 +90,23 @@ suite('SnippetsService', function () {
 		assert.equal(result.suggestions.length, 0);
 		model.dispose();
 	});
+
+	test('No user snippets in suggestions, when inside the code, #30508', function () {
+
+		snippetService.registerSnippets(modeService.getLanguageIdentifier('fooLang').id, <ISnippet[]>[{
+			prefix: 'foo',
+			codeSnippet: '<foo>$0</foo>',
+			name: '',
+			description: ''
+		}], 'fooFile.json');
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = Model.createFromString('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = provider.provideCompletionItems(model, new Position(1, 1));
+		assert.equal(result.suggestions.length, 1);
+
+		result = provider.provideCompletionItems(model, new Position(2, 2));
+		assert.equal(result.suggestions.length, 1);
+	});
 });
