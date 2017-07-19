@@ -290,7 +290,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
 		this.updateLabel();
 
-		this.onclick(parent, e => this.showContextMennu(e));
+		this.onclick(this.settingsTargetsContainer, e => this.showContextMennu(e));
 
 		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
 
