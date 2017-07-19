@@ -176,7 +176,7 @@ export class ColorPickerBody extends Disposable {
 
 	private calculateHueRGB(slider: Slider): Color {
 		const hueNormalizedHeight = this.hueStrip.offsetHeight - slider.domNode.offsetHeight;
-		const proportion = (hueNormalizedHeight - slider.top) / hueNormalizedHeight;
+		const proportion = 1 - ((hueNormalizedHeight - slider.top) / hueNormalizedHeight);
 
 		const hue = proportion * 360;
 		const hh = hue / 60;
@@ -203,9 +203,9 @@ export class ColorPickerBody extends Disposable {
 			b = X;
 		}
 
-		r = Math.round(r * 255.0);
-		g = Math.round(g * 255.0);
-		b = Math.round(b * 255.0);
+		r = Math.round(r * 255);
+		g = Math.round(g * 255);
+		b = Math.round(b * 255);
 
 		return Color.fromRGBA(new RGBA(r, g, b));
 	}

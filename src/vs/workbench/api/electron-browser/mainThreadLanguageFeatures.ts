@@ -265,6 +265,17 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		return undefined;
 	}
 
+	// --- colors
+
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorProvider>{
+			provideColors: (model, token) => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentColors(handle, model.uri));
+			}
+		});
+		return undefined;
+	}
+
 	// --- configuration
 
 	$setLanguageConfiguration(handle: number, languageId: string, _configuration: vscode.LanguageConfiguration): TPromise<any> {

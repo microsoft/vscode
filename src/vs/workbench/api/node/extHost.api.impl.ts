@@ -261,6 +261,9 @@ export function createApiFactory(
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
 			},
+			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
+				return languageFeatures.registerColorProvider(selector, provider);
+			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);
 			}
@@ -486,6 +489,10 @@ export function createApiFactory(
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
+			Color: extHostTypes.Color,
+			ColorInfo: extHostTypes.ColorInfo,
+			ColorType: extHostTypes.ColorType,
+			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
@@ -495,7 +502,6 @@ export function createApiFactory(
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			DocumentLink: extHostTypes.DocumentLink,
-			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,

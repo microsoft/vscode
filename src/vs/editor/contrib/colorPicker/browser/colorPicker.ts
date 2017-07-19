@@ -3,95 +3,134 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorAction, EditorAction, CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
-import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
-import { ServicesAccessor } from "vs/platform/instantiation/common/instantiation";
-import { EditorContextKeys } from "vs/editor/common/editorContextKeys";
-import * as nls from 'vs/nls';
-import { ICommonCodeEditor, IEditorContribution, IModelDeltaDecoration } from "vs/editor/common/editorCommon";
+import { ICommonCodeEditor, IEditorContribution } from "vs/editor/common/editorCommon";
 import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { Disposable, empty as EmptyDisposable } from "vs/base/common/lifecycle";
+import { IDisposable } from "vs/base/common/lifecycle";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
-import { Color } from "vs/base/common/color";
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+// import { Color } from "vs/base/common/color";
+// import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ColorProviderRegistry, IColorInfo } from "vs/editor/common/modes";
+import { TPromise } from "vs/base/common/winjs.base";
+import { getColors } from "vs/editor/contrib/colorPicker/common/colorPicker";
+// import * as editorCommon from 'vs/editor/common/editorCommon';
 
 @editorContribution
-export class ColorPickerController extends Disposable implements IEditorContribution {
+export class ColorPicker implements IEditorContribution {
 	private static ID: string = 'editor.contrib.colorPicker';
 
-	private widget: ColorPickerWidget;
-	// private model: ColorPickerModel;
+	private listenersToRemove: IDisposable[];
+	private computePromise: TPromise<void>;
+
+	private currentDecorations: string[];
 
 	constructor(private editor: ICodeEditor) {
-		super();
+		this.listenersToRemove = [];
+
+		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 	}
 
 	public getId(): string {
-		return ColorPickerController.ID;
+		return ColorPicker.ID;
 	}
 
-	public static get(editor: ICommonCodeEditor): ColorPickerController {
-		return editor.getContribution<ColorPickerController>(this.ID);
+	public static get(editor: ICommonCodeEditor): ColorPicker {
+		return editor.getContribution<ColorPicker>(this.ID);
 	}
 
 	public dispose(): void {
-		if (this.widget.visible) {
-			this.widget.dispose();
+	}
+
+	private onModelChanged(): void {
+		this.beginCompute();
+	}
+
+	private beginCompute(): void {
+		if (!this.editor.getModel()) {
+			return;
 		}
+
+		if (!ColorProviderRegistry.has(this.editor.getModel())) {
+			return;
+		}
+
+		this.computePromise = getColors(this.editor.getModel()).then(colors => {
+			this.updateDecorations(colors);
+			this.computePromise = null;
+		});
+	}
+
+	private updateDecorations(colors: IColorInfo[]): void {
+		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			for (let c of colors) {
+				newDecorations.push({
+					range: {
+						startLineNumber: c.range.startLineNumber,
+						startColumn: c.range.startColumn,
+						endLineNumber: c.range.endLineNumber,
+						endColumn: c.range.endColumn
+					},
+					options: {
+						color: c.color
+					}
+				});
+			}
+
+			this.currentDecorations = changeAccessor.deltaDecorations(this.currentDecorations, newDecorations);
+		});
 	}
 }
 
-@editorContribution
-export class FakeColorDecorations extends Disposable implements IEditorContribution {
+// @editorContribution
+// export class FakeColorDecorations extends Disposable implements IEditorContribution {
 
-	private static ID: string = 'editor.contrib.fakeColorDecorations';
+// 	private static ID: string = 'editor.contrib.fakeColorDecorations';
 
-	private decorationsDisposable = EmptyDisposable;
+// 	private decorationsDisposable = EmptyDisposable;
 
-	private static decorationOptions = ModelDecorationOptions.register({
-		inlineClassName: 'detected-color',
-		color: Color.green
-		// hoverMessage: Color.green.toString()
-	});
+// 	private static decorationOptions = ModelDecorationOptions.register({
+// 		inlineClassName: 'detected-color',
+// 		color: Color.green
+// 		// hoverMessage: Color.green.toString()
+// 	});
 
-	constructor(private editor: ICodeEditor) {
-		super();
+// 	constructor(private editor: ICodeEditor) {
+// 		super();
 
-		this._register(editor.onDidChangeModel(e => {
-			this.decorationsDisposable.dispose();
+// 		this._register(editor.onDidChangeModel(e => {
+// 			this.decorationsDisposable.dispose();
 
-			const model = editor.getModel();
-			const decoration: IModelDeltaDecoration = {
-				range: {
-					startLineNumber: 4,
-					startColumn: 1,
-					endLineNumber: 4,
-					endColumn: 10
-				},
-				options: FakeColorDecorations.decorationOptions
-			};
+// 			const model = editor.getModel();
+// 			const decoration: IModelDeltaDecoration = {
+// 				range: {
+// 					startLineNumber: 4,
+// 					startColumn: 1,
+// 					endLineNumber: 4,
+// 					endColumn: 10
+// 				},
+// 				options: FakeColorDecorations.decorationOptions
+// 			};
 
-			const old = model.deltaDecorations([], [decoration]);
+// 			const old = model.deltaDecorations([], [decoration]);
 
-			this.decorationsDisposable = {
-				dispose: () => {
-					model.deltaDecorations(old, []);
-				}
-			};
-		}));
-	}
+// 			this.decorationsDisposable = {
+// 				dispose: () => {
+// 					model.deltaDecorations(old, []);
+// 				}
+// 			};
+// 		}));
+// 	}
 
-	public getId(): string {
-		return FakeColorDecorations.ID;
-	}
+// 	public getId(): string {
+// 		return FakeColorDecorations.ID;
+// 	}
 
-	dispose(): void {
-		super.dispose();
-	}
-}
+// 	dispose(): void {
+// 		super.dispose();
+// 	}
+// }
 
 registerThemingParticipant((theme, collector) => {
 	const widgetBackground = theme.getColor(editorWidgetBackground);
@@ -102,29 +141,29 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-editor .colorpicker-header { border-bottom: 1px solid ${widgetBorder}; }`);
 });
 
-@editorAction
-class ColorPickerCommand extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.colorPicker',
-			label: nls.localize('editor.action.colorPicker', "Pick Color"),
-			alias: 'Pick Color',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
-			}
-		});
-	}
+// @editorAction
+// class ColorPickerCommand extends EditorAction {
+// 	constructor() {
+// 		super({
+// 			id: 'editor.action.colorPicker',
+// 			label: nls.localize('editor.action.colorPicker', "Pick Color"),
+// 			alias: 'Pick Color',
+// 			precondition: null,
+// 			kbOpts: {
+// 				kbExpr: EditorContextKeys.textFocus,
+// 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+// 			}
+// 		});
+// 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		let controller = ColorPickerController.get(editor);
-		if (!controller) {
-			return;
-		}
+// 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+// 		let controller = ColorPickerController.get(editor);
+// 		if (!controller) {
+// 			return;
+// 		}
 
-		controller.pickColor();
-	}
-}
+// 		controller.pickColor();
+// 	}
+// }
 
-CommonEditorRegistry.registerEditorAction(new ColorPickerCommand());
+// CommonEditorRegistry.registerEditorAction(new ColorPickerCommand());

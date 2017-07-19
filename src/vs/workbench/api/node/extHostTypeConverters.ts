@@ -16,6 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { RGBA, Color } from "vs/base/common/color";
 
 export interface PositionLike {
 	line: number;
@@ -366,6 +367,15 @@ export namespace DocumentLink {
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
 		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
+	}
+}
+
+export namespace DocumentColor {
+	export function from(colorInfo: vscode.ColorInfo): modes.IColorInfo {
+		return {
+			range: fromRange(colorInfo.range),
+			color: Color.fromRGBA(new RGBA(colorInfo.color.r, colorInfo.color.g, colorInfo.color.b, colorInfo.color.a * 255))
+		};
 	}
 }
 

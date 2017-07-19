@@ -1015,6 +1015,39 @@ export class DocumentLink {
 	}
 }
 
+export enum ColorType {
+	RGBA = 0,
+	HSL = 1,
+	Hex = 2,
+	Custom = 3
+}
+
+export class Color {
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+}
+
+export class ColorInfo {
+	range: Range;
+
+	color: Color;
+
+	type: ColorType;
+
+	constructor(range: Range, color: Color) {
+		if (color && !(color instanceof Color)) {
+			throw illegalArgument('target');
+		}
+		if (!Range.isRange(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.color = color;
+	}
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 

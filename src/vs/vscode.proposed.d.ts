@@ -252,4 +252,41 @@ declare module 'vscode' {
 		 */
 		customRequest(command: string, args?: any): Thenable<any>;
 	}
+
+	export enum ColorType {
+		RGBA = 0,
+		HSL = 1,
+		Hex = 2,
+		Custom = 3
+	}
+
+	export class Color {
+		r: number;
+		g: number;
+		b: number;
+		a: number;
+	}
+
+	// TODO@Michel
+	export class ColorInfo {
+		/**
+		 * The range this link applies to.
+		 */
+		range: Range;
+
+		color: Color;
+
+		type: ColorType;
+
+		constructor(range: Range, color: Color);
+	}
+
+
+	export interface DocumentColorProvider {
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
+	}
+
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	}
 }

@@ -677,7 +677,7 @@ export interface LinkProvider {
 /**
  * A color inside the editor.
  */
-export interface IColor {
+export interface IColorInfo {
 	range: IRange;
 	color: Color;
 }
@@ -685,7 +685,7 @@ export interface IColor {
  * A provider of links.
  */
 export interface ColorProvider {
-	provideColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColor[] | Thenable<IColor[]>;
+	provideColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorInfo[] | Thenable<IColorInfo[]>;
 }
 
 export interface IResourceEdit {

@@ -671,10 +671,32 @@ class LinkProviderAdapter {
 	}
 }
 
+class ColorProviderAdapter {
+
+	private _documents: ExtHostDocuments;
+	private _provider: vscode.DocumentColorProvider;
+
+	constructor(documents: ExtHostDocuments, provider: vscode.DocumentColorProvider) {
+		this._documents = documents;
+		this._provider = provider;
+	}
+
+	provideColors(resource: URI): TPromise<modes.IColorInfo[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+
+		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
+			if (Array.isArray(colors)) {
+				return colors.map(TypeConverters.DocumentColor.from);
+			}
+			return undefined;
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -957,6 +979,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
+	}
+
+	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new ColorProviderAdapter(this._documents, provider));
+		this._proxy.$registerDocumentColorProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentColors(handle: number, resource: URI): TPromise<modes.IColorInfo[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
 	// --- configuration
