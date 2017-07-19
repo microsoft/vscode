@@ -183,7 +183,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	private renderFolderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFolderMatchTemplate {
-		let folderMatchElement = DOM.append(container, DOM.$('.filematch'));
+		let folderMatchElement = DOM.append(container, DOM.$('.foldermatch'));
 		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
