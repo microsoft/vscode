@@ -336,7 +336,7 @@ export class SettingsTargetsWidget extends Widget {
 
 		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
 			actions.push(new Separator());
-			actions.push(new ContextSubMenu(localize('folderSettings', "Folder Settings"), this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(root, this.workspaceContextService),
@@ -344,7 +344,7 @@ export class SettingsTargetsWidget extends Widget {
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};
-			})));
+			}));
 		}
 
 		return actions;
