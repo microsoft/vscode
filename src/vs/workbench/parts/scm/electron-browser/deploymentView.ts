@@ -29,7 +29,7 @@ const TARGETS = [
 	{
 		id: 'azure',
 		label: nls.localize('deployToAzure', "Deploy to Azure App Service"),
-		uri: () => URI.parse('https://code.visualstudio.com/tutorials/nodejs-deployment/getting-started#vscode')
+		uri: () => URI.parse('https://code.visualstudio.com/nodejs-deployment#vscode')
 	},
 	{
 		id: 'aws',
