@@ -23,6 +23,7 @@ import { isLinux } from "vs/base/common/platform";
 import { dirname } from "vs/base/common/paths";
 import { mnemonicButtonLabel } from "vs/base/common/labels";
 import { isParent } from "vs/platform/files/common/files";
+import { IWorkbenchEditorService } from "vs/workbench/services/editor/common/editorService";
 
 export class OpenFolderAction extends Action {
 
@@ -325,5 +326,25 @@ class NewWorkspaceAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.windowService.newWorkspace();
+	}
+}
+
+export class OpenWorkspaceConfigFileAction extends Action {
+
+	public static ID = 'workbench.action.openWorkspaceConfigFile';
+	public static LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+		this.enabled = this.workspaceContextService.hasMultiFolderWorkspace();
+	}
+
+	public run(): TPromise<any> {
+		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
