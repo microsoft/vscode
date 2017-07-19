@@ -834,6 +834,17 @@ declare module monaco.editor {
 	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Get markers for owner ant/or resource
+	 * @returns {IMarkerData[]} list of markers
+	 * @param filter
+	 */
+	export function getModelMarkers(filter: {
+		owner?: string;
+		resource?: Uri;
+		take?: number;
+	}): IMarkerData[];
+
+	/**
 	 * Get the model that has `uri` if it exists.
 	 */
 	export function getModel(uri: Uri): IModel;
