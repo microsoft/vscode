@@ -30,6 +30,7 @@ RUN apt-get install -y libgl1-mesa-glx:i386 libgl1-mesa-dri:i386
 RUN apt-get install -y libxkbfile-dev
 RUN apt-get install -y bc bsdmainutils
 RUN apt-get install -y libsecret-1-dev
+RUN apt-get install -y docker.io
 
 # Xvfb
 # Thanks https://medium.com/@griggheo/running-headless-selenium-webdriver-tests-in-docker-containers-342fdbabf756
