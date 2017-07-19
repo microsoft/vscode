@@ -1282,8 +1282,8 @@ export class WindowsManager implements IWindowsMainService {
 
 		const options: Electron.ShowMessageBoxOptions = {
 			title: this.environmentService.appNameLong,
-			message: localize('saveWorkspaceMessage', "Do you want to save the workspace opened in this window?"),
-			detail: localize('saveWorkspaceDetail', "Your workspace will be deleted if you don't save it."),
+			message: localize('saveWorkspaceMessage', "Do you want to save the untitled workspace?"),
+			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
 			noLink: true,
 			type: 'warning',
 			buttons: buttons.map(button => button.label),
