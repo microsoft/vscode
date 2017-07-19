@@ -12,8 +12,8 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
-import xterm = require('xterm');
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
+import XTermTerminal = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -40,6 +40,9 @@ import pkg from 'vs/platform/node/package';
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
+// Enable search functionality in xterm.js instance
+XTermTerminal.loadAddon('search');
+
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
 		return cp.fork('./terminalProcess', [], {
@@ -50,7 +53,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
+	private static readonly EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -74,7 +77,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _instanceDisposables: lifecycle.IDisposable[];
 	private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
-	private _xterm: any;
+	private _xterm: XTermTerminal;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
@@ -212,7 +215,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
-		this._xterm = xterm({
+		this._xterm = new XTermTerminal({
 			scrollback: this._configHelper.config.scrollback
 		});
 		if (this._shellLaunchConfig.initialText) {
@@ -224,7 +227,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// Send data if the pty is ready
 				this._process.send({
 					event: 'input',
-					data: this._sanitizeInput(data)
+					data
 				});
 			} else {
 				// If the pty is not ready, queue the data received from
@@ -283,7 +286,7 @@ export class TerminalInstance implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const xtermHelper: HTMLElement = <HTMLElement>this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		dom.addClass(focusTrap, 'focus-trap');
@@ -426,7 +429,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public sendText(text: string, addNewLine: boolean): void {
 		this._processReady.then(() => {
-			text = this._sanitizeInput(text);
+			// Normalize line endings to 'enter' press.
+			text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 			if (addNewLine && text.substr(text.length - 1) !== '\r') {
 				text += '\r';
 			}
@@ -485,10 +489,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
-	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
-	}
-
 	protected _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		if (shell.cwd) {
 			return shell.cwd;
@@ -523,7 +523,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
-		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._initialCwd, locale, this._cols, this._rows);
+		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -547,7 +549,7 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._preLaunchInputQueue.length > 0) {
 					this._process.send({
 						event: 'input',
-						data: this._sanitizeInput(this._preLaunchInputQueue)
+						data: this._preLaunchInputQueue
 					});
 					this._preLaunchInputQueue = null;
 				}
@@ -828,11 +830,6 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		});
-	}
-
-	public enableApiOnData(): void {
-		// Only send data through IPC if the API explicitly requests it.
-		this.onData(data => this._onDataForApi.fire({ instance: this, data }));
 	}
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {

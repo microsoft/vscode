@@ -235,11 +235,11 @@ export class TrieMap<E> {
 
 	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
 
-	private _splitter: (s: string) => string[];
+	private readonly _splitter: (s: string) => string[];
 	private _root = new Node<E>();
 
 	constructor(splitter: (s: string) => string[]) {
-		this._splitter = splitter;
+		this._splitter = s => splitter(s).filter(s => Boolean(s));
 	}
 
 	insert(path: string, element: E): void {

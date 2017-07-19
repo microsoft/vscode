@@ -46,10 +46,10 @@ export class ColorThemeData implements IColorTheme {
 	get tokenColors(): ITokenColorizationRule[] {
 		// Add the custom colors after the theme colors
 		// so that they will override them
-		return this.themeTokenColors.concat(this.customTokenColors || []);
+		return this.themeTokenColors.concat(this.customTokenColors);
 	}
-	themeTokenColors?: ITokenColorizationRule[];
-	customTokenColors?: ITokenColorizationRule[];
+	themeTokenColors: ITokenColorizationRule[] = [];
+	customTokenColors: ITokenColorizationRule[] = [];
 	isLoaded: boolean;
 	path?: string;
 	extensionData: ExtensionData;
@@ -87,8 +87,8 @@ export class ColorThemeData implements IColorTheme {
 				}
 			}
 		}
-		if (this.tokenColors) {
-			updateDefaultRuleSettings(this.tokenColors[0], this);
+		if (this.themeTokenColors && this.themeTokenColors.length) {
+			updateDefaultRuleSettings(this.themeTokenColors[0], this);
 		}
 	}
 
@@ -150,12 +150,13 @@ export class ColorThemeData implements IColorTheme {
 		for (let key in this.colorMap) {
 			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
 		}
+		// no need to persist custom colors, they will be taken from the settings
 		return JSON.stringify({
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
 			selector: this.id.split(' ').join('.'), // to not break old clients
-			tokenColors: this.tokenColors,
+			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
 			colorMap: colorMapData
 		});
@@ -190,13 +191,17 @@ export function fromStorageData(input: string): ColorThemeData {
 		let data = JSON.parse(input);
 		let theme = new ColorThemeData();
 		for (let key in data) {
-			if (key !== 'colorMap') {
-				theme[key] = data[key];
-			} else {
-				let colorMapData = data[key];
-				for (let id in colorMapData) {
-					theme.colorMap[id] = Color.fromHex(colorMapData[id]);
-				}
+			switch (key) {
+				case 'colorMap':
+					let colorMapData = data[key];
+					for (let id in colorMapData) {
+						theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+					}
+					break;
+				case 'themeTokenColors':
+				case 'id': case 'label': case 'settingsId': case 'extensionData':
+					theme[key] = data[key];
+					break;
 			}
 		}
 		return theme;

@@ -57,6 +57,7 @@ interface SearchInputEvent extends Event {
 	immediate?: boolean;
 }
 
+const ExtensionsViewletVisibleContext = new RawContextKey<boolean>('extensionsViewletVisible', false);
 const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', false);
 const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', false);
@@ -64,6 +65,7 @@ const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRec
 export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
+	private extensionsViewletVisibleContextKey: IContextKey<boolean>;
 	private searchExtensionsContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
 	private searchRecommendedExtensionsContextKey: IContextKey<boolean>;
@@ -101,6 +103,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.registerViews();
 		this.searchDelayer = new ThrottledDelayer(500);
+		this.extensionsViewletVisibleContextKey = ExtensionsViewletVisibleContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchInstalledExtensionsContext.bindTo(contextKeyService);
 		this.searchRecommendedExtensionsContextKey = SearchRecommendedExtensionsContext.bindTo(contextKeyService);
@@ -133,7 +136,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
 			size: 100
 		};
 	}
@@ -144,7 +147,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('installedExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.not('searchExtensions'),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
 			size: 50
 		};
 	}
@@ -155,7 +158,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('searchInstalledExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.has('searchInstalledExtensions'),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchInstalledExtensions')),
 			size: 50
 		};
 	}
@@ -166,7 +169,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('recommendedExtensions', "Recommended"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.not('searchExtensions'),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
 			size: 50,
 			canToggleVisibility: true
 		};
@@ -206,7 +209,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 				if (installed.length === 0) {
 					this.searchBox.value = '@sort:installs';
 				}
-				this.searchExtensionsContextKey.set(!!this.searchBox.value);
+				this.searchExtensionsContextKey.set(true);
 				return super.create(new Builder(this.extensionsBox));
 			});
 	}
@@ -225,16 +228,12 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 	setVisible(visible: boolean): TPromise<void> {
 		const isVisibilityChanged = this.isVisible() !== visible;
-		if (isVisibilityChanged) {
-			if (visible) {
-				this.searchBox.focus();
-				this.searchBox.setSelectionRange(0, this.searchBox.value.length);
-			}
-		}
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
+				this.extensionsViewletVisibleContextKey.set(visible);
 				if (visible) {
-					this.doSearch();
+					this.searchBox.focus();
+					this.searchBox.setSelectionRange(0, this.searchBox.value.length);
 				}
 			}
 		});

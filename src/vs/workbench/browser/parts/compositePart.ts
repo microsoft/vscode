@@ -428,7 +428,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
-		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
+		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
@@ -476,18 +476,24 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	private onContextMenu(event: StandardMouseEvent): void {
-		const contextMenuActions = this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
-		if (contextMenuActions.length) {
-			let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.as(contextMenuActions),
-				getActionItem: (action: Action) => this.actionItemProvider(action),
-				actionRunner: this.activeComposite.getActionRunner(),
-				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
-			});
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		if (this.activeComposite) {
+			const contextMenuActions = this.getTitleAreaContextMenuActions();
+			if (contextMenuActions.length) {
+				let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(contextMenuActions),
+					getActionItem: (action: Action) => this.actionItemProvider(action),
+					actionRunner: this.activeComposite.getActionRunner(),
+					getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+				});
+			}
 		}
+	}
+
+	protected getTitleAreaContextMenuActions(): IAction[] {
+		return this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
@@ -511,7 +517,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return $(parent).div({
 			'class': 'content'
 		}, (div: Builder) => {
-			$(div).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
 			this.progressBar = new ProgressBar(div);
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();

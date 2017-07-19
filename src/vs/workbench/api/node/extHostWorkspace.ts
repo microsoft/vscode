@@ -7,8 +7,8 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { isFalsyOrEmpty, delta } from 'vs/base/common/arrays';
-import { relative } from 'path';
+import { delta } from 'vs/base/common/arrays';
+import { relative, basename } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
@@ -16,7 +16,53 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { compare } from "vs/base/common/strings";
+import { compare } from 'vs/base/common/strings';
+import { TrieMap } from 'vs/base/common/map';
+
+class Workspace2 extends Workspace {
+
+	static fromData(data: IWorkspaceData) {
+		return data ? new Workspace2(data) : null;
+	}
+
+	private readonly _folder: vscode.WorkspaceFolder[] = [];
+	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
+
+	private constructor(data: IWorkspaceData) {
+		super(data.id, data.name, data.roots);
+
+		// setup the workspace folder data structure
+		this.roots.forEach((uri, index) => {
+			const folder = {
+				name: basename(uri.fsPath),
+				uri,
+				index
+			};
+			this._folder.push(folder);
+			this._structure.insert(folder.uri.toString(), folder);
+		});
+	}
+
+	get folders(): vscode.WorkspaceFolder[] {
+		return this._folder.slice(0);
+	}
+
+	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
+		let str = uri.toString();
+		let folder = this._structure.lookUp(str);
+		if (folder) {
+			// `uri` is a workspace folder so we
+			let parts = str.split('/');
+			while (parts.length) {
+				if (parts.pop()) {
+					break;
+				}
+			}
+			str = parts.join('/');
+		}
+		return this._structure.findSubstr(str);
+	}
+}
 
 export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
@@ -24,14 +70,14 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	private readonly _proxy: MainThreadWorkspaceShape;
-	private _workspace: Workspace;
+	private _workspace: Workspace2;
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(threadService: IThreadService, data: IWorkspaceData) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
-		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
+		this._workspace = Workspace2.fromData(data);
 	}
 
 	// --- workspace ---
@@ -40,12 +86,19 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return this._workspace;
 	}
 
-	getRoots(): URI[] {
+	getWorkspaceFolders(): vscode.WorkspaceFolder[] {
 		if (!this._workspace) {
 			return undefined;
 		} else {
-			return this._workspace.roots.slice(0);
+			return this._workspace.folders.slice(0);
 		}
+	}
+
+	getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+		if (!this._workspace) {
+			return undefined;
+		}
+		return this._workspace.getWorkspaceFolder(<URI>uri);
 	}
 
 	getPath(): string {
@@ -59,12 +112,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		if (roots.length === 0) {
 			return undefined;
 		}
-		// if (roots.length === 1) {
 		return roots[0].fsPath;
-		// }
-		// return `undefined` when there no or more than 1
-		// root folder.
-		// return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -80,40 +128,41 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (!this._workspace || isFalsyOrEmpty(this._workspace.roots)) {
+		const folder = this.getWorkspaceFolder(typeof pathOrUri === 'string'
+			? URI.file(pathOrUri)
+			: pathOrUri
+		);
+
+		if (!folder) {
 			return normalize(path);
 		}
 
-		for (const { fsPath } of this._workspace.roots) {
-			let result = relative(fsPath, path);
-			if (!result || result.indexOf('..') === 0) {
-				continue;
-			}
-			return normalize(result);
+		let result = relative(folder.uri.fsPath, path);
+		if (this.workspace.roots.length > 1) {
+			result = `${folder.name}/${result}`;
 		}
-
-		return normalize(path);
+		return normalize(result);
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
 
-		// compute delta
-		const oldRoots = this._workspace ? this._workspace.roots.sort(ExtHostWorkspace._compareUri) : [];
-		const newRoots = data ? data.roots.sort(ExtHostWorkspace._compareUri) : [];
-		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareUri);
+		// keep old workspace folder, build new workspace, and
+		// capture new workspace folders. Compute delta between
+		// them send that as event
+		const oldRoots = this._workspace ? this._workspace.folders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
 
-		// update state
-		this._workspace = data ? new Workspace(data.id, data.name, data.roots) : null;
+		this._workspace = Workspace2.fromData(data);
+		const newRoots = this._workspace ? this._workspace.folders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
 
-		// send event
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareWorkspaceFolder);
 		this._onDidChangeWorkspace.fire(Object.freeze({
-			addedFolders: Object.freeze<vscode.Uri[]>(added),
-			removedFolders: Object.freeze<vscode.Uri[]>(removed)
+			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
+			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
 		}));
 	}
 
-	private static _compareUri(a: vscode.Uri, b: vscode.Uri): number {
-		return compare(a.toString(), b.toString());
+	private static _compareWorkspaceFolder(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+		return compare(a.uri.toString(), b.uri.toString());
 	}
 
 	// --- search ---

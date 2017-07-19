@@ -8,7 +8,6 @@
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
 import { TPromise } from 'vs/base/common/winjs.base';
-import jschardet = require('jschardet');
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -96,7 +95,6 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 }
 
 const MINIMUM_THRESHOLD = 0.2;
-jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 const MAPPED_ENCODINGS = {
@@ -106,7 +104,12 @@ const MAPPED_ENCODINGS = {
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: NodeBuffer): string {
+export async function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
+
+	const jschardet = await import('jschardet');
+
+	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
+
 	const guessed = jschardet.detect(buffer);
 	if (!guessed || !guessed.encoding) {
 		return null;

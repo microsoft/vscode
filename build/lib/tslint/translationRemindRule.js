@@ -74,6 +74,6 @@ var TranslationRemindRuleWalker = (function (_super) {
             this.addFailureAtNode(node, "Please add '" + resource + "' to ./builds/lib/i18n.resources.json file to use translations here.");
         }
     };
+    TranslationRemindRuleWalker.NLS_MODULE = 'vs/nls';
     return TranslationRemindRuleWalker;
 }(Lint.RuleWalker));
-TranslationRemindRuleWalker.NLS_MODULE = 'vs/nls';

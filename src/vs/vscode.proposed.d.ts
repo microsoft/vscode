@@ -7,25 +7,6 @@
 
 declare module 'vscode' {
 
-	export interface WorkspaceFoldersChangeEvent {
-		readonly addedFolders: Uri[];
-		readonly removedFolders: Uri[];
-	}
-
-	export namespace workspace {
-
-		/**
-		* List of workspace folders or `undefined` when no folder is open. The *first*
-		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
-		*/
-		export let workspaceFolders: Uri[] | undefined;
-
-		/**
-		 * An event that is emitted when a workspace folder is added or removed.
-		 */
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-	}
-
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
 
 		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
@@ -141,80 +122,49 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	export interface Terminal {
-
-		/**
-		 * The name of the terminal.
-		 */
-		readonly name: string;
-
-		/**
-		 * The process ID of the shell process.
-		 */
-		readonly processId: Thenable<number>;
-
-		/**
-		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal.
-		 *
-		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
-		 */
-		sendText(text: string, addNewLine?: boolean): void;
-
-		/**
-		 * Show the terminal panel and reveal this terminal in the UI.
-		 *
-		 * @param preserveFocus When `true` the terminal will not take focus.
-		 */
-		show(preserveFocus?: boolean): void;
-
-		/**
-		 * Hide the terminal panel if this terminal is currently showing.
-		 */
-		hide(): void;
-
-		/**
-		 * Dispose and free associated resources.
-		 */
-		dispose(): void;
-
-		/**
-		 * Experimental API that allows listening to the raw data stream coming from the terminal's
-		 * pty process (including ANSI escape sequences).
-		 *
-		 * @param callback The callback that is triggered when data is sent to the terminal.
-		 */
-		onData(callback: (data: string) => any): void;
-	}
-
 	export namespace debug {
 
 		/**
-		 * The currently active debug session or `undefined`. The active debug session is the one
-		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
-		 * If no debug session is active, the value is `undefined`.
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a DebugConfiguration.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are up-to-date.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
+		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export const activeDebugSession: DebugSession | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
-		 * has changed. *Note* that the event also fires when the active debug session changes
-		 * to `undefined`.
-		 */
-		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+		export function startDebugging(nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
 	}
 
-	export interface DebugSession {
+	/**
+	 * Namespace for handling credentials.
+	 */
+	export namespace credentials {
 
 		/**
-		 * Experimental API that allows hooking custom events from the debug session's debug adapter.
+		 * Read a previously stored secret from the credential store.
 		 *
-		 * @param callback The callback that is triggered when a custom event is received from the debug adapter.
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise for the secret of the credential.
 		 */
-		onCustomEvent(callback: (event: any) => void): void;
-	}
+		export function readSecret(service: string, account: string): Thenable<string | undefined>;
 
+		/**
+		 * Write a secret to the credential store.
+		 *
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @param secret The secret of the credential to write to the credential store.
+		 * @return A promise indicating completion of the operation.
+		 */
+		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
+
+		/**
+		 * Delete a previously stored secret from the credential store.
+		 *
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise resolving to true if there was a secret for that service and account.
+		 */
+		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+	}
 }

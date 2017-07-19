@@ -100,6 +100,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.onDidChangeWorkspaceName()));
 	}
 
 	private onBlur(): void {
@@ -113,6 +114,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
+		this.setTitle(this.getWindowTitle());
+	}
+
+	private onDidChangeWorkspaceName(): void {
 		this.setTitle(this.getWindowTitle());
 	}
 
@@ -187,12 +192,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Compute root resource
 		// Single Root Workspace: always the single root workspace in this case
-		// Multi Root Workspace: not yet defined (TODO@Ben multi root)
+		// Multi Root Workspace: workspace configuration file
 		let root: URI;
-		if (workspace) {
-			if (workspace.roots.length === 1) {
-				root = workspace.roots[0];
-			}
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			root = workspace.configuration;
+		} else if (this.contextService.hasFolderWorkspace()) {
+			root = workspace.roots[0];
 		}
 
 		// Compute folder resource

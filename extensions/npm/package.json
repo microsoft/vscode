@@ -38,21 +38,26 @@
           ],
           "default": "on",
           "description": "%config.npm.autoDetect%"
+        },
+        "npm.runSilent": {
+					"type": "boolean",
+					"default": false,
+					"description": "%config.npm.runSilent%"
         }
       }
     },
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script"],
+        "required": ["script", "path"],
         "properties": {
           "script": {
             "type": "string",
             "description": "The npm script to customize"
           },
-          "file": {
+          "path": {
             "type": "string",
-            "description": "The package.json file that provides the task. Can be omitted."
+            "description": "The path to the package.json file that provides the script."
           }
         }
       }

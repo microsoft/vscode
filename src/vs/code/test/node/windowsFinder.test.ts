@@ -8,8 +8,14 @@ import assert = require('assert');
 import path = require('path');
 import { findBestWindowOrFolderForFile, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsFinder';
 import { OpenContext } from 'vs/platform/windows/common/windows';
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 const fixturesFolder = require.toUrl('./fixtures');
+
+const testWorkspace: IWorkspaceIdentifier = {
+	id: Date.now().toString(),
+	configPath: path.join(fixturesFolder, 'workspaces.json')
+};
 
 function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): IBestWindowOrFolderOptions<ISimpleWindow> {
 	return {
@@ -18,13 +24,14 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 		reuseWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
+		workspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, folders: [path.join(fixturesFolder, 'vscode_workspace_1_folder'), path.join(fixturesFolder, 'vscode_workspace_2_folder')] } : null; },
 		...custom
 	};
 }
 
-const vscodeFolderWindow = { lastFocusTime: 1, openedWorkspacePath: path.join(fixturesFolder, 'vscode_folder') };
-const lastActiveWindow = { lastFocusTime: 3, openedWorkspacePath: null };
-const noVscodeFolderWindow = { lastFocusTime: 2, openedWorkspacePath: path.join(fixturesFolder, 'no_vscode_folder') };
+const vscodeFolderWindow = { lastFocusTime: 1, openedFolderPath: path.join(fixturesFolder, 'vscode_folder') };
+const lastActiveWindow = { lastFocusTime: 3, openedFolderPath: null };
+const noVscodeFolderWindow = { lastFocusTime: 2, openedFolderPath: path.join(fixturesFolder, 'no_vscode_folder') };
 const windows = [
 	vscodeFolderWindow,
 	lastActiveWindow,
@@ -101,7 +108,7 @@ suite('WindowsFinder', () => {
 	});
 
 	test('Existing window wins over vscode folder if more specific', () => {
-		const window = { lastFocusTime: 1, openedWorkspacePath: path.join(fixturesFolder, 'vscode_folder', 'nested_folder') };
+		const window = { lastFocusTime: 1, openedFolderPath: path.join(fixturesFolder, 'vscode_folder', 'nested_folder') };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window],
 			filePath: path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')
@@ -114,8 +121,8 @@ suite('WindowsFinder', () => {
 	});
 
 	test('More specific existing window wins', () => {
-		const window = { lastFocusTime: 2, openedWorkspacePath: path.join(fixturesFolder, 'no_vscode_folder') };
-		const nestedFolderWindow = { lastFocusTime: 1, openedWorkspacePath: path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder') };
+		const window = { lastFocusTime: 2, openedFolderPath: path.join(fixturesFolder, 'no_vscode_folder') };
+		const nestedFolderWindow = { lastFocusTime: 1, openedFolderPath: path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder') };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window, nestedFolderWindow],
 			filePath: path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')
@@ -123,7 +130,7 @@ suite('WindowsFinder', () => {
 	});
 
 	test('VSCode folder wins over existing window if more specific', () => {
-		const window = { lastFocusTime: 1, openedWorkspacePath: path.join(fixturesFolder, 'vscode_folder') };
+		const window = { lastFocusTime: 1, openedFolderPath: path.join(fixturesFolder, 'vscode_folder') };
 		assert.equal(findBestWindowOrFolderForFile(options({
 			windows: [window],
 			filePath: path.join(fixturesFolder, 'vscode_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')
@@ -151,5 +158,13 @@ suite('WindowsFinder', () => {
 			filePath: path.join(fixturesFolder, 'vscode_home_folder', 'file.txt'),
 			userHome: path.join(fixturesFolder, 'vscode_home_folder')
 		})), path.join(fixturesFolder, 'vscode_home_folder'));
+	});
+
+	test('Workspace folder wins', () => {
+		const window = { lastFocusTime: 1, openedWorkspace: testWorkspace };
+		assert.equal(findBestWindowOrFolderForFile(options({
+			windows: [window],
+			filePath: path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')
+		})), window);
 	});
 });

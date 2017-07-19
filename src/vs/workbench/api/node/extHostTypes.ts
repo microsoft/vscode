@@ -488,7 +488,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { }
+export class Uri extends URI {
+
+	private constructor() {
+		super(undefined, undefined, undefined, undefined, undefined);
+	}
+}
 
 export class WorkspaceEdit {
 

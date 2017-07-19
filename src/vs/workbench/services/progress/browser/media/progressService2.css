@@ -8,6 +8,7 @@
 	background-repeat: no-repeat;
 	background-position: left;
 	padding-left: 14px;
+	display: inline;
 }
 
 .monaco-workbench .progress-badge > .badge-content {

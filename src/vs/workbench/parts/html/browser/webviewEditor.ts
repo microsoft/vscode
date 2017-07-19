@@ -22,12 +22,6 @@ export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
 }
 
-interface HtmlPreviewEditorViewStates {
-	0?: HtmlPreviewEditorViewState;
-	1?: HtmlPreviewEditorViewState;
-	2?: HtmlPreviewEditorViewState;
-}
-
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', undefined);
 /**  A context key that is set when a webview editor does not have focus. */

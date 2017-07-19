@@ -10,7 +10,8 @@ import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -74,13 +75,50 @@ export class OpenWorkspaceSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
+		this.enabled = this.workspaceContextService.hasWorkspace();
 	}
 
 	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openWorkspaceSettings();
+	}
+}
+
+export class OpenFolderSettingsAction extends Action {
+
+	public static ID = 'workbench.action.openFolderSettings';
+	public static LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+		this.enabled = this.workspaceContextService.hasMultiFolderWorkspace();
+	}
+
+	public run(): TPromise<any> {
+		const picks: IPickOpenEntry[] = this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+			return <IPickOpenEntry>{
+				label: getSettingsTargetName(root, this.workspaceContextService),
+				id: `${index}`
+			};
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickFolder', "Select Folder") })
+			.then(pick => {
+				if (pick) {
+					return this.preferencesService.openSettings(this.workspaceContextService.getWorkspace().roots[parseInt(pick.id)]);
+				}
+				return undefined;
+			});
+
 	}
 }
 

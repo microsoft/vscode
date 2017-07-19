@@ -6,9 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
+import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class WindowService implements IWindowService {
 
@@ -23,20 +23,22 @@ export class WindowService implements IWindowService {
 		return this.windowId;
 	}
 
-	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.pickFileFolderAndOpen(this.windowId, forceNewWindow, data);
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
+
+		return this.windowsService.pickFileFolderAndOpen(options);
 	}
 
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.pickFileAndOpen(this.windowId, forceNewWindow, path, data);
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
+
+		return this.windowsService.pickFileAndOpen(options);
 	}
 
-	pickFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.windowsService.pickFolderAndOpen(this.windowId, forceNewWindow, data);
-	}
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
 
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.windowsService.pickFolder(this.windowId, options);
+		return this.windowsService.pickFolderAndOpen(options);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -51,8 +53,16 @@ export class WindowService implements IWindowService {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}
 
-	closeFolder(): TPromise<void> {
-		return this.windowsService.closeFolder(this.windowId);
+	closeWorkspace(): TPromise<void> {
+		return this.windowsService.closeWorkspace(this.windowId);
+	}
+
+	openWorkspace(): TPromise<void> {
+		return this.windowsService.openWorkspace(this.windowId);
+	}
+
+	newWorkspace(): TPromise<void> {
+		return this.windowsService.newWorkspace(this.windowId);
 	}
 
 	closeWindow(): TPromise<void> {
@@ -67,8 +77,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.setRepresentedFilename(this.windowId, fileName);
 	}
 
-	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }> {
-		return this.windowsService.getRecentlyOpen(this.windowId);
+	getRecentlyOpened(): TPromise<IRecentlyOpened> {
+		return this.windowsService.getRecentlyOpened(this.windowId);
 	}
 
 	focusWindow(): TPromise<void> {
@@ -109,5 +119,13 @@ export class WindowService implements IWindowService {
 		}
 
 		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
+	}
+
+	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+		if (callback) {
+			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
+		}
+
+		return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
 	}
 }

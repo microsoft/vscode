@@ -13,6 +13,8 @@ import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { ILogService } from "vs/platform/log/common/log";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 
 export class BackupMainService implements IBackupMainService {
 
@@ -21,80 +23,133 @@ export class BackupMainService implements IBackupMainService {
 	protected backupHome: string;
 	protected workspacesJsonPath: string;
 
-	private backups: IBackupWorkspacesFormat;
+	protected backups: IBackupWorkspacesFormat;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		this.loadSync();
+		this.registerListeners();
 	}
 
-	public getWorkspaceBackupPaths(): string[] {
-		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
-		if (config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+	private registerListeners(): void {
+		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// A workspace was saved to a new configuration location. Make sure to update
+		// our backup state with this new location.
+		let needsUpdate = false;
+		this.backups.rootWorkspaces.forEach(workspace => {
+			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
+				workspace.configPath = e.workspace.configPath;
+				needsUpdate = true;
+			}
+		});
+
+		if (needsUpdate) {
+			this.saveSync();
+		}
+	}
+
+	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
+		if (this.isHotExitOnExitAndWindowClose()) {
 			// Only non-folder windows are restored on main process launch when
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
+		return this.backups.rootWorkspaces.slice(0); // return a copy
+	}
+
+	public getFolderBackupPaths(): string[] {
+		if (this.isHotExitOnExitAndWindowClose()) {
+			// Only non-folder windows are restored on main process launch when
+			// hot exit is configured as onExitAndWindowClose.
+			return [];
+		}
+
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
-	public getEmptyWorkspaceBackupPaths(): string[] {
+	private isHotExitOnExitAndWindowClose(): boolean {
+		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+
+		return config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE;
+	}
+
+	public getEmptyWindowBackupPaths(): string[] {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): string {
+	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier): string {
+		this.pushBackupPathsSync(workspace, this.backups.rootWorkspaces);
+
+		return path.join(this.backupHome, workspace.id);
+	}
+
+	public registerFolderBackupSync(folderPath: string): string {
+		this.pushBackupPathsSync(folderPath, this.backups.folderWorkspaces);
+
+		return path.join(this.backupHome, this.getFolderHash(folderPath));
+	}
+
+	public registerEmptyWindowBackupSync(backupFolder?: string): string {
 
 		// Generate a new folder if this is a new empty workspace
-		if (isEmptyWorkspace && !backupFolder) {
-			backupFolder = this.getRandomEmptyWorkspaceId();
+		if (!backupFolder) {
+			backupFolder = this.getRandomEmptyWindowId();
 		}
 
-		this.pushBackupPathsSync(isEmptyWorkspace ? backupFolder : workspacePath, isEmptyWorkspace);
+		this.pushBackupPathsSync(backupFolder, this.backups.emptyWorkspaces);
 
-		return path.join(this.backupHome, isEmptyWorkspace ? backupFolder : this.getWorkspaceHash(workspacePath));
+		return path.join(this.backupHome, backupFolder);
 	}
 
-	private pushBackupPathsSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): string {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
-		if (this.indexOf(workspaceIdentifier, isEmptyWorkspace) === -1) {
-			array.push(workspaceIdentifier);
+	private pushBackupPathsSync(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, target: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): void {
+		if (this.indexOf(workspaceIdentifier, target) === -1) {
+			target.push(workspaceIdentifier);
 			this.saveSync();
 		}
-
-		return workspaceIdentifier;
 	}
 
-	protected removeBackupPathSync(workspaceIdentifier: string, isEmptyWorkspace: boolean): void {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
-		if (!array) {
+	protected removeBackupPathSync(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, target: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): void {
+		if (!target) {
 			return;
 		}
-		const index = this.indexOf(workspaceIdentifier, isEmptyWorkspace);
+
+		const index = this.indexOf(workspaceIdentifier, target);
 		if (index === -1) {
 			return;
 		}
-		array.splice(index, 1);
+
+		target.splice(index, 1);
 		this.saveSync();
 	}
 
-	private indexOf(workspaceIdentifier: string, isEmptyWorkspace: boolean): number {
-		const array = isEmptyWorkspace ? this.backups.emptyWorkspaces : this.backups.folderWorkspaces;
-		if (!array) {
+	private indexOf(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, target: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): number {
+		if (!target) {
 			return -1;
 		}
 
-		if (isEmptyWorkspace) {
-			return array.indexOf(workspaceIdentifier);
+		const sanitizedWorkspaceIdentifier = this.sanitizeId(workspaceIdentifier);
+
+		return arrays.firstIndex(target, id => this.sanitizeId(id) === sanitizedWorkspaceIdentifier);
+	}
+
+	private sanitizeId(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+		if (typeof workspaceIdentifier === 'string') {
+			return this.sanitizePath(workspaceIdentifier);
 		}
 
-		// for backup workspaces, sanitize the workspace identifier to accomodate for case insensitive file systems
-		const sanitizedWorkspaceIdentifier = this.sanitizePath(workspaceIdentifier);
-		return arrays.firstIndex(array, id => this.sanitizePath(id) === sanitizedWorkspaceIdentifier);
+		return workspaceIdentifier.id;
 	}
 
 	protected loadSync(): void {
@@ -103,6 +158,16 @@ export class BackupMainService implements IBackupMainService {
 			backups = JSON.parse(fs.readFileSync(this.workspacesJsonPath, 'utf8').toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			backups = Object.create(null);
+		}
+
+		// Ensure rootWorkspaces is a object[]
+		if (backups.rootWorkspaces) {
+			const rws = backups.rootWorkspaces;
+			if (!Array.isArray(rws) || rws.some(r => typeof r !== 'object')) {
+				backups.rootWorkspaces = [];
+			}
+		} else {
+			backups.rootWorkspaces = [];
 		}
 
 		// Ensure folderWorkspaces is a string[]
@@ -125,67 +190,76 @@ export class BackupMainService implements IBackupMainService {
 			backups.emptyWorkspaces = [];
 		}
 
-		this.backups = this.dedupeFolderWorkspaces(backups);
+		this.backups = this.dedupeBackups(backups);
 
 		// Validate backup workspaces
 		this.validateBackupWorkspaces(backups);
 	}
 
-	protected dedupeFolderWorkspaces(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
-		// De-duplicate folder workspaces, don't worry about cleaning them up any duplicates as
+	protected dedupeBackups(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
+
+		// De-duplicate folder/workspace backups. don't worry about cleaning them up any duplicates as
 		// they will be removed when there are no backups.
 		backups.folderWorkspaces = arrays.distinct(backups.folderWorkspaces, ws => this.sanitizePath(ws));
+		backups.rootWorkspaces = arrays.distinct(backups.rootWorkspaces, ws => this.sanitizePath(ws.id));
 
 		return backups;
 	}
 
 	private validateBackupWorkspaces(backups: IBackupWorkspacesFormat): void {
-		const staleBackupWorkspaces: { workspaceIdentifier: string; backupPath: string; isEmptyWorkspace: boolean }[] = [];
+		const staleBackupWorkspaces: { workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier; backupPath: string; target: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] }[] = [];
 
-		// Validate Folder Workspaces
-		backups.folderWorkspaces.forEach(workspacePath => {
-			const backupPath = path.join(this.backupHome, this.getWorkspaceHash(workspacePath));
+		const workspaceAndFolders: { workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, target: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] }[] = [];
+		workspaceAndFolders.push(...backups.rootWorkspaces.map(r => ({ workspaceIdentifier: r, target: backups.rootWorkspaces })));
+		workspaceAndFolders.push(...backups.folderWorkspaces.map(f => ({ workspaceIdentifier: f, target: backups.folderWorkspaces })));
+
+		// Validate Workspace and Folder Backups
+		workspaceAndFolders.forEach(workspaceOrFolder => {
+			const workspaceId = workspaceOrFolder.workspaceIdentifier;
+			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
+			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
 			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
 
-			// If the folder has no backups, make sure to delete it
-			// If the folder has backups, but the target workspace is missing, convert backups to empty ones
+			// If the workspace/folder has no backups, make sure to delete it
+			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
 			if (!hasBackups || missingWorkspace) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: workspacePath, backupPath, isEmptyWorkspace: false });
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceId, backupPath, target: workspaceOrFolder.target });
 
 				if (missingWorkspace) {
-					const identifier = this.pushBackupPathsSync(this.getRandomEmptyWorkspaceId(), true /* is empty workspace */);
-					const newEmptyWorkspaceBackupPath = path.join(path.dirname(backupPath), identifier);
+					const identifier = this.getRandomEmptyWindowId();
+					this.pushBackupPathsSync(identifier, this.backups.emptyWorkspaces);
+					const newEmptyWindowBackupPath = path.join(path.dirname(backupPath), identifier);
 					try {
-						fs.renameSync(backupPath, newEmptyWorkspaceBackupPath);
+						fs.renameSync(backupPath, newEmptyWindowBackupPath);
 					} catch (ex) {
-						console.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
+						this.logService.error(`Backup: Could not rename backup folder for missing workspace: ${ex.toString()}`);
 
-						this.removeBackupPathSync(identifier, true);
+						this.removeBackupPathSync(identifier, this.backups.emptyWorkspaces);
 					}
 				}
 			}
 		});
 
-		// Validate Empty Workspaces
+		// Validate Empty Windows
 		backups.emptyWorkspaces.forEach(backupFolder => {
 			const backupPath = path.join(this.backupHome, backupFolder);
 			if (!this.hasBackupsSync(backupPath)) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: backupFolder, backupPath, isEmptyWorkspace: true });
+				staleBackupWorkspaces.push({ workspaceIdentifier: backupFolder, backupPath, target: backups.emptyWorkspaces });
 			}
 		});
 
 		// Clean up stale backups
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
-			const { backupPath, workspaceIdentifier, isEmptyWorkspace } = staleBackupWorkspace;
+			const { backupPath, workspaceIdentifier, target } = staleBackupWorkspace;
 
 			try {
 				extfs.delSync(backupPath);
 			} catch (ex) {
-				console.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
+				this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
 			}
 
-			this.removeBackupPathSync(workspaceIdentifier, isEmptyWorkspace);
+			this.removeBackupPathSync(workspaceIdentifier, target);
 		});
 	}
 
@@ -214,13 +288,14 @@ export class BackupMainService implements IBackupMainService {
 			if (!fs.existsSync(this.backupHome)) {
 				fs.mkdirSync(this.backupHome);
 			}
+
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
-			console.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}
 	}
 
-	private getRandomEmptyWorkspaceId(): string {
+	private getRandomEmptyWindowId(): string {
 		return (Date.now() + Math.round(Math.random() * 1000)).toString();
 	}
 
@@ -228,7 +303,7 @@ export class BackupMainService implements IBackupMainService {
 		return platform.isLinux ? p : p.toLowerCase();
 	}
 
-	protected getWorkspaceHash(workspacePath: string): string {
-		return crypto.createHash('md5').update(this.sanitizePath(workspacePath)).digest('hex');
+	protected getFolderHash(folderPath: string): string {
+		return crypto.createHash('md5').update(this.sanitizePath(folderPath)).digest('hex');
 	}
 }

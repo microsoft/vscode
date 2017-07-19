@@ -67,6 +67,11 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	env: {
+		linux: { [key: string]: string };
+		osx: { [key: string]: string };
+		windows: { [key: string]: string };
+	};
 }
 
 export interface ITerminalConfigHelper {
@@ -352,11 +357,6 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
-
-	/**
-	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
-	 */
-	enableApiOnData(): void;
 
 	/**
 	 * Sets the title of the terminal instance.
