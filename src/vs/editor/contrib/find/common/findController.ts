@@ -16,6 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -206,20 +207,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getSelectionSearchString(): string {
-		let selection = this._editor.getSelection();
-
-		if (selection.startLineNumber === selection.endLineNumber) {
-			if (selection.isEmpty()) {
-				let wordAtPosition = this._editor.getModel().getWordAtPosition(selection.getStartPosition());
-				if (wordAtPosition) {
-					return wordAtPosition.word;
-				}
-			} else {
-				return this._editor.getModel().getValueInRange(selection);
-			}
-		}
-
-		return null;
+		return getSelectionSearchString(this._editor);
 	}
 
 	protected _start(opts: IFindStartOptions): void {
