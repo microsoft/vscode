@@ -6,7 +6,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import * as keytar from 'keytar';
+
+import * as keytarType from 'keytar';
+let keytar: typeof keytarType;
+require(['keytar'], ([k]) => {
+	keytar = k;
+}, err => {
+	// TODO chrmarti
+});
 
 export class CredentialsService implements ICredentialsService {
 

@@ -33,7 +33,6 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
-    "keytar": "^4.0.3",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
     "node-pty": "0.6.9",
@@ -126,6 +125,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "keytar": "^4.0.3",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
     "fsevents": "0.3.8"
