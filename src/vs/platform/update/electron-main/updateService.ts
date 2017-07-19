@@ -93,7 +93,7 @@ export class UpdateService implements IUpdateService {
 		const channel = this.getUpdateChannel();
 
 		if (process.platform === 'win32') {
-			this.raw = new Win32AutoUpdaterImpl(channel, requestService, storageService);
+			this.raw = new Win32AutoUpdaterImpl(process.arch, channel, requestService, storageService);
 		} else if (process.platform === 'linux') {
 			this.raw = new LinuxAutoUpdaterImpl(requestService);
 		} else if (process.platform === 'darwin') {

@@ -41,13 +41,14 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	private updatePackagePath: string = null;
 
 	constructor(
+		private arch: string,
 		private channel: string,
 		@IRequestService private requestService: IRequestService,
 		@IStorageService private storageService: IStorageService
 	) {
 		super();
 
-		if (process.arch === 'ia32') {
+		if (arch === 'ia32') {
 			if (this.storageService.getItem('autoUpdateWin32Prefer64Bits', false)) {
 				this.autoUpdater64 = this.create64BitAutoUpdater();
 			}
@@ -55,13 +56,13 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	}
 
 	private create64BitAutoUpdater(): Win32AutoUpdaterImpl {
-		const result = new Win32AutoUpdaterImpl(this.channel, this.requestService, this.storageService);
+		const result = new Win32AutoUpdaterImpl('x64', this.channel, this.requestService, this.storageService);
 		result.setFeedURL(getUpdateFeedUrl(this.channel, 'x64'));
 		return result;
 	}
 
 	private get cachePath(): TPromise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-update-${this.arch}`);
 		return new TPromise<string>((c, e) => mkdirp(result, null, err => err ? e(err) : c(result)));
 	}
 
@@ -82,7 +83,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 			return;
 		}
 
-		const shouldPromptToMoveTo64Bits = process.arch === 'ia32' && this.storageService.getItem('autoUpdateWin32Propose64bits', true);
+		const shouldPromptToMoveTo64Bits = this.arch === 'ia32' && this.storageService.getItem('autoUpdateWin32Propose64bits', true);
 
 		if (shouldPromptToMoveTo64Bits) {
 			const result = dialog.showMessageBox({
