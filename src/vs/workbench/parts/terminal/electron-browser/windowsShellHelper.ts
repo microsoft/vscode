@@ -31,10 +31,6 @@ export class WindowsShellHelper {
 		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
 			this.updateShellName();
 		});
-
-		terminal.onData((string) => {
-			this.updateShellName();
-		});
 	}
 
 	private getFirstChildProcess(pid: number): TPromise<{ executable: string, pid: number }[]> {
@@ -74,7 +70,7 @@ export class WindowsShellHelper {
 	/**
 	 * Returns the innermost shell running in the terminal.
 	 */
-	public getShellName(pid: number, shell: string): TPromise<string> {
+	private getShellName(pid: number, shell: string): TPromise<string> {
 		if (this._childProcessIdStack.length === 0) {
 			this._childProcessIdStack.push(pid);
 		}

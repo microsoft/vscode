@@ -271,6 +271,10 @@ export class TerminalInstance implements ITerminalInstance {
 				return false;
 			}
 
+			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && !this._messageTitleListener) {
+				this._windowsShellHelper.updateShellName();
+			}
+
 			return undefined;
 		});
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
