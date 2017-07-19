@@ -333,7 +333,6 @@ export class SCMViewlet extends Viewlet {
 		};
 		this.deploymentSplitView = new SplitView(root);
 		const view = this.instantiationService.createInstance(DeploymentView, options);
-		this.disposables.push(view.addListener('change', () => this.layout()));
 		this.deploymentSplitView.addView(view);
 		this.disposables.push(this.deploymentSplitView);
 
@@ -411,7 +410,7 @@ export class SCMViewlet extends Viewlet {
 		this.inputBox.layout();
 
 		const editorHeight = this.inputBox.height;
-		const deploymentHeight = this.activeProvider && this.activeProvider.id === 'git' ? (this.deploymentSplitView.getViews<DeploymentView>()[0].isExpanded() ? DeploymentView.HEIGHT : DeploymentView.HEADER_HEIGHT) : 0;
+		const deploymentHeight = this.activeProvider && this.activeProvider.id === 'git' ? DeploymentView.HEIGHT : 0;
 		const listHeight = dimension.height - (editorHeight + 12 /* margin */) - deploymentHeight;
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
