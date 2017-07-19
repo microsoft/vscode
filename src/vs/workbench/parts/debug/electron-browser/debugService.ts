@@ -170,15 +170,14 @@ export class DebugService implements debug.IDebugService {
 		const session = process ? <RawDebugSession>process.session : null;
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			if (session) {
-				session.attach({ port: broadcast.payload.port }).done(undefined, errors.onUnexpectedError);
-				return;
+				this.onSessionEnd(session);
 			}
 
 			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
 			this.configurationManager.resolveConfiguration(config).done(resolvedConfig => {
 				resolvedConfig.request = 'attach';
 				resolvedConfig.port = broadcast.payload.port;
-				this.doCreateProcess(resolvedConfig);
+				this.doCreateProcess(resolvedConfig, broadcast.payload.debugId);
 			}, errors.onUnexpectedError);
 
 			return;
@@ -765,8 +764,7 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(configuration: debug.IConfig): TPromise<debug.IProcess> {
-		const sessionId = generateUuid();
+	private doCreateProcess(configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
