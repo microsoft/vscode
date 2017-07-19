@@ -33,6 +33,19 @@ interface IUpdate {
 	hash: string;
 }
 
+const eventNames = [
+	'checking-for-update',
+	'update-not-available',
+	'update-available',
+	'update-downloaded',
+	'update-not-available',
+	'error'
+];
+
+function forwardEvent(eventName: string, source: EventEmitter, target: EventEmitter): void {
+	source.on(eventName, (...args) => target.emit(eventName, ...args));
+}
+
 export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
 	private autoUpdater64: Win32AutoUpdaterImpl = null;
@@ -59,6 +72,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	private create64BitAutoUpdater(): Win32AutoUpdaterImpl {
 		const result = new Win32AutoUpdaterImpl('x64', this.channel, this.requestService, this.storageService);
 		result.setFeedURL(getUpdateFeedUrl(this.channel, 'x64'));
+		eventNames.forEach(e => forwardEvent(e, result, this));
 		return result;
 	}
 
