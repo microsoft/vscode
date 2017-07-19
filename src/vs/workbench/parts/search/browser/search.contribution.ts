@@ -243,7 +243,8 @@ class ShowAllSymbolsAction extends Action {
 
 		let prefix = ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;
-		const word = getSelectionSearchString(this.editorService.getFocusedCodeEditor());
+		let editor = this.editorService.getFocusedCodeEditor();
+		const word = editor && getSelectionSearchString(editor);
 		if (word) {
 			prefix = prefix + word;
 			inputSelection = { start: 1, end: word.length + 1 };
