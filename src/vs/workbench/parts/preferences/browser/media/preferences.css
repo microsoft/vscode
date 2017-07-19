@@ -24,11 +24,11 @@
 
 .settings-targets-widget {
 	flex-wrap: wrap;
-    margin-left: 18px;
-    margin-top: 8px;
+	margin-left: 18px;
+	margin-top: 8px;
 	display: flex;
-    border-radius: 4px;
-    padding: 0 8px;
+	border-radius: 4px;
+	padding: 0 8px;
 	cursor: pointer;
 }
 
@@ -36,7 +36,7 @@
 	font-size: 11px;
 	padding: 2px 4px 0 0;
 	white-space: nowrap;
-    overflow: hidden;
+	overflow: hidden;
 	flex: 1;
 	display: flex;
 }
@@ -46,8 +46,8 @@
 }
 
 .settings-targets-widget > .settings-target > .settings-target-details {
-    margin-left: 0.5em;
-    font-size: 10px;
+	margin-left: 0.5em;
+	font-size: 10px;
 	opacity: 0.7;
 }
 
