@@ -90,7 +90,8 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 				title: product.nameLong,
 				type: 'question',
 				message: localize('propose64', "{0} 64 bits for Windows is now available! Would you like to upgrade to the 64 bit version?", product.nameShort),
-				buttons: [localize('yes', "Yes"), localize('no', "No"), localize('neverAgain', "Never Ask Again")]
+				buttons: [localize('yes', "Yes"), localize('no', "No"), localize('neverAgain', "Never Ask Again")],
+				noLink: true
 			});
 
 			if (result === 2) {
