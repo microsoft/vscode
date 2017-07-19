@@ -9,9 +9,6 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 
-/** The amount of time to wait before getting the shell process name */
-const WAIT_AFTER_ENTER_TIME = 100;
-
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckWindowsShell: Emitter<string>;
@@ -21,6 +18,8 @@ export class WindowsShellHelper {
 	public constructor(pid: number, rootShellName: string) {
 		this._childProcessIdStack = [];
 		this._rootShellExecutable = rootShellName;
+		this._processId = pid;
+
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
@@ -73,16 +72,12 @@ export class WindowsShellHelper {
 			this._childProcessIdStack.push(pid);
 		}
 		return new TPromise<string>((resolve) => {
-			// We wait before checking the processes to give it time to update with the new child shell.
-			// Otherwise, it would return old data.
-			setTimeout(() => {
-				this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '').then(result => {
-					if (result.length > 0) {
-						resolve(result);
-					}
-					resolve(shell);
-				}, error => { return error; });
-			}, WAIT_AFTER_ENTER_TIME);
+			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '').then(result => {
+				if (result.length > 0) {
+					resolve(result);
+				}
+				resolve(shell);
+			}, error => { return error; });
 		});
 	}
 

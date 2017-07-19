@@ -143,6 +143,11 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
+			}).then(() => {
+				this._windowsShellHelper.updateShellName().then(result => {
+					this._title = result;
+					this._onTitleChanged.fire(result);
+				});
 			});
 		}
 
@@ -273,9 +278,10 @@ export class TerminalInstance implements ITerminalInstance {
 				return false;
 			}
 
-			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && !this._messageTitleListener) {
+			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
 				this._windowsShellHelper.updateShellName().then(result => {
 					this._title = result;
+					this._onTitleChanged.fire(result);
 				});
 			}
 
