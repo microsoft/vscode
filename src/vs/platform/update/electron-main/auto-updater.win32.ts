@@ -7,6 +7,7 @@
 
 import { localize } from 'vs/nls';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import { checksum } from 'vs/base/node/crypto';
 import { EventEmitter } from 'events';
@@ -21,7 +22,7 @@ import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { dialog } from 'electron';
-import { getUpdateFeedUrl } from './updateFeedUrl';
+import { getUpdateFeedUrl, Win32UninstallPath } from './updateFeedUrl';
 
 interface IUpdate {
 	url: string;
@@ -179,6 +180,19 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 		}
 
 		if (!this.updatePackagePath) {
+			return;
+		}
+
+		if (process.arch === 'ia32' && this.arch === 'x64') {
+			const updatePackageContents = `@echo off\r\n"${Win32UninstallPath} /silent"\r\nstart /b "" "${this.updatePackagePath}" /silent /mergetasks=runcode,!desktopicon,!quicklaunchicon\r\n`;
+			const updatePackagePath = path.join(tmpdir(), 'vscode-update-32-to-64.bat');
+			fs.writeFileSync(updatePackagePath, updatePackageContents);
+
+			spawn('cmd.exe', [updatePackagePath], {
+				detached: true,
+				stdio: ['ignore', 'ignore', 'ignore']
+			});
+
 			return;
 		}
 

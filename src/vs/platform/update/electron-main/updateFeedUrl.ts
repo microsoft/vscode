@@ -9,12 +9,14 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import product from 'vs/platform/node/product';
 
+export const Win32UninstallPath = path.join(path.dirname(process.execPath), 'unins000.exe');
+
 export function getUpdateFeedUrl(channel: string, arch: string = process.arch): string {
 	if (!channel) {
 		return null;
 	}
 
-	if (process.platform === 'win32' && !fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
+	if (process.platform === 'win32' && !fs.existsSync(Win32UninstallPath)) {
 		return null;
 	}
 
