@@ -17,12 +17,14 @@ import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getHover } from '../common/hover';
+import { getHover, isColorHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { Color } from 'vs/base/common/color';
+import { ColorPickerModel, ColorModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
+import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -65,7 +67,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+		const hasHoverContent = (contents: MarkedString | MarkedString[] | Color) => {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
@@ -76,12 +78,12 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || !hasHoverContent(d.options.hoverMessage)) {
+			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || (!hasHoverContent(d.options.hoverMessage) && !hasHoverContent(d.options.color))) {
 				return null;
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
-			let contents: MarkedString[] | Color;
+			let contents: MarkedString[];
 
 			if (d.options.hoverMessage) {
 				if (Array.isArray(d.options.hoverMessage)) {
@@ -91,8 +93,9 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 				}
 			}
 
-			if (d.options.color) {
-				contents = d.options.color;
+			const color = d.options.color;
+			if (color) {
+				return { color, range };
 			}
 
 			return { contents, range };
@@ -238,6 +241,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			highlightRange = messages[0].range,
 			fragment = document.createDocumentFragment();
 
+		let colorPicker: ColorPickerWidget;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -246,7 +250,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			if (Array.isArray(msg.contents)) {
+			if (!isColorHover(msg)) {
 				msg.contents
 					.filter(contents => !!contents)
 					.forEach(contents => {
@@ -271,18 +275,27 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				const container = document.createElement('div');
-				fragment.appendChild(container);
+				const model = new ColorPickerModel();
+				const widget = this._register(new ColorPickerWidget(model, this._editor));
+				model.widget = widget;
+				model.originalColor = msg.color.toRGBA().toString();
+				model.colorModel = ColorModel.RGBA;
+				model.color = msg.color;
 
-				// RENDER WIDGET inside container
+				colorPicker = widget;
+				fragment.appendChild(widget.getDomNode());
 			}
-
 		});
 
 		// show
 		this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
 
 		this.updateContents(fragment);
+
+		if (colorPicker) {
+			colorPicker.layout();
+			colorPicker.layoutSaturationBox();
+		}
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{

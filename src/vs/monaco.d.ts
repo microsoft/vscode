@@ -1113,6 +1113,10 @@ declare module monaco.editor {
 		 */
 		hoverMessage?: MarkedString | MarkedString[];
 		/**
+		 * Color to render in the color picker.
+		 */
+		color?: Color;
+		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
@@ -4392,7 +4396,7 @@ declare module monaco.languages {
 	 * A hover represents additional information for a symbol or word. Hovers are
 	 * rendered in a tooltip-like widget.
 	 */
-	export interface Hover {
+	export interface MarkedStringHover {
 		/**
 		 * The contents of this hover.
 		 */
@@ -4404,6 +4408,18 @@ declare module monaco.languages {
 		 */
 		range: IRange;
 	}
+
+	export interface ColorHover {
+		color: Color;
+		/**
+		 * The range to which this hover applies. When missing, the
+		 * editor will use the range at the current position or the
+		 * current position itself.
+		 */
+		range: IRange;
+	}
+
+	export type Hover = MarkedStringHover | ColorHover;
 
 	/**
 	 * The hover provider interface defines the contract between extensions and
@@ -4763,6 +4779,21 @@ declare module monaco.languages {
 	export interface LinkProvider {
 		provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
+	}
+
+	/**
+	 * A color inside the editor.
+	 */
+	export interface IColor {
+		range: IRange;
+		color: Color;
+	}
+
+	/**
+	 * A provider of links.
+	 */
+	export interface ColorProvider {
+		provideColors(model: editor.IReadOnlyModel, token: CancellationToken): IColor[] | Thenable<IColor[]>;
 	}
 
 	export interface IResourceEdit {

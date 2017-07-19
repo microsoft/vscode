@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .colorpicker-widget {
-	background-color: rgba(255, 255, 255, 1);
-	width: 300px;
 	height: 190px;
 }
 
@@ -51,14 +49,15 @@
 
 .colorpicker-body .saturation-wrap {
 	overflow: hidden;
-	width: 220px;
 	height: 150px;
 	position: relative;
+	min-width: 220px;
+	flex: 1;
 }
 
 .colorpicker-body .saturation-box {
-	width: 220px;
 	height: 150px;
+	position: absolute;
 }
 
 .colorpicker-body .saturation-selection {

@@ -8,15 +8,14 @@ import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
 import { ServicesAccessor } from "vs/platform/instantiation/common/instantiation";
 import { EditorContextKeys } from "vs/editor/common/editorContextKeys";
 import * as nls from 'vs/nls';
-import { ICommonCodeEditor, IEditorContribution } from "vs/editor/common/editorCommon";
+import { ICommonCodeEditor, IEditorContribution, IModelDeltaDecoration } from "vs/editor/common/editorCommon";
 import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable, empty as EmptyDisposable } from "vs/base/common/lifecycle";
-import { ColorPickerModel, ColorModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
-import { Color, RGBA } from "vs/base/common/color";
+import { Color } from "vs/base/common/color";
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @editorContribution
@@ -24,23 +23,10 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 	private static ID: string = 'editor.contrib.colorPicker';
 
 	private widget: ColorPickerWidget;
-	private model: ColorPickerModel;
+	// private model: ColorPickerModel;
 
 	constructor(private editor: ICodeEditor) {
 		super();
-
-		this.model = new ColorPickerModel();
-		this.widget = this._register(new ColorPickerWidget(this.model, editor));
-		this.model.widget = this.widget;
-
-		this._register(editor.onDidChangeModel(() =>
-			this.dispose()
-		));
-		this._register(editor.onKeyDown(e => {
-			if (e.keyCode === KeyCode.Escape) {
-				this.dispose();
-			}
-		}));
 	}
 
 	public getId(): string {
@@ -49,16 +35,6 @@ export class ColorPickerController extends Disposable implements IEditorContribu
 
 	public static get(editor: ICommonCodeEditor): ColorPickerController {
 		return editor.getContribution<ColorPickerController>(this.ID);
-	}
-
-	public pickColor(): void {
-		const colorString = 'rgb(243, 34, 43)'; // temp colour that is picked from editor
-		this.model.originalColor = colorString;
-		this.model.colorModel = ColorModel.RGBA;
-		this.model.color = Color.fromRGBA(new RGBA(243, 34, 43));
-		this.model.hue = this.model.color;
-
-		this.widget.show();
 	}
 
 	public dispose(): void {
@@ -77,7 +53,8 @@ export class FakeColorDecorations extends Disposable implements IEditorContribut
 
 	private static decorationOptions = ModelDecorationOptions.register({
 		inlineClassName: 'detected-color',
-		color: Color.red
+		color: Color.green
+		// hoverMessage: Color.green.toString()
 	});
 
 	constructor(private editor: ICodeEditor) {
@@ -87,7 +64,7 @@ export class FakeColorDecorations extends Disposable implements IEditorContribut
 			this.decorationsDisposable.dispose();
 
 			const model = editor.getModel();
-			const decoration = {
+			const decoration: IModelDeltaDecoration = {
 				range: {
 					startLineNumber: 4,
 					startColumn: 1,

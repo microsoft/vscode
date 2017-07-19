@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./colorpicker';
-import { IOverlayWidget, IOverlayWidgetPosition, ICodeEditor } from "vs/editor/browser/editorBrowser";
+import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { Widget } from "vs/base/browser/ui/widget";
 import * as dom from 'vs/base/browser/dom';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
@@ -13,7 +13,7 @@ import { ColorPickerBody } from "vs/editor/contrib/colorPicker/browser/elements/
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 const $ = dom.$;
 
-export class ColorPickerWidget extends Widget implements IOverlayWidget {
+export class ColorPickerWidget extends Widget {
 	private static ID = 'editor.contrib.colorPickerWidget';
 
 	private domNode: HTMLElement;
@@ -25,37 +25,26 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
 		super();
 		this._register(onDidChangeZoomLevel(() => this.layout()));
+		this.domNode = $('.editor-widget.colorpicker-widget');
 	}
 
-	public show(): void {
+	public layout(): void {
 		if (this.visible) {
 			return;
 		}
 
-		this.domNode = $('.editor-widget.colorpicker-widget');
-		this.domNode.setAttribute('aria-hidden', 'false');
-		this.editor.addOverlayWidget(this);
-
 		this.header = new ColorPickerHeader(this, this.model);
 		this.body = new ColorPickerBody(this, this.model);
 
-		this.layout();
 		this.visible = true;
 	}
 
-	private layout(): void {
-		let editorLayout = this.editor.getLayoutInfo();
-
-		let top = Math.round((editorLayout.height - this.domNode.offsetHeight) / 2);
-		this.domNode.style.top = top + 'px';
-
-		let left = Math.round((editorLayout.width - this.domNode.offsetWidth) / 2);
-		this.domNode.style.left = left + 'px';
+	public layoutSaturationBox(): void {
+		this.body.saturationBox.layout();
 	}
 
 	public dispose(): void {
 		this.visible = false;
-		this.editor.removeOverlayWidget(this);
 		super.dispose();
 	}
 
@@ -65,11 +54,5 @@ export class ColorPickerWidget extends Widget implements IOverlayWidget {
 
 	public getDomNode(): HTMLElement {
 		return this.domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
-		};
 	}
 }

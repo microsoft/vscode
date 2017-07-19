@@ -28,6 +28,10 @@ export class ColorPickerModel {
 	public set color(color: Color) {
 		this._color = color;
 
+		if (!this._hue) {
+			this._hue = color;
+		}
+
 		if (this._colorModel === ColorModel.RGBA) {
 			this.selectedColorString = color.toRGBA().toString();
 		} else if (this._colorModel === ColorModel.Hex) {

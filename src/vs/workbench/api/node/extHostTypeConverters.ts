@@ -253,14 +253,14 @@ export const location = {
 	}
 };
 
-export function fromHover(hover: vscode.Hover): modes.Hover {
-	return <modes.Hover>{
+export function fromHover(hover: vscode.Hover): modes.MarkedStringHover {
+	return <modes.MarkedStringHover>{
 		range: fromRange(hover.range),
 		contents: hover.contents
 	};
 }
 
-export function toHover(info: modes.Hover): types.Hover {
+export function toHover(info: modes.MarkedStringHover): types.Hover {
 	return new types.Hover(info.contents, toRange(info.range));
 }
 

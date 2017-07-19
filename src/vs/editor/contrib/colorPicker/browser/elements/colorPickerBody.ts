@@ -226,17 +226,23 @@ export class SaturationBox {
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
-	constructor(private model: ColorPickerModel, widgetNode: HTMLElement, pixelRatio: number) {
+	constructor(private model: ColorPickerModel, widgetNode: HTMLElement, private pixelRatio: number) {
 		this.domNode = $('.saturation-wrap');
 		dom.append(widgetNode, this.domNode);
 
+		// Add selection circle
+		this.saturationSelection = $('.saturation-selection');
+		dom.append(this.domNode, this.saturationSelection);
+	}
+
+	public layout(): void {
 		// Create canvas, draw selected color
 		const canvas = document.createElement('canvas');
 		canvas.className = 'saturation-box';
 		dom.append(this.domNode, canvas);
 
-		const actualW = canvas.offsetWidth * pixelRatio,
-			actualH = canvas.offsetHeight * pixelRatio;
+		const actualW = this.domNode.offsetWidth * this.pixelRatio,
+			actualH = this.domNode.offsetHeight * this.pixelRatio;
 
 		canvas.width = actualW;
 		canvas.height = actualH;
@@ -256,10 +262,6 @@ export class SaturationBox {
 		this.blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
 
 		this.fillSaturationBox();
-
-		// Add selection circle
-		this.saturationSelection = $('.saturation-selection');
-		dom.append(this.domNode, this.saturationSelection);
 	}
 
 	public fillSaturationBox(): void {

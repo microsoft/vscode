@@ -156,11 +156,11 @@ export interface IState {
  * A hover represents additional information for a symbol or word. Hovers are
  * rendered in a tooltip-like widget.
  */
-export interface Hover {
+export interface MarkedStringHover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[] | Color;
+	contents: MarkedString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
@@ -169,6 +169,21 @@ export interface Hover {
 	 */
 	range: IRange;
 }
+
+// TODO@michel documentation
+export interface ColorHover {
+	color: Color;
+
+
+	/**
+	 * The range to which this hover applies. When missing, the
+	 * editor will use the range at the current position or the
+	 * current position itself.
+	 */
+	range: IRange;
+}
+
+export type Hover = MarkedStringHover | ColorHover;
 
 /**
  * The hover provider interface defines the contract between extensions and
@@ -658,9 +673,6 @@ export interface LinkProvider {
 	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
-
-// TODO
-export type RGBA = null;
 
 /**
  * A color inside the editor.
