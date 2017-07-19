@@ -380,27 +380,33 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		function walk(marker: Marker[], placeholderDefaultValues: Map<number, Marker[]>) {
+		const placeholderDefaultValues = new Map<number, Marker[]>();
+		const incompletePlaceholders: Placeholder[] = [];
+
+		function walk(marker: Marker[]) {
 
 			for (let i = 0; i < marker.length; i++) {
 				const thisMarker = marker[i];
 
+				// fill in default values for repeated placeholders
+				// like `${1:foo}and$1` becomes `${1:foo}and${1:foo}`
+				// and `$1and${1:foo}` becomes `${1:foo}and${1:foo}`
 				if (thisMarker instanceof Placeholder) {
-					// fill in default values for repeated placeholders
-					// like `${1:foo}and$1` becomes ${1:foo}and${1:foo}
-					if (!placeholderDefaultValues.has(thisMarker.index)) {
+					// the first placeholder that has a value define the
+					// value for *all* placeholders of this index
+					if (thisMarker.isFinalTabstop) {
+						placeholderDefaultValues.set(0);
+					} else if (!placeholderDefaultValues.has(thisMarker.index) && thisMarker.children.length > 0) {
 						placeholderDefaultValues.set(thisMarker.index, thisMarker.children);
-						walk(thisMarker.children, placeholderDefaultValues);
+						walk(thisMarker.children);
 
-					} else if (thisMarker.children.length === 0) {
-						// copy children from first placeholder definition, no need to
-						// recurse on them because they have been visited already
-						thisMarker.children = placeholderDefaultValues.get(thisMarker.index).map(child => child.clone());
+					} else {
+						incompletePlaceholders.push(thisMarker);
 					}
 
 
 				} else if (thisMarker instanceof Variable) {
-					walk(thisMarker.children, placeholderDefaultValues);
+					walk(thisMarker.children);
 
 				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
@@ -409,9 +415,14 @@ export class SnippetParser {
 				}
 			}
 		}
+		walk(marker);
 
-		const placeholderDefaultValues = new Map<number, Marker[]>();
-		walk(marker, placeholderDefaultValues);
+		// fill in defaults
+		for (const placeholder of incompletePlaceholders) {
+			if (placeholderDefaultValues.has(placeholder.index)) {
+				placeholder.children = placeholderDefaultValues.get(placeholder.index).map(m => m.clone());
+			}
+		}
 
 		if (
 			!placeholderDefaultValues.has(0) && // there is no final tabstop
