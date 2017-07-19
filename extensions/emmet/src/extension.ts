@@ -119,24 +119,22 @@ export function activate(context: vscode.ExtensionContext) {
 		incrementDecrement(-10);
 	}));
 
-
-	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (extensionsPath) {
-		if (!path.isAbsolute(extensionsPath)) {
+	let currentExtensionsPath = undefined;
+	let resolveUpdateExtensionsPath = () => {
+		let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+		if (extensionsPath && !path.isAbsolute(extensionsPath)) {
 			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
 		}
-		updateExtensionsPath(extensionsPath);
-	}
+		if (currentExtensionsPath !== extensionsPath) {
+			currentExtensionsPath = extensionsPath;
+			updateExtensionsPath(currentExtensionsPath);
+		}
+	};
+
+	resolveUpdateExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		let newExtensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-		if (newExtensionsPath && !path.isAbsolute(newExtensionsPath)) {
-			newExtensionsPath = path.join(vscode.workspace.rootPath, newExtensionsPath);
-		}
-		if (extensionsPath !== newExtensionsPath) {
-			updateExtensionsPath(newExtensionsPath);
-			extensionsPath = newExtensionsPath;
-		}
+		resolveUpdateExtensionsPath();
 	}));
 }
 
