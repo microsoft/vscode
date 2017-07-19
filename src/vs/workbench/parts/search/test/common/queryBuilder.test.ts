@@ -144,15 +144,6 @@ suite('SearchQuery', () => {
 						pattern: '{b,c}ar'
 					}]
 				}
-			],
-			[
-				'',
-				<ISearchPathsResult>{
-					searchPaths: [{
-						searchPath: uri.parse('/foo'),
-						pattern: '{b,c}ar'
-					}]
-				}
 			]
 		].forEach(([includePattern, expectedResult]) => testIncludes(<string>includePattern, <ISearchPathsResult>expectedResult));
 	});
