@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import * as assert from 'assert';
+import * as assert from 'assert';
 
 import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from "../spectron/application";
 import { CommonActions } from '../areas/common';
@@ -26,7 +26,17 @@ export function testMultiRoot() {
 		});
 
 		it('shows results from all folders', async function () {
+			await common.openQuickOpen();
+			await common.type('*.*');
 			await app.wait();
+			const elCount = await common.getQuickOpenElements();
+			assert.equal(elCount, 6);
+		});
+
+		it('shows workspace name in title', async function () {
+			await app.wait();
+			const title = await common.getWindowTitle();
+			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 		});
 	});
 }
