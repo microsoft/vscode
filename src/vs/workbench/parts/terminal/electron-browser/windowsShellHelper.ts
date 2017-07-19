@@ -6,7 +6,6 @@
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
 import * as path from 'path';
-import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 
@@ -16,12 +15,11 @@ const WAIT_AFTER_ENTER_TIME = 100;
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckWindowsShell: Emitter<string>;
-	private _terminalInstance: ITerminalInstance;
 	private _rootShellExecutable: string;
+	private _processId: number;
 
-	public constructor(terminal: ITerminalInstance, rootShellName: string) {
+	public constructor(pid: number, rootShellName: string) {
 		this._childProcessIdStack = [];
-		this._terminalInstance = terminal;
 		this._rootShellExecutable = rootShellName;
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
@@ -88,13 +86,13 @@ export class WindowsShellHelper {
 		});
 	}
 
-	public updateShellName(): void {
-		this.getShellName(this._terminalInstance.processId, this._rootShellExecutable).then(result => {
+	public updateShellName(): TPromise<string> {
+		return this.getShellName(this._processId, this._rootShellExecutable).then(result => {
 			if (result) {
-				console.log(result);
 				const fullPathName = result.split('.exe')[0];
-				this._terminalInstance.setTitle(path.basename(fullPathName));
+				return path.basename(fullPathName);
 			}
+			return this._rootShellExecutable;
 		});
 	}
 }
