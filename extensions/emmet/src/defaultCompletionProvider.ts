@@ -33,19 +33,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
 		let newItems: vscode.CompletionItem[] = [];
-		result.items.forEach(item => {
-			let newItem = new vscode.CompletionItem(item.label);
-			newItem.documentation = item.documentation;
-			newItem.detail = item.detail;
-			newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
-			let oldrange = item.textEdit.range;
-			newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
+		if (result.items) {
+			result.items.forEach(item => {
+				let newItem = new vscode.CompletionItem(item.label);
+				newItem.documentation = item.documentation;
+				newItem.detail = item.detail;
+				newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
+				let oldrange = item.textEdit.range;
+				newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
 
-			newItem.filterText = item.filterText;
-			newItem.sortText = item.sortText;
-			newItems.push(newItem);
-		});
-
+				newItem.filterText = item.filterText;
+				newItem.sortText = item.sortText;
+				newItems.push(newItem);
+			});
+		}
 
 		return Promise.resolve(new vscode.CompletionList(newItems, true));
 	}
