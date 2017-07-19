@@ -7,7 +7,6 @@ import 'vs/css!./media/scrollbar';
 import 'vs/css!./media/terminal';
 import 'vs/css!./media/xterm';
 import 'vs/css!./media/widgets';
-import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import * as debugActions from 'vs/workbench/parts/debug/browser/debugActions';
 import * as nls from 'vs/nls';
 import * as panel from 'vs/workbench/browser/panel';
@@ -33,15 +32,17 @@ import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRight
 import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
+export const TERMINAL_PICKER_PREFIX = 'term ';
+const terminalPickerContextKey = 'inTerminalPicker';
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
 
 quickOpenRegistry.registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/parts/terminal/browser/terminalQuickOpen',
 		'TerminalPickerHandler',
-		'term ',
-		'inTerminalPicker',
-		nls.localize('quickOpen.terminal', "Quickpick Terminal")
+		TERMINAL_PICKER_PREFIX,
+		terminalPickerContextKey,
+		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
 	)
 );
 

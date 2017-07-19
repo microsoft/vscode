@@ -15,8 +15,6 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
-export const TERMINAL_PICKER_PREFIX = 'term ';
-
 export class TerminalEntry extends QuickOpenEntryGroup {
 
 	constructor(
@@ -95,7 +93,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 				e.setGroupLabel(lastCategory);
 			} else {
 				e.setShowBorder(false);
-				e.setGroupLabel(void 0);
+				e.setGroupLabel(null);
 			}
 		});
 
@@ -104,29 +102,17 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 
 	private getTerminals(): TerminalEntry[] {
 		const termninalEntries: TerminalEntry[] = [];
-		const taskEntries: TerminalEntry[] = [];
-		const terminals = this.terminalService.terminalInstances;
+		const terminals = this.terminalService.getInstanceLabels();
 
 		terminals.forEach((terminal, index) => {
 			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const taskCategory = nls.localize('task', "Task");
-			if (terminal.title.indexOf('Task') >= 0) {
-				taskEntries.push(new TerminalEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), taskCategory, () => {
-					this.terminalService.showPanel(true).done(() => {
-						this.terminalService.setActiveInstance(terminal);
-					}, errors.onUnexpectedError);
-				}));
-			} else {
-				termninalEntries.push(new TerminalEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-					this.terminalService.showPanel(true).done(() => {
-						this.terminalService.setActiveInstance(terminal);
-					}, errors.onUnexpectedError);
-				}));
-			}
-
-
+			termninalEntries.push(new TerminalEntry(terminal, terminalsCategory, () => {
+				this.terminalService.showPanel(true).done(() => {
+					this.terminalService.setActiveInstanceByIndex(parseInt(terminal.split(':')[0], 10) - 1);
+				}, errors.onUnexpectedError);
+			}));
 		});
-		return termninalEntries.concat(taskEntries);
+		return termninalEntries;
 	}
 
 	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
