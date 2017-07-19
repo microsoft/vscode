@@ -73,6 +73,7 @@ export class DebugService implements debug.IDebugService {
 	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
 	private model: Model;
 	private viewModel: ViewModel;
+	private allSessionIds: Set<string>;
 	private configurationManager: ConfigurationManager;
 	private customTelemetryService: ITelemetryService;
 	private lastTaskEvent: TaskEvent;
@@ -116,6 +117,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
 		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this.sessionStates = new Map<string, debug.State>();
+		this.allSessionIds = new Set<string>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
@@ -168,6 +170,11 @@ export class DebugService implements debug.IDebugService {
 		// attach: PH is ready to be attached to
 		const process = this.model.getProcesses().filter(p => p.getId() === broadcast.payload.debugId).pop();
 		const session = process ? <RawDebugSession>process.session : null;
+		if (!this.allSessionIds.has(broadcast.payload.debugId)) {
+			// Ignore attach events for sessions that never existed (wrong vscode windows)
+			return;
+		}
+
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			if (session) {
 				this.onSessionEnd(session);
@@ -766,6 +773,7 @@ export class DebugService implements debug.IDebugService {
 
 	private doCreateProcess(configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
+		this.allSessionIds.add(sessionId);
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
