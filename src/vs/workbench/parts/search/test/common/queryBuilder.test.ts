@@ -15,7 +15,7 @@ import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/comm
 
 import { ISearchQuery, QueryType, IPatternInfo } from 'vs/platform/search/common/search';
 
-suite.only('SearchQuery', () => {
+suite('SearchQuery', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const PROJECT_URI = uri.parse('/foo/bar');
 
