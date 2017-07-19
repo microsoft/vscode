@@ -48,6 +48,7 @@ export class WindowsShellHelper {
 	}
 
 	private refreshShellProcessTree(pid: number, parent: string): TPromise<string> {
+		const shellExecutables = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 		return this.getFirstChildProcess(pid).then(result => {
 			if (result.length === 0) {
 				if (parent.length > 0) {
@@ -58,6 +59,8 @@ export class WindowsShellHelper {
 					return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '');
 				}
 				return TPromise.as([]);
+			} else if (shellExecutables.indexOf(path.basename(result[0].executable)) < 0){
+				return TPromise.as(result[0].executable);
 			}
 			this._childProcessIdStack.push(result[0].pid);
 			return this.refreshShellProcessTree(result[0].pid, result[0].executable);
