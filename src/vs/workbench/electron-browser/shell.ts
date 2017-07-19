@@ -51,7 +51,6 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
-import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -137,20 +136,18 @@ export class WorkbenchShell {
 	private contentsContainer: Builder;
 
 	private configuration: IWindowConfiguration;
-	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, services: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration, options: IOptions) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
-		this.options = options;
 
-		this.contextService = services.contextService;
-		this.configurationService = services.configurationService;
-		this.environmentService = services.environmentService;
-		this.timerService = services.timerService;
-		this.storageService = services.storageService;
+		this.contextService = coreServices.contextService;
+		this.configurationService = coreServices.configurationService;
+		this.environmentService = coreServices.environmentService;
+		this.timerService = coreServices.timerService;
+		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -170,7 +167,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -204,14 +201,14 @@ export class WorkbenchShell {
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
 		// Telemetry: workspace info
-		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
+		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: !this.contextService.hasWorkspace(),
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
@@ -232,7 +229,7 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.options);
+		workspaceStats.reportWorkspaceTags(this.configuration);
 		workspaceStats.reportCloudStats();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
