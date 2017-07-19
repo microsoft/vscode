@@ -174,7 +174,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		if (this.contextService.hasFolderWorkspace()) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Before we can add another folder we need to updgrade your workspace to support multiple folders and reload the window."), nls.localize({ key: 'upgradeAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Upgrade and Add"))) {
+			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Before we can add another folder we need to upgrade your workspace to support multiple folders and reload the window."), nls.localize({ key: 'upgradeAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Upgrade and Add"))) {
 				return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
 			}
 			return TPromise.as(null);
