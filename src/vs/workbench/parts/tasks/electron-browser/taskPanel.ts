@@ -55,7 +55,7 @@ export class TaskPanel extends Panel {
 			thanks.removeClass('task-panel-hidden');
 		}
 
-		yesButton.item(0).on('click', e => {
+		yesButton.on('click', e => {
 			if (!this.storageService.get(this.taskExperimentPart5)) {
 				this.telemetryService.publicLog('taskPanel.yes');
 				this.storageService.store(this.taskExperimentPart5, true, StorageScope.GLOBAL);
@@ -64,7 +64,7 @@ export class TaskPanel extends Panel {
 			thanks.removeClass('task-panel-hidden');
 		});
 
-		noButton.item(0).on('click', e => {
+		noButton.on('click', e => {
 			if (!this.storageService.get(this.taskExperimentPart5)) {
 				this.telemetryService.publicLog('taskPanel.no');
 				this.storageService.store(this.taskExperimentPart5, true, StorageScope.GLOBAL);
@@ -73,7 +73,7 @@ export class TaskPanel extends Panel {
 			thanks.removeClass('task-panel-hidden');
 		});
 
-		githubLink.item(0).on('click', e => {
+		githubLink.on('click', e => {
 			const node = event.target as HTMLAnchorElement;
 			if (node.href) {
 				this.openerService.open(URI.parse(node.href));
