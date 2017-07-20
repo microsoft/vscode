@@ -7,29 +7,22 @@ import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Emitter, debounceEvent } from 'vs/base/common/event';
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
-	private _onCheckWindowsShell: Emitter<string>;
 	private _rootShellExecutable: string;
 	private _rootProcessId: number;
 
 	public constructor(rootProcessId: number, rootShellExecutable: string) {
-		this._childProcessIdStack = [];
+		this._childProcessIdStack = [rootProcessId];
 		this._rootShellExecutable = rootShellExecutable;
 		this._rootProcessId = rootProcessId;
 
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
-
-		this._onCheckWindowsShell = new Emitter<string>();
-		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
-			this.getShellName();
-		});
 	}
 
 	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
@@ -82,13 +75,6 @@ export class WindowsShellHelper {
 	 * Returns the innermost shell executable running in the terminal
 	 */
 	public getShellName(): TPromise<string> {
-		if (this._childProcessIdStack.length === 0) {
-			this._childProcessIdStack.push(this._rootProcessId);
-		}
-		return new TPromise<string>((resolve) => {
-			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null).then(result => {
-				resolve(result);
-			}, error => { return error; });
-		});
+		return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null);
 	}
 }

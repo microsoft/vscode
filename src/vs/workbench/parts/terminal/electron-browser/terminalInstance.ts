@@ -10,7 +10,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import XTermTerminal = require('xterm');
@@ -70,6 +70,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
+	private _onCheckWindowsShell: Emitter<TPromise<string>>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
 	private _skipTerminalCommands: string[];
@@ -143,12 +144,24 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
+				this._onCheckWindowsShell = new Emitter<TPromise<string>>();
+				debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
+					this.checkWindowShell();
+				});
+				this.onData(() => this._onCheckWindowsShell.fire());
 			});
 		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
 			this.attachToElement(_container);
+		}
+	}
+
+	/* ONLY IMPLEMENTED FOR WINDOWS */
+	private checkWindowShell(): void {
+		if (platform.isWindows) {
+			this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
 		}
 	}
 
@@ -276,7 +289,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Windows does not get a process title event from terminalProcess so we check the name on enter
 			// messageTitleListener is falsy when the API/user renames the terminal so we don't override it
 			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
-				this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
+				this._windowsShellHelper.getShellName();
 			}
 
 			return undefined;
