@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME } from "vs/platform/workspaces/common/workspaces";
 import { TPromise } from "vs/base/common/winjs.base";
 import { isParent } from "vs/platform/files/common/files";
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
@@ -13,11 +13,12 @@ import { extname, join, dirname } from "path";
 import { mkdirp, writeFile } from "vs/base/node/pfs";
 import { readFileSync } from "fs";
 import { isLinux } from "vs/base/common/platform";
-import { copy, delSync } from "vs/base/node/extfs";
+import { copy, delSync, readdirSync } from "vs/base/node/extfs";
 import { nfcall } from "vs/base/common/async";
 import Event, { Emitter } from "vs/base/common/event";
 import { ILogService } from "vs/platform/log/common/log";
 import { isEqual } from "vs/base/common/paths";
+import { coalesce } from "vs/base/common/arrays";
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -79,7 +80,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		const workspaceId = this.nextWorkspaceId();
 		const workspaceConfigFolder = join(this.workspacesHome, workspaceId);
-		const workspaceConfigPath = join(workspaceConfigFolder, 'workspace.json');
+		const workspaceConfigPath = join(workspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
 		return mkdirp(workspaceConfigFolder).then(() => {
 			const storedWorkspace: IStoredWorkspace = {
@@ -130,9 +131,39 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		}
 
 		// Delete from disk
-		delSync(dirname(workspace.configPath));
+		this.doDeleteUntitledWorkspaceSync(workspace.configPath);
 
 		// Event
 		this._onWorkspaceDeleted.fire(workspace);
+	}
+
+	private doDeleteUntitledWorkspaceSync(configPath: string): void {
+		try {
+			delSync(dirname(configPath));
+		} catch (error) {
+			this.logService.log(`Unable to delete untitled workspace ${configPath} (${error}).`);
+		}
+	}
+
+	public getUntitledWorkspacesSync(): IWorkspaceIdentifier[] {
+		let untitledWorkspacePaths: string[] = [];
+		try {
+			untitledWorkspacePaths = readdirSync(this.workspacesHome).map(folder => join(this.workspacesHome, folder, UNTITLED_WORKSPACE_NAME));
+		} catch (error) {
+			this.logService.log(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+		}
+
+		const untitledWorkspaces: IWorkspaceIdentifier[] = coalesce(untitledWorkspacePaths.map(untitledWorkspacePath => {
+			const workspace = this.resolveWorkspaceSync(untitledWorkspacePath);
+			if (!workspace) {
+				this.doDeleteUntitledWorkspaceSync(untitledWorkspacePath);
+
+				return null; // invalid workspace
+			}
+
+			return { id: workspace.id, configPath: untitledWorkspacePath };
+		}));
+
+		return untitledWorkspaces;
 	}
 }

@@ -341,8 +341,8 @@ export class WindowsManager implements IWindowsMainService {
 		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 			foldersToRestore = this.backupService.getFolderBackupPaths();
 
-			workspacesToRestore = this.backupService.getWorkspaceBackups();				// collect from workspaces with hot-exit backups
-			workspacesToRestore.push(...this.doGetUntitledWorkspacesFromLastSession());	// collect from previous window session
+			workspacesToRestore = this.backupService.getWorkspaceBackups();						// collect from workspaces with hot-exit backups
+			workspacesToRestore.push(...this.workspacesService.getUntitledWorkspacesSync());	// collect from previous window session
 
 			emptyToRestore = this.backupService.getEmptyWindowBackupPaths();
 			emptyToRestore.push(...windowsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
@@ -780,28 +780,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Always fallback to empty window
 		return [Object.create(null)];
-	}
-
-	private doGetUntitledWorkspacesFromLastSession(): IWorkspaceIdentifier[] {
-		const candidates: IWorkspaceIdentifier[] = [];
-
-		if (this.isUntitledWorkspace(this.windowsState.lastActiveWindow)) {
-			candidates.push(this.windowsState.lastActiveWindow.workspace);
-		}
-
-		for (let i = 0; i < this.windowsState.openedWindows.length; i++) {
-			const state = this.windowsState.openedWindows[i];
-			if (this.isUntitledWorkspace(state)) {
-				candidates.push(state.workspace);
-			}
-		}
-
-		// Validate all workspace paths and only return the workspaces that are valid
-		return arrays.coalesce(candidates.map(candidate => this.parsePath(candidate.configPath)).map(window => window && window.workspace));
-	}
-
-	private isUntitledWorkspace(state: IWindowState): boolean {
-		return state && state.workspace && this.workspacesService.isUntitledWorkspace(state.workspace);
 	}
 
 	private getRestoreWindowsSetting(): RestoreWindowsSetting {
