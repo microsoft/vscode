@@ -15,7 +15,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	private _onDidChangeWindowFocus = new Emitter<boolean>();
 	readonly onDidChangeWindowFocus: Event<boolean> = this._onDidChangeWindowFocus.event;
 
-	private _isFocused = false;
+	private _isFocused = true;
 	get isFocused(): boolean { return this._isFocused; }
 
 	constructor(threadService: IThreadService) {
