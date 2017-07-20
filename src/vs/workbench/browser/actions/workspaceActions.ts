@@ -303,7 +303,7 @@ export class OpenWorkspaceAction extends Action {
 	}
 }
 
-export class NewWorkspaceAction extends Action {
+class NewWorkspaceAction extends Action {
 
 	static ID = 'workbench.action.newWorkspace';
 	static LABEL = nls.localize('newWorkspace', "New Workspace...");
