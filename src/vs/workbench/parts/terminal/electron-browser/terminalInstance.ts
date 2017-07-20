@@ -289,7 +289,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Windows does not get a process title event from terminalProcess so we check the name on enter
 			// messageTitleListener is falsy when the API/user renames the terminal so we don't override it
 			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
-				this._windowsShellHelper.getShellName();
+				this._onCheckWindowsShell.fire();
 			}
 
 			return undefined;
