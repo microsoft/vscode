@@ -34,5 +34,7 @@ describe('Smoke Test Suite', () => {
 	testTasks();
 	testExtensions();
 	testLocalization();
-	testMultiRoot();
+	if (process.env.VSCODE_EDITION === 'insiders') {
+		testMultiRoot(); // only enabled in insiders
+	}
 });

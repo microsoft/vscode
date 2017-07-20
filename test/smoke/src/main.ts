@@ -48,7 +48,7 @@ if (program.stable) {
 	process.env.VSCODE_STABLE_PATH = program.stable;
 }
 process.env.SMOKETEST_REPO = testRepoLocalDir;
-if (program.stable && program.stable.toLowerCase().startsWith('insiders')) {
+if (program.latest && program.latest.indexOf('Code - Insiders') >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
 }
 process.env.VSCODE_WORKSPACE_PATH = codeWorkspace;
