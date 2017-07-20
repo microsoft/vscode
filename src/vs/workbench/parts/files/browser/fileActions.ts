@@ -1852,7 +1852,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true });
+			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}

@@ -162,7 +162,7 @@ export function getExcludes(configuration: ISearchConfiguration): IExpression {
 	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
 
 	if (!fileExcludes && !searchExcludes) {
-		return null;
+		return undefined;
 	}
 
 	if (!fileExcludes || !searchExcludes) {

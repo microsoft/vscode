@@ -3022,6 +3022,28 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
 		});
 	});
+
+	test('type honors users indentation adjustment', () => {
+		usingCursor({
+			text: [
+				'\tif (true ||',
+				'\t ) {',
+				'\t}',
+				'if (true ||',
+				') {',
+				'}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3, false);
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
+
+			cursorCommand(cursor, H.Type, { text: ' ' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 4, 2, 4));
+			assert.equal(model.getLineContent(2), '\t  ) {', 'This line should not decrease indent');
+		});
+	});
 });
 
 interface ICursorOpts {

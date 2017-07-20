@@ -17,6 +17,7 @@
 	"typescript.format.enable": "Abilita/Disabilita il formattatore TypeScript predefinito.",
 	"javascript.format.enable": "Abilita/Disabilita il formattatore JavaScript predefinito.",
 	"format.insertSpaceAfterCommaDelimiter": "Consente di definire la gestione dello spazio dopo una virgola di delimitazione6",
+	"format.insertSpaceAfterConstructor": "Definisce la gestione dello spazio dopo la parola chiave constructor. Richiede TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Consente di definire la gestione dello spazio dopo un punto e virgola in un'istruzione for.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Consente di definire la gestione dello spazio dopo un operatore binario.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Consente di definire la gestione dello spazio dopo le parole chiave in un'istruzione del flusso di controllo.",
@@ -27,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Consente di definire la gestione dello spazio dopo l'apertura e prima della chiusura di parentesi graffe non vuote. Richiede TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Consente di definire la gestione dello spazio dopo la parentesi graffa iniziale e prima della parentesi graffa finale della stringa del modello. Richiede TypeScript >= 2.0.6",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Consente di definire la gestione dello spazio dopo la parentesi graffa iniziale e prima della parentesi graffa finale dell'espressione JSX. Richiede TypeScript >= 2.0.6",
+	"format.insertSpaceAfterTypeAssertion": "Definisce la gestione dello spazio dopo le asserzioni di tipo in TypeScript. Richiede TypeScript >= 2.4.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Consente di definire se una parentesi graffa di apertura viene o meno inserita su una riga per le funzioni.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Consente di definire se una parentesi graffa di apertura viene o meno inserita su una riga per i blocchi di controllo.",
 	"javascript.validate.enable": "Abilita/Disabilita la convalida JavaScript.",
@@ -43,5 +45,7 @@
 	"typescript.npm": "Specifica il percorso dell'eseguibile NPM utilizzato per l'acquisizione automatica delle definizioni di tipi. Richiede TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Controlla se NPM è installato per l'acquisizione automatica delle definizioni di tipi",
 	"javascript.nameSuggestions": "Abilita/disabilita l'inclusione di nomi univoci dal file negli elenchi di suggerimento di JavaScript.",
-	"typescript.tsc.autoDetect": "Controlla se la rilevazione automatica di attività tsc è on/off."
+	"typescript.tsc.autoDetect": "Controlla se la rilevazione automatica di attività tsc è on/off.",
+	"typescript.problemMatchers.tsc.label": "Problemi TypeScript",
+	"typescript.problemMatchers.tscWatch.label": "Problemi TypeScript (modalità espressione di controllo)"
 }

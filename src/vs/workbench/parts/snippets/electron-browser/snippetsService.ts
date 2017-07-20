@@ -85,7 +85,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 }
 
-class SnippetSuggestion implements ISuggestion {
+export class SnippetSuggestion implements ISuggestion {
 
 	private static _userSnippet = localize('source.snippet', "User Snippet");
 

@@ -9,6 +9,7 @@
 	"command.refresh": "Actualiser",
 	"command.openChange": "Ouvrir les modifications",
 	"command.openFile": "Ouvrir le fichier",
+	"command.openHEADFile": "Ouvrir le fichier (HEAD)",
 	"command.stage": "Mettre en attente les modifications",
 	"command.stageAll": "Mettre en attente toutes les modifications",
 	"command.stageSelectedRanges": "Mettre en attente les plages sélectionnées",
@@ -27,13 +28,16 @@
 	"command.checkout": "Extraire vers...",
 	"command.branch": "Créer une branche...",
 	"command.deleteBranch": "Supprimer la branche...",
+	"command.merge": "Fusionner la branche...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (rebaser)",
+	"command.pullFrom": "Extraire de...",
 	"command.push": "Push",
 	"command.pushTo": "Transfert (Push) vers...",
 	"command.sync": "Synchroniser",
 	"command.publish": "Publier la branche",
 	"command.showOutput": "Afficher la sortie Git",
+	"command.ignore": "Ajouter un fichier à .gitignore",
 	"config.enabled": "Indique si git est activé",
 	"config.path": "Chemin d'accès à l'exécutable git",
 	"config.autorefresh": "Indique si l'actualisation automatique est activée",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "Contrôle le type des branches répertoriées pendant l'exécution de 'Extraire vers...'. La valeur 'toutes' montre toutes les références, la valeur 'locales' montre uniquement les branches locales, la valeur 'balises' montre uniquement les balises et la valeur 'distantes' montre uniquement les branches distantes.",
 	"config.ignoreLegacyWarning": "Ignore l'avertissement Git hérité",
 	"config.ignoreLimitWarning": "Ignore l'avertissement quand il y a trop de modifications dans un dépôt",
-	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git"
+	"config.defaultCloneDirectory": "Emplacement par défaut où cloner un dépôt git",
+	"config.enableSmartCommit": "Validez toutes les modifications en l'absence de modifications en attente."
 }

@@ -32,6 +32,7 @@ export interface IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -64,7 +65,7 @@ export interface IWindowsService {
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void>;
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
@@ -85,6 +86,8 @@ export const IWindowService = createDecorator<IWindowService>('windowService');
 export interface IWindowService {
 
 	_serviceBrand: any;
+
+	onDidChangeFocus: Event<boolean>;
 
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;

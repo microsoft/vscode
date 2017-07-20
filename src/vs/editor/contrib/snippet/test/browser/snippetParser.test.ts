@@ -405,8 +405,8 @@ suite('SnippetParser', () => {
 
 	test('Snippet order for placeholders, #28185', function () {
 
-		const _10 = new Placeholder(10, []);
-		const _2 = new Placeholder(2, []);
+		const _10 = new Placeholder(10);
+		const _2 = new Placeholder(2);
 
 		assert.equal(Placeholder.compareByIndex(_10, _2), 1);
 	});

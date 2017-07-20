@@ -30,6 +30,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private rootCount: number;
+	private workspaceId: string;
 	private firstRootPath: string;
 
 	constructor(
@@ -41,8 +42,15 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this.rootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
-		this.firstRootPath = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0].fsPath : void 0;
+		const workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			this.rootCount = workspace.roots.length;
+			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+			this.workspaceId = workspace.id;
+		} else {
+			this.rootCount = 0;
+		}
+
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
 		this.registerListeners();
@@ -92,8 +100,11 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
-		const newFirstRootPath = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots[0].fsPath : void 0;
+		const workspace = this.contextService.getWorkspace();
+
+		const newRootCount = workspace ? workspace.roots.length : 0;
+		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		const newWorkspaceId = workspace ? workspace.id : void 0;
 
 		let reload = false;
 		if (this.rootCount === 0 && newRootCount > 0) {
@@ -106,8 +117,13 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			reload = true; // first root folder changed
 		}
 
+		if (this.workspaceId !== newWorkspaceId) {
+			reload = true; // workspace id changed
+		}
+
 		this.rootCount = newRootCount;
 		this.firstRootPath = newFirstRootPath;
+		this.workspaceId = newWorkspaceId;
 
 		if (reload) {
 			this.doConfirm(

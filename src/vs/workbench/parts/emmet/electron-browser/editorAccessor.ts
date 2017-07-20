@@ -141,7 +141,7 @@ export class EditorAccessor implements emmet.Editor {
 		// write back as string
 		function toSnippetString(marker: Marker): string {
 			if (marker instanceof Text) {
-				return SnippetParser.escape(marker.string);
+				return SnippetParser.escape(marker.value);
 
 			} else if (marker instanceof Placeholder) {
 				if (marker.children.length > 0) {

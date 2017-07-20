@@ -20,6 +20,7 @@ export const IWorkspacesService = createDecorator<IWorkspacesService>('workspace
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
+export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 
 /**
  * A single folder workspace identifier is just the path to the folder.
@@ -51,6 +52,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
+
+	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
 }
 
 export interface IWorkspacesService {

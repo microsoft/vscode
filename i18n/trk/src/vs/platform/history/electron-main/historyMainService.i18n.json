@@ -6,6 +6,7 @@
 {
 	"newWindow": "Yeni Pencere",
 	"newWindowDesc": "Yeni bir pencere açar",
-	"recentFolders": "Son Kullanılan Klasörler",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "Son Çalışma Alanları",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "Code Çalışma Alanı"
 }

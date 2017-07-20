@@ -788,3 +788,9 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 45
 	}
 };
+
+export enum FileKind {
+	FILE,
+	FOLDER,
+	ROOT_FOLDER
+}

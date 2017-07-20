@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "Очистить",
 	"workbench.action.terminal.allowWorkspaceShell": "Разрешить настройку оболочки в рабочей области",
 	"workbench.action.terminal.disallowWorkspaceShell": "Запретить настройку оболочки в рабочей области",
-	"workbench.action.terminal.rename": "Переименовать"
+	"workbench.action.terminal.rename": "Переименовать",
+	"workbench.action.terminal.rename.prompt": "Введите название терминала",
+	"workbench.action.terminal.focusFindWidget": "Выделить мини-приложение поиска",
+	"workbench.action.terminal.hideFindWidget": "Скрыть мини-приложение поиска"
 }

@@ -488,19 +488,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI {
-
-	private constructor() {
-		super(undefined, undefined, undefined, undefined, undefined);
-	}
-}
-
 export class WorkspaceEdit {
 
-	private _values: [Uri, TextEdit[]][] = [];
+	private _values: [URI, TextEdit[]][] = [];
 	private _index = new Map<string, number>();
 
-	replace(uri: Uri, range: Range, newText: string): void {
+	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
 		let array = this.get(uri);
 		if (array) {
@@ -510,19 +503,19 @@ export class WorkspaceEdit {
 		}
 	}
 
-	insert(resource: Uri, position: Position, newText: string): void {
+	insert(resource: URI, position: Position, newText: string): void {
 		this.replace(resource, new Range(position, position), newText);
 	}
 
-	delete(resource: Uri, range: Range): void {
+	delete(resource: URI, range: Range): void {
 		this.replace(resource, range, '');
 	}
 
-	has(uri: Uri): boolean {
+	has(uri: URI): boolean {
 		return this._index.has(uri.toString());
 	}
 
-	set(uri: Uri, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[]): void {
 		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
@@ -532,12 +525,12 @@ export class WorkspaceEdit {
 		}
 	}
 
-	get(uri: Uri): TextEdit[] {
+	get(uri: URI): TextEdit[] {
 		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
-	entries(): [Uri, TextEdit[]][] {
+	entries(): [URI, TextEdit[]][] {
 		return this._values;
 	}
 
@@ -1302,7 +1295,7 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
-	iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 

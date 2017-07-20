@@ -67,7 +67,7 @@ export class PackageJSONContribution implements IJSONContribution {
 										let name = keys[0];
 										let insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
-											insertText.appendText(': "').appendPlaceholder('').appendText('"');
+											insertText.appendText(': "').appendTabstop().appendText('"');
 											if (!isLast) {
 												insertText.appendText(',');
 											}
@@ -99,7 +99,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				this.mostDependedOn.forEach((name) => {
 					let insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
-						insertText.appendText(': "').appendPlaceholder('').appendText('"');
+						insertText.appendText(': "').appendTabstop().appendText('"');
 						if (!isLast) {
 							insertText.appendText(',');
 						}

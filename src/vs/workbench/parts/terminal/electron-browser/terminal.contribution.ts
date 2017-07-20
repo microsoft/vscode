@@ -30,6 +30,20 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
 import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from "vs/workbench/electron-browser/actions";
 import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+
+export const TERMINAL_PICKER_PREFIX = 'term ';
+const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/terminal/browser/terminalQuickOpen',
+		'TerminalPickerHandler',
+		TERMINAL_PICKER_PREFIX,
+		null,
+		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
+	)
+);
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -317,3 +331,4 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word After Cursor', category);
 registerColors();
+

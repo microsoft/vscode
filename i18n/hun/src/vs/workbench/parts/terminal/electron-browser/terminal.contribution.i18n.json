@@ -24,6 +24,9 @@
 	"terminal.integrated.cwd": "Explicit elérési út, ahol a terminál indítva lesz. Ez a shellfolyamat munkakönyvtára (cwd) lesz. Ez a beállítás nagyon hasznos olyan munkaterületeken, ahol a gyökérkönyvtár nem felel meg munkakönyvtárnak.",
 	"terminal.integrated.confirmOnExit": "Meghatározza, hogy megerősítést kér-e az alkalamzás, ha van aktív terminál-munkafolyamat.",
 	"terminal.integrated.commandsToSkipShell": "Olyan parancsazonosítók listája, melyek nem lesznek elküldve a shellnek, és ehelyett mindig a Code kezeli le őket. Ez lehetővé teszi, hogy az olyan billentyűparancsok, melyeket normál esetben a shell dolgozna fel, ugyanúgy működjenek, mint mikor a terminálon nincs fókusz. Például ilyen a gyorsmegnyitás indításához használt Ctrl+P.",
+	"terminal.integrated.env.osx": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit az OS X-es terminál használ.",
+	"terminal.integrated.env.linux": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit a linuxos terminál használ.",
+	"terminal.integrated.env.windows": "A VS Code folyamatához hozzáadott környezeti változókat tartalmazó objektum, amit a windowsos terminál használ.",
 	"terminal": "Terminál",
 	"terminalCategory": "Terminál",
 	"viewCategory": "Nézet"

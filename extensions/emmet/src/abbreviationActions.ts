@@ -70,7 +70,13 @@ export function wrapWithAbbreviation(args) {
 			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap, preceedingWhiteSpace });
 		});
 
-		expandAbbreviationInRange(editor, expandAbbrList, allTextToReplaceSame);
+		if (!allTextToReplaceSame) {
+			expandAbbrList.forEach(input => {
+				input.textToWrap = '\n\$TM_SELECTED_TEXT\n';
+			});
+		}
+
+		expandAbbreviationInRange(editor, expandAbbrList, true);
 	});
 }
 

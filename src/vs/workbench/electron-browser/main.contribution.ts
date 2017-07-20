@@ -18,7 +18,7 @@ import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlActi
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction, NewWorkspaceAction, OpenWorkspaceAction, SaveWorkspaceAsAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { AddRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Commands
 registerCommands();
@@ -84,7 +84,6 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
 	const workspacesCategory = nls.localize('workspaces', "Workspaces");
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL), 'Workspaces: New Workspace...', workspacesCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace...', workspacesCategory);
