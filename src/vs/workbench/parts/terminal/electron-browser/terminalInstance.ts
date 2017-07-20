@@ -198,13 +198,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
-		// Have to use padding in the terminal wrapper div as it's absolutely aligned with the bottom of the container.
-		// Cannot float up like left padding.
 		const paddingBottom = parseInt(getComputedStyle(document.querySelector('.terminal-wrapper.active')).paddingBottom.split('px')[0], 10);
 
 		// Use left padding as right padding, right padding is not defined in CSS just in case
 		// xterm.js causes an unexpected overflow.
-		// Add some bottom padding and adjust inner height accordingly.
 		const innerWidth = width - padding * 2;
 		const innerHeight = height - paddingBottom;
 
