@@ -11,7 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { values, ResourceMap } from 'vs/base/common/map';
+import { values, ResourceMap, TrieMap } from 'vs/base/common/map';
 import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
@@ -24,7 +24,6 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { Workspace } from "vs/platform/workspace/common/workspace";
 
 export class Match {
 
@@ -490,8 +489,8 @@ export class SearchResult extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _folderMatches: ResourceMap<FolderMatch>;
-	private _queryWorkspace: Workspace;
+	private _folderMatches: FolderMatch[] = [];
+	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>(TrieMap.PathSplitter);
 	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
@@ -500,8 +499,6 @@ export class SearchResult extends Disposable {
 	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this._folderMatches = new ResourceMap<FolderMatch>();
-		this._queryWorkspace = new Workspace('SearchResultWorkspaceCopy', 'SearchResultWorkspaceCopy', []);
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 	}
 
@@ -509,12 +506,12 @@ export class SearchResult extends Disposable {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
 		this._query = query;
-		this._queryWorkspace.roots = (query.folderQueries || []).map((fq) => fq.folder);
-		this._queryWorkspace.roots.forEach((resource, index) => {
-			let folderMatch = this.instantiationService.createInstance(FolderMatch, resource, index, query, this, this._searchModel);
-			this._folderMatches.set(resource, folderMatch);
-			let disposable = folderMatch.onChange((event) => this._onChange.fire(event));
+		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).map((resource, index) => {
+			const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, index, query, this, this._searchModel);
+			this._folderMatchesMap.insert(resource.fsPath, folderMatch);
+			const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 			folderMatch.onDispose(() => disposable.dispose());
+			return folderMatch;
 		});
 	}
 
@@ -568,7 +565,7 @@ export class SearchResult extends Disposable {
 	}
 
 	public folderMatches(): FolderMatch[] {
-		return this._folderMatches.values();
+		return this._folderMatches.concat();
 	}
 
 	public matches(): FileMatch[] {
@@ -580,7 +577,7 @@ export class SearchResult extends Disposable {
 	}
 
 	public isEmpty(): boolean {
-		return this._folderMatches.values().every((folderMatch) => folderMatch.isEmpty());
+		return this._folderMatches.every((folderMatch) => folderMatch.isEmpty());
 	}
 
 	public fileCount(): number {
@@ -626,7 +623,7 @@ export class SearchResult extends Disposable {
 	}
 
 	private getFolderMatch(resource: URI): FolderMatch {
-		return this._folderMatches.get(this._queryWorkspace.getRoot(resource));
+		return this._folderMatchesMap.findSubstr(resource.fsPath);
 	}
 
 	private set replacingAll(running: boolean) {
@@ -636,9 +633,9 @@ export class SearchResult extends Disposable {
 	}
 
 	private disposeMatches(): void {
-		this._folderMatches.values().forEach((folderMatch: FolderMatch) => folderMatch.dispose());
-		this._folderMatches.clear();
-		this._queryWorkspace.roots = [];
+		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
+		this._folderMatches = [];
+		this._folderMatchesMap = new TrieMap<FolderMatch>(TrieMap.PathSplitter);
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
