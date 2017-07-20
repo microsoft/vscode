@@ -298,6 +298,10 @@ suite('SnippetParser', () => {
 		assert.equal(actual, 'foo:bar');
 	});
 
+	test('incomplete placeholder', () => {
+		assertTextAndMarker('${1:}', '', Placeholder);
+	});
+
 	test('marker#len', () => {
 
 		function assertLen(template: string, ...lengths: number[]): void {
