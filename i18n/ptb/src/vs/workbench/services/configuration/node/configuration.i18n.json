@@ -10,5 +10,7 @@
 	"invalid.type": "Se definido, 'configuration.type' deve ser do tipo 'object'",
 	"invalid.title": "'configuration.title' deve ser um string",
 	"vscode.extension.contributes.defaultConfiguration": "Contribui às definições de configuração padrão do editor por linguagem.",
-	"invalid.properties": "'configuration.properties' deve ser um objeto"
+	"invalid.properties": "'configuration.properties' deve ser um objeto",
+	"workspaceConfig.id": "Identificação do espaço de trabalho único",
+	"workspaceSettings.description": "Definir configurações de espaço de trabalho"
 }

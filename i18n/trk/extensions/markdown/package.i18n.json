@@ -18,6 +18,5 @@
 	"markdown.showSource.title": "Kaynağı Göster",
 	"markdown.styles.dec": "Markdown önizlemesinde kullanılmak üzere CSS stil dosyalarını işaret eden bir URL'ler veya yerel yollar listesi. Göreli yollar, gezginde açılan klasöre göreli olarak yorumlanır.",
 	"markdown.showPreviewSecuritySelector.title": "Markdown Önizleme Güvenlik Ayarlarını Değiştir",
-	"markdown.preview.enableExperimentalExtensionApi.desc": "[Deneysel] Eklentilere Markdown önizlemesini genişletmek için izin ver.",
 	"markdown.trace.desc": "Markdown eklentisi için hata ayıklama günlüğünü etkinleştir."
 }

@@ -15,9 +15,14 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-interface ISearchPathPattern {
+export interface ISearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
+}
+
+export interface ISearchPathsResult {
+	searchPaths?: ISearchPathPattern[];
+	includePattern?: glob.IExpression;
 }
 
 export class QueryBuilder {
@@ -36,7 +41,7 @@ export class QueryBuilder {
 	}
 
 	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
-		let { searchPaths, includePattern } = this.getSearchPaths(options.includePattern);
+		let { searchPaths, includePattern } = this.parseSearchPaths(options.includePattern);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		searchPaths = (searchPaths && searchPaths.length) ?
@@ -78,9 +83,11 @@ export class QueryBuilder {
 
 	/**
 	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
-	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}
+	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
+	 *
+	 * Public for test.
 	 */
-	private getSearchPaths(pattern: string): { searchPaths: ISearchPathPattern[]; includePattern?: glob.IExpression } {
+	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./
 			return paths.isAbsolute(segment) || strings.startsWith(segment, './');
@@ -96,18 +103,26 @@ export class QueryBuilder {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
+				return strings.format('{{0}/**,**/{0}}', p); // convert foo to {foo/**,**/foo} to cover files and folders
 			});
 
-		return {
-			searchPaths: this.expandSearchPathPatterns(groups.searchPaths),
-			includePattern: patternListToIExpression(exprSegments)
-		};
+		const result: ISearchPathsResult = {};
+		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
+		if (searchPaths && searchPaths.length) {
+			result.searchPaths = searchPaths;
+		}
+
+		const includePattern = patternListToIExpression(exprSegments);
+		if (includePattern) {
+			result.includePattern = includePattern;
+		}
+
+		return result;
 	}
 
 	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: IQueryOptions): glob.IExpression | null {
 		return options.disregardExcludeSettings ?
-			null :
+			undefined :
 			getExcludes(folderConfig);
 	}
 
@@ -168,7 +183,7 @@ export class QueryBuilder {
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
-			fileEncoding: folderConfig.files.encoding
+			fileEncoding: folderConfig.files && folderConfig.files.encoding
 		};
 	}
 }
@@ -180,7 +195,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
 		if (lastSlashMatch) {
 			return {
-				pathPortion: searchPath.substr(0, lastSlashMatch.index),
+				pathPortion: searchPath.substr(0, lastSlashMatch.index) || '/',
 				globPortion: searchPath.substr(lastSlashMatch.index + 1)
 			};
 		}
@@ -195,7 +210,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 function patternListToIExpression(patterns: string[]): glob.IExpression {
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
-		null;
+		undefined;
 }
 
 function splitGlobPattern(pattern: string): string[] {

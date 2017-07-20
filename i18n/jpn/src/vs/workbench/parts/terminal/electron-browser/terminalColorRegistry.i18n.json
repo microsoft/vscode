@@ -6,5 +6,7 @@
 {
 	"terminal.background": "ターミナルの背景色。パネルごとに異なる色を指定できます。",
 	"terminal.foreground": "ターミナルの前景色。",
+	"terminalCursor.foreground": "ターミナルのカーソル前景色。",
+	"terminalCursor.background": "ターミナルのカーソルの背景色。ブロックカーソルで重ねた文字の色をカスタマイズできます。",
 	"terminal.ansiColor": "ターミナルの '{0}' ANSI カラー。"
 }

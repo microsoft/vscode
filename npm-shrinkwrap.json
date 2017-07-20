@@ -262,6 +262,18 @@
       "from": "jschardet@>=1.4.2 <2.0.0",
       "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.4.2.tgz"
     },
+    "keytar": {
+      "version": "4.0.3",
+      "from": "keytar@latest",
+      "resolved": "https://registry.npmjs.org/keytar/-/keytar-4.0.3.tgz",
+      "dependencies": {
+        "nan": {
+          "version": "2.5.1",
+          "from": "nan@2.5.1",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.5.1.tgz"
+        }
+      }
+    },
     "kind-of": {
       "version": "3.0.4",
       "from": "kind-of@>=3.0.2 <4.0.0",

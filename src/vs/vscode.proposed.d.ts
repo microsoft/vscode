@@ -121,4 +121,50 @@ declare module 'vscode' {
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
+
+	export namespace debug {
+
+		/**
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a DebugConfiguration.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are up-to-date.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
+		 * @return A thenable that resolves when debugging could be successfully started.
+		 */
+		export function startDebugging(nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+	}
+
+	/**
+	 * Namespace for handling credentials.
+	 */
+	export namespace credentials {
+
+		/**
+		 * Read a previously stored secret from the credential store.
+		 *
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise for the secret of the credential.
+		 */
+		export function readSecret(service: string, account: string): Thenable<string | undefined>;
+
+		/**
+		 * Write a secret to the credential store.
+		 *
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @param secret The secret of the credential to write to the credential store.
+		 * @return A promise indicating completion of the operation.
+		 */
+		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
+
+		/**
+		 * Delete a previously stored secret from the credential store.
+		 *
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise resolving to true if there was a secret for that service and account.
+		 */
+		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+	}
 }

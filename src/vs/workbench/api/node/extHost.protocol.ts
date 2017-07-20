@@ -345,8 +345,15 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
+	$startDebugging(nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
 	$startDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
+}
+
+export abstract class MainThreadCredentialsShape {
+	$readSecret(service: string, account: string): Thenable<string | undefined> { throw ni(); }
+	$writeSecret(service: string, account: string, secret: string): Thenable<void> { throw ni(); }
+	$deleteSecret(service: string, account: string): Thenable<boolean> { throw ni(); }
 }
 
 // -- extension host
@@ -505,6 +512,9 @@ export abstract class ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void { throw ni(); }
 }
 
+export abstract class ExtHostCredentialsShape {
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -529,7 +539,8 @@ export const MainContext = {
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
-	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape)
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape),
+	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials', MainThreadCredentialsShape),
 };
 
 export const ExtHostContext = {
@@ -551,4 +562,5 @@ export const ExtHostContext = {
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ExtHostWorkspaceShape),
+	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials', ExtHostCredentialsShape),
 };

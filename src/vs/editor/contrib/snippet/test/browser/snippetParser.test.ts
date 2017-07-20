@@ -259,7 +259,13 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).children.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+	});
 
+	test('Repeated snippet placeholder should always inherit, #31040', function () {
+		assertText('${1:foo}-abc-$1', 'foo-abc-foo');
+		assertText('${1:foo}-abc-${1}', 'foo-abc-foo');
+		assertText('${1:foo}-abc-${1:bar}', 'foo-abc-foo');
+		assertText('${1}-abc-${1:foo}', 'foo-abc-foo');
 	});
 
 	test('backspace esapce in TM only, #16212', () => {
@@ -399,8 +405,8 @@ suite('SnippetParser', () => {
 
 	test('Snippet order for placeholders, #28185', function () {
 
-		const _10 = new Placeholder(10, []);
-		const _2 = new Placeholder(2, []);
+		const _10 = new Placeholder(10);
+		const _2 = new Placeholder(2);
 
 		assert.equal(Placeholder.compareByIndex(_10, _2), 1);
 	});

@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "Cor de fundo para a borda em volta da linha na posição do cursor",
 	"rangeHighlight": "Cor de fundo dos ranges selecionados, assim como abertura instantânea e descoberta de recursos ",
 	"caret": "Cor do cursor no editor.",
+	"editorCursorBackground": "A cor de fundo do cursor do editor. Permite customizar a cor de um caractere sobreposto pelo bloco do cursor.",
 	"editorWhitespaces": "Cor dos caracteres em branco no editor",
 	"editorIndentGuides": "Cor das guias de indentação do editor.",
 	"editorLineNumbers": "Cor dos números de linha do editor.",

@@ -618,7 +618,9 @@ export class LanguageConfigurationRegistryImpl {
 			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		if (indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
+		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
+		// Users might change the indentation by purpose and we should honor that instead of readjusting.
+		if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
 			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 			// 1. Get inherited indent action
 			let r = this.getInheritIndentForLine(model, range.startLineNumber, false);

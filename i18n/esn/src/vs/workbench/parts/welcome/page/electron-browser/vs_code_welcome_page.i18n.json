@@ -16,6 +16,7 @@
 	"welcomePage.help": "Ayuda",
 	"welcomePage.keybindingsCheatsheet": "Hoja imprimible con ayudas de teclado",
 	"welcomePage.introductoryVideos": "Vídeos de introducción",
+	"welcomePage.tipsAndTricks": "Sugerencias y trucos",
 	"welcomePage.productDocumentation": "Documentación del producto",
 	"welcomePage.gitHubRepository": "Repositorio de GitHub",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -35,10 +36,5 @@
 	"welcomePage.interfaceOverview": "Introducción a la interfaz",
 	"welcomePage.interfaceOverviewDescription": "Obtenga una superposición que resalta los componentes principales de la interfaz de usuario",
 	"welcomePage.interactivePlayground": "Área de juegos interactiva",
-	"welcomePage.interactivePlaygroundDescription": "Pruebe las características esenciales del editor en un tutorial corto",
-	"welcomePage.quickLinks": "Vínculos rápidos",
-	"welcomePage.keybindingsReference": "Referencia de métodos abreviados de teclado",
-	"welcomePage.keybindingsReferenceDescription": "Un PDF imprimible con los métodos abreviados de teclado más comunes",
-	"welcomePage.configureSettings": "Definir la configuración",
-	"welcomePage.configureSettingsDescription": "Revele el poder total de VS Code cambiando la configuración"
+	"welcomePage.interactivePlaygroundDescription": "Pruebe las características esenciales del editor en un tutorial corto"
 }

@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "定義範非空白左右大括弧間的空格處理。需要 TypeScript >= 2.3.0。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "定義範本字串左右大括弧間的空格處理。需要 TypeScript >= 2.0.6。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "定義 JSX 運算式左右大括弧間的空格處理。需要 TypeScript >= 2.0.6。",
+	"format.insertSpaceAfterTypeAssertion": "定義在 TypeScript 內類型宣告後空格處理。需要 TypeScript >= 2.4。",
 	"format.placeOpenBraceOnNewLineForFunctions": "定義是否將左大括弧放入函式的新行。",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "定義是否將左大括弧放入控制區塊的新行。",
 	"javascript.validate.enable": "啟用/停用 JavaScript 驗證。",
@@ -44,5 +45,7 @@
 	"typescript.npm": "指定用於自動類型取得的 NPM 可執行檔路徑。TypeScript 必須 >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "檢查是否已安裝NPM用以取得自動類型擷取.",
 	"javascript.nameSuggestions": "從JavaScript推薦表檔案中啟用/停用包含唯一檔名",
-	"typescript.tsc.autoDetect": "控制 tsc 工作的自動偵測為開啟或關閉。"
+	"typescript.tsc.autoDetect": "控制 tsc 工作的自動偵測為開啟或關閉。",
+	"typescript.problemMatchers.tsc.label": "TypeScript 問題",
+	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)"
 }

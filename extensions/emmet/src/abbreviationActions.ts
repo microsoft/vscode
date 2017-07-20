@@ -70,7 +70,13 @@ export function wrapWithAbbreviation(args) {
 			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap, preceedingWhiteSpace });
 		});
 
-		expandAbbreviationInRange(editor, expandAbbrList, allTextToReplaceSame);
+		if (!allTextToReplaceSame) {
+			expandAbbrList.forEach(input => {
+				input.textToWrap = '\n\$TM_SELECTED_TEXT\n';
+			});
+		}
+
+		expandAbbreviationInRange(editor, expandAbbrList, true);
 	});
 }
 
@@ -91,13 +97,31 @@ export function expandAbbreviation(args) {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	editor.selections.forEach(selection => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string] => {
 		let rangeToReplace: vscode.Range = selection;
-		let position = selection.isReversed ? selection.anchor : selection.active;
-		let abbreviation = editor.document.getText(rangeToReplace);
-		if (rangeToReplace.isEmpty) {
-			[rangeToReplace, abbreviation] = extractAbbreviation(editor.document, position);
+		let abbreviation = document.getText(rangeToReplace);
+		if (!rangeToReplace.isEmpty) {
+			return [rangeToReplace, abbreviation];
 		}
+
+		// Expand cases like <div to <div></div> explicitly
+		// else we will end up with <<div></div>
+		if (isHtml) {
+			const currentLine = editor.document.lineAt(position.line).text;
+			const textTillPosition = currentLine.substr(0, position.character);
+			let matches = textTillPosition.match(/<(\w+)$/);
+			if (matches) {
+				abbreviation = matches[1];
+				rangeToReplace = new vscode.Range(position.translate(0, -(abbreviation.length + 1)), position);
+				return [rangeToReplace, abbreviation];
+			}
+		}
+		return extractAbbreviation(editor.document, position);
+	};
+
+	editor.selections.forEach(selection => {
+		let position = selection.isReversed ? selection.anchor : selection.active;
+		let [rangeToReplace, abbreviation] = getAbbreviation(editor.document, selection, position, syntax === 'html');
 		if (!isAbbreviationValid(syntax, abbreviation)) {
 			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;

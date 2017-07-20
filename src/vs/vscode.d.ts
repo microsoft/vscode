@@ -5465,7 +5465,10 @@ declare module 'vscode' {
 
 		/**
 		 * Start a debug session based on the given configuration.
-		 * @param configuration
+		 * The configuration's type is used to select the debug adapter and then is directly passed to the adapter without modification.
+		 * This function should only be called in the context of a 'startSession' command, e.g. after verifying or massaging the configuration.
+		 * @param configuration The debug configuration that is directly passed to the debug adapter.
+		 * @return A thenable that resolves when the debug session could be successfully started.
 		 */
 		export function startDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
 

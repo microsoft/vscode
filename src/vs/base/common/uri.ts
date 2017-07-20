@@ -212,6 +212,7 @@ export default class URI {
 			let idx = path.indexOf(URI._slash, 2);
 			if (idx === -1) {
 				authority = path.substring(2);
+				path = URI._empty;
 			} else {
 				authority = path.substring(2, idx);
 				path = path.substring(idx);

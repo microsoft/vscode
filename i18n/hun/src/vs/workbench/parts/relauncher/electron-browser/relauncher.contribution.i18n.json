@@ -7,7 +7,5 @@
 	"relaunchSettingMessage": "Egy olyan beállítás változott, melynek hatályba lépéséhez újraindítás szükséges.",
 	"relaunchSettingDetail": "A beállítás engedélyezéséhez nyomja meg az újraindítás gombot a {0} újraindításához.",
 	"restart": "Újraindítás",
-	"relaunchWorkspaceMessage": "A munkaterülethez mappa lett hozzáadva vagy eltávolítva, melynek hatályba lépéséhez újraindítás szükséges.",
-	"relaunchWorkspaceDetail": "Az ablak újratöltéséhez és a beállítások módosításainak érvénybe léptetéséhez nyomja meg az újraindítás gombot!",
 	"reload": "Újratöltés"
 }

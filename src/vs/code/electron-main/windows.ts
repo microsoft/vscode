@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
-import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences } from 'electron';
+import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -121,6 +121,9 @@ export class WindowsManager implements IWindowsMainService {
 	private _onWindowClose = new Emitter<number>();
 	onWindowClose: CommonEvent<number> = this._onWindowClose.event;
 
+	private _onActiveWindowChanged = new Emitter<CodeWindow>();
+	onActiveWindowChanged: CommonEvent<CodeWindow> = this._onActiveWindowChanged.event;
+
 	private _onWindowReload = new Emitter<number>();
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
@@ -176,6 +179,13 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private registerListeners(): void {
+
+		// React to windows focus changes
+		app.on('browser-window-focus', () => {
+			setTimeout(() => {
+				this._onActiveWindowChanged.fire(this.getLastActiveWindow());
+			});
+		});
 
 		// React to workbench loaded events from windows
 		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
@@ -1272,8 +1282,8 @@ export class WindowsManager implements IWindowsMainService {
 
 		const options: Electron.ShowMessageBoxOptions = {
 			title: this.environmentService.appNameLong,
-			message: localize('saveWorkspaceMessage', "Do you want to save the workspace opened in this window?"),
-			detail: localize('saveWorkspaceDetail', "Your workspace will be deleted if you don't save it."),
+			message: localize('saveWorkspaceMessage', "Do you want to save the untitled workspace?"),
+			detail: localize('saveWorkspaceDetail', "Save this workspace if you plan to open it again."),
 			noLink: true,
 			type: 'warning',
 			buttons: buttons.map(button => button.label),

@@ -11,17 +11,20 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
-import { IAction } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction, Action } from 'vs/base/common/actions';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -226,10 +229,30 @@ const ACTION_ID = 'workbench.action.showAllSymbols';
 const ACTION_LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
 const ALL_SYMBOLS_PREFIX = '#';
 
-class ShowAllSymbolsAction extends QuickOpenAction {
+class ShowAllSymbolsAction extends Action {
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, ALL_SYMBOLS_PREFIX, quickOpenService);
+	constructor(
+		actionId: string, actionLabel: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ICodeEditorService private editorService: ICodeEditorService) {
+		super(actionId, actionLabel);
+		this.enabled = !!this.quickOpenService;
+	}
+
+	public run(context?: any): TPromise<void> {
+
+		let prefix = ALL_SYMBOLS_PREFIX;
+		let inputSelection: { start: number; end: number; } = void 0;
+		let editor = this.editorService.getFocusedCodeEditor();
+		const word = editor && getSelectionSearchString(editor);
+		if (word) {
+			prefix = prefix + word;
+			inputSelection = { start: 1, end: word.length + 1 };
+		}
+
+		this.quickOpenService.show(prefix, { inputSelection });
+
+		return TPromise.as(null);
 	}
 }
 
