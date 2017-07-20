@@ -165,7 +165,11 @@ export class QueryBuilder {
 				const searchPathRoot = relativeSearchPathMatch[1];
 				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
 				if (matchingRoots.length) {
-					return matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2] || ''));
+					return matchingRoots.map(root => {
+						return relativeSearchPathMatch[2] ?
+							paths.join(root.fsPath, relativeSearchPathMatch[2]) :
+							root.fsPath;
+					});
 				} else {
 					// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
 				}
