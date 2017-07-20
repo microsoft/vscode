@@ -363,6 +363,7 @@ export class CodeMenu {
 		}
 
 		const open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
+		const openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")), click: () => this.windowsService.openWorkspace() }));
 		const openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsService.pickFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
 
 		let openFile: Electron.MenuItem;
@@ -378,19 +379,8 @@ export class CodeMenu {
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
 
-		const workspacesMenu = new Menu();
-		const workspaces = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miWorkspaces', comment: ['&& denotes a mnemonic'] }, "&&Workspaces")), submenu: workspacesMenu });
-
-		const openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")), click: () => this.windowsService.openWorkspace() }));
 		this.saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspaceAs', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace As..."), 'workbench.action.saveWorkspaceAs');
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder');
-		[
-			openWorkspace,
-			__separator__(),
-			this.saveWorkspace,
-			__separator__(),
-			addFolder
-		].forEach(item => workspacesMenu.append(item));
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save');
 		const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs');
@@ -421,9 +411,11 @@ export class CodeMenu {
 			isMacintosh ? open : null,
 			!isMacintosh ? openFile : null,
 			!isMacintosh ? openFolder : null,
+			isMultiRootEnabled ? openWorkspace : null,
 			openRecent,
 			isMultiRootEnabled ? __separator__() : null,
-			isMultiRootEnabled ? workspaces : null,
+			isMultiRootEnabled ? addFolder : null,
+			isMultiRootEnabled ? this.saveWorkspace : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,
