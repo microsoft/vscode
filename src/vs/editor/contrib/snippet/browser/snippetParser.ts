@@ -68,14 +68,6 @@ export class Scanner {
 		return this.value.substr(token.pos, token.len);
 	}
 
-	// anchor() {
-	// 	const pos = this.pos;
-	// 	return {
-	// 		reset: () => this.pos = pos,
-	// 		text: () => this.value.substring(pos, this.pos)
-	// 	};
-	// }
-
 	next(): Token {
 
 		if (this.pos >= this.value.length) {
@@ -440,12 +432,21 @@ export class SnippetParser {
 		return false;
 	}
 
+	private _backTo(token: Token): false {
+		this._scanner.pos = token.pos + token.len;
+		this._token = token;
+		return false;
+	}
+
 	private _parse(marker: Marker): boolean {
 		return this._parseEscaped(marker)
-			|| this._parsePlaceholderOrVariable(marker)
+			|| this._parseTabstopOrVariableName(marker)
+			|| this._parseComplexPlaceholder(marker)
+			|| this._parseComplexVariable(marker)
 			|| this._parseAnything(marker);
 	}
 
+	// \$, \\, \} -> just text
 	private _parseEscaped(marker: Marker): boolean {
 		let value: string;
 		if (value = this._accept(TokenType.Backslash, true)) {
@@ -461,58 +462,111 @@ export class SnippetParser {
 		return false;
 	}
 
-	private _parsePlaceholderOrVariable(marker: Marker): boolean {
+	// $foo -> variable, $1 -> tabstop
+	private _parseTabstopOrVariableName(parent: Marker): boolean {
+		let value: string;
+		const token = this._token;
+		const match = this._accept(TokenType.Dollar)
+			&& (value = this._accept(TokenType.VariableName, true) || this._accept(TokenType.Int, true));
 
-		if (!this._accept(TokenType.Dollar)) {
-			return false;
+		if (!match) {
+			return this._backTo(token);
 		}
 
-		let value = this._accept(TokenType.VariableName, true)
-			|| this._accept(TokenType.Int, true);
+		parent.appendChild(/^\d+$/.test(value)
+			? new Placeholder(Number(value))
+			: new Variable(value)
+		);
+		return true;
+	}
 
-		if (value) {
-			// $foo -> variable, $1 -> tabstop
-			marker.appendChild(/^\d+$/.test(value) ? new Placeholder(Number(value)) : new Variable(value));
-			return true;
+	// ${1:<children>}, ${1} -> placeholder
+	private _parseComplexPlaceholder(parent: Marker): boolean {
+		let index: string;
+		const token = this._token;
+		const match = this._accept(TokenType.Dollar)
+			&& this._accept(TokenType.CurlyOpen)
+			&& (index = this._accept(TokenType.Int, true));
 
-		} else if (this._accept(TokenType.CurlyOpen)) {
-			// ${foo:<children>}, ${foo}, ${1:<children>}, ${1}
+		if (!match) {
+			return this._backTo(token);
+		}
 
-			value = this._accept(TokenType.VariableName, true)
-				|| this._accept(TokenType.Int, true);
+		const variable = new Placeholder(Number(index));
 
-			if (!value) {
-				marker.appendChild(new Text('${'));
-				return true;
-			}
-
-			let placeholderOrVariable = /^\d+$/.test(value) ? new Placeholder(Number(value)) : new Variable(value);
-
+		if (this._accept(TokenType.Colon)) {
+			// ${1:<children>}
 			while (true) {
 
+				// ...} -> done
 				if (this._accept(TokenType.CurlyClose)) {
-					marker.appendChild(placeholderOrVariable);
+					parent.appendChild(variable);
 					return true;
 				}
 
-				if (placeholderOrVariable.children.length === 0 && !this._accept(TokenType.Colon)) {
-					marker.appendChild(new Text('${' + value));
-					return true;
-				}
-
-				if (this._parse(placeholderOrVariable)) {
+				if (this._parse(variable)) {
 					continue;
 				}
 
 				// fallback
-				marker.appendChild(new Text('${' + value + ':'));
-				placeholderOrVariable.children.forEach(marker.appendChild, marker);
+				parent.appendChild(new Text('${' + index + ':'));
+				variable.children.forEach(parent.appendChild, parent);
 				return true;
 			}
 
-		} else {
-			marker.appendChild(new Text('$'));
+		} else if (this._accept(TokenType.CurlyClose)) {
+			// ${1}
+			parent.appendChild(variable);
 			return true;
+
+		} else {
+			// ${1 <- missing curly or colon
+			return this._backTo(token);
+		}
+	}
+
+	// ${foo:<children>}, ${foo} -> variable
+	private _parseComplexVariable(parent: Marker): boolean {
+		let name: string;
+		const token = this._token;
+		const match = this._accept(TokenType.Dollar)
+			&& this._accept(TokenType.CurlyOpen)
+			&& (name = this._accept(TokenType.VariableName, true));
+
+		if (!match) {
+			return this._backTo(token);
+		}
+
+		const variable = new Variable(name);
+
+		if (this._accept(TokenType.Colon)) {
+			// ${foo:<children>}
+			while (true) {
+
+				// ...} -> done
+				if (this._accept(TokenType.CurlyClose)) {
+					parent.appendChild(variable);
+					return true;
+				}
+
+				if (this._parse(variable)) {
+					continue;
+				}
+
+				// fallback
+				parent.appendChild(new Text('${' + name + ':'));
+				variable.children.forEach(parent.appendChild, parent);
+				return true;
+			}
+
+		} else if (this._accept(TokenType.CurlyClose)) {
+			// ${foo}
+			parent.appendChild(variable);
+			return true;
+
+		} else {
+			// ${foo <- missing curly or colon
+			return this._backTo(token);
 		}
 	}
 
