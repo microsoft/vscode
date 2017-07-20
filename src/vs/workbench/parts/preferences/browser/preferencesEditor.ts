@@ -12,9 +12,8 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { toResource, SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -47,6 +46,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 // Ignore following contributions
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
@@ -67,6 +67,10 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 	public getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
+	}
+
+	public isDirty(): boolean {
+		return false;
 	}
 }
 
@@ -201,7 +205,7 @@ export class PreferencesEditor extends BaseEditor {
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		this.settingsTargetsWidget.setTarget(this.getSettingsConfigurationTarget(newInput));
 
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
 			this.filterPreferences(this.searchWidget.getValue());
@@ -424,6 +428,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
+		this.editablePreferencesEditor = this.instantiationService.createInstance(EditableSettingsEditor);
+		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
+		this.editablePreferencesEditor.setVisible(true);
+
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
 			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
 
@@ -436,13 +444,10 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
-		return this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput)
-			.then(() => {
-				this.dolayout(this.sash.getVerticalSashLeft());
-				return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
-				this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
-					.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
-			});
+		this.dolayout(this.sash.getVerticalSashLeft());
+		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
+		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
 	}
 
 	public layout(dimension: Dimension): void {
@@ -478,23 +483,9 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions, ): TPromise<IPreferencesRenderer<ISetting>> {
+	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
 		return editor.setInput(input, options)
 			.then(() => (<CodeEditor>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).createPreferencesRenderer(associatedPreferencesModelUri));
-	}
-
-	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
-		if (this.editablePreferencesEditor) {
-			return TPromise.as(this.editablePreferencesEditor);
-		}
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
-		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
-			.then((editor: BaseEditor) => {
-				this.editablePreferencesEditor = editor;
-				this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
-				this.editablePreferencesEditor.setVisible(true);
-				return editor;
-			});
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -535,6 +526,70 @@ class SideBySidePreferencesWidget extends Widget {
 	public dispose(): void {
 		this.disposeEditors();
 		super.dispose();
+	}
+}
+
+export class EditableSettingsEditor extends BaseTextEditor {
+
+	public static ID: string = 'workbench.editor.settingsEditor';
+
+	private modelDisposables: IDisposable[] = [];
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IThemeService themeService: IThemeService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IModelService private modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
+	) {
+		super(EditableSettingsEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
+		this._register({ dispose: () => dispose(this.modelDisposables) });
+	}
+
+	protected createEditor(parent: Builder): void {
+		super.createEditor(parent);
+
+		const codeEditor = getCodeEditor(this);
+		if (codeEditor) {
+			this._register(codeEditor.onDidChangeModel(() => this.onDidModelChange()));
+		}
+	}
+
+	protected getAriaLabel(): string {
+		const input = this.input;
+		const inputName = input && input.getName();
+
+		let ariaLabel: string;
+		if (inputName) {
+			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
+		} else {
+			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
+		}
+
+		return ariaLabel;
+	}
+
+	setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+		return super.setInput(input, options)
+			.then(() => this.input.resolve()
+				.then(editorModel => editorModel.load())
+				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
+	}
+
+	private onDidModelChange(): void {
+		this.modelDisposables = dispose(this.modelDisposables);
+		const model = getCodeEditor(this).getModel();
+		this.modelDisposables.push(model.onDidChangeContent(() => this.save(model.uri)));
+	}
+
+	private save(resource: URI): void {
+		this.textFileService.save(resource);
 	}
 }
 
