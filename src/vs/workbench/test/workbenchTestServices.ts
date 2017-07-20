@@ -840,7 +840,7 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
-	onDidFocusChange: Event<boolean>;
+	onDidChangeFocus: Event<boolean>;
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);

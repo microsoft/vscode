@@ -87,7 +87,7 @@ export interface IWindowService {
 
 	_serviceBrand: any;
 
-	onDidFocusChange: Event<boolean>;
+	onDidChangeFocus: Event<boolean>;
 
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;

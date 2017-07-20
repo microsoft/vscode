@@ -13,7 +13,7 @@ import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class WindowService implements IWindowService {
 
-	readonly onDidFocusChange: Event<boolean>;
+	readonly onDidChangeFocus: Event<boolean>;
 
 	_serviceBrand: any;
 
@@ -23,7 +23,7 @@ export class WindowService implements IWindowService {
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		this.onDidFocusChange = any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeFocus = any(onThisWindowFocus, onThisWindowBlur);
 	}
 
 	getCurrentWindowId(): number {
