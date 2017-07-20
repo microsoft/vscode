@@ -346,7 +346,7 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -366,7 +366,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public id(): string {
-		return this.resource().toString();
+		return this._id;
 	}
 
 	public resource(): URI {
@@ -383,6 +383,10 @@ export class FolderMatch extends Disposable {
 
 	public parent(): SearchResult {
 		return this._parent;
+	}
+
+	public hasRoot(): boolean {
+		return this._resource.fsPath !== '';
 	}
 
 	public add(raw: IFileMatch[], silent: boolean): void {
@@ -506,13 +510,17 @@ export class SearchResult extends Disposable {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
 		this._query = query;
-		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).map((resource, index) => {
-			const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, index, query, this, this._searchModel);
-			this._folderMatchesMap.insert(resource.fsPath, folderMatch);
+		const otherFiles = URI.parse('');
+		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
+			const id = resource.toString() || 'otherFiles';
+			const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, id, index, query, this, this._searchModel);
 			const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 			folderMatch.onDispose(() => disposable.dispose());
 			return folderMatch;
 		});
+		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
+		this._folderMatches.slice(0, this.folderMatches.length - 1)
+			.forEach(fm => this._folderMatchesMap.insert(fm.resource().fsPath, fm));
 	}
 
 	public get searchModel(): SearchModel {
@@ -623,7 +631,12 @@ export class SearchResult extends Disposable {
 	}
 
 	private getFolderMatch(resource: URI): FolderMatch {
-		return this._folderMatchesMap.findSubstr(resource.fsPath);
+		const folderMatch = this._folderMatchesMap.findSubstr(resource.fsPath);
+		return folderMatch ? folderMatch : this.otherFiles;
+	}
+
+	private get otherFiles(): FolderMatch {
+		return this._folderMatches[this._folderMatches.length - 1];
 	}
 
 	private set replacingAll(running: boolean) {

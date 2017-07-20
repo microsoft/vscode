@@ -220,14 +220,20 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	}
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
-		templateData.label.setFile(folderMatch.resource(), { isFolder: true });
+		if (folderMatch.hasRoot()) {
+			templateData.label.setFile(folderMatch.resource(), { isFolder: true });
+		} else {
+			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
+		}
 		let count = folderMatch.fileCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 	}
 
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
-		templateData.label.setFile(fileMatch.resource(), { root: fileMatch.parent().resource() });
+		const folderMatch = fileMatch.parent();
+		const root = folderMatch.hasRoot() ? folderMatch.resource() : undefined;
+		templateData.label.setFile(fileMatch.resource(), { root });
 		let count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
