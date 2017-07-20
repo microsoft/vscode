@@ -73,8 +73,8 @@ export abstract class BaseWorkspacesAction extends Action {
 		super(id, label);
 	}
 
-	protected handleNotInMultiFolderWorkspaceCase(message: string, actionLabel: string): boolean {
-		const newWorkspace = { label: mnemonicButtonLabel(actionLabel), canceled: false };
+	protected handleNotInMultiFolderWorkspaceCase(message: string): boolean {
+		const newWorkspace = { label: mnemonicButtonLabel(nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")), canceled: false };
 		const cancel = { label: nls.localize('cancel', "Cancel"), canceled: true };
 
 		const buttons: { label: string; canceled: boolean; }[] = [];
@@ -135,13 +135,14 @@ export class NewWorkspaceFromExistingAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
-		if (folders && folders.length) {
-			if (this.contextService.hasWorkspace()) {
-				return this.createWorkspace([this.contextService.getWorkspace().roots[0], ...folders.map(folder => URI.file(folder))]);
+		if (this.contextService.hasWorkspace()) {
+			let folders = this.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+			if (folders && folders.length) {
+				if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "To open multiple folders, window reload is required."))) {
+					return this.createWorkspace([this.contextService.getWorkspace().roots[0], ...folders.map(folder => URI.file(folder))]);
+				}
 			}
 		}
-
 		return TPromise.as(null);
 	}
 
@@ -175,10 +176,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		if (this.contextService.hasFolderWorkspace()) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "Before we can add another folder we need to upgrade your workspace to support multiple folders and reload the window."), nls.localize({ key: 'upgradeAndAdd', comment: ['&& denotes a mnemonic'] }, "&&Upgrade and Add"))) {
-				return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
-			}
-			return TPromise.as(null);
+			return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
 		}
 
 		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
@@ -230,42 +228,36 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		if (this.contextService.hasFolderWorkspace()) {
-			return this.saveFolderWorkspace();
+		if (!this.contextService.hasWorkspace()) {
+			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
+			return TPromise.as(null);
 		}
 
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			return this.saveMultiFolderWorkspace();
-		}
+		const configPath = this.getNewWorkspaceConfigPath();
+		if (configPath) {
+			if (this.contextService.hasFolderWorkspace()) {
+				return this.saveFolderWorkspace(configPath);
+			}
 
-		this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Saving a workspace is not supported when the window is opened without a folder. Please open a folder first."));
-		return TPromise.as(null);
-	}
-
-	private saveFolderWorkspace(): TPromise<void> {
-		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Before we can save we need to upgrade your workspace to support multiple folders and reload the window."), nls.localize({ key: 'upgradeAndSave', comment: ['&& denotes a mnemonic'] }, "&&Upgrade and Save"))) {
-			const configPath = this.getNewWorkspaceConfigPath();
-			if (configPath) {
-				// Create workspace first
-				this.workspacesService.createWorkspace(this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */)))
-					.then(workspaceIdentifier => {
-						// Save the workspace in new location
-						return this.workspacesService.saveWorkspace(workspaceIdentifier, configPath)
-							// Open the saved workspace
-							.then(({ configPath }) => this.windowsService.openWindow([configPath]));
-					});
+			if (this.contextService.hasMultiFolderWorkspace()) {
+				return this.contextService.saveWorkspace(URI.file(configPath));
 			}
 		}
+
 		return TPromise.as(null);
 	}
 
-	private saveMultiFolderWorkspace(): TPromise<void> {
-		const target = this.getNewWorkspaceConfigPath();
-
-		if (target) {
-			return this.contextService.saveWorkspace(URI.file(target));
+	private saveFolderWorkspace(configPath: string): TPromise<void> {
+		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "To save workspace, window reload is required."))) {
+			// Create workspace first
+			this.workspacesService.createWorkspace(this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */)))
+				.then(workspaceIdentifier => {
+					// Save the workspace in new location
+					return this.workspacesService.saveWorkspace(workspaceIdentifier, configPath)
+						// Open the saved workspace
+						.then(({ configPath }) => this.windowsService.openWindow([configPath]));
+				});
 		}
-
 		return TPromise.as(null);
 	}
 
