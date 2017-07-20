@@ -554,7 +554,7 @@ export function createApiFactory(
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
-			Uri: extHostTypes.Uri,
+			Uri: <any>URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,

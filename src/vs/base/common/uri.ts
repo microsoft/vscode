@@ -92,7 +92,7 @@ export default class URI {
 	/**
 	 * @internal
 	 */
-	protected constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
+	private constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
 
 		this.scheme = scheme || URI._empty;
 		this.authority = authority || URI._empty;
