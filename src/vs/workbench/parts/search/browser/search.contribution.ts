@@ -29,6 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import * as searchActions from 'vs/workbench/parts/search/browser/searchActions';
+import { Model } from 'vs/workbench/parts/files/common/explorerModel';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
@@ -199,7 +200,11 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 	public hasSecondaryActions(context: any): boolean {
 		let element = context.element;
 
-		// Contribute only on file resources
+		// Contribute only on file resources and model (context menu for multi root)
+		if (element instanceof Model) {
+			return true;
+		}
+
 		let fileResource = explorerItemToFileResource(element);
 		if (!fileResource) {
 			return false;
@@ -212,9 +217,14 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		let actions: IAction[] = [];
 
 		if (this.hasSecondaryActions(context)) {
-			let fileResource = explorerItemToFileResource(context.element);
+			let action: Action;
+			if (context.element instanceof Model) {
+				action = this._instantiationService.createInstance(searchActions.FindInWorkspaceAction);
+			} else {
+				let fileResource = explorerItemToFileResource(context.element);
+				action = this._instantiationService.createInstance(searchActions.FindInFolderAction, fileResource.resource);
+			}
 
-			let action = this._instantiationService.createInstance(searchActions.FindInFolderAction, fileResource.resource);
 			action.order = 55;
 			actions.push(action);
 

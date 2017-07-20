@@ -839,7 +839,7 @@ export class SearchViewlet extends Viewlet {
 	public searchInFolder(resource: URI): void {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
+		if (workspace && resource) {
 			if (workspace.roots.length === 1) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);

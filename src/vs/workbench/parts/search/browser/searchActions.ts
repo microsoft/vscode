@@ -240,6 +240,21 @@ export class CloseReplaceAction extends Action {
 	}
 }
 
+export class FindInWorkspaceAction extends Action {
+
+	public static ID = 'filesExplorer.findInWorkspace';
+
+	constructor( @IViewletService private viewletService: IViewletService) {
+		super(FindInWorkspaceAction.ID, nls.localize('findInWorkspace', "Find in Workspace..."));
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+			viewlet.searchInFolder(null);
+		});
+	}
+}
+
 export class FindInFolderAction extends Action {
 
 	public static ID = 'filesExplorer.findInFolder';
@@ -247,7 +262,7 @@ export class FindInFolderAction extends Action {
 	private resource: URI;
 
 	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
-		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder"));
+		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder..."));
 
 		this.resource = resource;
 	}
