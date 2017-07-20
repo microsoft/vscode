@@ -9,16 +9,18 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 
+const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
+
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckWindowsShell: Emitter<string>;
 	private _rootShellExecutable: string;
-	private _processId: number;
+	private _rootProcessId: number;
 
-	public constructor(pid: number, rootShellName: string) {
+	public constructor(rootProcessId: number, rootShellExecutable: string) {
 		this._childProcessIdStack = [];
-		this._rootShellExecutable = rootShellName;
-		this._processId = pid;
+		this._rootShellExecutable = rootShellExecutable;
+		this._rootProcessId = rootProcessId;
 
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
@@ -26,11 +28,11 @@ export class WindowsShellHelper {
 
 		this._onCheckWindowsShell = new Emitter<string>();
 		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
-			this.updateShellName();
+			this.getShellName();
 		});
 	}
 
-	private getFirstChildProcess(pid: number): TPromise<{ executable: string, pid: number }[]> {
+	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
 		return new TPromise((resolve, reject) => {
 			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
 				if (err) {
@@ -38,59 +40,55 @@ export class WindowsShellHelper {
 				} else if (stderr.length > 0) {
 					resolve([]); // No processes found
 				} else {
-					resolve(stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str)).map(str => {
+					const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
+					const childProcessDetails = childProcessLines.map(str => {
 						const s = str.split('  ');
 						return { executable: s[0], pid: Number(s[1]) };
-					}));
+					});
+					resolve(childProcessDetails);
 				}
 			});
 		});
 	}
 
 	private refreshShellProcessTree(pid: number, parent: string): TPromise<string> {
-		const shellExecutables = ['cmd.exe', 'powershell.exe', 'bash.exe'];
-		return this.getFirstChildProcess(pid).then(result => {
+		return this.getChildProcessDetails(pid).then(result => {
+			// When we didn't find any child processes of the process
 			if (result.length === 0) {
-				if (parent.length > 0) {
+				// Case where we found a child process already and are checking further down the pid tree
+				// We have reached the end here so we know that parent is the deepest first child of the tree
+				if (parent) {
 					return TPromise.as(parent);
 				}
-				if (this._childProcessIdStack.length > 1) {
-					this._childProcessIdStack.pop();
-					return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '');
+				// Case where we haven't found a child and only the root shell is left
+				if (this._childProcessIdStack.length === 1) {
+					return TPromise.as(this._rootShellExecutable);
 				}
-				return TPromise.as([]);
-			} else if (shellExecutables.indexOf(path.basename(result[0].executable)) < 0){
+				// Otherwise, we go up the tree to find the next valid deepest child of the root
+				this._childProcessIdStack.pop();
+				return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null);
+			}
+			// We only go one level deep when checking for children of processes other then shells
+			if (SHELL_EXECUTABLES.indexOf(path.basename(result[0].executable)) === -1) {
 				return TPromise.as(result[0].executable);
 			}
+			// Save the pid in the stack and keep looking for children of that child
 			this._childProcessIdStack.push(result[0].pid);
 			return this.refreshShellProcessTree(result[0].pid, result[0].executable);
 		}, error => { return error; });
 	}
 
 	/**
-	 * Returns the innermost shell running in the terminal.
+	 * Returns the innermost shell executable running in the terminal
 	 */
-	private getShellName(pid: number, shell: string): TPromise<string> {
+	public getShellName(): TPromise<string> {
 		if (this._childProcessIdStack.length === 0) {
-			this._childProcessIdStack.push(pid);
+			this._childProcessIdStack.push(this._rootProcessId);
 		}
 		return new TPromise<string>((resolve) => {
-			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], '').then(result => {
-				if (result.length > 0) {
-					resolve(result);
-				}
-				resolve(shell);
+			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null).then(result => {
+				resolve(result);
 			}, error => { return error; });
-		});
-	}
-
-	public updateShellName(): TPromise<string> {
-		return this.getShellName(this._processId, this._rootShellExecutable).then(result => {
-			if (result) {
-				const fullPathName = result.split('.exe')[0];
-				return path.basename(fullPathName);
-			}
-			return this._rootShellExecutable;
 		});
 	}
 }

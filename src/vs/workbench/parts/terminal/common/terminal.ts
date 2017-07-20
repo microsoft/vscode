@@ -361,5 +361,5 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }
