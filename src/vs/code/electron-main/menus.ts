@@ -467,7 +467,7 @@ export class CodeMenu {
 			openRecentMenu.append(__separator__());
 
 			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace'));
+				openRecentMenu.append(this.createOpenRecentMenuItem(workspaces[i], 'openRecentWorkspace', false));
 			}
 		}
 
@@ -476,7 +476,7 @@ export class CodeMenu {
 			openRecentMenu.append(__separator__());
 
 			for (let i = 0; i < CodeMenu.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile'));
+				openRecentMenu.append(this.createOpenRecentMenuItem(files[i], 'openRecentFile', true));
 			}
 		}
 
@@ -488,10 +488,10 @@ export class CodeMenu {
 		}
 	}
 
-	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, commandId: string): Electron.MenuItem {
+	private createOpenRecentMenuItem(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): Electron.MenuItem {
 		let label: string;
 		let path: string;
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
 			label = this.unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
 			path = workspace;
 		} else {
@@ -503,7 +503,13 @@ export class CodeMenu {
 			label,
 			click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
-				const success = this.windowsService.open({ context: OpenContext.MENU, cli: this.environmentService.args, pathsToOpen: [path], forceNewWindow: openInNewWindow }).length > 0;
+				const success = this.windowsService.open({
+					context: OpenContext.MENU,
+					cli: this.environmentService.args,
+					pathsToOpen: [path], forceNewWindow: openInNewWindow,
+					forceOpenWorkspaceAsFile: isFile
+				}).length > 0;
+
 				if (!success) {
 					this.historyService.removeFromRecentlyOpened([isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath]);
 				}

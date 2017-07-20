@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import { localize } from "vs/nls";
 import * as arrays from 'vs/base/common/arrays';
-import { assign, mixin } from 'vs/base/common/objects';
+import { assign, mixin, equals } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/node/storage';
@@ -639,7 +639,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
-			windowsToOpen = this.doExtractPathsFromAPI(openConfig.pathsToOpen, openConfig.cli && openConfig.cli.goto);
+			windowsToOpen = this.doExtractPathsFromAPI(openConfig);
 		}
 
 		// Check for force empty
@@ -660,9 +660,9 @@ export class WindowsManager implements IWindowsMainService {
 		return windowsToOpen;
 	}
 
-	private doExtractPathsFromAPI(paths: string[], gotoLineMode: boolean): IPath[] {
-		let pathsToOpen = paths.map(pathToOpen => {
-			const path = this.parsePath(pathToOpen, false, gotoLineMode);
+	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPath[] {
+		let pathsToOpen = openConfig.pathsToOpen.map(pathToOpen => {
+			const path = this.parsePath(pathToOpen, { gotoLineMode: openConfig.cli && openConfig.cli.goto, forceOpenWorkspaceAsFile: openConfig.forceOpenWorkspaceAsFile });
 
 			// Warn if the requested path to open does not exist
 			if (!path) {
@@ -693,7 +693,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
-		const pathsToOpen = arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, true /* ignoreFileNotFound */, cli.goto)));
+		const pathsToOpen = arrays.coalesce(cli._.map(candidate => this.parsePath(candidate, { ignoreFileNotFound: true, gotoLineMode: cli.goto })));
 		if (pathsToOpen.length > 0) {
 			return pathsToOpen;
 		}
@@ -824,13 +824,15 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
-	private parsePath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): IWindowToOpen {
+	private parsePath(anyPath: string, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IWindowToOpen {
 		if (!anyPath) {
 			return null;
 		}
 
 		let parsedPath: IPathWithLineAndColumn;
-		if (gotoLineMode) {
+
+		const gotoLineMode = options && options.gotoLineMode;
+		if (options && options.gotoLineMode) {
 			parsedPath = parseLineAndColumnAware(anyPath);
 			anyPath = parsedPath.path;
 		}
@@ -841,10 +843,12 @@ export class WindowsManager implements IWindowsMainService {
 			if (candidateStat) {
 				if (candidateStat.isFile()) {
 
-					// Workspace
-					const workspace = this.workspacesService.resolveWorkspaceSync(candidate);
-					if (workspace) {
-						return { workspace: { id: workspace.id, configPath: candidate } };
+					// Workspace (unless disabled via flag)
+					if (!options || !options.forceOpenWorkspaceAsFile) {
+						const workspace = this.workspacesService.resolveWorkspaceSync(candidate);
+						if (workspace) {
+							return { workspace: { id: workspace.id, configPath: candidate } };
+						}
 					}
 
 					// File
@@ -863,7 +867,7 @@ export class WindowsManager implements IWindowsMainService {
 		} catch (error) {
 			this.historyService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
 
-			if (ignoreFileNotFound) {
+			if (options && options.ignoreFileNotFound) {
 				return { filePath: candidate, createFilePath: true }; // assume this is a file that does not yet exist
 			}
 		}
@@ -1573,7 +1577,13 @@ class FileDialog {
 
 			// Open
 			if (numberOfPaths) {
-				this.windowsMainService.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
+				this.windowsMainService.open({
+					context: OpenContext.DIALOG,
+					cli: this.environmentService.args,
+					pathsToOpen: paths,
+					forceNewWindow: options.forceNewWindow,
+					forceOpenWorkspaceAsFile: options.dialogOptions && !equals(options.dialogOptions.filters, WORKSPACE_FILTER)
+				});
 			}
 		});
 	}
