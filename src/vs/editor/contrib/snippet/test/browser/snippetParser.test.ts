@@ -208,6 +208,23 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
 
+	test('Parser, placeholder with choice', () => {
+
+		assertMarker('${1|one,two,three|}', Placeholder);
+		assertMarker('${1|one|}', Placeholder);
+		assertMarker('${1|one,two,three,|}', Text);
+		assertMarker('${1|one,', Text);
+
+		const p = new SnippetParser();
+		const snippet = p.parse('${1|one,two,three|}');
+		assertMarker(snippet, Placeholder);
+		const expected = [Placeholder, Text, Text, Text];
+		snippet.walk(marker => {
+			assert.equal(marker, expected.shift());
+			return true;
+		});
+	});
+
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
 		assertMarker(p.parse('far{{}}boo'), Text);

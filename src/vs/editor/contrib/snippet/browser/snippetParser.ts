@@ -492,7 +492,7 @@ export class SnippetParser {
 			return this._backTo(token);
 		}
 
-		const variable = new Placeholder(Number(index));
+		const placeholder = new Placeholder(Number(index));
 
 		if (this._accept(TokenType.Colon)) {
 			// ${1:<children>}
@@ -500,23 +500,44 @@ export class SnippetParser {
 
 				// ...} -> done
 				if (this._accept(TokenType.CurlyClose)) {
-					parent.appendChild(variable);
+					parent.appendChild(placeholder);
 					return true;
 				}
 
-				if (this._parse(variable)) {
+				if (this._parse(placeholder)) {
 					continue;
 				}
 
 				// fallback
 				parent.appendChild(new Text('${' + index + ':'));
-				variable.children.forEach(parent.appendChild, parent);
+				placeholder.children.forEach(parent.appendChild, parent);
 				return true;
+			}
+		} else if (this._accept(TokenType.Pipe)) {
+			// ${1|one,two,three|}
+			while (true) {
+
+				if (this._parseAnything(placeholder)) {
+
+					if (this._accept(TokenType.Comma)) {
+						// opt, -> more
+						continue;
+					}
+
+					if (this._accept(TokenType.Pipe) && this._accept(TokenType.CurlyClose)) {
+						// ..|} -> done
+						parent.appendChild(placeholder);
+						return true;
+					}
+				}
+
+				this._backTo(token);
+				return false;
 			}
 
 		} else if (this._accept(TokenType.CurlyClose)) {
 			// ${1}
-			parent.appendChild(variable);
+			parent.appendChild(placeholder);
 			return true;
 
 		} else {
