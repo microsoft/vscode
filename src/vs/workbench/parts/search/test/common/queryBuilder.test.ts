@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
+import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,9 +17,9 @@ import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 import { ISearchQuery, QueryType, IPatternInfo } from 'vs/platform/search/common/search';
 
-suite('SearchQuery', () => {
+suite.only('SearchQuery', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
-	const ROOT_1 = `/foo/root1`;
+	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = uri.parse(ROOT_1);
 
 	let instantiationService: TestInstantiationService;
@@ -164,7 +165,7 @@ suite('SearchQuery', () => {
 					'./a',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse(ROOT_1 + '/a')
+							searchPath: getUri(ROOT_1 + '/a')
 						}]
 					}
 				],
@@ -172,7 +173,7 @@ suite('SearchQuery', () => {
 					'./a/*b/c',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse(ROOT_1 + '/a'),
+							searchPath: getUri(ROOT_1 + '/a'),
 							pattern: '*b/c'
 						}]
 					}
@@ -182,11 +183,11 @@ suite('SearchQuery', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: uri.parse(ROOT_1 + '/a'),
+								searchPath: getUri(ROOT_1 + '/a'),
 								pattern: '*b/c'
 							},
 							{
-								searchPath: uri.parse('/project/foo')
+								searchPath: getUri('/project/foo')
 							}]
 					}
 				]
@@ -195,14 +196,14 @@ suite('SearchQuery', () => {
 
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
-			mockWorkspace.roots = [ROOT_1_URI, uri.parse(ROOT_2)];
+			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2)];
 
 			[
 				[
 					'./root1',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse(ROOT_1)
+							searchPath: getUri(ROOT_1)
 						}]
 					}
 				],
@@ -210,7 +211,7 @@ suite('SearchQuery', () => {
 					'./root2',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse(ROOT_2),
+							searchPath: getUri(ROOT_2),
 						}]
 					}
 				],
@@ -219,11 +220,11 @@ suite('SearchQuery', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: uri.parse(ROOT_1 + '/a'),
+								searchPath: getUri(ROOT_1 + '/a'),
 								pattern: '**/b'
 							},
 							{
-								searchPath: uri.parse(ROOT_2),
+								searchPath: getUri(ROOT_2),
 								pattern: '**/*.txt'
 							}]
 					}
@@ -234,14 +235,14 @@ suite('SearchQuery', () => {
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.roots = [ROOT_1_URI, uri.parse(ROOT_2), uri.parse(ROOT_3)];
+			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2), getUri(ROOT_3)];
 
 			[
 				[
 					'./root1',
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse(ROOT_1)
+							searchPath: getUri(ROOT_1)
 						}]
 					}
 				],
@@ -250,10 +251,10 @@ suite('SearchQuery', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: uri.parse(ROOT_2),
+								searchPath: getUri(ROOT_2),
 							},
 							{
-								searchPath: uri.parse(ROOT_3),
+								searchPath: getUri(ROOT_3),
 							}]
 					}
 				],
@@ -262,19 +263,19 @@ suite('SearchQuery', () => {
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
-								searchPath: uri.parse(ROOT_2 + '/a'),
+								searchPath: getUri(ROOT_2 + '/a'),
 								pattern: '**/b'
 							},
 							{
-								searchPath: uri.parse(ROOT_3 + '/a'),
+								searchPath: getUri(ROOT_3 + '/a'),
 								pattern: '**/b'
 							},
 							{
-								searchPath: uri.parse(ROOT_2 + '/b'),
+								searchPath: getUri(ROOT_2 + '/b'),
 								pattern: '**/*.txt'
 							},
 							{
-								searchPath: uri.parse(ROOT_3 + '/b'),
+								searchPath: getUri(ROOT_3 + '/b'),
 								pattern: '**/*.txt'
 							}]
 					}
@@ -325,4 +326,14 @@ function patternsToIExpression(...patterns: string[]): IExpression {
 	return patterns.length ?
 		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
 		undefined;
+}
+
+function getUri(slashPath: string): uri {
+	return uri.parse(fixPath(slashPath));
+}
+
+function fixPath(slashPath: string): string {
+	return process.platform === 'win32' ?
+		paths.join('c:', ...slashPath.split('/')) :
+		slashPath;
 }
