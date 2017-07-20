@@ -45,16 +45,11 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 	}
 
 	public $startDebugging(nameOrConfiguration: string | IConfig): TPromise<boolean> {
-
-		if (typeof nameOrConfiguration === 'string') {
-			return this.debugService.startDebugging(nameOrConfiguration).then(x => {
-				return true;
-			}, err => {
-				return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
-			});
-		} else {
-			return TPromise.wrapError(new Error('startDebugging with configuration object not yet implemented'));
-		}
+		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
+			return true;
+		}, err => {
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
+		});
 	}
 
 	public $startDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
