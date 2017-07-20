@@ -27,6 +27,8 @@ export class SearchDataSource implements IDataSource {
 
 	private static AUTOEXPAND_CHILD_LIMIT = 10;
 
+	constructor(private includeFolderMatch: boolean = true) { }
+
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FolderMatch) {
 			return element.id();
@@ -49,7 +51,11 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof FolderMatch) {
 			return element.matches();
 		} else if (element instanceof SearchResult) {
-			return element.folderMatches().filter(fm => !fm.isEmpty());
+			if (this.includeFolderMatch) {
+				return element.folderMatches().filter(fm => !fm.isEmpty());
+			} else {
+				return element.matches();
+			}
 		}
 
 		return [];
@@ -69,7 +75,7 @@ export class SearchDataSource implements IDataSource {
 		if (element instanceof Match) {
 			value = element.parent();
 		} else if (element instanceof FileMatch) {
-			value = element.parent();
+			value = this.includeFolderMatch ? element.parent() : element.parent().parent();
 		} else if (element instanceof FolderMatch) {
 			value = element.parent();
 		}

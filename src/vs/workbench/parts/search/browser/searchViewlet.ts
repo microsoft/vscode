@@ -442,7 +442,7 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource();
+			let dataSource = new SearchDataSource(this.contextService.hasMultiFolderWorkspace());
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 
 			this.tree = new Tree(div.getHTMLElement(), {
