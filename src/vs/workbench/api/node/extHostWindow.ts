@@ -7,28 +7,33 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape } from './extHost.protocol';
+import { WindowState } from 'vscode';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
+	private static InitialState: WindowState = {
+		focused: true
+	};
+
 	private _proxy: MainThreadWindowShape;
 
-	private _onDidChangeWindowFocus = new Emitter<boolean>();
-	readonly onDidChangeWindowFocus: Event<boolean> = this._onDidChangeWindowFocus.event;
+	private _onDidChangeWindowState = new Emitter<WindowState>();
+	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
-	private _isFocused = true;
-	get isFocused(): boolean { return this._isFocused; }
+	private _state = ExtHostWindow.InitialState;
+	get state(): WindowState { return this._state; }
 
 	constructor(threadService: IThreadService) {
 		this._proxy = threadService.get(MainContext.MainThreadWindow);
 		this._proxy.$getWindowVisibility().then(isFocused => this.$onDidChangeWindowFocus(isFocused));
 	}
 
-	$onDidChangeWindowFocus(isFocused: boolean): void {
-		if (isFocused === this._isFocused) {
+	$onDidChangeWindowFocus(focused: boolean): void {
+		if (focused === this._state.focused) {
 			return;
 		}
 
-		this._isFocused = isFocused;
-		this._onDidChangeWindowFocus.fire(isFocused);
+		this._state = { ...this._state, focused };
+		this._onDidChangeWindowState.fire(this._state);
 	}
 }

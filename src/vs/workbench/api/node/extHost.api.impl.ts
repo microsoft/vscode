@@ -310,11 +310,11 @@ export function createApiFactory(
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
-			get isFocused() {
-				return extHostWindow.isFocused;
+			get state() {
+				return extHostWindow.state;
 			},
-			onDidChangeWindowFocus: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
-				return extHostWindow.onDidChangeWindowFocus(listener, thisArg, disposables);
+			onDidChangeWindowState: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
 			}),
 			showInformationMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
