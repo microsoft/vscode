@@ -34,7 +34,5 @@ describe('Smoke Test Suite', () => {
 	testTasks();
 	testExtensions();
 	testLocalization();
-	if (process.platform === 'win32') {
-		testMultiRoot(); // seems to fail on mac/linux due to filename containing "-"
-	}
+	testMultiRoot();
 });
