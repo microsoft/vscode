@@ -19,7 +19,7 @@ import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/edito
 import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, IMarker } from 'vs/platform/markers/common/markers';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -199,7 +199,7 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
  * @returns {IMarkerData[]} list of markers
  * @param filter
  */
-export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarkerData[] {
+export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
 	return StaticServices.markerService.get().read(filter);
 }
 

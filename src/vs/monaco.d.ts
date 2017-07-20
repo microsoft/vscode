@@ -842,7 +842,7 @@ declare module monaco.editor {
 		owner?: string;
 		resource?: Uri;
 		take?: number;
-	}): IMarkerData[];
+	}): IMarker[];
 
 	/**
 	 * Get the model that has `uri` if it exists.
@@ -1038,6 +1038,19 @@ declare module monaco.editor {
 
 	export interface IEditorOverrideServices {
 		[index: string]: any;
+	}
+
+	export interface IMarker {
+		owner: string;
+		resource: Uri;
+		severity: Severity;
+		code?: string;
+		message: string;
+		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
 	}
 
 	/**
