@@ -11,6 +11,7 @@ const child_process = require('child_process');
 const path = require('path');
 
 const tempFolder = 'test_data';
+const codeWorkspace = path.join(process.cwd(), tempFolder, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
 const keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
@@ -50,6 +51,7 @@ process.env.SMOKETEST_REPO = testRepoLocalDir;
 if (program.stable && program.stable.toLowerCase().startsWith('insiders')) {
 	process.env.VSCODE_EDITION = 'insiders';
 }
+process.env.VSCODE_WORKSPACE_PATH = codeWorkspace;
 
 // Setting up 'vscode-smoketest-express' project
 let os = process.platform.toString();
@@ -63,6 +65,11 @@ else if (os === 'win32') {
 var promises: Promise<any>[] = [];
 
 promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
+promises.push(createWorkspaceFile(codeWorkspace, [
+	toUri(path.join(testRepoLocalDir, 'public')),
+	toUri(path.join(testRepoLocalDir, 'routes')),
+	toUri(path.join(testRepoLocalDir, 'views'))
+]));
 promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
 
 Promise.all(promises)
@@ -75,6 +82,14 @@ Promise.all(promises)
 function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
+}
+
+function toUri(path: string): string {
+	if (os === 'win') {
+		return `file:///${path.replace(/\\/g, '/')}`;
+	}
+
+	return `file://${path}`;
 }
 
 function runTests(): void {
@@ -179,6 +194,30 @@ function getKeybindings(url: string, location: string): Promise<any> {
 			});
 		}).on('error', (e) => {
 			reject(`Failed to obtain key bindings with an error: ${e}`);
+		});
+	});
+}
+
+function createWorkspaceFile(path: string, folders: string[]): Promise<any> {
+	console.log(`Creating workspace file at ${path}...`);
+	return new Promise((resolve, reject) => {
+		fs.exists(path, exists => {
+			if (exists) {
+				return resolve();
+			}
+
+			const workspace = {
+				id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
+				folders
+			};
+
+			fs.writeFile(path, JSON.stringify(workspace, null, '\t'), error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
 		});
 	});
 }

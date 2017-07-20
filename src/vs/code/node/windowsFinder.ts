@@ -10,8 +10,8 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { isParent } from "vs/platform/files/common/files";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
+import URI from "vs/base/common/uri";
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -29,19 +29,25 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	filePath?: string;
 	userHome?: string;
 	codeSettingsFolder?: string;
+	workspaceResolver: (workspace: IWorkspaceIdentifier) => IStoredWorkspace;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, userHome, codeSettingsFolder }: IBestWindowOrFolderOptions<W>): W | string {
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, userHome, codeSettingsFolder, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | string {
 	if (!newWindow && filePath && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
-		const windowOnFilePath = findWindowOnFilePath(windows, filePath);
-		const folderWithCodeSettings = !reuseWindow && findFolderWithCodeSettings(filePath, userHome, codeSettingsFolder);
+		const windowOnFilePath = findWindowOnFilePath(windows, filePath, workspaceResolver);
 
-		// Return if we found a window that has the parent of the file path opened
+		// 1) window wins if it has a workspace opened
+		if (windowOnFilePath && !!windowOnFilePath.openedWorkspace) {
+			return windowOnFilePath;
+		}
+
+		// 2) window wins if it has a folder opened that is more specific than settings folder
+		const folderWithCodeSettings = !reuseWindow && findFolderWithCodeSettings(filePath, userHome, codeSettingsFolder);
 		if (windowOnFilePath && !(folderWithCodeSettings && folderWithCodeSettings.length > windowOnFilePath.openedFolderPath.length)) {
 			return windowOnFilePath;
 		}
 
-		// Return if we found a parent folder with a code settings folder inside
+		// 3) finally return path to folder with settings
 		if (folderWithCodeSettings) {
 			return folderWithCodeSettings;
 		}
@@ -50,13 +56,22 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
-function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: string): W {
+function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: string, workspaceResolver: (workspace: IWorkspaceIdentifier) => IStoredWorkspace): W {
 
-	// From all windows that have the parent of the file opened, return the window
-	// that has the most specific folder opened ( = longest path wins)
-	const windowsOnFilePath = windows.filter(window => typeof window.openedFolderPath === 'string' && paths.isEqualOrParent(filePath, window.openedFolderPath, !platform.isLinux /* ignorecase */));
-	if (windowsOnFilePath.length) {
-		return windowsOnFilePath.sort((a, b) => -(a.openedFolderPath.length - b.openedFolderPath.length))[0];
+	// First check for windows with workspaces that have a parent folder of the provided path opened
+	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
+	for (let i = 0; i < workspaceWindows.length; i++) {
+		const window = workspaceWindows[i];
+		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folderUri => paths.isEqualOrParent(filePath, URI.parse(folderUri).fsPath, !platform.isLinux /* ignorecase */))) {
+			return window;
+		}
+	}
+
+	// Then go with single folder windows that are parent of the provided file path
+	const singleFolderWindowsOnFilePath = windows.filter(window => typeof window.openedFolderPath === 'string' && paths.isEqualOrParent(filePath, window.openedFolderPath, !platform.isLinux /* ignorecase */));
+	if (singleFolderWindowsOnFilePath.length) {
+		return singleFolderWindowsOnFilePath.sort((a, b) => -(a.openedFolderPath.length - b.openedFolderPath.length))[0];
 	}
 
 	return null;
@@ -97,93 +112,57 @@ function hasCodeSettings(folder: string, normalizedUserHome?: string, codeSettin
 }
 
 export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
-	if (windows.length) {
-		const lastFocussedDate = Math.max.apply(Math, windows.map(w => w.lastFocusTime));
-		const res = windows.filter(w => w.lastFocusTime === lastFocussedDate);
-		if (res && res.length) {
-			return res[0];
-		}
-	}
+	const lastFocussedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-	return null;
+	return windows.filter(window => window.lastFocusTime === lastFocussedDate)[0];
 }
 
-export function findWindowOnFolder<W extends ISimpleWindow>(windows: W[], folderPath: string): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
+export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
+	return windows.filter(window => {
 
-			// match on folder
-			if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, folderPath, !platform.isLinux /* ignorecase */))) {
+		// match on folder
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			if (typeof window.openedFolderPath === 'string' && (paths.isEqual(window.openedFolderPath, workspace, !platform.isLinux /* ignorecase */))) {
 				return true;
 			}
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
 		}
-	}
 
-	return null;
-}
-
-export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: IWorkspaceIdentifier): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
-
-			// match on workspace
-			if (w.openedWorkspace && w.openedWorkspace.id === workspace.id) {
+		// match on workspace
+		else {
+			if (window.openedWorkspace && window.openedWorkspace.id === workspace.id) {
 				return true;
 			}
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
 		}
-	}
 
-	return null;
+		return false;
+	})[0];
 }
 
-export function findExtensionDevelopmentWindow<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath?: string): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
+export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W {
+	return windows.filter(window => {
 
-			// match on extension development path
-			if (typeof extensionDevelopmentPath === 'string' && paths.isEqual(w.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
-				return true;
-			}
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
+		// match on extension development path
+		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
+			return true;
 		}
-	}
 
-	return null;
+		return false;
+	})[0];
 }
 
-export function findWindowOnWorkspaceOrFolder<W extends ISimpleWindow>(windows: W[], target: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): W {
-	const directTargetMatch = windows.filter(w => {
-		if (typeof target === 'string') {
-			return paths.isEqual(target, w.openedFolderPath, !platform.isLinux /* ignorecase */);
+export function findWindowOnWorkspaceOrFolderPath<W extends ISimpleWindow>(windows: W[], path: string): W {
+	return windows.filter(window => {
+
+		// check for workspace config path
+		if (window.openedWorkspace && paths.isEqual(window.openedWorkspace.configPath, path, !platform.isLinux /* ignorecase */)) {
+			return true;
 		}
 
-		return w.openedWorkspace && w.openedWorkspace.id === target.id;
-	});
-
-	const parentTargetMatch = windows.filter(w => {
-		if (typeof target === 'string') {
-			return isParent(target, w.openedFolderPath, !platform.isLinux /* ignorecase */);
+		// check for folder path
+		if (window.openedFolderPath && paths.isEqual(window.openedFolderPath, path, !platform.isLinux /* ignorecase */)) {
+			return true;
 		}
 
-		return false; // not supported for workspace target
-	});
-
-	return directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
+		return false;
+	})[0];
 }

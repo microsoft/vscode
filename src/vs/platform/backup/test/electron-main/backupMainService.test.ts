@@ -22,59 +22,63 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { LogMainService } from "vs/platform/log/common/log";
 import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { createHash } from "crypto";
-
-class TestBackupMainService extends BackupMainService {
-
-	constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath), configService, new LogMainService(new EnvironmentService(parseArgs(process.argv), process.execPath)));
-
-		this.backupHome = backupHome;
-		this.workspacesJsonPath = backupWorkspacesPath;
-
-		// Force a reload with the new paths
-		this.loadSync();
-	}
-
-	public get backupsData(): IBackupWorkspacesFormat {
-		return this.backups;
-	}
-
-	public removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
-		return super.removeBackupPathSync(workspaceIdentifier, target);
-	}
-
-	public loadSync(): void {
-		super.loadSync();
-	}
-
-	public dedupeBackups(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
-		return super.dedupeBackups(backups);
-	}
-
-	public toBackupPath(workspacePath: string): string {
-		return path.join(this.backupHome, super.getFolderHash(workspacePath));
-	}
-
-	public getFolderHash(folderPath: string): string {
-		return super.getFolderHash(folderPath);
-	}
-}
-
-function toWorkspace(path: string): IWorkspaceIdentifier {
-	return {
-		id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-		configPath: path
-	};
-}
-
-function sanitizePath(p: string): string {
-	return platform.isLinux ? p : p.toLowerCase();
-}
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
 
 suite('BackupMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
+
+	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+	const logService = new LogMainService(environmentService);
+
+	class TestBackupMainService extends BackupMainService {
+
+		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
+			super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService));
+
+			this.backupHome = backupHome;
+			this.workspacesJsonPath = backupWorkspacesPath;
+
+			// Force a reload with the new paths
+			this.loadSync();
+		}
+
+		public get backupsData(): IBackupWorkspacesFormat {
+			return this.backups;
+		}
+
+		public removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
+			return super.removeBackupPathSync(workspaceIdentifier, target);
+		}
+
+		public loadSync(): void {
+			super.loadSync();
+		}
+
+		public dedupeBackups(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
+			return super.dedupeBackups(backups);
+		}
+
+		public toBackupPath(workspacePath: string): string {
+			return path.join(this.backupHome, super.getFolderHash(workspacePath));
+		}
+
+		public getFolderHash(folderPath: string): string {
+			return super.getFolderHash(folderPath);
+		}
+	}
+
+	function toWorkspace(path: string): IWorkspaceIdentifier {
+		return {
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			configPath: path
+		};
+	}
+
+	function sanitizePath(p: string): string {
+		return platform.isLinux ? p : p.toLowerCase();
+	}
 
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');

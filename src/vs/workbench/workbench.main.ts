@@ -69,6 +69,7 @@ import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
+import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
@@ -78,6 +79,7 @@ import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.c
 import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
+import 'vs/workbench/parts/tasks/electron-browser/taskPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
 import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';

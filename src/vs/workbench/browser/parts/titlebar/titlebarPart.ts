@@ -100,6 +100,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.onDidChangeWorkspaceName()));
 	}
 
 	private onBlur(): void {
@@ -113,6 +114,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
+		this.setTitle(this.getWindowTitle());
+	}
+
+	private onDidChangeWorkspaceName(): void {
 		this.setTitle(this.getWindowTitle());
 	}
 

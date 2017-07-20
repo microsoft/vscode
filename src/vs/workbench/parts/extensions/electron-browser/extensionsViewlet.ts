@@ -209,7 +209,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 				if (installed.length === 0) {
 					this.searchBox.value = '@sort:installs';
 				}
-				this.searchExtensionsContextKey.set(!!this.searchBox.value);
+				this.searchExtensionsContextKey.set(true);
 				return super.create(new Builder(this.extensionsBox));
 			});
 	}

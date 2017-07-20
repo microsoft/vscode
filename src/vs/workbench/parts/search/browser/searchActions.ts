@@ -19,7 +19,6 @@ import { SearchResult, Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/p
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
@@ -241,6 +240,21 @@ export class CloseReplaceAction extends Action {
 	}
 }
 
+export class FindInWorkspaceAction extends Action {
+
+	public static ID = 'filesExplorer.findInWorkspace';
+
+	constructor( @IViewletService private viewletService: IViewletService) {
+		super(FindInWorkspaceAction.ID, nls.localize('findInWorkspace', "Find in Workspace..."));
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+			viewlet.searchInFolder(null);
+		});
+	}
+}
+
 export class FindInFolderAction extends Action {
 
 	public static ID = 'filesExplorer.findInFolder';
@@ -248,7 +262,7 @@ export class FindInFolderAction extends Action {
 	private resource: URI;
 
 	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
-		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder"));
+		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder..."));
 
 		this.resource = resource;
 	}
@@ -521,20 +535,5 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
 		}
 		return false;
-	}
-}
-
-export class ConfigureGlobalExclusionsAction extends Action {
-
-	constructor( @IPreferencesService private preferencesService: IPreferencesService) {
-		super('configureGlobalExclusionsAction');
-
-		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
-		this.enabled = true;
-		this.class = 'search-configure-exclusions';
-	}
-
-	public run(): TPromise<void> {
-		return this.preferencesService.openGlobalSettings().then(null, errors.onUnexpectedError);
 	}
 }

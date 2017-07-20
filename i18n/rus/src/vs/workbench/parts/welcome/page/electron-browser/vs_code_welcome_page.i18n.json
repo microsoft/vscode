@@ -16,6 +16,7 @@
 	"welcomePage.help": "Справка",
 	"welcomePage.keybindingsCheatsheet": "Список сочетаний клавиш в печатном виде",
 	"welcomePage.introductoryVideos": "Вступительные видео",
+	"welcomePage.tipsAndTricks": "Советы и рекомендации",
 	"welcomePage.productDocumentation": "Документация по продукту",
 	"welcomePage.gitHubRepository": "Репозиторий GitHub",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -31,13 +32,9 @@
 	"welcomePage.colorThemeDescription": "Настройте редактор и код удобным образом.",
 	"welcomePage.learn": "Подробнее",
 	"welcomePage.showCommands": "Найти и выполнить все команды.",
+	"welcomePage.showCommandsDescription": "Быстро обращайтесь к командам и выполняйте поиск по командам с помощью палитры команд ({0})",
 	"welcomePage.interfaceOverview": "Общие сведения об интерфейсе",
 	"welcomePage.interfaceOverviewDescription": "Используйте визуальное наложение с выделением основных компонентов пользовательского интерфейса.",
 	"welcomePage.interactivePlayground": "Интерактивная площадка",
-	"welcomePage.interactivePlaygroundDescription": "Опробуйте основные функции редактора в ходе краткого пошагового руководства.",
-	"welcomePage.quickLinks": "Быстрые ссылки",
-	"welcomePage.keybindingsReference": "Справочник по сочетаниям клавиш",
-	"welcomePage.keybindingsReferenceDescription": "Подготовленный к печати PDF-файл с самыми частыми сочетаниями клавиш",
-	"welcomePage.configureSettings": "Настройка параметров",
-	"welcomePage.configureSettingsDescription": "Используйте все возможности VS Code, подобрав нужные параметры."
+	"welcomePage.interactivePlaygroundDescription": "Опробуйте основные функции редактора в ходе краткого пошагового руководства."
 }

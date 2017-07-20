@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "聚焦上一搜索结果",
 	"RemoveAction.label": "删除",
 	"file.replaceAll.label": "全部替换",
-	"match.replace.label": "替换",
-	"ConfigureGlobalExclusionsAction.label": "打开设置"
+	"match.replace.label": "替换"
 }

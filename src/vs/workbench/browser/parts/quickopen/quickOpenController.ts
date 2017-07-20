@@ -54,6 +54,7 @@ import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITree, IActionProvider } from "vs/base/parts/tree/browser/tree";
 import { BaseActionItem } from "vs/base/browser/ui/actionbar/actionbar";
+import { FileKind } from "vs/platform/files/common/files";
 
 const HELP_PREFIX = '?';
 
@@ -1067,7 +1068,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private separatorLabel: string;
 	private alwaysShow: boolean;
 	private resource: URI;
-	private isFolder: boolean;
+	private fileKind: FileKind;
 	private _action: IAction;
 
 	constructor(
@@ -1088,7 +1089,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
-		this.isFolder = fileItem.isFolder;
+		this.fileKind = fileItem.fileKind;
 	}
 
 	public get action(): IAction {
@@ -1101,7 +1102,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getLabelOptions(): IIconLabelOptions {
 		return {
-			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.isFolder) : []
+			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.fileKind) : []
 		};
 	}
 

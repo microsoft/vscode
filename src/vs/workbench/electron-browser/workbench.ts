@@ -24,8 +24,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
@@ -86,7 +85,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -101,6 +100,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/workspaceEditingService';
+import URI from "vs/base/common/uri";
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -108,7 +108,6 @@ export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 
 interface WorkbenchParams {
-	options: IOptions;
 	configuration: IWindowConfiguration;
 	serviceCollection: ServiceCollection;
 }
@@ -161,6 +160,8 @@ export class Workbench implements IPartService {
 
 	private static closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 
+	private static fontAliasingConfigurationKey = 'workbench.fontAliasing';
+
 	private _onTitleBarVisibilityChange: Emitter<void>;
 
 	public _serviceBrand: any;
@@ -203,6 +204,7 @@ export class Workbench implements IPartService {
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
+	private fontAliasing: string;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -214,7 +216,6 @@ export class Workbench implements IPartService {
 		parent: HTMLElement,
 		container: HTMLElement,
 		configuration: IWindowConfiguration,
-		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -230,15 +231,14 @@ export class Workbench implements IPartService {
 		this.container = container;
 
 		this.workbenchParams = {
-			options,
 			configuration,
 			serviceCollection
 		};
 
 		this.hasFilesToCreateOpenOrDiff =
-			(options.filesToCreate && options.filesToCreate.length > 0) ||
-			(options.filesToOpen && options.filesToOpen.length > 0) ||
-			(options.filesToDiff && options.filesToDiff.length > 0);
+			(configuration.filesToCreate && configuration.filesToCreate.length > 0) ||
+			(configuration.filesToOpen && configuration.filesToOpen.length > 0) ||
+			(configuration.filesToDiff && configuration.filesToDiff.length > 0);
 
 		this.toDispose = [];
 		this.toShutdown = [];
@@ -435,10 +435,9 @@ export class Workbench implements IPartService {
 
 		// Files to open, diff or create
 		if (this.hasFilesToCreateOpenOrDiff) {
-			const wbopt = this.workbenchParams.options;
-			const filesToCreate = wbopt.filesToCreate || [];
-			const filesToOpen = wbopt.filesToOpen || [];
-			const filesToDiff = wbopt.filesToDiff;
+			const filesToCreate = this.toInputs(this.workbenchParams.configuration.filesToCreate);
+			const filesToOpen = this.toInputs(this.workbenchParams.configuration.filesToOpen);
+			const filesToDiff = this.toInputs(this.workbenchParams.configuration.filesToDiff);
 
 			// Files to diff is exclusive
 			if (filesToDiff && filesToDiff.length === 2) {
@@ -478,6 +477,30 @@ export class Workbench implements IPartService {
 		}
 
 		return TPromise.as([]);
+	}
+
+	private toInputs(paths?: IPath[]): IResourceInput[] {
+		if (!paths || !paths.length) {
+			return [];
+		}
+
+		return paths.map(p => {
+			const input = <IResourceInput>{};
+			input.resource = URI.file(p.filePath);
+
+			input.options = {
+				pinned: true // opening on startup is always pinned and not preview
+			};
+
+			if (p.lineNumber) {
+				input.options.selection = {
+					startLineNumber: p.lineNumber,
+					startColumn: p.columnNumber
+				};
+			}
+
+			return input;
+		});
 	}
 
 	private openUntitledFile() {
@@ -644,6 +667,9 @@ export class Workbench implements IPartService {
 		// Activity bar visibility
 		const activityBarVisible = this.configurationService.lookup<string>(Workbench.activityBarVisibleConfigurationKey).value;
 		this.activityBarHidden = !activityBarVisible;
+
+		// Font aliasing
+		this.fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
 
 		// Zen mode
 		this.zenMode = {
@@ -911,6 +937,12 @@ export class Workbench implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
+	private setFontAliasing(aliasing: string) {
+		this.fontAliasing = aliasing;
+
+		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
+	}
+
 	public dispose(): void {
 		if (this.isStarted()) {
 			this.shutdownComponents();
@@ -1038,6 +1070,11 @@ export class Workbench implements IPartService {
 			this.setSideBarPosition(newSidebarPosition);
 		}
 
+		const fontAliasing = this.configurationService.lookup<string>(Workbench.fontAliasingConfigurationKey).value;
+		if (fontAliasing !== this.fontAliasing) {
+			this.setFontAliasing(fontAliasing);
+		}
+
 		if (!this.zenMode.active) {
 			const newStatusbarHiddenValue = !this.configurationService.lookup<boolean>(Workbench.statusbarVisibleConfigurationKey).value;
 			if (newStatusbarHiddenValue !== this.statusBarHidden) {
@@ -1085,6 +1122,9 @@ export class Workbench implements IPartService {
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
 		}
+
+		// Apply font aliasing
+		this.setFontAliasing(this.fontAliasing);
 
 		// Apply title style if shown
 		const titleStyle = this.getCustomTitleBarStyle();

@@ -9,6 +9,7 @@
 	"saveAll": "すべて保存",
 	"closeAllUnmodified": "未変更を閉じる",
 	"closeAll": "すべて閉じる",
+	"compareWithSaved": "保存済みと比較",
 	"close": "閉じる",
 	"closeOthers": "その他を閉じる"
 }

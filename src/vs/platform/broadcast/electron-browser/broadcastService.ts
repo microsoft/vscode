@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event, { Emitter } from 'vs/base/common/event';
 
 import { ipcRenderer as ipc } from 'electron';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 export const IBroadcastService = createDecorator<IBroadcastService>('broadcastService');
 
@@ -21,7 +20,7 @@ export interface IBroadcast {
 export interface IBroadcastService {
 	_serviceBrand: any;
 
-	broadcast(b: IBroadcast, target?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void;
+	broadcast(b: IBroadcast): void;
 
 	onBroadcast: Event<IBroadcast>;
 }
@@ -47,8 +46,8 @@ export class BroadcastService implements IBroadcastService {
 		return this._onBroadcast.event;
 	}
 
-	public broadcast(b: IBroadcast, target?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void {
-		ipc.send('vscode:broadcast', this.windowId, target, {
+	public broadcast(b: IBroadcast): void {
+		ipc.send('vscode:broadcast', this.windowId, {
 			channel: b.channel,
 			payload: b.payload
 		});

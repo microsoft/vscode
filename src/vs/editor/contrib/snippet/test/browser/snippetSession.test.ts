@@ -433,5 +433,59 @@ suite('SnippetSession', function () {
 		session.prev();
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
+
+	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, 'test ${1:replaceme}');
+		session.insert();
+
+		editor.trigger('test', 'type', { text: '1' });
+		editor.trigger('test', 'type', { text: '\n' });
+		assert.equal(editor.getModel().getValue(), 'test 1\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '2' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '3' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\n');
+
+		session.merge('test ${1:replaceme}');
+		editor.trigger('test', 'type', { text: '4' });
+		editor.trigger('test', 'type', { text: '\n' });
+
+		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
+	});
+
+	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
+		editor.getModel().setValue([
+			'start',
+			'\t-one',
+			'\t-two',
+			'end'
+		].join('\n'));
+
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 3, 6));
+
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+
+		const expected = [
+			'start',
+			'\t<div>',
+			'\t\t-one',
+			'\t\t-two',
+			'\t</div>',
+			'end'
+		].join('\n');
+
+		assert.equal(editor.getModel().getValue(), expected);
+	});
 });
 

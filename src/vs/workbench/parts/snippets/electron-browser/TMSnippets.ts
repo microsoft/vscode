@@ -15,7 +15,7 @@ import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser, Marker, Placeholder, Variable, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 
 interface ISnippetsExtensionPoint {
@@ -159,20 +159,17 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 }
 
 function _rewriteBogousVariables(snippet: ISnippet): boolean {
-	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
+	const textmateSnippet = new SnippetParser().parse(snippet.codeSnippet, false);
 
 	let placeholders = new Map<string, number>();
 	let placeholderMax = 0;
-	walk(marker, candidate => {
-		if (candidate instanceof Placeholder) {
-			placeholderMax = Math.max(placeholderMax, Number(candidate.index));
-		}
-		return true;
-	});
+	for (const placeholder of textmateSnippet.placeholders) {
+		placeholderMax = Math.max(placeholderMax, placeholder.index);
+	}
 
 	function fixBogousVariables(marker: Marker): string {
 		if (marker instanceof Text) {
-			return SnippetParser.escape(marker.string);
+			return SnippetParser.escape(marker.value);
 
 		} else if (marker instanceof Placeholder) {
 			if (marker.children.length > 0) {
@@ -200,6 +197,6 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 	}
 
 	const placeholderCountBefore = placeholderMax;
-	snippet.codeSnippet = marker.map(fixBogousVariables).join('');
+	snippet.codeSnippet = textmateSnippet.children.map(fixBogousVariables).join('');
 	return placeholderCountBefore !== placeholderMax;
 }

@@ -46,7 +46,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -54,7 +54,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -70,6 +70,7 @@ export class TestContextService implements IWorkspaceContextService {
 	private id: string;
 	private options: any;
 
+	private _onDidChangeWorkspaceName: Emitter<void>;
 	private _onDidChangeWorkspaceRoots: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
@@ -77,6 +78,10 @@ export class TestContextService implements IWorkspaceContextService {
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
 		this._onDidChangeWorkspaceRoots = new Emitter<void>();
+	}
+
+	public get onDidChangeWorkspaceName(): Event<void> {
+		return this._onDidChangeWorkspaceName.event;
 	}
 
 	public get onDidChangeWorkspaceRoots(): Event<void> {
@@ -107,6 +112,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public saveWorkspace(location: URI): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public getRoot(resource: URI): URI {
 		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
 	}
@@ -131,21 +140,9 @@ export class TestContextService implements IWorkspaceContextService {
 		return false;
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return makePosixAbsolute(paths.normalize(resource.fsPath.substr('c:'.length), toOSPath));
-	}
-
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(paths.join('C:\\', workspaceRelativePath));
 	}
-}
-
-function isPosixAbsolute(path: string): boolean {
-	return path && path[0] === '/';
-}
-
-function makePosixAbsolute(path: string): string {
-	return isPosixAbsolute(paths.normalize(path)) ? path : paths.sep + path;
 }
 
 export class TestTextFileService extends TextFileService {
@@ -843,6 +840,8 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
+	onDidChangeFocus: Event<boolean>;
+
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
@@ -851,20 +850,16 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-	pickFileFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolderAndOpen(forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
-	}
-
-	pickFolder(options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -880,6 +875,14 @@ export class TestWindowService implements IWindowService {
 	}
 
 	closeWorkspace(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openWorkspace(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	newWorkspace(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -977,25 +980,22 @@ export class TestWindowsService implements IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
 	}
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string): TPromise<void> {
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return TPromise.as(void 0);
-	}
-
-	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return TPromise.as([]);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -1014,6 +1014,14 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	openWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	newWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	toggleFullScreen(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1026,7 +1034,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	removeFromRecentlyOpened(arg1: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void> {
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1083,7 +1091,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1104,11 +1112,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	// TODO@joao: what?
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

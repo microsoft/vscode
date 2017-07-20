@@ -10,5 +10,7 @@
 	"invalid.type": "ha meg van adva, a 'configuration.type' értékét egy objektumként kell megadnii",
 	"invalid.title": "a 'configuration.title' értékét karakterláncként kell megadni",
 	"vscode.extension.contributes.defaultConfiguration": "Adott nyelvre vonatkozóan szerkesztőbeállításokat szolgáltat.",
-	"invalid.properties": "A 'configuration.properties' értékét egy objektumként kell megadni"
+	"invalid.properties": "A 'configuration.properties' értékét egy objektumként kell megadni",
+	"workspaceConfig.id": "Egyedi munkaterületazonosító",
+	"workspaceSettings.description": "Munkaterület-beállítások módosítása"
 }

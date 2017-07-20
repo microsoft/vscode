@@ -24,7 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
 
 export interface IWindowState {
 	width?: number;
@@ -72,15 +72,12 @@ export class CodeWindow implements ICodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
-	private options: IWindowCreationOptions;
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
-	private _extensionDevelopmentPath: string;
-	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private toDispose: IDisposable[];
@@ -96,13 +93,11 @@ export class CodeWindow implements ICodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspacesMainService private workspaceService: IWorkspacesMainService
 	) {
-		this.options = config;
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
-		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
@@ -206,15 +201,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public get isExtensionDevelopmentHost(): boolean {
-		return !!this._extensionDevelopmentPath;
+		return !!this.config.extensionDevelopmentPath;
 	}
 
 	public get isExtensionTestHost(): boolean {
-		return this._isExtensionTestHost;
+		return !!this.config.extensionTestsPath;
 	}
 
 	public get extensionDevelopmentPath(): string {
-		return this._extensionDevelopmentPath;
+		return this.config.extensionDevelopmentPath;
 	}
 
 	public get config(): IWindowConfiguration {
@@ -403,6 +398,28 @@ export class CodeWindow implements ICodeWindow {
 
 		// Handle configuration changes
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+
+		// Handle Workspace events
+		this.toDispose.push(this.workspaceService.onWorkspaceSaved(e => this.onWorkspaceSaved(e)));
+		this.toDispose.push(this.workspaceService.onWorkspaceDeleted(e => this.onWorkspaceDeleted(e)));
+	}
+
+	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
+
+		// Make sure to update our workspace config if we detect that it
+		// was saved to a new config location
+		if (this.openedWorkspace && this.openedWorkspace.id === e.workspace.id && this.openedWorkspace.configPath !== e.workspace.configPath) {
+			this.currentConfig.workspace.configPath = e.workspace.configPath;
+		}
+	}
+
+	private onWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
+
+		// Make sure to update our workspace config if we detect that it
+		// was deleted
+		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.openedWorkspace.configPath === workspace.configPath) {
+			this.currentConfig.workspace = void 0;
+		}
 	}
 
 	private onConfigurationUpdated(): void {
@@ -495,6 +512,7 @@ export class CodeWindow implements ICodeWindow {
 			configuration.verbose = cli.verbose;
 			configuration.debugPluginHost = cli.debugPluginHost;
 			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration.debugId = cli.debugId;
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 

@@ -674,7 +674,7 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 			],
 			new Selection(1, 1, 1, 1),
 			[
-				'\t\tfirst\t    ',
+				'\t\tfirst\t   ',
 				'\t\tsecond line',
 				'\tthird line',
 				'fourth line',

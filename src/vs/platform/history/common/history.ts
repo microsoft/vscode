@@ -23,12 +23,8 @@ export interface IHistoryMainService {
 	onRecentlyOpenedChange: CommonEvent<void>;
 
 	addRecentlyOpened(workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], files: string[]): void;
-
 	getRecentlyOpened(currentWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, currentFiles?: IPath[]): IRecentlyOpened;
-
-	removeFromRecentlyOpened(toRemove: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): void;
-	removeFromRecentlyOpened(toRemove: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): void;
-
+	removeFromRecentlyOpened(paths: string[]): void;
 	clearRecentlyOpened(): void;
 
 	updateWindowsJumpList(): void;

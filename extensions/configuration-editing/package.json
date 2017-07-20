@@ -40,6 +40,14 @@
         "url": "vscode://schemas/settings"
       },
       {
+        "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
         "url": "vscode://schemas/locale"
       },

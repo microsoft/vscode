@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { isFalsyOrEmpty, delta } from 'vs/base/common/arrays';
+import { delta } from 'vs/base/common/arrays';
 import { relative, basename } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -19,32 +19,50 @@ import * as vscode from 'vscode';
 import { compare } from "vs/base/common/strings";
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
+import { TrieMap } from 'vs/base/common/map';
 
-
-class Workspace2 {
+class Workspace2 extends Workspace {
 
 	static fromData(data: IWorkspaceData) {
 		return data ? new Workspace2(data) : null;
 	}
 
-	readonly workspace: Workspace;
-	readonly folders: vscode.WorkspaceFolder[];
+	private readonly _folder: vscode.WorkspaceFolder[] = [];
+	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
 
 	private constructor(data: IWorkspaceData) {
-		this.workspace = new Workspace(data.id, data.name, data.roots);
-		this.folders = this.workspace.roots.map((uri, index) => ({ name: basename(uri.fsPath), uri, index }));
+		super(data.id, data.name, data.roots);
+
+		// setup the workspace folder data structure
+		this.roots.forEach((uri, index) => {
+			const folder = {
+				name: basename(uri.fsPath),
+				uri,
+				index
+			};
+			this._folder.push(folder);
+			this._structure.insert(folder.uri.toString(), folder);
+		});
 	}
 
-	getRoot(uri: URI): vscode.WorkspaceFolder {
-		const root = this.workspace.getRoot(uri);
-		if (root) {
-			for (const folder of this.folders) {
-				if (folder.uri.toString() === uri.toString()) {
-					return folder;
+	get folders(): vscode.WorkspaceFolder[] {
+		return this._folder.slice(0);
+	}
+
+	getWorkspaceFolder(uri: URI): vscode.WorkspaceFolder {
+		let str = uri.toString();
+		let folder = this._structure.lookUp(str);
+		if (folder) {
+			// `uri` is a workspace folder so we
+			let parts = str.split('/');
+			while (parts.length) {
+				if (parts.pop()) {
+					break;
 				}
 			}
+			str = parts.join('/');
 		}
-		return undefined;
+		return this._structure.findSubstr(str);
 	}
 }
 
@@ -67,7 +85,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 	// --- workspace ---
 
 	get workspace(): Workspace {
-		return this._workspace && this._workspace.workspace;
+		return this._workspace;
 	}
 
 	getWorkspaceFolders(): vscode.WorkspaceFolder[] {
@@ -78,11 +96,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		}
 	}
 
-	getEnclosingWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
+	getWorkspaceFolder(uri: vscode.Uri): vscode.WorkspaceFolder {
 		if (!this._workspace) {
 			return undefined;
 		}
-		return this._workspace.getRoot(<URI>uri);
+		return this._workspace.getWorkspaceFolder(<URI>uri);
 	}
 
 	getPath(): string {
@@ -92,16 +110,11 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		if (!this._workspace) {
 			return undefined;
 		}
-		const { roots } = this._workspace.workspace;
+		const { roots } = this._workspace;
 		if (roots.length === 0) {
 			return undefined;
 		}
-		// if (roots.length === 1) {
 		return roots[0].fsPath;
-		// }
-		// return `undefined` when there no or more than 1
-		// root folder.
-		// return undefined;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri): string {
@@ -117,19 +130,20 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return path;
 		}
 
-		if (!this._workspace || isFalsyOrEmpty(this._workspace.workspace.roots)) {
+		const folder = this.getWorkspaceFolder(typeof pathOrUri === 'string'
+			? URI.file(pathOrUri)
+			: pathOrUri
+		);
+
+		if (!folder) {
 			return normalize(path);
 		}
 
-		for (const { fsPath } of this._workspace.workspace.roots) {
-			let result = relative(fsPath, path);
-			if (!result || result.indexOf('..') === 0) {
-				continue;
-			}
-			return normalize(result);
+		let result = relative(folder.uri.fsPath, path);
+		if (this.workspace.roots.length > 1) {
+			result = `${folder.name}/${result}`;
 		}
-
-		return normalize(path);
+		return normalize(result);
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {

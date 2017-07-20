@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -10,6 +12,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
+import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 
 export interface ISettingsGroup {
 	id: string;
@@ -71,8 +75,8 @@ export interface IPreferencesService {
 
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openSettings(): TPromise<IEditor>;
-	switchSettings(): TPromise<void>;
+	openSettings(target: ConfigurationTarget | URI): TPromise<IEditor>;
+	switchSettings(target: URI | ConfigurationTarget): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
@@ -92,6 +96,19 @@ export interface IKeybindingsEditor extends IEditor {
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+}
+
+export function getSettingsTargetName(target: ConfigurationTarget | URI, workspaceContextService: IWorkspaceContextService): string {
+	if (target instanceof URI) {
+		const root = workspaceContextService.getRoot(target);
+		return root ? paths.basename(root.fsPath) : '';
+	}
+	switch (target) {
+		case ConfigurationTarget.USER:
+			return localize('userSettingsTarget', "User Settings");
+		case ConfigurationTarget.WORKSPACE:
+			return localize('workspaceSettingsTarget', "Workspace Settings");
+	}
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

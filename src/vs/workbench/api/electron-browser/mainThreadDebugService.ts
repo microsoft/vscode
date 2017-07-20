@@ -23,6 +23,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
+		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
 			if (proc) {
@@ -43,7 +44,15 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $createDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugging(nameOrConfiguration: string | IConfig): TPromise<boolean> {
+		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
+			return true;
+		}, err => {
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
+		});
+	}
+
+	public $startDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
@@ -53,7 +62,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			}
 			return TPromise.wrapError(new Error('cannot create debug session'));
 		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot create debug session');
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});
 	}
 

@@ -20,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -39,7 +39,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
 
 export interface ICompositeTitleLabel {
 
@@ -429,7 +428,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
-		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
+		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
@@ -477,31 +476,24 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateStyles();
 	}
 
-	private onContextMenu(event: StandardMouseEvent): void {
-		const contextMenuActions = this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
-		if (contextMenuActions.length) {
-			contextMenuActions.push(new Separator());
-		}
-		contextMenuActions.push(this.createHideSideBarAction());
-		if (contextMenuActions.length) {
-			let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => TPromise.as(contextMenuActions),
-				getActionItem: (action: Action) => this.actionItemProvider(action),
-				actionRunner: this.activeComposite.getActionRunner(),
-				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
-			});
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		if (this.activeComposite) {
+			const contextMenuActions = this.getTitleAreaContextMenuActions();
+			if (contextMenuActions.length) {
+				let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(contextMenuActions),
+					getActionItem: (action: Action) => this.actionItemProvider(action),
+					actionRunner: this.activeComposite.getActionRunner(),
+					getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+				});
+			}
 		}
 	}
 
-	private createHideSideBarAction(): IAction {
-		return <IAction>{
-			id: ToggleSidebarVisibilityAction.ID,
-			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-			enabled: true,
-			run: () => this.partService.setSideBarHidden(true)
-		};
+	protected getTitleAreaContextMenuActions(): IAction[] {
+		return this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
@@ -525,7 +517,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return $(parent).div({
 			'class': 'content'
 		}, (div: Builder) => {
-			$(div).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onContextMenu(new StandardMouseEvent(e)));
 			this.progressBar = new ProgressBar(div);
 			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();

@@ -12,7 +12,8 @@ import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
-import xterm = require('xterm');
+import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
+import XTermTerminal = require('xterm');
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,6 +39,9 @@ import pkg from 'vs/platform/node/package';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
+
+// Enable search functionality in xterm.js instance
+XTermTerminal.loadAddon('search');
 
 class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	public create(env: { [key: string]: string }): cp.ChildProcess {
@@ -73,7 +77,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _instanceDisposables: lifecycle.IDisposable[];
 	private _processDisposables: lifecycle.IDisposable[];
 	private _wrapperElement: HTMLDivElement;
-	private _xterm: any;
+	private _xterm: XTermTerminal;
 	private _xtermElement: HTMLDivElement;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
@@ -81,6 +85,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _messageTitleListener: (message: { type: string, content: string }) => void;
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
+	private _windowsShellHelper: WindowsShellHelper;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -134,6 +139,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
+
+		if (platform.isWindows) {
+			this._processReady.then(() => {
+				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
+			});
+		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
@@ -206,7 +217,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
-		this._xterm = xterm({
+		this._xterm = new XTermTerminal({
 			scrollback: this._configHelper.config.scrollback
 		});
 		if (this._shellLaunchConfig.initialText) {
@@ -261,6 +272,13 @@ export class TerminalInstance implements ITerminalInstance {
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
 			}
+
+			// Windows does not get a process title event from terminalProcess so we check the name on enter
+			// messageTitleListener is falsy when the API/user renames the terminal so we don't override it
+			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
+				this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
+			}
+
 			return undefined;
 		});
 		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
@@ -276,7 +294,7 @@ export class TerminalInstance implements ITerminalInstance {
 			setTimeout(() => this._refreshSelectionContextKey(), 0);
 		}));
 
-		const xtermHelper: HTMLElement = this._xterm.element.querySelector('.xterm-helpers');
+		const xtermHelper: HTMLElement = <HTMLElement>this._xterm.element.querySelector('.xterm-helpers');
 		const focusTrap: HTMLElement = document.createElement('div');
 		focusTrap.setAttribute('tabindex', '0');
 		dom.addClass(focusTrap, 'focus-trap');
@@ -516,17 +534,17 @@ export class TerminalInstance implements ITerminalInstance {
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
 		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
-		this._title = shell.name || '';
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
-		if (!shell.name) {
+		if (shell.name) {
+			this.setTitle(shell.name, false);
+		} else {
 			// Only listen for process title changes when a name is not provided
 			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
-					this._title = message.content ? message.content : '';
-					this._onTitleChanged.fire(this._title);
+					this.setTitle(message.content ? message.content : '', true);
 				}
 			};
 			this._process.on('message', this._messageTitleListener);
@@ -649,7 +667,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const oldTitle = this._title;
 		this._createProcess(shell);
 		if (oldTitle !== this._title) {
-			this._onTitleChanged.fire(this._title);
+			this.setTitle(this._title, true);
 		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 
@@ -822,27 +840,28 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 	}
 
-	public enableApiOnData(): void {
-		// Only send data through IPC if the API explicitly requests it.
-		this.onData(data => this._onDataForApi.fire({ instance: this, data }));
-	}
-
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
 		this._terminalProcessFactory = factory;
 	}
 
-	public setTitle(title: string): void {
+	public setTitle(title: string, eventFromProcess: boolean): void {
+		if (eventFromProcess) {
+			if (platform.isWindows) {
+				// Remove the .exe extension
+				title = path.basename(title.split('.exe')[0]);
+			}
+		} else {
+			// If the title has not been set by the API or the rename command, unregister the handler that
+			// automatically updates the terminal name
+			if (this._process && this._messageTitleListener) {
+				this._process.removeListener('message', this._messageTitleListener);
+				this._messageTitleListener = null;
+			}
+		}
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
 			this._onTitleChanged.fire(title);
-		}
-
-		// If the title was not set by the API, unregister the handler that
-		// automatically updates the terminal name
-		if (this._process && this._messageTitleListener) {
-			this._process.removeListener('message', this._messageTitleListener);
-			this._messageTitleListener = null;
 		}
 	}
 }

@@ -117,6 +117,10 @@
 					"command": "markdown.showSource",
 					"when": "resourceScheme == markdown",
 					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPreviewSecuritySelector",
+					"when": "editorLangId == markdown"
 				}
 			]
 		},
@@ -198,11 +202,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
-				},
-				"markdown.enableExperimentalExtensionApi": {
-					"type": "boolean",
-					"default": false,
-					"description": "%markdown.preview.enableExperimentalExtensionApi.desc%"
 				},
 				"markdown.trace": {
 					"type": "string",

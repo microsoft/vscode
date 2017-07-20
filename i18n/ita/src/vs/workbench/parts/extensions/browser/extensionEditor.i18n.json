@@ -24,6 +24,7 @@
 	"default": "Impostazione predefinita",
 	"debuggers": "Debugger ({0})",
 	"debugger name": "Nome",
+	"debugger type": "Tipo",
 	"views": "Visualizzazioni ({0})",
 	"view id": "ID",
 	"view name": "Nome",

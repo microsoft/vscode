@@ -27,6 +27,7 @@ export class OneSnippet {
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
+	private _nestingLevel: number = 1;
 
 	private static readonly _decor = {
 		active: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
@@ -157,6 +158,7 @@ export class OneSnippet {
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
+		this._nestingLevel *= 10;
 
 		this._editor.changeDecorations(accessor => {
 
@@ -173,9 +175,9 @@ export class OneSnippet {
 				// through the placeholders in the correct order
 				for (const nestedPlaceholder of nested._snippet.placeholders) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / 10);
+						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / this._nestingLevel);
 					} else {
-						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / 10);
+						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
 					}
 				}
 				this._snippet.replace(placeholder, nested._snippet.children);
@@ -203,6 +205,25 @@ export class OneSnippet {
 			// Last, re-create the placeholder groups by sorting placeholders by their index.
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
+	}
+}
+
+class WhitespaceAwareSnippetResolver extends EditorSnippetVariableResolver {
+
+	constructor(
+		model: IModel,
+		selection: Selection,
+		private _snippetStart: IPosition
+	) {
+		super(model, selection);
+	}
+
+	resolve(name: string): string {
+		let ret = super.resolve(name);
+		if (ret) {
+			ret = SnippetSession.adjustWhitespace(this._model, this._snippetStart, ret);
+		}
+		return ret;
 	}
 }
 
@@ -288,7 +309,9 @@ export class SnippetSession {
 			const start = snippetSelection.getStartPosition();
 			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate, enforceFinalTabstop).resolveVariables(new EditorSnippetVariableResolver(model, selection));
+			const snippet = new SnippetParser()
+				.parse(adjustedTemplate, true, enforceFinalTabstop)
+				.resolveVariables(new WhitespaceAwareSnippetResolver(model, selection, start));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);

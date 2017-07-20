@@ -381,7 +381,7 @@ function initTable() {
 	for (let i = 1; i <= 100; i++) {
 		row.push(-i);
 	}
-	for (let i = 0; i < 100; i++) {
+	for (let i = 0; i <= 100; i++) {
 		let thisRow = row.slice(0);
 		thisRow[0] = -i;
 		table.push(thisRow);

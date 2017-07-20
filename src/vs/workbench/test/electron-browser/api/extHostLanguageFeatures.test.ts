@@ -1071,7 +1071,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 
@@ -1090,7 +1090,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 

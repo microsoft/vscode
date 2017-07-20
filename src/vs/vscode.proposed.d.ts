@@ -7,37 +7,6 @@
 
 declare module 'vscode' {
 
-	export interface WorkspaceFoldersChangeEvent {
-		readonly added: WorkspaceFolder[];
-		readonly removed: WorkspaceFolder[];
-	}
-
-	export interface WorkspaceFolder {
-		readonly uri: Uri;
-		readonly name: string;
-		readonly index: number;
-	}
-
-	export namespace workspace {
-
-		/**
-		* List of workspace folders or `undefined` when no folder is open. The *first*
-		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
-		*/
-		export let workspaceFolders: WorkspaceFolder[] | undefined;
-
-		/**
-		 * An event that is emitted when a workspace folder is added or removed.
-		 */
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-
-		/**
-		 *
-		 * @param pathOrUri
-		 */
-		export function getContainingWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
-	}
-
 	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
 
 		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
@@ -165,52 +134,49 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	export interface Terminal {
+	export namespace debug {
 
 		/**
-		 * The name of the terminal.
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a DebugConfiguration.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are up-to-date.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
+		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		readonly name: string;
+		export function startDebugging(nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+	}
+
+	/**
+	 * Namespace for handling credentials.
+	 */
+	export namespace credentials {
 
 		/**
-		 * The process ID of the shell process.
-		 */
-		readonly processId: Thenable<number>;
-
-		/**
-		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal.
+		 * Read a previously stored secret from the credential store.
 		 *
-		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise for the secret of the credential.
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		export function readSecret(service: string, account: string): Thenable<string | undefined>;
 
 		/**
-		 * Show the terminal panel and reveal this terminal in the UI.
+		 * Write a secret to the credential store.
 		 *
-		 * @param preserveFocus When `true` the terminal will not take focus.
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @param secret The secret of the credential to write to the credential store.
+		 * @return A promise indicating completion of the operation.
 		 */
-		show(preserveFocus?: boolean): void;
+		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
 
 		/**
-		 * Hide the terminal panel if this terminal is currently showing.
-		 */
-		hide(): void;
-
-		/**
-		 * Dispose and free associated resources.
-		 */
-		dispose(): void;
-
-		/**
-		 * Experimental API that allows listening to the raw data stream coming from the terminal's
-		 * pty process (including ANSI escape sequences).
+		 * Delete a previously stored secret from the credential store.
 		 *
-		 * @param callback The callback that is triggered when data is sent to the terminal.
+		 * @param service The service of the credential.
+		 * @param account The account of the credential.
+		 * @return A promise resolving to true if there was a secret for that service and account.
 		 */
-		onData(callback: (data: string) => any): void;
+		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
 }

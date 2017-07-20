@@ -521,6 +521,9 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	private static SCHEME: 'inmemory';
 
+	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
+
 	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
@@ -538,6 +541,10 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkspace {
 		return this.workspace;
+	}
+
+	public saveWorkspace(): TPromise<void> {
+		return TPromise.as(null);
 	}
 
 	public getRoot(resource: URI): URI {
@@ -558,10 +565,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
-	}
-
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		return resource.fsPath;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {

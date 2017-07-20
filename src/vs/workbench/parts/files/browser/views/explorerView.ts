@@ -135,15 +135,14 @@ export class ExplorerView extends CollapsibleView {
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
 		setHeader();
 
 		super.renderHeader(container);
 	}
 
 	public get name(): string {
-		const workspace = this.contextService.getWorkspace();
-		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
+		return this.contextService.getWorkspace().name;
 	}
 
 	public set name(value) {
@@ -727,6 +726,8 @@ export class ExplorerView extends CollapsibleView {
 		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		} else if (this.contextService.hasFolderWorkspace() || (this.contextService.hasMultiFolderWorkspace() && this.model.roots.length === 1)) {
+			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace and multi folder workspace with only 1 root
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -776,7 +777,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.model.roots.length === 1 ? this.model.roots[0] : this.model;
+			const input = this.contextService.hasFolderWorkspace() ? this.model.roots[0] : this.model;
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
@@ -787,7 +788,7 @@ export class ExplorerView extends CollapsibleView {
 			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
 				targetsToExpand.map(expand => this.model.findClosest(expand));
 
-			// Display roots only when there is more than 1 root
+			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
 			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
 		}, e => TPromise.wrapError(e));

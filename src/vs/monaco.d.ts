@@ -130,7 +130,6 @@ declare module monaco {
 	 */
 	export class Uri {
 		static isUri(thing: any): thing is Uri;
-		protected constructor();
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
 		 * The part before the first colon.

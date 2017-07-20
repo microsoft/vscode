@@ -1082,19 +1082,19 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * Show the text editor.
+		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
+		 * instead. This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
 		/**
-		 * Hide the text editor.
+		 * ~~Hide the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
+		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		hide(): void;
@@ -2006,9 +2006,9 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * @deprecated Please use the constructor taking a [location](#Location) object.
+		 * ~~Creates a new symbol information object.~~
 		 *
-		 * Creates a new symbol information object.
+		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
@@ -2616,7 +2616,7 @@ declare module 'vscode' {
 		commitCharacters?: string[];
 
 		/**
-		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
@@ -3268,10 +3268,9 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * ~~Reveal this channel in the UI.~~
 		 *
-		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
+		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
@@ -3692,7 +3691,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The execution of a task happens as a external process
+	 * The execution of a task happens as an external process
 	 * without shell interaction.
 	 */
 	export class ProcessExecution {
@@ -4286,10 +4285,10 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * @deprecated This function **deprecated**. Use `withProgress` instead.
-		 *
 		 * ~~Show progress in the Source Control viewlet while running the given callback and while
 		 * its returned promise isn't resolve or rejected.~~
+		 *
+		 * @deprecated Use `withProgress` instead.
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
@@ -4601,6 +4600,44 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
+	 */
+	export interface WorkspaceFoldersChangeEvent {
+		/**
+		 * Added workspace folders.
+		 */
+		readonly added: WorkspaceFolder[];
+
+		/**
+		 * Removed workspace folders.
+		 */
+		readonly removed: WorkspaceFolder[];
+	}
+
+	/**
+	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
+	 * are equal which means there is notion of an active or master workspace folder.
+	 */
+	export interface WorkspaceFolder {
+
+		/**
+		 * The associated URI for this workspace folder.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The name of this workspace folder. Defaults to
+		 * the basename its [uri-path](#Uri.path)
+		 */
+		readonly name: string;
+
+		/**
+		 * The ordinal number of this workspace folder.
+		 */
+		readonly index: number;
+	}
+
+	/**
 	 * Namespace for dealing with the current workspace. A workspace is the representation
 	 * of the folder that has been opened. There is no workspace when just a file but not a
 	 * folder has been opened.
@@ -4610,6 +4647,49 @@ declare module 'vscode' {
 	 * the editor-process so that they should be always used instead of nodejs-equivalents.
 	 */
 	export namespace workspace {
+
+		/**
+		 * ~~The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.~~
+		 *
+		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
+		 *
+		 * @readonly
+		 */
+		export let rootPath: string | undefined;
+
+		/**
+		 * List of workspace folders or `undefined` when no folder is open, `undefined` when no
+		 * folder has been opened. *Note* that the first entry corresponds to the value of `rootPath`.
+		 *
+		 * @readonly
+		 */
+		export let workspaceFolders: WorkspaceFolder[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
+		 */
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+
+		/**
+		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource. When the resource
+		 * is a workspace folder itself, its parent workspace folder or `undefined` is returned.
+		 *
+		 * @param uri An uri.
+		 * @return A workspace folder or `undefined`
+		 */
+		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+
+		/**
+		 * Returns a path that is relative to the workspace folder or folders.
+		 *
+		 * When there are no [workspace folders](#workspace.workspaceFolders) or when the path
+		 * is not a child of them, the input is returned.
+		 *
+		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
+		 * @return A path relative to the root or the input.
+		 */
+		export function asRelativePath(pathOrUri: string | Uri): string;
 
 		/**
 		 * Creates a file system watcher.
@@ -4626,25 +4706,6 @@ declare module 'vscode' {
 		 * @return A new file system watcher instance.
 		 */
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
-
-		/**
-		 * The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.
-		 *
-		 * @readonly
-		 */
-		export let rootPath: string | undefined;
-
-		/**
-		 * Returns a path that is relative to the workspace root.
-		 *
-		 * When there is no [workspace root](#workspace.rootPath) or when the path
-		 * is not a child of that folder, the input is returned.
-		 *
-		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
-		 * @return A path relative to the root or the input.
-		 */
-		export function asRelativePath(pathOrUri: string | Uri): string;
 
 		/**
 		 * Find files in the workspace.
@@ -5403,10 +5464,13 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Create a new debug session based on the given configuration.
-		 * @param configuration
+		 * Start a debug session based on the given configuration.
+		 * The configuration's type is used to select the debug adapter and then is directly passed to the adapter without modification.
+		 * This function should only be called in the context of a 'startSession' command, e.g. after verifying or massaging the configuration.
+		 * @param configuration The debug configuration that is directly passed to the debug adapter.
+		 * @return A thenable that resolves when the debug session could be successfully started.
 		 */
-		export function createDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
+		export function startDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
 
 		/**
 		 * The currently active debug session or `undefined`. The active debug session is the one
@@ -5421,6 +5485,11 @@ declare module 'vscode' {
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when a new debug session has been started.
+		 */
+		export const onDidStartDebugSession: Event<DebugSession>;
 
 		/**
 		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.

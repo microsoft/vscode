@@ -6,5 +6,7 @@
 {
 	"terminal.background": "A terminál háttérszíne. Ez lehetővé teszi a terminál paneltől eltérő színezését.",
 	"terminal.foreground": "A terminál előtérszíne.",
+	"terminalCursor.foreground": "A terminál kurzorának előtérszíne.",
+	"terminalCursor.background": "A terminál kurzorának háttérszíne. Lehetővé teszik az olyan karakterek színének módosítását, amelyek fölött egy blokk-típusú kurzor áll.",
 	"terminal.ansiColor": "A(z) '{0}' ANSI-szín a terminálban."
 }

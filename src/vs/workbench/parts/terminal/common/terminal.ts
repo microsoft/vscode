@@ -359,12 +359,7 @@ export interface ITerminalInstance {
 	reuseTerminal(shell?: IShellLaunchConfig): void;
 
 	/**
-	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
-	 */
-	enableApiOnData(): void;
-
-	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "Váltás az előző keresési eredményre",
 	"RemoveAction.label": "Eltávolítás",
 	"file.replaceAll.label": "Összes cseréje",
-	"match.replace.label": "Csere",
-	"ConfigureGlobalExclusionsAction.label": "Beállítások megnyitása"
+	"match.replace.label": "Csere"
 }
