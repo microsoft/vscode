@@ -15,6 +15,7 @@ import { IRecentlyOpened } from "vs/platform/history/common/history";
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
+	call(command: 'event:onWindowBlur'): TPromise<number>;
 	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
@@ -57,16 +58,19 @@ export class WindowsChannel implements IWindowsChannel {
 
 	private onWindowOpen: Event<number>;
 	private onWindowFocus: Event<number>;
+	private onWindowBlur: Event<number>;
 
 	constructor(private service: IWindowsService) {
 		this.onWindowOpen = buffer(service.onWindowOpen, true);
 		this.onWindowFocus = buffer(service.onWindowFocus, true);
+		this.onWindowBlur = buffer(service.onWindowBlur, true);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
+			case 'event:onWindowBlur': return eventToCall(this.onWindowBlur);
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
@@ -119,6 +123,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
 	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
+
+	private _onWindowBlur: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowBlur');
+	get onWindowBlur(): Event<number> { return this._onWindowBlur; }
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);

@@ -32,6 +32,7 @@ export interface IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+	onWindowBlur: Event<number>;
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -85,6 +86,8 @@ export const IWindowService = createDecorator<IWindowService>('windowService');
 export interface IWindowService {
 
 	_serviceBrand: any;
+
+	onDidFocusChange: Event<boolean>;
 
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;

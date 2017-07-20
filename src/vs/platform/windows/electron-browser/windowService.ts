@@ -5,6 +5,7 @@
 
 'use strict';
 
+import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
@@ -12,12 +13,18 @@ import { IRecentlyOpened } from "vs/platform/history/common/history";
 
 export class WindowService implements IWindowService {
 
+	readonly onDidFocusChange: Event<boolean>;
+
 	_serviceBrand: any;
 
 	constructor(
 		private windowId: number,
 		@IWindowsService private windowsService: IWindowsService
-	) { }
+	) {
+		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
+		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
+		this.onDidFocusChange = any(onThisWindowFocus, onThisWindowBlur);
+	}
 
 	getCurrentWindowId(): number {
 		return this.windowId;
