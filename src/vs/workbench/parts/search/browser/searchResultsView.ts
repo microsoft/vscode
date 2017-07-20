@@ -22,6 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getPathLabel } from 'vs/base/common/labels';
+import { FileKind } from "vs/platform/files/common/files";
 
 export class SearchDataSource implements IDataSource {
 
@@ -227,7 +228,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			templateData.label.setFile(folderMatch.resource(), { isFolder: true });
+			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER });
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
