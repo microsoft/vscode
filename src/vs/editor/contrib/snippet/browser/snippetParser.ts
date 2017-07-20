@@ -10,10 +10,12 @@ import { CharCode } from 'vs/base/common/charCode';
 export enum TokenType {
 	Dollar,
 	Colon,
+	Comma,
 	CurlyOpen,
 	CurlyClose,
 	Backslash,
 	Forwardslash,
+	Pipe,
 	Int,
 	VariableName,
 	Format,
@@ -32,10 +34,12 @@ export class Scanner {
 	private static _table: { [ch: number]: TokenType } = {
 		[CharCode.DollarSign]: TokenType.Dollar,
 		[CharCode.Colon]: TokenType.Colon,
+		[CharCode.Comma]: TokenType.Comma,
 		[CharCode.OpenCurlyBrace]: TokenType.CurlyOpen,
 		[CharCode.CloseCurlyBrace]: TokenType.CurlyClose,
 		[CharCode.Backslash]: TokenType.Backslash,
-		[CharCode.Slash]: TokenType.Forwardslash
+		[CharCode.Slash]: TokenType.Forwardslash,
+		[CharCode.Pipe]: TokenType.Pipe,
 	};
 
 	static isDigitCharacter(ch: number): boolean {
