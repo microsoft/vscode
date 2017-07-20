@@ -19,18 +19,9 @@ export class LinkDetector {
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
-
-		// Regular Expression for filepaths from node.
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		// eg: at Context.<anonymous> (c:\Users\some one\Desktop\mocha-runner\test\test.js:26:11)
-		new RegExp('(?!\()' +
-			'(?:file:\/\/)?' + // Handles file://
-			'((?:([a-zA-Z]:)|[/\\]+)(?:[\\/][^<>\\/\'\"\[\]:]*)*\.[a-zA-Z]+[0-9]*)' + // Rooted path
-			':' +
-			'(\d+)' + // Line number
-			'(?::(\d+))?' + // Column number
-			'(?=\))',	// Ends with a paranthesis
-			'g'),
+		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g,
+
 		// Regular Expression for filepaths from C# extension
 		// eg: at app1.Program.Foo() in c:\temp\dotnet\app1\Program.foo.cs:line 9
 		// eg: at app1.Program.Foo() in c:\temp folder\dotnet\app1\Program.cs:line 9
