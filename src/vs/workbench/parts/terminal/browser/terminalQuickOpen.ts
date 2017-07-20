@@ -19,7 +19,6 @@ export class TerminalEntry extends QuickOpenEntryGroup {
 
 	constructor(
 		private label: string,
-		private category: string,
 		private open: () => void
 	) {
 		super();
@@ -27,10 +26,6 @@ export class TerminalEntry extends QuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.label;
-	}
-
-	public getCategory(): string {
-		return this.category;
 	}
 
 	public getAriaLabel(): string {
@@ -74,7 +69,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 				return true;
 			}
 
-			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase) && !scorer.matches(e.getCategory(), normalizedSearchValueLowercase)) {
+			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase)) {
 				return false;
 			}
 
@@ -84,40 +79,31 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		let lastCategory: string;
-		entries.forEach((e, index) => {
-			if (lastCategory !== e.getCategory()) {
-				lastCategory = e.getCategory();
-
-				e.setShowBorder(index > 0);
-				e.setGroupLabel(lastCategory);
-			} else {
-				e.setShowBorder(false);
-				e.setGroupLabel(null);
-			}
-		});
-
 		return TPromise.as(new QuickOpenModel(entries));
 	}
 
 	private getTerminals(): TerminalEntry[] {
-		const termninalEntries: TerminalEntry[] = [];
 		const terminals = this.terminalService.getInstanceLabels();
-
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			termninalEntries.push(new TerminalEntry(terminal, terminalsCategory, () => {
+		const terminalEntries = terminals.map(terminal => {
+			return new TerminalEntry(terminal, () => {
 				this.terminalService.showPanel(true).done(() => {
 					this.terminalService.setActiveInstanceByIndex(parseInt(terminal.split(':')[0], 10) - 1);
 				}, errors.onUnexpectedError);
-			}));
+			});
 		});
-		return termninalEntries;
+		return terminalEntries;
 	}
 
 	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!searchValue || !!context.quickNavigateConfiguration
 		};
+	}
+
+	public getEmptyLabel(searchString: string): string {
+		if (searchString.length > 0) {
+			return nls.localize('noTerminalsMatching', "No terminals matching");
+		}
+		return nls.localize('noTerminalsFound', "No terminals open");
 	}
 }
