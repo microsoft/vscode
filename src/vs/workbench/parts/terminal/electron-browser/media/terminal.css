@@ -29,6 +29,7 @@
 	position: absolute;
 	bottom: 0;
 	top: 0;
+	padding-bottom: 2px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
