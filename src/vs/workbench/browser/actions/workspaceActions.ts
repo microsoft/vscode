@@ -101,11 +101,17 @@ export abstract class BaseWorkspacesAction extends Action {
 	}
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {
+		const workspace = this.contextService.getWorkspace();
+		let defaultPath: string;
+		if (workspace && workspace.roots.length > 0) {
+			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
+		}
+
 		return this.windowService.showOpenDialog({
 			buttonLabel,
 			title,
 			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-			defaultPath: this.contextService.hasWorkspace() ? dirname(this.contextService.getWorkspace().roots[0].fsPath) : void 0 // pick the parent of the first root by default
+			defaultPath
 		});
 	}
 }
@@ -237,7 +243,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 	private saveFolderWorkspace(): TPromise<void> {
 		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "Before we can save we need to upgrade your workspace to support multiple folders and reload the window."), nls.localize({ key: 'upgradeAndSave', comment: ['&& denotes a mnemonic'] }, "&&Upgrade and Save"))) {
-			const configPath = this.getNewWorkspaceConfiPath();
+			const configPath = this.getNewWorkspaceConfigPath();
 			if (configPath) {
 				// Create workspace first
 				this.workspacesService.createWorkspace(this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */)))
@@ -253,7 +259,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	private saveMultiFolderWorkspace(): TPromise<void> {
-		const target = this.getNewWorkspaceConfiPath();
+		const target = this.getNewWorkspaceConfigPath();
 
 		if (target) {
 			return this.contextService.saveWorkspace(URI.file(target));
@@ -262,13 +268,13 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		return TPromise.as(null);
 	}
 
-	private getNewWorkspaceConfiPath(): string {
+	private getNewWorkspaceConfigPath(): string {
 		const workspace = this.contextService.getWorkspace();
 		let defaultPath: string;
 		if (this.contextService.hasMultiFolderWorkspace() && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
 			defaultPath = workspace.configuration.fsPath;
-		} else {
-			defaultPath = dirname(this.contextService.getWorkspace().roots[0].fsPath); // pick the parent of the first root by default
+		} else if (workspace && workspace.roots.length > 0) {
+			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showSaveDialog({
