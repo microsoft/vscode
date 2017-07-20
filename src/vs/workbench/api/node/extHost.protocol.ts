@@ -356,6 +356,10 @@ export abstract class MainThreadCredentialsShape {
 	$deleteSecret(service: string, account: string): Thenable<boolean> { throw ni(); }
 }
 
+export abstract class MainThreadWindowShape {
+	$getWindowVisibility(): TPromise<boolean> { throw ni(); }
+}
+
 // -- extension host
 
 export abstract class ExtHostCommandsShape {
@@ -515,6 +519,10 @@ export abstract class ExtHostDebugServiceShape {
 export abstract class ExtHostCredentialsShape {
 }
 
+export abstract class ExtHostWindowShape {
+	$onDidChangeWindowFocus(value: boolean): void { throw ni(); }
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -541,6 +549,7 @@ export const MainContext = {
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape),
 	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials', MainThreadCredentialsShape),
+	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow', MainThreadWindowShape),
 };
 
 export const ExtHostContext = {
@@ -563,4 +572,5 @@ export const ExtHostContext = {
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ExtHostWorkspaceShape),
 	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials', ExtHostCredentialsShape),
+	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow', ExtHostWindowShape),
 };

@@ -167,4 +167,20 @@ declare module 'vscode' {
 		 */
 		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
+
+	export namespace window {
+
+		/**
+		 * Whether the current window is focused.
+		 *
+		 * @readonly
+		 */
+		export let isFocused: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the focus state of the current window
+		 * changes. The value of the event represents whether the window is focused.
+		 */
+		export const onDidChangeWindowFocus: Event<boolean>;
+	}
 }
