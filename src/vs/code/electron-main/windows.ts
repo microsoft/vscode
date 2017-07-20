@@ -20,7 +20,7 @@ import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace } from 'vs/code/node/windowsFinder';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderPath } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -888,28 +888,26 @@ export class WindowsManager implements IWindowsMainService {
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same extension path.
-		let res = WindowsManager.WINDOWS.filter(w => w.config && isEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath, !isLinux /* ignorecase */));
-		if (res && res.length === 1) {
-			this.reload(res[0], openConfig.cli);
-			res[0].focus(); // make sure it gets focus and is restored
+		const existingWindow = findWindowOnExtensionDevelopmentPath(WindowsManager.WINDOWS, openConfig.cli.extensionDevelopmentPath);
+		if (existingWindow) {
+			this.reload(existingWindow, openConfig.cli);
+			existingWindow.focus(); // make sure it gets focus and is restored
 
 			return;
 		}
 
-		// Fill in previously opened folder unless an explicit path is provided and we are not unit testing
+		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
 		if (openConfig.cli._.length === 0 && !openConfig.cli.extensionTestsPath) {
-			const folderToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.folderPath;
-			if (folderToOpen) {
-				openConfig.cli._ = [folderToOpen];
+			const extensionDevelopmentWindowState = this.windowsState.lastPluginDevelopmentHostWindow;
+			const workspaceToOpen = extensionDevelopmentWindowState && (extensionDevelopmentWindowState.workspace || extensionDevelopmentWindowState.folderPath);
+			if (workspaceToOpen) {
+				openConfig.cli._ = [isSingleFolderWorkspaceIdentifier(workspaceToOpen) ? workspaceToOpen : workspaceToOpen.configPath];
 			}
 		}
 
-		// Make sure we are not asked to open a path that is already opened
-		if (openConfig.cli._.length > 0) {
-			res = WindowsManager.WINDOWS.filter(w => w.openedFolderPath && openConfig.cli._.indexOf(w.openedFolderPath) >= 0);
-			if (res.length) {
-				openConfig.cli._ = [];
-			}
+		// Make sure we are not asked to open a workspace or folder that is already opened
+		if (openConfig.cli._.some(path => !!findWindowOnWorkspaceOrFolderPath(WindowsManager.WINDOWS, path))) {
+			openConfig.cli._ = [];
 		}
 
 		// Open it

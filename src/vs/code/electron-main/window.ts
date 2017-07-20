@@ -72,15 +72,12 @@ export class CodeWindow implements ICodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
-	private options: IWindowCreationOptions;
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
-	private _extensionDevelopmentPath: string;
-	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private toDispose: IDisposable[];
@@ -99,11 +96,8 @@ export class CodeWindow implements ICodeWindow {
 		@IStorageService private storageService: IStorageService,
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService
 	) {
-		this.options = config;
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
-		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
@@ -207,15 +201,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public get isExtensionDevelopmentHost(): boolean {
-		return !!this._extensionDevelopmentPath;
+		return !!this.config.extensionDevelopmentPath;
 	}
 
 	public get isExtensionTestHost(): boolean {
-		return this._isExtensionTestHost;
+		return !!this.config.extensionTestsPath;
 	}
 
 	public get extensionDevelopmentPath(): string {
-		return this._extensionDevelopmentPath;
+		return this.config.extensionDevelopmentPath;
 	}
 
 	public get config(): IWindowConfiguration {
