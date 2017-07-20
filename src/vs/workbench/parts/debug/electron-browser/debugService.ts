@@ -645,7 +645,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(configName?: string, noDebug = false): TPromise<any> {
+	public startDebugging(configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
 			this.extensionService.onReady().then(() => {
@@ -654,19 +654,28 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				configName = configName || this.viewModel.selectedConfigurationName;
-				const config = manager.getConfiguration(configName);
-				const compound = manager.getCompound(configName);
+				let config: debug.IConfig, compound: debug.ICompound;
+
+				if (!configOrName) {
+					configOrName = this.viewModel.selectedConfigurationName;
+				}
+				if (typeof configOrName === 'string') {
+					config = manager.getConfiguration(configOrName);
+					compound = manager.getCompound(configOrName);
+				} else {
+					config = configOrName;
+				}
+
 				if (compound) {
 					if (!compound.configurations) {
 						return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== configName ? this.startDebugging(name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(name) : TPromise.as(null)));
 				}
-				if (configName && !config) {
-					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
+				if (configOrName && !config) {
+					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
 				}
 
 				return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
