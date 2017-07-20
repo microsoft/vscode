@@ -50,7 +50,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		if (this.contextService.hasMultiFolderWorkspace()) {
+		if (!this.contextService.hasMultiFolderWorkspace()) {
 			return false; // we need a multi folder workspace to begin with
 		}
 
