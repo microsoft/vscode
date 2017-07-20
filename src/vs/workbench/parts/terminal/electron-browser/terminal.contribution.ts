@@ -33,7 +33,6 @@ import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quicko
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
-const terminalPickerContextKey = 'inTerminalPicker';
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
 
 quickOpenRegistry.registerQuickOpenHandler(
@@ -41,7 +40,7 @@ quickOpenRegistry.registerQuickOpenHandler(
 		'vs/workbench/parts/terminal/browser/terminalQuickOpen',
 		'TerminalPickerHandler',
 		TERMINAL_PICKER_PREFIX,
-		terminalPickerContextKey,
+		null,
 		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
 	)
 );
