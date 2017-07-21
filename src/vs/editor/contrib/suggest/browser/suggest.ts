@@ -10,7 +10,7 @@ import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, IEditorContribution, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -216,3 +216,28 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvi
 		return result;
 	});
 });
+
+interface SuggestController extends IEditorContribution {
+	triggerSuggest(onlyFrom?: ISuggestSupport[]): void;
+}
+
+let _suggestions: ISuggestion[];
+let _provider = new class implements ISuggestSupport {
+	provideCompletionItems(): ISuggestResult {
+		return _suggestions && { suggestions: _suggestions };
+	}
+};
+
+SuggestRegistry.register('*', _provider);
+
+/**
+ *
+ * @param editor
+ * @param suggestions
+ */
+export function showSimpleSuggestions(editor: ICommonCodeEditor, suggestions: ISuggestion[]) {
+	_suggestions = suggestions;
+	editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);
+	_suggestions = undefined;
+}
+

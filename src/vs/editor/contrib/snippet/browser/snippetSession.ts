@@ -9,7 +9,7 @@ import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
 import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, SnippetParser } from './snippetParser';
+import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -153,6 +153,10 @@ export class OneSnippet {
 			}
 		});
 		return ret;
+	}
+
+	get choice(): Choice {
+		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
 	}
 
 	merge(others: OneSnippet[]): void {
@@ -407,6 +411,10 @@ export class SnippetSession {
 
 	get hasPlaceholder() {
 		return this._snippets[0].hasPlaceholder;
+	}
+
+	get choice(): Choice {
+		return this._snippets[0].choice;
 	}
 
 	isSelectionWithinPlaceholders(): boolean {
