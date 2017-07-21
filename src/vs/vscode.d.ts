@@ -3857,10 +3857,14 @@ declare module 'vscode' {
 		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
 
 		/**
-		 * Resolves a task the has no execution set.
+		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
+		 * often created from information found in the `task.json`-file. Such tasks miss
+		 * the information on how to execute them and a task provider must fill in
+		 * the missing information in the `resolveTask`-method.
+		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
-		 * @return the resolved task
+		 * @return The resolved task
 		 */
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
