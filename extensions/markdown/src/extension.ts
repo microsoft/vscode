@@ -136,10 +136,10 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args: OpenDocumentLinkArgs) => {
-		const tryRevealLine = (editor: vscode.TextEditor) => {
+		const tryRevealLine = async (editor: vscode.TextEditor) => {
 			if (editor && args.fragment) {
 				const toc = new TableOfContentsProvider(engine, editor.document);
-				const line = toc.lookup(args.fragment);
+				const line = await toc.lookup(args.fragment);
 				if (!isNaN(line)) {
 					return editor.revealRange(
 						new vscode.Range(line, 0, line, 0),
@@ -151,7 +151,7 @@ export function activate(context: vscode.ExtensionContext) {
 			return tryRevealLine(vscode.window.activeTextEditor);
 		} else {
 			const resource = vscode.Uri.file(args.path);
-			vscode.workspace.openTextDocument(resource)
+			return vscode.workspace.openTextDocument(resource)
 				.then(vscode.window.showTextDocument)
 				.then(tryRevealLine, _ => vscode.commands.executeCommand('vscode.open', resource));
 		}

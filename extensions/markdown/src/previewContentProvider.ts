@@ -200,7 +200,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			.join('\n');
 	}
 
-	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
+	public async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
 
 		let initialLine: number | undefined = undefined;
@@ -209,43 +209,42 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			initialLine = editor.selection.active.line;
 		}
 
-		return vscode.workspace.openTextDocument(sourceUri).then(document => {
-			this.config = MarkdownPreviewConfig.getCurrentConfig();
+		const document = await vscode.workspace.openTextDocument(sourceUri);
+		this.config = MarkdownPreviewConfig.getCurrentConfig();
 
-			const initialData = {
-				previewUri: uri.toString(),
-				source: sourceUri.toString(),
-				line: initialLine,
-				scrollPreviewWithEditorSelection: this.config.scrollPreviewWithEditorSelection,
-				scrollEditorWithPreview: this.config.scrollEditorWithPreview,
-				doubleClickToSwitchToEditor: this.config.doubleClickToSwitchToEditor
-			};
+		const initialData = {
+			previewUri: uri.toString(),
+			source: sourceUri.toString(),
+			line: initialLine,
+			scrollPreviewWithEditorSelection: this.config.scrollPreviewWithEditorSelection,
+			scrollEditorWithPreview: this.config.scrollEditorWithPreview,
+			doubleClickToSwitchToEditor: this.config.doubleClickToSwitchToEditor
+		};
 
-			this.logger.log('provideTextDocumentContent', initialData);
+		this.logger.log('provideTextDocumentContent', initialData);
 
-			// Content Security Policy
-			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			const csp = this.getCspForResource(sourceUri, nonce);
+		// Content Security Policy
+		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const csp = this.getCspForResource(sourceUri, nonce);
 
-			const body = this.engine.render(sourceUri, this.config.previewFrontMatter === 'hide', document.getText());
-			return `<!DOCTYPE html>
-				<html>
-				<head>
-					<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-					${csp}
-					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
-					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-					<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
-					${this.getStyles(uri, nonce)}
-					<base href="${document.uri.toString(true)}">
-				</head>
-				<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">
-					${body}
-					<div class="code-line" data-line="${document.lineCount}"></div>
-					${this.getScripts(nonce)}
-				</body>
-				</html>`;
-		});
+		const body = await this.engine.render(sourceUri, this.config.previewFrontMatter === 'hide', document.getText());
+		return `<!DOCTYPE html>
+			<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				${csp}
+				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
+				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
+				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
+				${this.getStyles(uri, nonce)}
+				<base href="${document.uri.toString(true)}">
+			</head>
+			<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">
+				${body}
+				<div class="code-line" data-line="${document.lineCount}"></div>
+				${this.getScripts(nonce)}
+			</body>
+			</html>`;
 	}
 
 	public updateConfiguration() {
