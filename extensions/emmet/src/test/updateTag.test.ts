@@ -20,7 +20,7 @@ suite('Tests for Emmet: Update Tag', () => {
 	</div>
 	`;
 
-	test('update tag with multiple cursors', () => {
+	/* test('update tag with multiple cursors', () => {
 		const expectedContents = `
 	<div>
 		<ul>
@@ -42,5 +42,5 @@ suite('Tests for Emmet: Update Tag', () => {
 				return Promise.resolve();
 			});
 		});
-	});
+	}); */
 });
