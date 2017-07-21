@@ -1863,6 +1863,42 @@ suite('Editor Controller - Cursor Configuration', () => {
 		mode.dispose();
 	});
 
+
+	// https://github.com/Microsoft/vscode/issues/31015
+	test('Tab auto-indents if Enter rule available', () => {
+		let mode = new OnEnterMode(IndentAction.Indent);
+		let model = Model.createFromString(
+			[
+				'    if (a) {',
+				'        ',
+				'',
+				'',
+				'    }'
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, 1);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), '    if (a) {');
+			assert.equal(model.getLineContent(2), '        ');
+			assert.equal(model.getLineContent(3), '        ');
+			assert.equal(model.getLineContent(4), '');
+			assert.equal(model.getLineContent(5), '    }');
+		});
+
+		model.dispose();
+	});
+
 	test('removeAutoWhitespace off', () => {
 		usingCursor({
 			text: [
