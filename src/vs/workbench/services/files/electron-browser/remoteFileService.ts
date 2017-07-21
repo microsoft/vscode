@@ -23,10 +23,6 @@ export class RemoteFileService extends FileService {
 
 	private readonly _provider = new Map<string, IRemoteFileSystemProvider>();
 
-	private _shouldIntercept(resource: URI): boolean {
-		return this._provider.has(resource.authority);
-	}
-
 	registerProvider(authority: string, provider: IRemoteFileSystemProvider): IDisposable {
 		if (this._provider.has(authority)) {
 			throw new Error();
@@ -48,7 +44,7 @@ export class RemoteFileService extends FileService {
 	// --- resolve
 
 	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
-		if (this._shouldIntercept(resource)) {
+		if (this._provider.has(resource.authority)) {
 			return this._doResolveContent(resource);
 		}
 
@@ -56,7 +52,7 @@ export class RemoteFileService extends FileService {
 	}
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
-		if (this._shouldIntercept(resource)) {
+		if (this._provider.has(resource.authority)) {
 			return this._doResolveContent(resource).then(RemoteFileService._asStreamContent);
 		}
 
@@ -73,7 +69,7 @@ export class RemoteFileService extends FileService {
 	// --- saving
 
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		if (this._shouldIntercept(resource)) {
+		if (this._provider.has(resource.authority)) {
 			return this._doUpdateContent(resource, value).then(RemoteFileService._createFakeStat);
 		}
 
