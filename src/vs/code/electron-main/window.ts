@@ -25,6 +25,7 @@ import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
+import { IBackupMainService } from "vs/platform/backup/common/backup";
 
 export interface IWindowState {
 	width?: number;
@@ -94,7 +95,8 @@ export class CodeWindow implements ICodeWindow {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
-		@IWorkspacesMainService private workspaceService: IWorkspacesMainService
+		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
+		@IBackupMainService private backupService: IBackupMainService
 	) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
@@ -454,7 +456,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration): void {
+	public load(config: IWindowConfiguration, isReload?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -471,9 +473,20 @@ export class CodeWindow implements ICodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
-		// Make sure to clear any previous edited state
+		// Clear Document Edited if needed
 		if (isMacintosh && this._win.isDocumentEdited()) {
-			this._win.setDocumentEdited(false);
+			if (!isReload || !this.backupService.isHotExitEnabled()) {
+				this._win.setDocumentEdited(false);
+			}
+		}
+
+		// Clear Title and Filename if needed
+		if (!isReload) {
+			if (this.getRepresentedFilename()) {
+				this.setRepresentedFilename('');
+			}
+
+			this._win.setTitle(product.nameLong);
 		}
 
 		// Load URL
@@ -519,7 +532,7 @@ export class CodeWindow implements ICodeWindow {
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration);
+		this.load(configuration, true);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
