@@ -26,7 +26,7 @@ import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -735,7 +735,7 @@ export abstract class BaseOpenRecentAction extends Action {
 	}
 }
 
-class RemoveFromRecentlyOpened extends Action {
+class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
 	public static ID = 'workbench.action.removeFromRecentlyOpened';
 	public static LABEL = nls.localize('remove', "Remove");
@@ -750,10 +750,9 @@ class RemoveFromRecentlyOpened extends Action {
 		this.class = 'action-remove-from-recently-opened';
 	}
 
-	public run({ resource }: { resource: URI }): TPromise<boolean> {
-		return this.windowsService.removeFromRecentlyOpened([resource.fsPath]).then(() => {
-			const reopenAction = this.instantiationService.createInstance(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL);
-			reopenAction.run().then(() => reopenAction.dispose());
+	public run(item: IPickOpenItem): TPromise<boolean> {
+		return this.windowsService.removeFromRecentlyOpened([item.getResource().fsPath]).then(() => {
+			item.remove();
 
 			return true;
 		});

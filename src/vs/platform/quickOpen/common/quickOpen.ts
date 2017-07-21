@@ -18,6 +18,10 @@ export interface IFilePickOpenEntry extends IPickOpenEntry {
 	fileKind?: FileKind;
 }
 
+export interface IPickOpenAction extends IAction {
+	run(item: IPickOpenItem): TPromise<any>;
+}
+
 export interface IPickOpenEntry {
 	id?: string;
 	label: string;
@@ -27,6 +31,11 @@ export interface IPickOpenEntry {
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
+}
+
+export interface IPickOpenItem {
+	remove: () => void;
+	getResource: () => uri;
 }
 
 export interface ISeparator {
