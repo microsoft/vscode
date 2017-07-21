@@ -56,6 +56,7 @@ interface LanguageDescription {
 	diagnosticSource: string;
 	modeIds: string[];
 	configFile?: string;
+	isExternal?: boolean;
 }
 
 enum ProjectConfigAction {
@@ -280,12 +281,11 @@ class LanguageProvider {
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new DocumentSymbolProvider(client)));
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
-
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new RefactorProvider(client, this.description.id)));
 		this.registerVersionDependentProviders();
 
-		this.description.modeIds.forEach(modeId => {
+		for (const modeId of this.description.modeIds) {
 			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
 
 			const referenceCodeLensProvider = new ReferenceCodeLensProvider(client, modeId);
@@ -298,43 +298,44 @@ class LanguageProvider {
 			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
 			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
-
-			this.disposables.push(languages.setLanguageConfiguration(modeId, {
-				indentationRules: {
-					// ^(.*\*/)?\s*\}.*$
-					decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
-					// ^.*\{[^}"']*$
-					increaseIndentPattern: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
-					indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
-				},
-				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-				onEnterRules: [
-					{
-						// e.g. /** | */
-						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-						afterText: /^\s*\*\/$/,
-						action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-					}, {
-						// e.g. /** ...|
-						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-						action: { indentAction: IndentAction.None, appendText: ' * ' }
-					}, {
-						// e.g.  * ...|
-						beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-						action: { indentAction: IndentAction.None, appendText: '* ' }
-					}, {
-						// e.g.  */|
-						beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-						action: { indentAction: IndentAction.None, removeText: 1 }
+			if (!this.description.isExternal) {
+				this.disposables.push(languages.setLanguageConfiguration(modeId, {
+					indentationRules: {
+						// ^(.*\*/)?\s*\}.*$
+						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
+						// ^.*\{[^}"']*$
+						increaseIndentPattern: /^.*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
+						indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
 					},
-					{
-						// e.g.  *-----*/|
-						beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-						action: { indentAction: IndentAction.None, removeText: 1 }
-					}
-				]
-			}));
-		});
+					wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+					onEnterRules: [
+						{
+							// e.g. /** | */
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							afterText: /^\s*\*\/$/,
+							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
+						}, {
+							// e.g. /** ...|
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							action: { indentAction: IndentAction.None, appendText: ' * ' }
+						}, {
+							// e.g.  * ...|
+							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+							action: { indentAction: IndentAction.None, appendText: '* ' }
+						}, {
+							// e.g.  */|
+							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						},
+						{
+							// e.g.  *-----*/|
+							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						}
+					]
+				}));
+			}
+		}
 	}
 
 	private configurationChanged(): void {
@@ -504,7 +505,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				const description: LanguageDescription = {
 					id: 'typescript-plugins',
 					modeIds: Array.from(langauges.values()),
-					diagnosticSource: 'ts-plugins'
+					diagnosticSource: 'ts-plugins',
+					isExternal: true
 				};
 				const manager = new LanguageProvider(this.client, description);
 				this.languages.push(manager);
