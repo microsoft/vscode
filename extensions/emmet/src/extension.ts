@@ -45,9 +45,12 @@ export function activate(context: vscode.ExtensionContext) {
 		removeTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', () => {
-		vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			updateTag(tagName);
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', (inputTag) => {
+		if (inputTag && typeof inputTag === 'string') {
+			return updateTag(inputTag);
+		}
+		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
+			return updateTag(tagName);
 		});
 	}));
 
