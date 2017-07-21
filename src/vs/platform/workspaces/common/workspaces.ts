@@ -72,7 +72,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 
 	// Workspace: Untitled
 	if (isParent(workspace.configPath, environmentService.workspacesHome, !isLinux /* ignore case */)) {
-		return localize('untitledWorkspace', "Untitled Workspace");
+		return localize('untitledWorkspace', "Untitled (Workspace)");
 	}
 
 	// Workspace: Saved
