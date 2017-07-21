@@ -71,7 +71,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
 	private create64BitAutoUpdater(): Win32AutoUpdaterImpl {
 		const result = new Win32AutoUpdaterImpl('x64', this.channel, this.requestService, this.storageService);
-		result.setFeedURL(getUpdateFeedUrl(this.channel, 'x64'));
+		result.setFeedURL(getUpdateFeedUrl(this.channel, 'bump', 'x64'));
 		eventNames.forEach(e => forwardEvent(e, result, this));
 		return result;
 	}

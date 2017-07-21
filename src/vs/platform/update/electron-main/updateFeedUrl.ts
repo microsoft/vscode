@@ -11,7 +11,7 @@ import product from 'vs/platform/node/product';
 
 export const Win32UninstallPath = path.join(path.dirname(process.execPath), 'unins000.exe');
 
-export function getUpdateFeedUrl(channel: string, arch: string = process.arch): string {
+export function getUpdateFeedUrl(channel: string, commit: string = product.commit, arch: string = process.arch): string {
 	if (!channel) {
 		return null;
 	}
@@ -20,13 +20,13 @@ export function getUpdateFeedUrl(channel: string, arch: string = process.arch): 
 		return null;
 	}
 
-	if (!product.updateUrl || !product.commit) {
+	if (!product.updateUrl || !commit) {
 		return null;
 	}
 
 	const platform = getUpdatePlatform(arch);
 
-	return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
+	return `${product.updateUrl}/api/update/${platform}/${channel}/${commit}`;
 }
 
 function getUpdatePlatform(arch: string): string {
