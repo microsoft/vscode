@@ -65,7 +65,8 @@
         "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
-        "@types/node": "^7.0.4"
+        "@types/node": "^7.0.4",
+		"vscode": "1.0.1"
     },
     "dependencies": {
         "@emmetio/expand-abbreviation": "^0.5.8",

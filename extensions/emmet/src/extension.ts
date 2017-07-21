@@ -96,27 +96,27 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOneTenth', () => {
-		incrementDecrement(.1);
+		return incrementDecrement(.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOne', () => {
-		incrementDecrement(1);
+		return incrementDecrement(1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByTen', () => {
-		incrementDecrement(10);
+		return incrementDecrement(10);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOneTenth', () => {
-		incrementDecrement(-0.1);
+		return incrementDecrement(-0.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOne', () => {
-		incrementDecrement(-1);
+		return incrementDecrement(-1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByTen', () => {
-		incrementDecrement(-10);
+		return incrementDecrement(-10);
 	}));
 
 	let currentExtensionsPath = undefined;
