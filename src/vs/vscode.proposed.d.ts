@@ -261,8 +261,8 @@ declare module 'vscode' {
 
 		constructor(red: number, green: number, blue: number, alpha?: number);
 
-		// static fromHSL(h, s, l): Color;
-		// static fromHex(hex): Color;
+		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
+		static fromHex(hex: string): Color;
 	}
 
 	// TODO@Michel

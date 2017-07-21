@@ -225,6 +225,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
 		this._colorPicker = null;
+		if (this._colorPicker) {
+			this._colorPicker.dispose();
+		}
 	}
 
 	_withResult(result: Hover[], complete: boolean): void {
@@ -237,6 +240,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
+	private l = true;
 	private _renderMessages(renderRange: Range, messages: Hover[]): void {
 
 		// update column from which to show
@@ -309,6 +313,22 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			options: ModesContentHoverWidget._DECORATION_OPTIONS
 		}]);
 		this._isChangingDecorations = false;
+
+		if (this.l) {
+			this.l = false;
+			this._renderMessages(new Range(4, 5, 4, 5), [{
+				contents: [{
+					language: 'css',
+					value: 'asdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasd'
+				}],
+				range: {
+					endColumn: 10,
+					endLineNumber: 5,
+					startColumn: 1,
+					startLineNumber: 5
+				}
+			}]);
+		}
 	}
 
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({

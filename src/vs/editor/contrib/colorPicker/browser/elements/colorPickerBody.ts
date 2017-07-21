@@ -219,8 +219,9 @@ export class ColorPickerBody extends Disposable {
 
 export class SaturationBox {
 	public domNode: HTMLElement;
-
 	public saturationSelection: HTMLElement;
+
+	private saturationCanvas: HTMLCanvasElement;
 	private saturationCtx: CanvasRenderingContext2D;
 
 	private whiteGradient: CanvasGradient;
@@ -230,24 +231,24 @@ export class SaturationBox {
 		this.domNode = $('.saturation-wrap');
 		dom.append(widgetNode, this.domNode);
 
+		// Create canvas, draw selected color
+		this.saturationCanvas = document.createElement('canvas');
+		this.saturationCanvas.className = 'saturation-box';
+		dom.append(this.domNode, this.saturationCanvas);
+
 		// Add selection circle
 		this.saturationSelection = $('.saturation-selection');
 		dom.append(this.domNode, this.saturationSelection);
 	}
 
 	public layout(): void {
-		// Create canvas, draw selected color
-		const canvas = document.createElement('canvas');
-		canvas.className = 'saturation-box';
-		dom.append(this.domNode, canvas);
-
 		const actualW = this.domNode.offsetWidth * this.pixelRatio,
 			actualH = this.domNode.offsetHeight * this.pixelRatio;
 
-		canvas.width = actualW;
-		canvas.height = actualH;
+		this.saturationCanvas.width = actualW;
+		this.saturationCanvas.height = actualH;
 
-		this.saturationCtx = canvas.getContext('2d');
+		this.saturationCtx = this.saturationCanvas.getContext('2d');
 		this.saturationCtx.rect(0, 0, actualW, actualH);
 
 		// Create black and white gradients on top

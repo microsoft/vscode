@@ -7,6 +7,7 @@
 import * as crypto from 'crypto';
 
 import URI from 'vs/base/common/uri';
+import { Color as CommonColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
@@ -1016,16 +1017,29 @@ export class DocumentLink {
 }
 
 export class Color {
-	red: number;
-	green: number;
-	blue: number;
-	alpha: number;
+	readonly red: number;
+	readonly green: number;
+	readonly blue: number;
+	readonly alpha: number;
 
 	constructor(red: number, green: number, blue: number, alpha?: number) {
 		this.red = red;
 		this.green = green;
 		this.blue = blue;
 		this.alpha = alpha;
+	}
+
+	static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color {
+		if (!alpha) {
+			alpha = 1;
+		}
+		const color = CommonColor.fromHSLA(new HSLA(hue, saturation, luminosity, alpha)).toRGBA();
+		return new Color(color.r, color.g, color.b, color.a / 255);
+	}
+
+	static fromHex(hex: string): Color {
+		const color = CommonColor.fromHex(hex).toRGBA();
+		return new Color(color.r, color.g, color.b, color.a / 255);
 	}
 }
 
