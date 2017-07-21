@@ -71,7 +71,7 @@ export class CloseEditorAction extends Action {
 	}
 }
 
-export class CloseWindowAction extends Action {
+export class CloseCurrentWindowAction extends Action {
 
 	public static ID = 'workbench.action.closeWindow';
 	public static LABEL = nls.localize('closeWindow', "Close Window");
@@ -563,6 +563,7 @@ export class ReloadWindowAction extends Action {
 }
 
 export abstract class BaseSwitchWindow extends Action {
+	private closeWindowAction: CloseWindowAction;
 
 	constructor(
 		id: string,
@@ -570,9 +571,12 @@ export abstract class BaseSwitchWindow extends Action {
 		private windowsService: IWindowsService,
 		private windowService: IWindowService,
 		private quickOpenService: IQuickOpenService,
-		private keybindingService: IKeybindingService
+		private keybindingService: IKeybindingService,
+		private instantiationService: IInstantiationService
 	) {
 		super(id, label);
+
+		this.closeWindowAction = this.instantiationService.createInstance(CloseWindowAction);
 	}
 
 	protected abstract isQuickNavigate(): boolean;
@@ -583,6 +587,7 @@ export abstract class BaseSwitchWindow extends Action {
 		return this.windowsService.getWindows().then(windows => {
 			const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
 			const picks = windows.map(win => ({
+				payload: win.id,
 				resource: win.filename ? URI.file(win.filename) : win.folderPath ? URI.file(win.folderPath) : win.workspace ? URI.file(win.workspace.configPath) : void 0,
 				fileKind: win.filename ? FileKind.FILE : win.workspace ? FileKind.ROOT_FOLDER : win.folderPath ? FileKind.FOLDER : FileKind.FILE,
 				label: win.title,
@@ -593,7 +598,8 @@ export abstract class BaseSwitchWindow extends Action {
 						// with quick navigate keys (not able to trigger quick navigate once running it once).
 						this.windowsService.showWindow(win.id).done(null, errors.onUnexpectedError);
 					});
-				}
+				},
+				action: (!this.isQuickNavigate() && currentWindowId !== win.id) ? this.closeWindowAction : void 0
 			} as IFilePickOpenEntry));
 
 			this.quickOpenService.pick(picks, {
@@ -602,6 +608,34 @@ export abstract class BaseSwitchWindow extends Action {
 				placeHolder,
 				quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
 			});
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.closeWindowAction.dispose();
+	}
+}
+
+class CloseWindowAction extends Action implements IPickOpenAction {
+
+	public static ID = 'workbench.action.closeWindow';
+	public static LABEL = nls.localize('close', "Close Window");
+
+	constructor(
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(CloseWindowAction.ID, CloseWindowAction.LABEL);
+
+		this.class = 'action-remove-from-recently-opened';
+	}
+
+	public run(item: IPickOpenItem): TPromise<boolean> {
+		return this.windowsService.closeWindow(item.getPayload()).then(() => {
+			item.remove();
+
+			return true;
 		});
 	}
 }
@@ -617,9 +651,10 @@ export class SwitchWindow extends BaseSwitchWindow {
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -638,9 +673,10 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, keybindingService);
+		super(id, label, windowsService, windowService, quickOpenService, keybindingService, instantiationService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -738,12 +774,10 @@ export abstract class BaseOpenRecentAction extends Action {
 class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
 	public static ID = 'workbench.action.removeFromRecentlyOpened';
-	public static LABEL = nls.localize('remove', "Remove");
+	public static LABEL = nls.localize('remove', "Remove from Recently Opened");
 
 	constructor(
-		@IWindowsService private windowsService: IWindowsService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(RemoveFromRecentlyOpened.ID, RemoveFromRecentlyOpened.LABEL);
 

@@ -1071,6 +1071,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private fileKind: FileKind;
 	private _action: IAction;
 	private removed: boolean;
+	private payload: any;
 
 	constructor(
 		item: IPickOpenEntry,
@@ -1088,10 +1089,15 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
 		this._action = item.action;
+		this.payload = item.payload;
 
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.fileKind = fileItem.fileKind;
+	}
+
+	public getPayload(): any {
+		return this.payload;
 	}
 
 	public remove(): void {

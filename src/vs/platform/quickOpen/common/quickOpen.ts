@@ -31,11 +31,14 @@ export interface IPickOpenEntry {
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
+	payload?: any;
 }
 
 export interface IPickOpenItem {
 	remove: () => void;
+	getId: () => string;
 	getResource: () => uri;
+	getPayload: () => any;
 }
 
 export interface ISeparator {
