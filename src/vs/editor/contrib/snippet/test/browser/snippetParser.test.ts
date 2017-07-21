@@ -210,10 +210,14 @@ suite('SnippetParser', () => {
 
 	test('Parser, placeholder with choice', () => {
 
-		assertMarker('${1|one,two,three|}', Placeholder);
-		assertMarker('${1|one|}', Placeholder);
-		assertMarker('${1|one,two,three,|}', Text);
-		assertMarker('${1|one,', Text);
+		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one1,two2|}', 'one1', Placeholder);
+		assertTextAndMarker('${1|one1\\,two2|}', 'one1,two2', Placeholder);
+		assertTextAndMarker('${1|one1\\|two2|}', 'one1|two2', Placeholder);
+		assertTextAndMarker('${1|one1\\atwo2|}', 'one1\\atwo2', Placeholder);
+		assertTextAndMarker('${1|one,two,three,|}', '${1|one,two,three,|}', Text);
+		assertTextAndMarker('${1|one,', '${1|one,', Text);
 
 		const p = new SnippetParser();
 		const snippet = p.parse('${1|one,two,three|}');

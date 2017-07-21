@@ -553,7 +553,7 @@ export class SnippetParser {
 			const choice = new Choice();
 
 			while (true) {
-				if (this._parseAnything(choice)) {
+				if (this._parseChoiceElement(choice)) {
 
 					if (this._accept(TokenType.Comma)) {
 						// opt, -> more
@@ -581,6 +581,40 @@ export class SnippetParser {
 			// ${1 <- missing curly or colon
 			return this._backTo(token);
 		}
+	}
+
+	private _parseChoiceElement(parent: Choice): boolean {
+		const token = this._token;
+		const values: string[] = [];
+
+		while (true) {
+			if (this._token.type === TokenType.Comma || this._token.type === TokenType.Pipe) {
+				break;
+			}
+			let value: string;
+			if (value = this._accept(TokenType.Backslash, true)) {
+				// \, or \|
+				value = this._accept(TokenType.Comma, true)
+					|| this._accept(TokenType.Pipe, true)
+					|| value;
+			} else {
+				value = this._accept(undefined, true);
+			}
+			if (!value) {
+				// EOF
+				this._backTo(token);
+				return false;
+			}
+			values.push(value);
+		}
+
+		if (values.length === 0) {
+			this._backTo(token);
+			return false;
+		}
+
+		parent.appendChild(new Text(values.join('')));
+		return true;
 	}
 
 	// ${foo:<children>}, ${foo} -> variable
