@@ -4,8 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
+export interface TSConfig {
+	path: string;
+	workspaceFolder?: vscode.WorkspaceFolder;
+}
+
 export default class TsConfigProvider extends vscode.Disposable {
-	private readonly tsconfigs = new Set<string>();
+	private readonly tsconfigs = new Map<string, TSConfig>();
 
 	private activated: boolean = false;
 	private disposables: vscode.Disposable[] = [];
@@ -18,12 +23,12 @@ export default class TsConfigProvider extends vscode.Disposable {
 		this.disposables.forEach(d => d.dispose());
 	}
 
-	public async getConfigsForWorkspace(): Promise<Iterable<string>> {
-		if (!vscode.workspace.rootPath && !vscode.workspace.workspaceFolders) {
+	public async getConfigsForWorkspace(): Promise<Iterable<TSConfig>> {
+		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
 		await this.ensureActivated();
-		return this.tsconfigs;
+		return this.tsconfigs.values();
 	}
 
 	private async ensureActivated() {
@@ -33,7 +38,7 @@ export default class TsConfigProvider extends vscode.Disposable {
 		this.activated = true;
 
 		for (const config of await TsConfigProvider.loadWorkspaceTsconfigs()) {
-			this.tsconfigs.add(config.fsPath);
+			this.handleProjectCreate(config);
 		}
 
 		const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/tsconfig*.json');
@@ -48,8 +53,14 @@ export default class TsConfigProvider extends vscode.Disposable {
 		return vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**');
 	}
 
-	private handleProjectCreate(e: vscode.Uri) {
-		this.tsconfigs.add(e.fsPath);
+	private handleProjectCreate(config: vscode.Uri) {
+		const root = vscode.workspace.getWorkspaceFolder(config);
+		if (root) {
+			this.tsconfigs.set(config.fsPath, {
+				path: config.fsPath,
+				workspaceFolder: root
+			});
+		}
 	}
 
 	private handleProjectDelete(e: vscode.Uri) {
