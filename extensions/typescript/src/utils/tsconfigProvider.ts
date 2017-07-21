@@ -31,26 +31,32 @@ export default class TsConfigProvider extends vscode.Disposable {
 		return this.tsconfigs.values();
 	}
 
-	private async ensureActivated() {
+	private async ensureActivated(): Promise<this> {
 		if (this.activated) {
 			return this;
 		}
 		this.activated = true;
 
-		for (const config of await TsConfigProvider.loadWorkspaceTsconfigs()) {
-			this.handleProjectCreate(config);
-		}
+		this.reloadWorkspaceConfigs();
 
 		const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/tsconfig*.json');
 		this.disposables.push(configFileWatcher);
 		configFileWatcher.onDidCreate(this.handleProjectCreate, this, this.disposables);
 		configFileWatcher.onDidDelete(this.handleProjectDelete, this, this.disposables);
 
+		vscode.workspace.onDidChangeWorkspaceFolders(() => {
+			this.reloadWorkspaceConfigs();
+		}, this, this.disposables);
+
 		return this;
 	}
 
-	private static loadWorkspaceTsconfigs() {
-		return vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**');
+	private async reloadWorkspaceConfigs(): Promise<this> {
+		this.tsconfigs.clear();
+		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**')) {
+			this.handleProjectCreate(config);
+		}
+		return this;
 	}
 
 	private handleProjectCreate(config: vscode.Uri) {
