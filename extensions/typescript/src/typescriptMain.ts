@@ -33,7 +33,7 @@ import ReferenceProvider from './features/referenceProvider';
 import DocumentSymbolProvider from './features/documentSymbolProvider';
 import SignatureHelpProvider from './features/signatureHelpProvider';
 import RenameProvider from './features/renameProvider';
-import FormattingProvider from './features/formattingProvider';
+import { TypeScriptFormattingProvider, FormattingProviderManager } from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
@@ -191,8 +191,6 @@ class LanguageProvider {
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 
-	private formattingProvider: FormattingProvider;
-	private formattingProviderRegistration: Disposable | null;
 	private typingsStatus: TypingsStatus;
 	private toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
@@ -229,10 +227,6 @@ class LanguageProvider {
 	}
 
 	public dispose(): void {
-		if (this.formattingProviderRegistration) {
-			this.formattingProviderRegistration.dispose();
-		}
-
 		while (this.disposables.length) {
 			const obj = this.disposables.pop();
 			if (obj) {
@@ -263,12 +257,14 @@ class LanguageProvider {
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new DirectiveCommentCompletionProvider(client), '@'));
 
-		this.formattingProvider = new FormattingProvider(client);
-		this.formattingProvider.updateConfiguration(config);
-		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n'));
-		if (this.formattingProvider.isEnabled()) {
-			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
-		}
+		const formattingProvider = new TypeScriptFormattingProvider(client);
+		formattingProvider.updateConfiguration(config);
+		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
+
+		const formattingProviderManager = new FormattingProviderManager(this.description.id, formattingProvider, selector);
+		formattingProviderManager.updateConfiguration();
+		this.disposables.push(formattingProviderManager);
+		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
 		const jsDocCompletionProvider = new JsDocCompletionProvider(client);
 		jsDocCompletionProvider.updateConfiguration();
@@ -341,17 +337,6 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-
-		if (this.formattingProvider) {
-			this.formattingProvider.updateConfiguration(config);
-			if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
-				this.formattingProviderRegistration.dispose();
-				this.formattingProviderRegistration = null;
-
-			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
-				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
-			}
-		}
 
 		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
 			toUpdate.updateConfiguration();
