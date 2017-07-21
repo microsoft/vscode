@@ -145,6 +145,24 @@ export function activate(context: ExtensionContext): void {
 	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
+
+	const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
+
+	context.subscriptions.push(languages.setLanguageConfiguration('jsx-tags', {
+		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+		onEnterRules: [
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				action: { indentAction: IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: IndentAction.Indent }
+			}
+		],
+	}));
+
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: TextDocument): boolean {
 		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
@@ -315,23 +333,6 @@ class LanguageProvider {
 						action: { indentAction: IndentAction.None, removeText: 1 }
 					}
 				]
-			}));
-
-			const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
-
-			this.disposables.push(languages.setLanguageConfiguration('jsx-tags', {
-				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-				onEnterRules: [
-					{
-						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-						afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
-						action: { indentAction: IndentAction.IndentOutdent }
-					},
-					{
-						beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-						action: { indentAction: IndentAction.Indent }
-					}
-				],
 			}));
 		});
 	}
