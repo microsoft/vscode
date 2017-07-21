@@ -174,7 +174,6 @@ export interface MarkedStringHover {
 export interface ColorHover {
 	color: Color;
 
-
 	/**
 	 * The range to which this hover applies. When missing, the
 	 * editor will use the range at the current position or the
@@ -678,8 +677,8 @@ export interface LinkProvider {
  * A color inside the editor.
  */
 export interface IColorInfo {
-	range: IRange;
 	color: Color;
+	range: IRange;
 }
 /**
  * A provider of links.

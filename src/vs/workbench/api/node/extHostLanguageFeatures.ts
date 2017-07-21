@@ -19,7 +19,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IColorInfo } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -681,7 +681,7 @@ class ColorProviderAdapter {
 		this._provider = provider;
 	}
 
-	provideColors(resource: URI): TPromise<modes.IColorInfo[]> {
+	provideColors(resource: URI): TPromise<IColorInfo[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
@@ -988,7 +988,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentColors(handle: number, resource: URI): TPromise<modes.IColorInfo[]> {
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IColorInfo[]> {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 

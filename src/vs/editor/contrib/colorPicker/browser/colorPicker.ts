@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommonCodeEditor, IEditorContribution } from "vs/editor/common/editorCommon";
+import { ICommonCodeEditor, IEditorContribution, IModelDecorationsChangeAccessor, IModelDeltaDecoration } from "vs/editor/common/editorCommon";
 import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
 // import { Color } from "vs/base/common/color";
@@ -14,21 +14,31 @@ import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/co
 import { ColorProviderRegistry, IColorInfo } from "vs/editor/common/modes";
 import { TPromise } from "vs/base/common/winjs.base";
 import { getColors } from "vs/editor/contrib/colorPicker/common/colorPicker";
-// import * as editorCommon from 'vs/editor/common/editorCommon';
 
 @editorContribution
 export class ColorPicker implements IEditorContribution {
 	private static ID: string = 'editor.contrib.colorPicker';
 
+	static RECOMPUTE_TIME = 1000; // ms
+
 	private listenersToRemove: IDisposable[];
 	private computePromise: TPromise<void>;
+	private timeoutPromise: TPromise<void>;
 
 	private currentDecorations: string[];
 
 	constructor(private editor: ICodeEditor) {
-		this.listenersToRemove = [];
+		this.currentDecorations = [];
 
+		this.listenersToRemove = [];
+		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
+		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
+		this.listenersToRemove.push(ColorProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
+
+		this.timeoutPromise = null;
+		this.computePromise = null;
+		this.beginCompute();
 	}
 
 	public getId(): string {
@@ -40,10 +50,28 @@ export class ColorPicker implements IEditorContribution {
 	}
 
 	public dispose(): void {
+		this.listenersToRemove = dispose(this.listenersToRemove);
+		this.stop();
 	}
 
 	private onModelChanged(): void {
+		this.stop();
 		this.beginCompute();
+	}
+
+	private onModelModeChanged(): void {
+		this.stop();
+		this.beginCompute();
+	}
+
+	private onChange(): void {
+		if (!this.timeoutPromise) {
+			this.timeoutPromise = TPromise.timeout(ColorPicker.RECOMPUTE_TIME);
+			this.timeoutPromise.then(() => {
+				this.timeoutPromise = null;
+				this.beginCompute();
+			});
+		}
 	}
 
 	private beginCompute(): void {
@@ -61,9 +89,20 @@ export class ColorPicker implements IEditorContribution {
 		});
 	}
 
+	private stop(): void {
+		if (this.timeoutPromise) {
+			this.timeoutPromise.cancel();
+			this.timeoutPromise = null;
+		}
+		if (this.computePromise) {
+			this.computePromise.cancel();
+			this.computePromise = null;
+		}
+	}
+
 	private updateDecorations(colors: IColorInfo[]): void {
-		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
+			let newDecorations: IModelDeltaDecoration[] = [];
 			for (let c of colors) {
 				newDecorations.push({
 					range: {

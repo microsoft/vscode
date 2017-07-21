@@ -21,6 +21,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { Color, RGBA } from "vs/base/common/color";
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
@@ -270,7 +271,15 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorProvider>{
 			provideColors: (model, token) => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentColors(handle, model.uri));
+				return wireCancellationToken(token, this._proxy.$provideDocumentColors(handle, model.uri))
+					.then((colors) => {
+						return colors.map(c => {
+							return {
+								color: Color.fromRGBA(new RGBA(c.color[0], c.color[1], c.color[2], c.color[3] * 255)),
+								range: c.range
+							};
+						});
+					});
 			}
 		});
 		return undefined;

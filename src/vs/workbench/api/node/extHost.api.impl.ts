@@ -261,12 +261,13 @@ export function createApiFactory(
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentLinkProvider(selector, provider);
 			},
-			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
-				return languageFeatures.registerColorProvider(selector, provider);
-			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);
-			}
+			},
+			// proposed API
+			registerColorProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider) => {
+				return languageFeatures.registerColorProvider(selector, provider);
+			})
 		};
 
 		// namespace: window
@@ -491,7 +492,6 @@ export function createApiFactory(
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorInfo: extHostTypes.ColorInfo,
-			ColorType: extHostTypes.ColorType,
 			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,

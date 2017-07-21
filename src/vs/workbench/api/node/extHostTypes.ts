@@ -1015,18 +1015,18 @@ export class DocumentLink {
 	}
 }
 
-export enum ColorType {
-	RGBA = 0,
-	HSL = 1,
-	Hex = 2,
-	Custom = 3
-}
-
 export class Color {
-	r: number;
-	g: number;
-	b: number;
-	a: number;
+	red: number;
+	green: number;
+	blue: number;
+	alpha: number;
+
+	constructor(red: number, green: number, blue: number, alpha?: number) {
+		this.red = red;
+		this.green = green;
+		this.blue = blue;
+		this.alpha = alpha;
+	}
 }
 
 export class ColorInfo {
@@ -1034,9 +1034,7 @@ export class ColorInfo {
 
 	color: Color;
 
-	type: ColorType;
-
-	constructor(range: Range, color: Color) {
+	constructor(color: Color, range: Range) {
 		if (color && !(color instanceof Color)) {
 			throw illegalArgument('target');
 		}

@@ -4784,16 +4784,16 @@ declare module monaco.languages {
 	/**
 	 * A color inside the editor.
 	 */
-	export interface IColor {
-		range: IRange;
+	export interface IColorInfo {
 		color: Color;
+		range: IRange;
 	}
 
 	/**
 	 * A provider of links.
 	 */
 	export interface ColorProvider {
-		provideColors(model: editor.IReadOnlyModel, token: CancellationToken): IColor[] | Thenable<IColor[]>;
+		provideColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInfo[] | Thenable<IColorInfo[]>;
 	}
 
 	export interface IResourceEdit {

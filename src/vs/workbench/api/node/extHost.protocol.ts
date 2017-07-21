@@ -454,6 +454,11 @@ export abstract class ExtHostHeapServiceShape {
 	$onGarbageCollection(ids: number[]): void { throw ni(); }
 }
 
+export interface IColorInfo {
+	color: [number, number, number, number | undefined];
+	range: IRange;
+}
+
 export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
@@ -475,7 +480,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
-	$provideDocumentColors(handle: number, resource: URI): TPromise<modes.IColorInfo[]> { throw ni(); }
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IColorInfo[]> { throw ni(); }
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }
 

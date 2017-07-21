@@ -142,6 +142,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _openerService: IOpenerService;
 	private _modeService: IModeService;
 	private _shouldFocus: boolean;
+	private _colorPicker: ColorPickerWidget;
 
 	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -162,6 +163,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	dispose(): void {
 		this._hoverOperation.cancel();
+		this._colorPicker.dispose();
 		super.dispose();
 	}
 
@@ -222,6 +224,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
+		this._colorPicker = null;
 	}
 
 	_withResult(result: Hover[], complete: boolean): void {
@@ -241,7 +244,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			highlightRange = messages[0].range,
 			fragment = document.createDocumentFragment();
 
-		let colorPicker: ColorPickerWidget;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -275,6 +277,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
+				if (this._colorPicker) {
+					return;
+				}
+
 				const model = new ColorPickerModel();
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
@@ -282,7 +288,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				model.colorModel = ColorModel.RGBA;
 				model.color = msg.color;
 
-				colorPicker = widget;
+				this._colorPicker = widget;
 				fragment.appendChild(widget.getDomNode());
 			}
 		});
@@ -292,9 +298,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this.updateContents(fragment);
 
-		if (colorPicker) {
-			colorPicker.layout();
-			colorPicker.layoutSaturationBox();
+		if (this._colorPicker) {
+			this._colorPicker.layout();
+			this._colorPicker.layoutSaturationBox();
 		}
 
 		this._isChangingDecorations = true;

@@ -45,6 +45,7 @@ export class ColorPickerWidget extends Widget {
 
 	public dispose(): void {
 		this.visible = false;
+		this.domNode = null;
 		super.dispose();
 	}
 
