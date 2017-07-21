@@ -43,4 +43,7 @@ RUN update-rc.d xvfb defaults
 ENV NVM_DIR /usr/local/nvm
 RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | bash
 
-CMD (service xvfb start; export DISPLAY=:10; PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig; ./start.sh)
+# for libsecret
+ENV PKG_CONFIG_PATH /usr/lib/i386-linux-gnu/pkgconfig
+
+CMD (service xvfb start; export DISPLAY=:10; ./start.sh)
