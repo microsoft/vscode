@@ -11,5 +11,6 @@ docker run \
   -e VSTS_AGENT="tb-lnx-local" \
   -e VSTS_POOL=linux \
   -e VSTS_WORK="/var/vsts/work" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   --name "tb-lnx-local" \
   -it joaomoreno/vscode-vso-agent
