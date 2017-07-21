@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "Effacer",
 	"workbench.action.terminal.allowWorkspaceShell": "Autoriser la configuration de l'interpréteur de commandes de l'espace de travail",
 	"workbench.action.terminal.disallowWorkspaceShell": "Interdire la configuration de l'interpréteur de commandes de l'espace de travail",
-	"workbench.action.terminal.rename": "Renommer"
+	"workbench.action.terminal.rename": "Renommer",
+	"workbench.action.terminal.rename.prompt": "Entrer le nom du terminal",
+	"workbench.action.terminal.focusFindWidget": "Focus sur le widget de recherche",
+	"workbench.action.terminal.hideFindWidget": "Masquer le widget de recherche"
 }

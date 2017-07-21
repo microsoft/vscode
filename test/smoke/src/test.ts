@@ -17,6 +17,7 @@ import { testStatusbar } from "./tests/statusbar";
 import { testTasks } from "./tests/tasks";
 import { testExtensions } from "./tests/extensions";
 import { testLocalization } from "./tests/localization";
+import { testMultiRoot } from "./tests/multiroot";
 
 describe('Smoke Test Suite', () => {
 	testDataMigration();
@@ -33,4 +34,7 @@ describe('Smoke Test Suite', () => {
 	testTasks();
 	testExtensions();
 	testLocalization();
+	if (process.env.VSCODE_EDITION === 'insiders') {
+		testMultiRoot(); // only enabled in insiders
+	}
 });

@@ -7,7 +7,5 @@
 	"relaunchSettingMessage": "设置已更改，需要重启才能生效。",
 	"relaunchSettingDetail": "按下“重启”按钮以重新启动 {0} 并启用该设置。",
 	"restart": "重启",
-	"relaunchWorkspaceMessage": "添加或删除了一个工作区文件夹，需要重启才能生效。",
-	"relaunchWorkspaceDetail": "按下“重启”按钮以重载此窗口并启用设置。",
 	"reload": "重新加载"
 }

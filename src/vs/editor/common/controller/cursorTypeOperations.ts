@@ -144,34 +144,56 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
+		let action;
+		let indentation;
 		let expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false);
 
 		if (expectedIndentAction) {
-			if (expectedIndentAction.action) {
-				let indentation = expectedIndentAction.indentation;
-
-				if (expectedIndentAction.action === IndentAction.Indent) {
-					indentation = TypeOperations.shiftIndent(config, indentation);
-				}
-
-				if (expectedIndentAction.action === IndentAction.Outdent) {
-					indentation = TypeOperations.unshiftIndent(config, indentation);
-				}
-
-				indentation = config.normalizeIndentation(indentation);
-
-				if (indentation.length === 0) {
-					return '';
-				} else {
-					return indentation;
+			action = expectedIndentAction.action;
+			indentation = expectedIndentAction.indentation;
+		} else if (lineNumber > 1) {
+			let lastLineNumber = lineNumber - 1;
+			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
+				let lineText = model.getLineContent(lastLineNumber);
+				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
+				if (nonWhitespaceIdx >= 0) {
+					break;
 				}
 			}
-			else {
-				return expectedIndentAction.indentation;
+
+			if (lastLineNumber < 1) {
+				// No previous line with content found
+				return null;
+			}
+
+			let maxColumn = model.getLineMaxColumn(lastLineNumber);
+			let expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
+			if (expectedEnterAction) {
+				indentation = expectedEnterAction.indentation;
+				action = expectedEnterAction.enterAction;
+				if (action) {
+					indentation += action.appendText;
+				}
 			}
 		}
 
-		return null;
+		if (action) {
+			if (action === IndentAction.Indent) {
+				indentation = TypeOperations.shiftIndent(config, indentation);
+			}
+
+			if (action === IndentAction.Outdent) {
+				indentation = TypeOperations.unshiftIndent(config, indentation);
+			}
+
+			indentation = config.normalizeIndentation(indentation);
+		}
+
+		if (!indentation) {
+			return null;
+		}
+
+		return indentation;
 	}
 
 	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {

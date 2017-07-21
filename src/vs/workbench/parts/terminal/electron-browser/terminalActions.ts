@@ -622,7 +622,7 @@ export class RenameTerminalAction extends Action {
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
-				terminalInstance.setTitle(name);
+				terminalInstance.setTitle(name, false);
 			}
 		});
 	}

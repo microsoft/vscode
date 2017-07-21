@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
-import { isLinux } from 'vs/base/common/platform';
 import Event from 'vs/base/common/event';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
@@ -44,6 +44,16 @@ export interface IWorkspaceContextService {
 	getWorkspace(): IWorkspace;
 
 	/**
+	 * Save the existing workspace in the given location
+	 */
+	saveWorkspace(location: URI): TPromise<void>;
+
+	/**
+	 * An event which fires on workspace name changes.
+	 */
+	onDidChangeWorkspaceName: Event<void>;
+
+	/**
 	 * An event which fires on workspace roots change.
 	 */
 	onDidChangeWorkspaceRoots: Event<void>;
@@ -60,13 +70,6 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 
 	/**
-	 * Given a resource inside the workspace, returns its relative path from the workspace root
-	 * without leading or trailing slashes. Returns null if the file is not inside an opened
-	 * workspace.
-	 */
-	toWorkspaceRelativePath: (resource: URI, toOSPath?: boolean) => string;
-
-	/**
 	 * Given a workspace relative path, returns the resource with the absolute path.
 	 */
 	toResource: (workspaceRelativePath: string) => URI;
@@ -79,6 +82,11 @@ export interface ILegacyWorkspace {
 	 * of the workspace on disk.
 	 */
 	resource: URI;
+
+	/**
+	 * creation time of the workspace folder if known
+	 */
+	ctime?: number;
 }
 
 export interface IWorkspace {
@@ -123,22 +131,6 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 		return this._ctime;
 	}
 
-	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
-		if (this.contains(resource)) {
-			return paths.normalize(paths.relative(this._resource.fsPath, resource.fsPath), toOSPath);
-		}
-
-		return null;
-	}
-
-	private contains(resource: URI): boolean {
-		if (resource) {
-			return paths.isEqualOrParent(resource.fsPath, this._resource.fsPath, !isLinux /* ignorecase */);
-		}
-
-		return false;
-	}
-
 	public toResource(workspaceRelativePath: string, root?: URI): URI {
 		if (typeof workspaceRelativePath === 'string') {
 			return URI.file(paths.join(root ? root.fsPath : this._resource.fsPath, workspaceRelativePath));
@@ -156,7 +148,7 @@ export class Workspace implements IWorkspace {
 		public readonly id: string,
 		private _name: string,
 		private _roots: URI[],
-		public readonly configuration: URI = null
+		private _configuration: URI = null
 	) {
 		this.updateRootsMap();
 	}
@@ -176,6 +168,14 @@ export class Workspace implements IWorkspace {
 
 	public set name(name: string) {
 		this._name = name;
+	}
+
+	public get configuration(): URI {
+		return this._configuration;
+	}
+
+	public set configuration(configuration: URI) {
+		this._configuration = configuration;
 	}
 
 	public getRoot(resource: URI): URI {

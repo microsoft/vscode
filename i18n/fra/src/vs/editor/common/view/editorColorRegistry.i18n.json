@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "Couleur d'arrière-plan de la bordure autour de la ligne à la position du curseur.",
 	"rangeHighlight": "Couleur d'arrière-plan des plages mises en surbrillance, par exemple par les fonctionnalités de recherche et Quick Open.",
 	"caret": "Couleur du curseur de l'éditeur.",
+	"editorCursorBackground": "La couleur de fond du curseur de l'éditeur. Permet de personnaliser la couleur d'un caractère survolé par un curseur de bloc.",
 	"editorWhitespaces": "Couleur des espaces blancs dans l'éditeur.",
 	"editorIndentGuides": "Couleur des repères de retrait de l'éditeur.",
 	"editorLineNumbers": "Couleur des numéros de ligne de l'éditeur.",

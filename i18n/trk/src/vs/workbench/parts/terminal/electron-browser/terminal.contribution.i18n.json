@@ -24,6 +24,9 @@
 	"terminal.integrated.cwd": "Terminalin nerede başlatılacağına ait açık bir yol; bu, kabuk işlemleri için geçerli çalışma klasörü (cwd) olarak kullanılır. Bu, çalışma alanı ayarlarında kök dizini uygun bir cwd değilse özellikle yararlı olabilir.",
 	"terminal.integrated.confirmOnExit": "Aktif terminal oturumları varken çıkışta onay istenip istenmeyeceği.",
 	"terminal.integrated.commandsToSkipShell": "Tuş bağlarının kabuğa gönderilmeyip bunun yerine her zaman Code tarafından işleneceği bir komut ID'leri kümesi. Bu, tuş bağlarının normalde kabuk tarafından terminal odakta değilken nasılsa öyle davranmasını sağlar, örnek olarak Hızlı Aç'ı başlatmak için ctrl+p.",
+	"terminal.integrated.env.osx": "OS X'deki terminal tarafından kullanılacak VS Code işlemine eklenecek ortam değişkenlerini içeren nesne",
+	"terminal.integrated.env.linux": "Linux'daki terminal tarafından kullanılacak VS Code işlemine eklenecek ortam değişkenlerini içeren nesne",
+	"terminal.integrated.env.windows": "Windows'daki terminal tarafından kullanılacak VS Code işlemine eklenecek ortam değişkenlerini içeren nesne",
 	"terminal": "Terminal",
 	"terminalCategory": "Terminal",
 	"viewCategory": "Görüntüle"

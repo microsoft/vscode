@@ -5,12 +5,12 @@
 
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { addClass, removeClass } from 'vs/base/browser/dom';
 
 // colors for theming
@@ -26,6 +26,12 @@ export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggin
 	light: STATUS_BAR_FOREGROUND,
 	hc: STATUS_BAR_FOREGROUND
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
+
+export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
+	dark: STATUS_BAR_BORDER,
+	light: STATUS_BAR_BORDER,
+	hc: STATUS_BAR_BORDER
+}, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
 	private static ID = 'debug.statusbarColorProvider';
@@ -59,18 +65,19 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			removeClass(container, 'debugging');
 		}
 
-		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_MULTI_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
-		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_MULTI_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
+		container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
+
+		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
+		container.style.borderTopWidth = borderColor ? '1px' : null;
+		container.style.borderTopStyle = borderColor ? 'solid' : null;
+		container.style.borderTopColor = borderColor;
 	}
 
-	private getColorKey(multiFolderColor, noFolderColor: string, debuggingColor: string, normalColor: string): string {
+	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
 
 		// Not debugging
 		if (!this.isDebugging()) {
-			if (this.contextService.hasMultiFolderWorkspace()) {
-				return multiFolderColor;
-			}
-
 			if (this.contextService.hasWorkspace()) {
 				return normalColor;
 			}

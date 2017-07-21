@@ -54,17 +54,21 @@ export class TypeScriptVersionPicker {
 		const pickOptions: MyQuickPickItem[] = [];
 
 		pickOptions.push({
-			label: localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+			label: (this.currentVersion.path === shippedVersion.path && (this.currentVersion.path !== (localVersion && localVersion.path) || !useWorkspaceVersionSetting)
+				? '• '
+				: '') + localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
 			description: shippedVersion.version.versionString,
-			detail: this.currentVersion.path === shippedVersion.path && (this.currentVersion.path !== (localVersion && localVersion.path) || !useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+			detail: shippedVersion.label,
 			id: MessageAction.useBundled
 		});
 
 		if (localVersion) {
 			pickOptions.push({
-				label: localize('useWorkspaceVersionOption', 'Use Workspace Version'),
+				label: ((this.currentVersion.path === localVersion.path && (this.currentVersion.path !== shippedVersion.path || useWorkspaceVersionSetting)
+					? '• '
+					: '')) + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 				description: localVersion.version.versionString,
-				detail: this.currentVersion.path === localVersion.path && (this.currentVersion.path !== shippedVersion.path || useWorkspaceVersionSetting) ? localize('activeVersion', 'Currently active') : '',
+				detail: localVersion.label,
 				id: MessageAction.useLocal
 			});
 		}

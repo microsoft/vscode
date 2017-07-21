@@ -33,7 +33,6 @@ import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platf
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -52,9 +51,6 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
-import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -79,14 +75,9 @@ import { CrashReporterService } from 'vs/workbench/services/crashReporter/electr
 import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
-import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
@@ -131,11 +122,11 @@ export class WorkbenchShell {
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
 	private extensionService: MainProcessExtensionService;
-	private windowsService: IWindowsService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
+	private mainProcessServices: ServiceCollection;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -145,20 +136,20 @@ export class WorkbenchShell {
 	private contentsContainer: Builder;
 
 	private configuration: IWindowConfiguration;
-	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, services: ICoreServices, configuration: IWindowConfiguration, options: IOptions) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
-		this.options = options;
 
-		this.contextService = services.contextService;
-		this.configurationService = services.configurationService;
-		this.environmentService = services.environmentService;
-		this.timerService = services.timerService;
-		this.storageService = services.storageService;
+		this.contextService = coreServices.contextService;
+		this.configurationService = coreServices.configurationService;
+		this.environmentService = coreServices.environmentService;
+		this.timerService = coreServices.timerService;
+		this.storageService = coreServices.storageService;
+
+		this.mainProcessServices = mainProcessServices;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -176,7 +167,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -193,7 +184,7 @@ export class WorkbenchShell {
 		});
 
 		// Window
-		this.workbench.getInstantiationService().createInstance(ElectronWindow, currentWindow, this.container);
+		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -210,14 +201,14 @@ export class WorkbenchShell {
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
 		// Telemetry: workspace info
-		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
+		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: !this.contextService.hasWorkspace(),
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
@@ -238,7 +229,7 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.options);
+		workspaceStats.reportWorkspaceTags(this.configuration);
 		workspaceStats.reportCloudStats();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
@@ -255,22 +246,18 @@ export class WorkbenchShell {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
+		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
+			serviceCollection.set(serviceIdentifier, serviceInstance);
+		});
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
 		this.broadcastService = new BroadcastService(currentWindow.id);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
-		disposables.push(mainProcessClient);
-
-		const windowsChannel = mainProcessClient.getChannel('windows');
-		this.windowsService = new WindowsChannelClient(windowsChannel);
-		serviceCollection.set(IWindowsService, this.windowsService);
-
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id));
 
-		const sharedProcess = this.windowsService.whenSharedProcessReady()
+		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
 
 		sharedProcess
@@ -379,15 +366,6 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
-
-		const updateChannel = mainProcessClient.getChannel('update');
-		serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
-
-		const urlChannel = mainProcessClient.getChannel('url');
-		serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
-
-		const workspacesChannel = mainProcessClient.getChannel('workspaces');
-		serviceCollection.set(IWorkspacesService, new SyncDescriptor(WorkspacesChannelClient, workspacesChannel));
 
 		return [instantiationService, serviceCollection];
 	}

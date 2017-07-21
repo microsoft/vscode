@@ -15,6 +15,8 @@
 	"enablePreviewFromQuickOpen": "Controlla se gli editor aperti da Quick Open vengono visualizzati come anteprima. Le anteprime editor vengono riutilizzate finché vengono mantenute, ad esempio tramite doppio clic o modifica.",
 	"editorOpenPositioning": "Controlla la posizione in cui vengono aperti gli editor. Selezionare 'left' o 'right' per aprire gli editor a sinistra o a destra di quello attualmente attivo. Selezionare 'first' o 'last' per aprire gli editor indipendentemente da quello attualmente attivo.",
 	"revealIfOpen": "Controlla se un editor viene visualizzato in uno qualsiasi dei gruppi visibili se viene aperto. Se l'opzione è disabilitata, un editor verrà aperto preferibilmente nel gruppo di editor attualmente attivo. Se è abilitata, un editor già aperto verrà visualizzato e non aperto di nuovo nel gruppo di editor attualmente attivo. Nota: in alcuni casi questa impostazione viene ignorata, ad esempio quando si forza l'apertura di un editor in un gruppo specifico oppure a lato del gruppo attualmente attivo.",
+	"commandHistory": "Controlla il numero di comandi usati di recente da mantenere nella cronologia per il riquadro comandi. Impostare su 0 per disabilitare la cronologia dei comandi.",
+	"preserveInput": "Controlla se l'ultimo input digitato nel riquadro comandi deve essere ripristinato alla successiva riapertura del riquadro.",
 	"closeOnFocusLost": "Controlla se Quick Open deve essere chiuso automaticamente quando perde lo stato attivo.",
 	"openDefaultSettings": "Controlla se all'apertura delle impostazioni viene aperto anche un editor che mostra tutte le impostazioni predefinite.",
 	"sideBarLocation": "Controlla la posizione della barra laterale. Può essere visualizzata a sinistra o a destra del workbench.",
@@ -31,8 +33,12 @@
 	"window.openFoldersInNewWindow.off": "Le cartelle sostituiranno l'ultima finestra attiva",
 	"window.openFoldersInNewWindow.default": "Le cartelle verranno aperte in una nuova finestra a meno che non si selezioni una cartella dall'interno dell'applicazione, ad esempio tramite il menu File",
 	"openFoldersInNewWindow": "Controlla se le cartelle devono essere aperte in una nuova finestra o sostituire l'ultima finestra attiva.\n- default: le cartelle verranno aperte in una nuova finestra a meno che non si selezioni una cartella dall'interno dell'applicazione, ad esempio tramite il menu File\n- on: le cartelle verranno aperte in una nuova finestra\n- off: le cartelle sostituiranno l'ultima finestra attiva\nNota: possono comunque verificarsi casi in cui questa impostazione viene ignorata, ad esempio quando si usa l'opzione della riga di comando -new-window o -reuse-window.",
+	"window.reopenFolders.all": "Riapre tutte le finestre.",
+	"window.reopenFolders.one": "Riapre l'ultima finestra attiva.",
+	"window.reopenFolders.none": "Non riapre mai una finestra. Inizia sempre con una finestra vuota.",
 	"restoreFullscreen": "Controlla se una finestra deve essere ripristinata a schermo intero se è stata chiusa in questa modalità.",
 	"zoomLevel": "Consente di modificare il livello di zoom della finestra. Il valore originale è 0 e ogni incremento superiore (ad esempio 1) o inferiore (ad esempio -1) rappresenta un aumento o una diminuzione del 20% della percentuale di zoom. È anche possibile immettere valori decimali per modificare il livello di zoom con maggiore granularità.",
+	"title": "Controlla il titolo della finestra in base all'editor attivo. Le variabili vengono sostituite in base al contesto:\n${activeEditorShort}: ad esempio myFile.txt\n${activeEditorMedium}: ad esempio myFolder/myFile.txt\n${activeEditorLong}: ad esempio /Users/Development/myProject/myFolder/myFile.txt\n${folderName}: ad esempio myFolder\n${folderPath}: ad esempio /Users/Development/myFolder\n${rootName}: ad esempio myFolder1, myFolder2, myFolder3\n${rootPath}: ad esempio /Users/Development/myWorkspace\n${appName}: ad esempio VS Code\n${dirty}: indicatore dirty se l'editor attivo è dirty\n${separator}: separatore condizionale (\" - \") visualizzato solo quando è racchiuso tra variabili con valori",
 	"window.newWindowDimensions.default": "Apre nuove finestre al centro della schermata.",
 	"window.newWindowDimensions.inherit": "Apre nuove finestre le cui dimensioni sono uguali a quelle dell'ultima finestra attiva.",
 	"window.newWindowDimensions.maximized": "Apre nuove finestre ingrandite a schermo intero.",
@@ -53,7 +59,5 @@
 	"zenMode.hideTabs": "Controlla se attivando la modalità Zen vengono nascoste anche le schede del workbench.",
 	"zenMode.hideStatusBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato nella parte inferiore del workbench.",
 	"zenMode.hideActivityBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato alla sinistra del workbench",
-	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità.",
-	"workspaceConfigurationTitle": "Area di lavoro",
-	"files.exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio."
+	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità."
 }

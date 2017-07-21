@@ -20,7 +20,7 @@ export interface ISelectBoxStyles {
 	selectBorder?: Color;
 }
 
-const defaultStyles = {
+export const defaultStyles = {
 	selectBackground: Color.fromHex('#3C3C3C'),
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C')

@@ -10,5 +10,7 @@
 	"invalid.type": "eğer ayarlanırsa, 'configuration.type' ögesi 'object' olarak ayarlanmalıdır",
 	"invalid.title": "'configuration.title' bir dize olmalıdır",
 	"vscode.extension.contributes.defaultConfiguration": "Varsayılan düzenleyici yapılandırma ayarlarına dil bazında ekleme yapar.",
-	"invalid.properties": "'configuration.properties' bir nesne olmalıdır"
+	"invalid.properties": "'configuration.properties' bir nesne olmalıdır",
+	"workspaceConfig.id": "Benzersiz çalışma alanı kimliği",
+	"workspaceSettings.description": "Çalışma alanı ayarlarını yapılandır"
 }

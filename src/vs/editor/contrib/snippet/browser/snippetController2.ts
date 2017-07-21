@@ -12,6 +12,8 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ISuggestion } from 'vs/editor/common/modes';
 
 @commonEditorContribution
 export class SnippetController2 {
@@ -110,6 +112,19 @@ export class SnippetController2 {
 		this._inSnippet.set(true);
 		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
 		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
+
+		const { choice } = this._session;
+		if (choice) {
+			const suggestions = choice.options.map((option, i) => {
+				return <ISuggestion>{
+					label: option.value,
+					insertText: option.value,
+					type: 'value',
+					sortText: String(i)
+				};
+			});
+			showSimpleSuggestions(this._editor, suggestions);
+		}
 	}
 
 	finish(): void {

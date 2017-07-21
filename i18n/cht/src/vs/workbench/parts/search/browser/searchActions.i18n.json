@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "聚焦於上一個搜尋結果",
 	"RemoveAction.label": "移除",
 	"file.replaceAll.label": "全部取代",
-	"match.replace.label": "取代",
-	"ConfigureGlobalExclusionsAction.label": "開啟設定"
+	"match.replace.label": "取代"
 }

@@ -366,7 +366,7 @@ export class StackFrame implements IStackFrame {
 
 			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
 				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
-			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
+			return scopesContainingRange.length ? scopesContainingRange : scopes;
 		});
 	}
 
@@ -395,14 +395,12 @@ export class StackFrame implements IStackFrame {
 }
 
 export class Thread implements IThread {
-	private fetchPromise: TPromise<void>;
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
 	constructor(public process: IProcess, public name: string, public threadId: number) {
-		this.fetchPromise = null;
 		this.stoppedDetails = null;
 		this.callStack = [];
 		this.staleCallStack = [];
@@ -414,7 +412,6 @@ export class Thread implements IThread {
 	}
 
 	public clearCallStack(): void {
-		this.fetchPromise = null;
 		if (this.callStack.length) {
 			this.staleCallStack = this.callStack;
 		}
@@ -441,7 +438,12 @@ export class Thread implements IThread {
 			return TPromise.as(null);
 		}
 
-		return this.getCallStackImpl(this.callStack.length, levels).then(callStack => {
+		const start = this.callStack.length;
+		return this.getCallStackImpl(start, levels).then(callStack => {
+			if (start < this.callStack.length) {
+				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
+				this.callStack.splice(start, this.callStack.length - start);
+			}
 			this.callStack = this.callStack.concat(callStack || []);
 		});
 	}

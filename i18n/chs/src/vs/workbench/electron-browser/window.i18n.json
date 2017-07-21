@@ -10,6 +10,5 @@
 	"copy": "复制",
 	"paste": "粘贴",
 	"selectAll": "全选",
-	"confirmOpen": "是否确定要打开 {0} 个文件夹?",
 	"confirmOpenButton": "打开(&&O)..."
 }

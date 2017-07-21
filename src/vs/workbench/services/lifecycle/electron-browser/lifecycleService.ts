@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
@@ -104,32 +104,6 @@ export class LifecycleService implements ILifecycleService {
 			reason
 		});
 
-		if (vetos.length === 0) {
-			return TPromise.as(false);
-		}
-
-		const promises: TPromise<void>[] = [];
-		let lazyValue = false;
-
-		for (let valueOrPromise of vetos) {
-
-			// veto, done
-			if (valueOrPromise === true) {
-				return TPromise.as(true);
-			}
-
-			if (TPromise.is(valueOrPromise)) {
-				promises.push(valueOrPromise.then(value => {
-					if (value) {
-						lazyValue = true; // veto, done
-					}
-				}, err => {
-					// error, treated like a veto, done
-					this._messageService.show(Severity.Error, toErrorMessage(err));
-					lazyValue = true;
-				}));
-			}
-		}
-		return TPromise.join(promises).then(() => lazyValue);
+		return handleVetos(vetos, err => this._messageService.show(Severity.Error, toErrorMessage(err)));
 	}
 }

@@ -8,6 +8,7 @@
 	"closeOthers": "Закрыть другие",
 	"closeRight": "Закрыть справа",
 	"closeAll": "Закрыть все",
+	"closeAllUnmodified": "Закрыть без изменений",
 	"keepOpen": "Оставить открытым",
 	"showOpenedEditors": "Показать открытые редакторы",
 	"araLabelEditorActions": "Действия редактора"

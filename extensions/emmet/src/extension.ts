@@ -19,6 +19,7 @@ import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
 	let completionProvider = new DefaultCompletionItemProvider();
@@ -118,11 +119,22 @@ export function activate(context: vscode.ExtensionContext) {
 		incrementDecrement(-10);
 	}));
 
+	let currentExtensionsPath = undefined;
+	let resolveUpdateExtensionsPath = () => {
+		let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+		if (extensionsPath && !path.isAbsolute(extensionsPath)) {
+			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+		}
+		if (currentExtensionsPath !== extensionsPath) {
+			currentExtensionsPath = extensionsPath;
+			updateExtensionsPath(currentExtensionsPath);
+		}
+	};
 
+	resolveUpdateExtensionsPath();
 
-	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		updateExtensionsPath();
+		resolveUpdateExtensionsPath();
 	}));
 }
 

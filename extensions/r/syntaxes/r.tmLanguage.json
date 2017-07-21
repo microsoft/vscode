@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/r.tmbundle/commit/6b04ff3424f3f1cdfe64a9cfb71d8765959be250",
 	"fileTypes": [
 		"R",
 		"r",

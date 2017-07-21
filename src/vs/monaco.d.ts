@@ -130,7 +130,6 @@ declare module monaco {
 	 */
 	export class Uri {
 		static isUri(thing: any): thing is Uri;
-		protected constructor();
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
 		 * The part before the first colon.
@@ -835,6 +834,17 @@ declare module monaco.editor {
 	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Get markers for owner ant/or resource
+	 * @returns {IMarkerData[]} list of markers
+	 * @param filter
+	 */
+	export function getModelMarkers(filter: {
+		owner?: string;
+		resource?: Uri;
+		take?: number;
+	}): IMarker[];
+
+	/**
 	 * Get the model that has `uri` if it exists.
 	 */
 	export function getModel(uri: Uri): IModel;
@@ -1028,6 +1038,19 @@ declare module monaco.editor {
 
 	export interface IEditorOverrideServices {
 		[index: string]: any;
+	}
+
+	export interface IMarker {
+		owner: string;
+		resource: Uri;
+		severity: Severity;
+		code?: string;
+		message: string;
+		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
 	}
 
 	/**

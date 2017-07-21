@@ -15,6 +15,7 @@ import API from './api';
 
 
 export interface TypeScriptVersion {
+	label?: string;
 	version: API;
 	path: string;
 }
@@ -35,7 +36,7 @@ export class TypeScriptVersionProvider {
 
 	public get globalVersion(): TypeScriptVersion | undefined {
 		if (this.configuration.globalTsdk) {
-			const globals = this.getTypeScriptsFromPaths(this.configuration.globalTsdk);
+			const globals = this.loadVersionsFromSetting(this.configuration.globalTsdk);
 			if (globals && globals.length) {
 				return globals[0];
 			}
@@ -72,9 +73,26 @@ export class TypeScriptVersionProvider {
 	}
 
 	private get localTsdkVersions(): TypeScriptVersion[] {
-		return this.configuration.localTsdk
-			? this.getTypeScriptsFromPaths(this.configuration.localTsdk)
-			: [];
+		const localTsdk = this.configuration.localTsdk;
+		return localTsdk ? this.loadVersionsFromSetting(localTsdk) : [];
+	}
+
+	private loadVersionsFromSetting(tsdkPathSetting: string): TypeScriptVersion[] {
+		if (path.isAbsolute(tsdkPathSetting)) {
+			return this.getTypeScriptsFromPaths(tsdkPathSetting);
+		}
+
+		for (const root of workspace.workspaceFolders || []) {
+			const rootPrefix = `./${root.name}/`;
+			const winRootPrefix = `.\\${root.name}\\`;
+
+			if (tsdkPathSetting.startsWith(rootPrefix) || tsdkPathSetting.startsWith(winRootPrefix)) {
+				const workspacePath = path.join(root.uri.fsPath, tsdkPathSetting.replace(rootPrefix, ''));
+				return this.getTypeScriptsFromPaths(workspacePath);
+			}
+		}
+
+		return this.getTypeScriptsFromPaths(tsdkPathSetting);
 	}
 
 	private get localNodeModulesVersions(): TypeScriptVersion[] {
@@ -91,26 +109,37 @@ export class TypeScriptVersionProvider {
 			return [];
 		}
 
-		return [workspace.workspaceFolders[0]]
-			.map(root => path.join(root.uri.fsPath, typeScriptPath, 'tsserver.js'))
-			.map(path => this.loadFromPath(path))
-			.filter(x => !!x) as TypeScriptVersion[];
+		const versions: TypeScriptVersion[] = [];
+		for (const root of [workspace.workspaceFolders[0]]) {
+			const p = path.join(root.uri.fsPath, typeScriptPath, 'tsserver.js');
+
+			let label: string | undefined = undefined;
+			if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
+				label = path.join(root.name, typeScriptPath);
+			}
+
+			const version = this.loadFromPath(p, label);
+			if (version) {
+				versions.push(version);
+			}
+		}
+		return versions;
 	}
 
-	public loadFromPath(path: string): TypeScriptVersion | undefined {
-		if (!fs.existsSync(path)) {
+	public loadFromPath(tsServerPath: string, label?: string): TypeScriptVersion | undefined {
+		if (!fs.existsSync(tsServerPath)) {
 			return undefined;
 		}
 
-		const version = this.getTypeScriptVersion(path);
+		const version = this.getTypeScriptVersion(tsServerPath);
 		if (version) {
-			return { path, version };
+			return { path: tsServerPath, version, label };
 		}
 
 		// Allow TS developers to provide custom version
 		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 		if (tsdkVersion) {
-			return { path, version: new API(tsdkVersion) };
+			return { path: tsServerPath, version: new API(tsdkVersion), label };
 		}
 
 		return undefined;
