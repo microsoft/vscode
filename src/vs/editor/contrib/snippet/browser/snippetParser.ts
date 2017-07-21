@@ -218,12 +218,47 @@ export class Placeholder extends Marker {
 	get isFinalTabstop() {
 		return this.index === 0;
 	}
+
+	get choice(): Choice {
+		return this._children.length === 1 && this._children[0] instanceof Choice
+			? this._children[0] as Choice
+			: undefined;
+	}
+
 	toString() {
 		return Marker.toString(this.children);
 	}
+
 	clone(): Placeholder {
 		let ret = new Placeholder(this.index);
 		ret._children = this.children.map(child => child.clone());
+		return ret;
+	}
+}
+
+export class Choice extends Marker {
+
+	readonly options: Text[] = [];
+
+	appendChild(marker: Marker): this {
+		if (marker instanceof Text) {
+			marker.parent = this;
+			this.options.push(marker);
+		}
+		return this;
+	}
+
+	toString() {
+		return this.options[0].value;
+	}
+
+	len(): number {
+		return this.options[0].len();
+	}
+
+	clone(): Choice {
+		let ret = new Choice();
+		this.options.forEach(ret.appendChild, ret);
 		return ret;
 	}
 }
@@ -515,9 +550,10 @@ export class SnippetParser {
 			}
 		} else if (this._accept(TokenType.Pipe)) {
 			// ${1|one,two,three|}
-			while (true) {
+			const choice = new Choice();
 
-				if (this._parseAnything(placeholder)) {
+			while (true) {
+				if (this._parseAnything(choice)) {
 
 					if (this._accept(TokenType.Comma)) {
 						// opt, -> more
@@ -526,6 +562,7 @@ export class SnippetParser {
 
 					if (this._accept(TokenType.Pipe) && this._accept(TokenType.CurlyClose)) {
 						// ..|} -> done
+						placeholder.appendChild(choice);
 						parent.appendChild(placeholder);
 						return true;
 					}

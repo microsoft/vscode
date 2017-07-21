@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -224,6 +224,21 @@ suite('SnippetParser', () => {
 			return true;
 		});
 	});
+
+	test('Parser, choise marker', () => {
+		const { placeholders } = new SnippetParser().parse('${1|one,two,three|}');
+
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+		assert.ok(placeholders[0].children[0] instanceof Choice);
+		assert.equal((<Choice>placeholders[0].children[0]).options.length, 3);
+
+		assertText('${1|one,two,three|}', 'one');
+		assertText('\\${1|one,two,three|}', '${1|one,two,three|}');
+		assertText('${1\\|one,two,three|}', '${1\\|one,two,three|}');
+		assertText('${1||}', '${1||}');
+	});
+
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
