@@ -8,8 +8,8 @@ fi
 docker run \
   -e VSTS_ACCOUNT="monacotools" \
   -e VSTS_TOKEN="$(cat pat)" \
-  -e VSTS_AGENT="tb-lnx-local" \
-  -e VSTS_POOL=linux \
+  -e VSTS_AGENT="tb-lnx-x64-local" \
+  -e VSTS_POOL="linux-x64" \
   -e VSTS_WORK="/var/vsts/work" \
-  --name "tb-lnx-local" \
-  -it joaomoreno/vscode-vso-agent
+  --name "tb-lnx-x64-local" \
+  -it joaomoreno/vscode-vso-agent-x64:latest
