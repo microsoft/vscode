@@ -162,8 +162,7 @@ function createTask(script: string, cmd: string, rootPath: string, shortPath: st
 
 	let kind: NpmTaskDefinition = {
 		type: 'npm',
-		script: script,
-		path: rootPath
+		script: script
 	};
 	let taskName = getTaskName(script, shortPath, singleRoot);
 
