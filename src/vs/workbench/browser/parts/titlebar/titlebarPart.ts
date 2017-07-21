@@ -32,6 +32,7 @@ import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
+import { IPartService } from "vs/workbench/services/part/common/partService";
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -65,7 +66,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IPartService private partService: IPartService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -82,8 +84,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Read initial config
 		this.onConfigurationChanged();
 
-		// Initial window title
-		this.setTitle(this.getWindowTitle());
+		// Initial window title when loading is done
+		this.partService.joinCreation().done(() => this.setTitle(this.getWindowTitle()));
 
 		// Integrity for window title
 		this.integrityService.isPure().then(r => {
