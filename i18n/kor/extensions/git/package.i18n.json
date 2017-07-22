@@ -9,6 +9,7 @@
 	"command.refresh": "새로 고침",
 	"command.openChange": "변경 내용 열기",
 	"command.openFile": "파일 열기",
+	"command.openHEADFile": "파일 열기(HEAD)",
 	"command.stage": "변경 내용 스테이징",
 	"command.stageAll": "모든 변경 내용 스테이징",
 	"command.stageSelectedRanges": "선택한 범위 스테이징",
@@ -27,13 +28,16 @@
 	"command.checkout": "다음으로 체크 아웃...",
 	"command.branch": "분기 만들기...",
 	"command.deleteBranch": "분기 삭제...",
+	"command.merge": "분기 병합...",
 	"command.pull": "풀",
 	"command.pullRebase": "풀(다시 지정)",
+	"command.pullFrom": "가져올 위치...",
 	"command.push": "푸시",
 	"command.pushTo": "다음으로 푸시...",
 	"command.sync": "동기화",
 	"command.publish": "분기 게시",
 	"command.showOutput": "Git 출력 표시",
+	"command.ignore": ".gitignore에 파일 추가",
 	"config.enabled": "Git 사용 여부",
 	"config.path": "Git 실행 파일의 경로",
 	"config.autorefresh": "자동 새로 고침 사용 여부",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "`다음으로 체크 아웃...`을 실행할 때 나열되는 분기 유형을 제어합니다. `all`이면 모든 참조를 표시하고, `local`이면 로컬 분기만 표시하고, `tags`이면 태그만 표시하고, `remote`이면 원격 분기만 표시합니다.",
 	"config.ignoreLegacyWarning": "레거시 Git 경고를 무시합니다.",
 	"config.ignoreLimitWarning": "리포지토리에 변경 내용이 너무 많으면 경고를 무시합니다.",
-	"config.defaultCloneDirectory": "git 리포지토리를 복제할 기본 위치"
+	"config.defaultCloneDirectory": "git 리포지토리를 복제할 기본 위치",
+	"config.enableSmartCommit": "단계적 변경 사항이 없는 경우 모든 변경 사항을 저장합니다."
 }

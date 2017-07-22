@@ -48,7 +48,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -73,6 +73,7 @@ export class DebugService implements debug.IDebugService {
 	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
 	private model: Model;
 	private viewModel: ViewModel;
+	private allSessionIds: Set<string>;
 	private configurationManager: ConfigurationManager;
 	private customTelemetryService: ITelemetryService;
 	private lastTaskEvent: TaskEvent;
@@ -116,6 +117,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
 		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this.sessionStates = new Map<string, debug.State>();
+		this.allSessionIds = new Set<string>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
@@ -168,17 +170,21 @@ export class DebugService implements debug.IDebugService {
 		// attach: PH is ready to be attached to
 		const process = this.model.getProcesses().filter(p => p.getId() === broadcast.payload.debugId).pop();
 		const session = process ? <RawDebugSession>process.session : null;
+		if (!this.allSessionIds.has(broadcast.payload.debugId)) {
+			// Ignore attach events for sessions that never existed (wrong vscode windows)
+			return;
+		}
+
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			if (session) {
-				session.attach({ port: broadcast.payload.port }).done(undefined, errors.onUnexpectedError);
-				return;
+				this.onSessionEnd(session);
 			}
 
 			const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
 			this.configurationManager.resolveConfiguration(config).done(resolvedConfig => {
 				resolvedConfig.request = 'attach';
 				resolvedConfig.port = broadcast.payload.port;
-				this.doCreateProcess(resolvedConfig);
+				this.doCreateProcess(resolvedConfig, broadcast.payload.debugId);
 			}, errors.onUnexpectedError);
 
 			return;
@@ -639,7 +645,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(configName?: string, noDebug = false): TPromise<any> {
+	public startDebugging(configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
 			this.extensionService.onReady().then(() => {
@@ -648,19 +654,28 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				configName = configName || this.viewModel.selectedConfigurationName;
-				const config = manager.getConfiguration(configName);
-				const compound = manager.getCompound(configName);
+				let config: debug.IConfig, compound: debug.ICompound;
+
+				if (!configOrName) {
+					configOrName = this.viewModel.selectedConfigurationName;
+				}
+				if (typeof configOrName === 'string') {
+					config = manager.getConfiguration(configOrName);
+					compound = manager.getCompound(configOrName);
+				} else {
+					config = configOrName;
+				}
+
 				if (compound) {
 					if (!compound.configurations) {
 						return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== configName ? this.startDebugging(name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(name) : TPromise.as(null)));
 				}
-				if (configName && !config) {
-					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
+				if (configOrName && !config) {
+					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
 				}
 
 				return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
@@ -765,9 +780,9 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(configuration: debug.IConfig): TPromise<debug.IProcess> {
-		const sessionId = generateUuid();
+	private doCreateProcess(configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
+		this.allSessionIds.add(sessionId);
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {

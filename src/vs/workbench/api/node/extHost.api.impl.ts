@@ -445,7 +445,10 @@ export function createApiFactory(
 			}),
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
-			}
+			},
+			registerFileSystemProvider: proposedApiFunction(extension, (authority, provider) => {
+				return extHostWorkspace.registerFileSystemProvider(authority, provider);
+			})
 		};
 
 		// namespace: scm
@@ -554,7 +557,7 @@ export function createApiFactory(
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
-			Uri: extHostTypes.Uri,
+			Uri: <any>URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			ProgressLocation: extHostTypes.ProgressLocation,

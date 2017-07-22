@@ -16,6 +16,7 @@
 	"welcomePage.help": "ヘルプ",
 	"welcomePage.keybindingsCheatsheet": "印刷可能なキーボードのチートシート",
 	"welcomePage.introductoryVideos": "紹介ビデオ",
+	"welcomePage.tipsAndTricks": "ヒントとコツ",
 	"welcomePage.productDocumentation": "製品ドキュメント",
 	"welcomePage.gitHubRepository": "GitHub リポジトリ",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -35,10 +36,5 @@
 	"welcomePage.interfaceOverview": "インターフェイスの概要",
 	"welcomePage.interfaceOverviewDescription": "UI の主要コンポーネントを解説した視覚オーバーレイを表示します",
 	"welcomePage.interactivePlayground": "対話型プレイグラウンド",
-	"welcomePage.interactivePlaygroundDescription": "エディターの基本機能を簡潔なチュートリアルで体験します",
-	"welcomePage.quickLinks": "クイック リンク",
-	"welcomePage.keybindingsReference": "キーボード ショートカットの参照資料",
-	"welcomePage.keybindingsReferenceDescription": "最も一般的なキーボード ショートカットを掲載した印刷可能な PDF です",
-	"welcomePage.configureSettings": "設定を構成する",
-	"welcomePage.configureSettingsDescription": "VS Code の全機能を活用するために設定を微調整します"
+	"welcomePage.interactivePlaygroundDescription": "エディターの基本機能を簡潔なチュートリアルで体験します"
 }

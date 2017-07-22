@@ -401,6 +401,10 @@ export class Item extends Events.EventEmitter {
 					return WinJS.TPromise.as(null);
 				}
 
+				if (!Array.isArray(elements)) {
+					return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
+				}
+
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 

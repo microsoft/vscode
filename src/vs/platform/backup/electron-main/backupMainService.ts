@@ -79,10 +79,18 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
+	public isHotExitEnabled(): boolean {
+		return this.getHotExitConfig() !== HotExitConfiguration.OFF;
+	}
+
 	private isHotExitOnExitAndWindowClose(): boolean {
+		return this.getHotExitConfig() === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE;
+	}
+
+	private getHotExitConfig(): string {
 		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
 
-		return config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE;
+		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}
 
 	public getEmptyWindowBackupPaths(): string[] {

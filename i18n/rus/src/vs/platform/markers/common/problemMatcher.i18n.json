@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Регулярное выражение, сообщающее о том, что отслеживаемая задача начинает выполняться в результате активации отслеживания файлов.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Это свойство устарело. Используйте свойство просмотра.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Регулярное выражение, сообщающее о том, что отслеживаемая задача завершает выполнение.",
-	"ProblemMatcherExtPoint": "Публикует сопоставители проблем"
+	"NamedProblemMatcherSchema.name": "Имя сопоставителя проблем, используемого для ссылки.",
+	"NamedProblemMatcherSchema.label": "Метка сопоставителя проблем в удобном для чтения формате.",
+	"ProblemMatcherExtPoint": "Публикует сопоставители проблем",
+	"msCompile": "Проблемы компилятора Microsoft",
+	"lessCompile": "Скрыть проблемы",
+	"gulp-tsc": "Проблемы TSC для Gulp",
+	"jshint": "Проблемы JSHint",
+	"jshint-stylish": "Проблемы JSHint, связанные со стилем",
+	"eslint-compact": "Проблемы ESLint, связанные с компактностью",
+	"eslint-stylish": "Проблемы ESLint, связанные со стилем",
+	"go": "Перейти к проблемам"
 }

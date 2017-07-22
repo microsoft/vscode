@@ -93,6 +93,10 @@ suite('WorkspacesMainService', () => {
 			const resolved = service.resolveWorkspaceSync(workspace.configPath);
 			assert.deepEqual(resolved, { id: workspace.id, folders: [process.cwd(), os.tmpdir()] });
 
+			fs.writeFileSync(workspace.configPath, JSON.stringify({ id: 'someid' })); // invalid workspace
+			const resolvedInvalid = service.resolveWorkspaceSync(workspace.configPath);
+			assert.ok(!resolvedInvalid);
+
 			done();
 		});
 	});
@@ -159,6 +163,60 @@ suite('WorkspacesMainService', () => {
 
 					done();
 				});
+			});
+		});
+	});
+
+	test('deleteUntitledWorkspaceSync (untitled)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			assert.ok(fs.existsSync(workspace.configPath));
+
+			service.deleteUntitledWorkspaceSync(workspace);
+
+			assert.ok(!fs.existsSync(workspace.configPath));
+
+			done();
+		});
+	});
+
+	test('deleteUntitledWorkspaceSync (saved)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			const workspaceConfigPath = path.join(os.tmpdir(), `myworkspace.${Date.now()}.${WORKSPACE_EXTENSION}`);
+
+			return service.saveWorkspace(workspace, workspaceConfigPath).then(savedWorkspace => {
+				assert.ok(fs.existsSync(savedWorkspace.configPath));
+
+				service.deleteUntitledWorkspaceSync(savedWorkspace);
+
+				assert.ok(fs.existsSync(savedWorkspace.configPath));
+
+				done();
+			});
+		});
+	});
+
+	test('getUntitledWorkspaceSync', done => {
+		let untitled = service.getUntitledWorkspacesSync();
+		assert.equal(0, untitled.length);
+
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(untitledOne => {
+			untitled = service.getUntitledWorkspacesSync();
+
+			assert.equal(1, untitled.length);
+			assert.equal(untitledOne.id, untitled[0].id);
+
+			return service.createWorkspace([process.cwd(), os.tmpdir()]).then(untitledTwo => {
+				untitled = service.getUntitledWorkspacesSync();
+
+				assert.equal(2, untitled.length);
+
+				service.deleteUntitledWorkspaceSync(untitledOne);
+				service.deleteUntitledWorkspaceSync(untitledTwo);
+
+				untitled = service.getUntitledWorkspacesSync();
+				assert.equal(0, untitled.length);
+
+				done();
 			});
 		});
 	});

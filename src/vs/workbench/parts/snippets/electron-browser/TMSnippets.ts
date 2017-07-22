@@ -169,11 +169,15 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 
 	function fixBogousVariables(marker: Marker): string {
 		if (marker instanceof Text) {
-			return SnippetParser.escape(marker.string);
+			return SnippetParser.escape(marker.value);
 
 		} else if (marker instanceof Placeholder) {
-			if (marker.children.length > 0) {
+			if (marker.choice) {
+				return `\${${marker.index}|${marker.choice.options.map(fixBogousVariables).join(',')}|}`;
+
+			} else if (marker.children.length > 0) {
 				return `\${${marker.index}:${marker.children.map(fixBogousVariables).join('')}}`;
+
 			} else {
 				return `\$${marker.index}`;
 			}

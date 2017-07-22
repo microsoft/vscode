@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -208,6 +208,42 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
 
+	test('Parser, placeholder with choice', () => {
+
+		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one1,two2|}', 'one1', Placeholder);
+		assertTextAndMarker('${1|one1\\,two2|}', 'one1,two2', Placeholder);
+		assertTextAndMarker('${1|one1\\|two2|}', 'one1|two2', Placeholder);
+		assertTextAndMarker('${1|one1\\atwo2|}', 'one1\\atwo2', Placeholder);
+		assertTextAndMarker('${1|one,two,three,|}', '${1|one,two,three,|}', Text);
+		assertTextAndMarker('${1|one,', '${1|one,', Text);
+
+		const p = new SnippetParser();
+		const snippet = p.parse('${1|one,two,three|}');
+		assertMarker(snippet, Placeholder);
+		const expected = [Placeholder, Text, Text, Text];
+		snippet.walk(marker => {
+			assert.equal(marker, expected.shift());
+			return true;
+		});
+	});
+
+	test('Parser, choise marker', () => {
+		const { placeholders } = new SnippetParser().parse('${1|one,two,three|}');
+
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+		assert.ok(placeholders[0].children[0] instanceof Choice);
+		assert.equal((<Choice>placeholders[0].children[0]).options.length, 3);
+
+		assertText('${1|one,two,three|}', 'one');
+		assertText('\\${1|one,two,three|}', '${1|one,two,three|}');
+		assertText('${1\\|one,two,three|}', '${1\\|one,two,three|}');
+		assertText('${1||}', '${1||}');
+	});
+
+
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
 		assertMarker(p.parse('far{{}}boo'), Text);
@@ -259,7 +295,13 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).children.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+	});
 
+	test('Repeated snippet placeholder should always inherit, #31040', function () {
+		assertText('${1:foo}-abc-$1', 'foo-abc-foo');
+		assertText('${1:foo}-abc-${1}', 'foo-abc-foo');
+		assertText('${1:foo}-abc-${1:bar}', 'foo-abc-foo');
+		assertText('${1}-abc-${1:foo}', 'foo-abc-foo');
 	});
 
 	test('backspace esapce in TM only, #16212', () => {
@@ -273,6 +315,10 @@ suite('SnippetParser', () => {
 
 		actual = new SnippetParser().text('${1:foo:bar}');
 		assert.equal(actual, 'foo:bar');
+	});
+
+	test('incomplete placeholder', () => {
+		assertTextAndMarker('${1:}', '', Placeholder);
 	});
 
 	test('marker#len', () => {
@@ -399,8 +445,8 @@ suite('SnippetParser', () => {
 
 	test('Snippet order for placeholders, #28185', function () {
 
-		const _10 = new Placeholder(10, []);
-		const _2 = new Placeholder(2, []);
+		const _10 = new Placeholder(10);
+		const _2 = new Placeholder(2);
 
 		assert.equal(Placeholder.compareByIndex(_10, _2), 1);
 	});

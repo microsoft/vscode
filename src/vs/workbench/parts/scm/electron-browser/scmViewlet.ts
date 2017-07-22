@@ -46,9 +46,6 @@ import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
 import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
-import { IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { DeploymentView } from './deploymentView';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -231,7 +228,6 @@ export class SCMViewlet extends Viewlet {
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
-	private deploymentSplitView: SplitView;
 	private menus: SCMMenus;
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
@@ -262,11 +258,7 @@ export class SCMViewlet extends Viewlet {
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
 		this.providerChangeDisposable.dispose();
-		const updateLayout = (this.activeProvider && this.activeProvider.id === 'git') !== (activeProvider && activeProvider.id === 'git');
 		this.activeProvider = activeProvider;
-		if (updateLayout) {
-			this.layout();
-		}
 
 		if (activeProvider) {
 			const disposables = [activeProvider.onDidChange(this.update, this)];
@@ -323,19 +315,6 @@ export class SCMViewlet extends Viewlet {
 			identityProvider,
 			keyboardSupport: false
 		});
-
-		const options: IViewletViewOptions = {
-			id: DeploymentView.ID,
-			name: DeploymentView.NAME,
-			actionRunner: this.actionRunner,
-			collapsed: false,
-			viewletSettings: null
-		};
-		this.deploymentSplitView = new SplitView(root);
-		const view = this.instantiationService.createInstance(DeploymentView, options);
-		this.disposables.push(view.addListener('change', () => this.layout()));
-		this.deploymentSplitView.addView(view);
-		this.disposables.push(this.deploymentSplitView);
 
 		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.disposables.push(this.listService.register(this.list));
@@ -411,12 +390,9 @@ export class SCMViewlet extends Viewlet {
 		this.inputBox.layout();
 
 		const editorHeight = this.inputBox.height;
-		const deploymentHeight = this.activeProvider && this.activeProvider.id === 'git' ? (this.deploymentSplitView.getViews<DeploymentView>()[0].isExpanded() ? DeploymentView.HEIGHT : DeploymentView.HEADER_HEIGHT) : 0;
-		const listHeight = dimension.height - (editorHeight + 12 /* margin */) - deploymentHeight;
+		const listHeight = dimension.height - (editorHeight + 12 /* margin */);
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight);
-
-		this.deploymentSplitView.layout(deploymentHeight);
 
 		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 	}

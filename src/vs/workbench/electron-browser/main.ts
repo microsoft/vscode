@@ -8,7 +8,6 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
-import { IOptions } from 'vs/workbench/common/options';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
@@ -17,7 +16,6 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -29,7 +27,7 @@ import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
-import { IWindowConfiguration, IPath, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -68,46 +66,11 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
-	// Shell Options
-	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
-	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
-	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
-	const shellOptions: IOptions = {
-		filesToOpen,
-		filesToCreate,
-		filesToDiff
-	};
-
 	// Open workbench
-	return openWorkbench(configuration, shellOptions);
+	return openWorkbench(configuration);
 }
 
-function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
-	return paths.map(p => {
-		const input = <IResourceInput>{};
-
-		if (isUntitledFile) {
-			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
-		} else {
-			input.resource = uri.file(p.filePath);
-		}
-
-		input.options = {
-			pinned: true // opening on startup is always pinned and not preview
-		};
-
-		if (p.lineNumber) {
-			input.options.selection = {
-				startLineNumber: p.lineNumber,
-				startColumn: p.columnNumber
-			};
-		}
-
-		return input;
-	});
-}
-
-function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
+function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
 	const mainServices = createMainProcessServices(mainProcessClient);
 
@@ -132,7 +95,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 				environmentService,
 				timerService,
 				storageService
-			}, mainServices, configuration, options);
+			}, mainServices, configuration);
 			shell.open();
 
 			// Inform user about loading issues from the loader

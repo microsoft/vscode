@@ -36,9 +36,12 @@ export function activate(context: vscode.ExtensionContext) {
 		removeTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', () => {
-		vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			updateTag(tagName);
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', (inputTag) => {
+		if (inputTag && typeof inputTag === 'string') {
+			return updateTag(inputTag);
+		}
+		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
+			return updateTag(tagName);
 		});
 	}));
 
@@ -87,37 +90,42 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOneTenth', () => {
-		incrementDecrement(.1);
+		return incrementDecrement(.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOne', () => {
-		incrementDecrement(1);
+		return incrementDecrement(1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByTen', () => {
-		incrementDecrement(10);
+		return incrementDecrement(10);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOneTenth', () => {
-		incrementDecrement(-0.1);
+		return incrementDecrement(-0.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOne', () => {
-		incrementDecrement(-1);
+		return incrementDecrement(-1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByTen', () => {
-		incrementDecrement(-10);
+		return incrementDecrement(-10);
 	}));
 
-
-	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
-	if (extensionsPath) {
-		if (!path.isAbsolute(extensionsPath)) {
+	let currentExtensionsPath = undefined;
+	let resolveUpdateExtensionsPath = () => {
+		let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+		if (extensionsPath && !path.isAbsolute(extensionsPath)) {
 			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
 		}
-		updateExtensionsPath(extensionsPath);
-	}
+		if (currentExtensionsPath !== extensionsPath) {
+			currentExtensionsPath = extensionsPath;
+			updateExtensionsPath(currentExtensionsPath);
+		}
+	};
+
+	resolveUpdateExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		let newExtensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
@@ -129,6 +137,7 @@ export function activate(context: vscode.ExtensionContext) {
 			extensionsPath = newExtensionsPath;
 		}
 		registerCompletionProviders(context);
+		resolveUpdateExtensionsPath();
 	}));
 }
 

@@ -294,6 +294,8 @@ export abstract class MainThreadWorkspaceShape {
 	$cancelSearch(requestId: number): Thenable<boolean> { throw ni(); }
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> { throw ni(); }
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
+	$registerFileSystemProvider(handle: number, authority: string): void { throw ni(); }
+	$onFileSystemChange(handle: number, resource: URI): void { throw ni(); }
 }
 
 export abstract class MainThreadTaskShape {
@@ -426,6 +428,8 @@ export abstract class ExtHostTreeViewsShape {
 
 export abstract class ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void { throw ni(); }
+	$resolveFile(handle: number, resource: URI): TPromise<string> { throw ni(); }
+	$storeFile(handle: number, resource: URI, content: string): TPromise<any> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

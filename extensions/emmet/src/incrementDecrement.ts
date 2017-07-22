@@ -13,14 +13,14 @@ const reNumber = /[0-9]/;
  * Incerement number under caret of given editor
  * @param  {Number}     delta
  */
-export function incrementDecrement(delta: number) {
+export function incrementDecrement(delta: number): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection;
 			if (selection.isEmpty) {

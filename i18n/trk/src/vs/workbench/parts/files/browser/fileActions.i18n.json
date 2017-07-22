@@ -69,5 +69,7 @@
 	"emptyFileNameError": "Bir dosya veya klasör adı sağlanması gerekiyor.",
 	"fileNameExistsError": "Bu konumda bir **{0}** dosyası veya klasörü zaten mevcut. Lütfen başka bir ad seçin.",
 	"invalidFileNameError": "**{0}** adı, bir dosya veya klasör adı olarak geçerli değildir. Lütfen başka bir ad seçin.",
-	"filePathTooLongError": "**{0}** adı çok uzun bir yol ile sonuçlanıyor. Lütfen daha kısa bir ad seçin."
+	"filePathTooLongError": "**{0}** adı çok uzun bir yol ile sonuçlanıyor. Lütfen daha kısa bir ad seçin.",
+	"compareWithSaved": "Aktif Dosyayı Kaydedilenle Karşılaştır",
+	"modifiedLabel": "{0} (diskte) ↔ {1}"
 }

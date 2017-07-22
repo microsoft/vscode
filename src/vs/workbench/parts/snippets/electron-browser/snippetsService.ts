@@ -85,7 +85,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 }
 
-class SnippetSuggestion implements ISuggestion {
+export class SnippetSuggestion implements ISuggestion {
 
 	private static _userSnippet = localize('source.snippet', "User Snippet");
 
@@ -154,8 +154,8 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 				overwriteBefore = lowWordUntil.length;
 				accetSnippet = true;
 
-			} else if (lowLineUntil.length > 0) {
-				// compute overlap between snippet and line on text
+			} else if (lowLineUntil.length > 0 && lowLineUntil.match(/[^\s]$/)) {
+				// compute overlap between snippet and (none-empty) line on text
 				overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
 				accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
 			}

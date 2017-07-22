@@ -334,7 +334,7 @@ export function insert<T>(array: T[], element: T): () => void {
 }
 
 /**
- * Insert `insertArr` inside `taget` at `insertIndex`.
+ * Insert `insertArr` inside `target` at `insertIndex`.
  * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
  */
 export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[]): T[] {

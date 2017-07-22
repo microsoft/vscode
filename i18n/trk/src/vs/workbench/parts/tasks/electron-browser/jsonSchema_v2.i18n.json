@@ -35,8 +35,10 @@
 	"JsonSchema.tasks.customize.deprecated": "customize özelliği kullanım dışıdır. Yeni görev özelleştirme yaklaşımına nasıl geçiş yapılacağı için 1.14 sürüm notlarına bakın",
 	"JsonSchema.tasks.showOputput.deprecated": "showOutput özelliği kullanım dışıdır. Bunun yerine presentation özelliğinin içindeki reveal özelliğini kullanın. Ayrıca 1.14 sürüm notlarına bakın.",
 	"JsonSchema.tasks.echoCommand.deprecated": "'echoCommand' özelliği kullanım dışıdır. Bunun yerine 'presentation' özelliğinin içindeki 'echo' özelliğini kullanın. Ayrıca 1.14 sürüm notlarına bakın.",
+	"JsonSchema.tasks.suppressTaskName.deprecated": "'suppressTaskName' özelliği kullanım dışıdır. Bunun yerine, komutu argümanlarıyla görevin içine ekleyin. Ayrıca 1.14 sürüm notlarına bakın.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "'isBuildCommand' özelliği kullanım dışıdır. Bunun yerine 'group' özelliğini kullanın. Ayrıca 1.14 sürüm notlarına bakın.",
 	"JsonSchema.tasks.isTestCommand.deprecated": "'isTestCommand' özelliği kullanım dışıdır. Bunun yerine 'group' özelliğini kullanın. Ayrıca 1.14 sürüm notlarına bakın.",
+	"JsonSchema.tasks.taskSelector.deprecated": "'taskSelector' özelliği kullanım dışıdır. Bunun yerine, komutu argümanlarıyla görevin içine ekleyin. Ayrıca 1.14 sürüm notlarına bakın.",
 	"JsonSchema.windows": "Windows'a özel komut yapılandırması",
 	"JsonSchema.mac": "Mac'e özel komut yapılandırması",
 	"JsonSchema.linux": "Linux'a özel komut yapılandırması"

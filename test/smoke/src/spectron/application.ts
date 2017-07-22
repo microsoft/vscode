@@ -12,6 +12,7 @@ var path = require('path');
 export const LATEST_PATH = process.env.VSCODE_LATEST_PATH;
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH;
 export const WORKSPACE_PATH = process.env.SMOKETEST_REPO;
+export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH;
 export const USER_DIR = 'test_data/temp_user_dir';
 export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
 

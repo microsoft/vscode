@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "이전 검색 결과에 포커스",
 	"RemoveAction.label": "제거",
 	"file.replaceAll.label": "모두 바꾸기",
-	"match.replace.label": "바꾸기",
-	"ConfigureGlobalExclusionsAction.label": "설정 열기"
+	"match.replace.label": "바꾸기"
 }

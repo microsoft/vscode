@@ -36,17 +36,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 import { isEqual } from "vs/base/common/paths";
-
-export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
-export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
-export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
-export const EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL = 'vscode:extensionCloseExtensionHost';
-
-export interface ILogEntry {
-	type: string;
-	severity: string;
-	arguments: any;
-}
+import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
 
 export class LazyMessagePassingProtol implements IMessagePassingProtocol {
 

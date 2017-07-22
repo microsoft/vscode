@@ -17,7 +17,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService, IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -290,7 +290,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
 		this.updateLabel();
 
-		this.onclick(parent, e => this.showContextMennu(e));
+		this.onclick(this.settingsTargetsContainer, e => this.showContextMennu(e));
 
 		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
 
@@ -336,7 +336,7 @@ export class SettingsTargetsWidget extends Widget {
 
 		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
 			actions.push(new Separator());
-			actions.push(new ContextSubMenu(localize('folderSettings', "Folder Settings"), this.workspaceContextService.getWorkspace().roots.map((root, index) => {
+			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(root, this.workspaceContextService),
@@ -344,7 +344,7 @@ export class SettingsTargetsWidget extends Widget {
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};
-			})));
+			}));
 		}
 
 		return actions;

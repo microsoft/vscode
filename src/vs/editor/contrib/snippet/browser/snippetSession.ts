@@ -9,7 +9,7 @@ import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
 import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, SnippetParser } from './snippetParser';
+import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -155,6 +155,10 @@ export class OneSnippet {
 		return ret;
 	}
 
+	get choice(): Choice {
+		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+	}
+
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
@@ -205,6 +209,25 @@ export class OneSnippet {
 			// Last, re-create the placeholder groups by sorting placeholders by their index.
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
+	}
+}
+
+class WhitespaceAwareSnippetResolver extends EditorSnippetVariableResolver {
+
+	constructor(
+		model: IModel,
+		selection: Selection,
+		private _snippetStart: IPosition
+	) {
+		super(model, selection);
+	}
+
+	resolve(name: string): string {
+		let ret = super.resolve(name);
+		if (ret) {
+			ret = SnippetSession.adjustWhitespace(this._model, this._snippetStart, ret);
+		}
+		return ret;
 	}
 }
 
@@ -292,7 +315,7 @@ export class SnippetSession {
 
 			const snippet = new SnippetParser()
 				.parse(adjustedTemplate, true, enforceFinalTabstop)
-				.resolveVariables(new EditorSnippetVariableResolver(model, selection));
+				.resolveVariables(new WhitespaceAwareSnippetResolver(model, selection, start));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
@@ -388,6 +411,10 @@ export class SnippetSession {
 
 	get hasPlaceholder() {
 		return this._snippets[0].hasPlaceholder;
+	}
+
+	get choice(): Choice {
+		return this._snippets[0].choice;
 	}
 
 	isSelectionWithinPlaceholders(): boolean {

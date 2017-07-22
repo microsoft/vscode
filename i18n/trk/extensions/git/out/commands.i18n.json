@@ -6,6 +6,7 @@
 {
 	"tag at": "{0} üzerindeki etiket",
 	"remote branch at": "{0} üzerindeki uzak dal",
+	"create branch": "$(plus) Yeni dal oluştur",
 	"repourl": "Depo URL'si",
 	"parent": "Üst Klasör",
 	"cloning": "Git deposu kopyalanıyor...",

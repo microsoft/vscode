@@ -24,8 +24,8 @@ export class EditorSnippetVariableResolver {
 	});
 
 	constructor(
-		private readonly _model: IModel,
-		private readonly _selection: Selection
+		protected readonly _model: IModel,
+		protected readonly _selection: Selection
 	) {
 		//
 	}

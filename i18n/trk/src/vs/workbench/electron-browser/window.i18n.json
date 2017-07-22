@@ -10,6 +10,6 @@
 	"copy": "Kopyala",
 	"paste": "Yapıştır",
 	"selectAll": "Tümünü Seç",
-	"confirmOpen": "{0} klasörü açmak istediğinizden emin misiniz?",
+	"confirmOpen": "{0} çalışma alanını açmak istediğinizden emin misiniz?",
 	"confirmOpenButton": "&&Aç"
 }

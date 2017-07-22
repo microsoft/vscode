@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "지우기",
 	"workbench.action.terminal.allowWorkspaceShell": "작업 영역 셸 구성 허용",
 	"workbench.action.terminal.disallowWorkspaceShell": "작업 영역 셸 구성 허용 안 함",
-	"workbench.action.terminal.rename": "이름 바꾸기"
+	"workbench.action.terminal.rename": "이름 바꾸기",
+	"workbench.action.terminal.rename.prompt": "터미널 이름 입력",
+	"workbench.action.terminal.focusFindWidget": "파인드 위젯 포커스",
+	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기"
 }

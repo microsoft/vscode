@@ -35,8 +35,10 @@
 	"JsonSchema.tasks.customize.deprecated": "A propriedade customize é obsoleta. Consulte as notas de versão 1.14 sobre como migrar para a nova abordagem de personalização de tarefa",
 	"JsonSchema.tasks.showOputput.deprecated": "A propriedade showOutput é obsoleta. Use a propriedade reveal dentro da propriedade presentation. Ver também as notas de versão 1.14.",
 	"JsonSchema.tasks.echoCommand.deprecated": "A propriedade echoCommand é obsoleta. Use a propriedade echo dentro da propriedade presentation. Ver também as notas de versão 1.14.",
+	"JsonSchema.tasks.suppressTaskName.deprecated": "A propriedade suppressTaskName é obsoleta. Ao invés, coloque o comando junto com seus argumentos dentro de uma tarefa. Veja também as notas de lançamento da versão 1.14.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "A propriedade isBuildCommand é obsoleta. Use a propriedade group em seu lugar. Ver também as notas de versão 1.14.",
 	"JsonSchema.tasks.isTestCommand.deprecated": "A propriedade isTestCommand é obsoleta. Use a propriedade group em seu lugar. Ver também as notas de versão 1.14.",
+	"JsonSchema.tasks.taskSelector.deprecated": "A propriedade taskSelector é obsoleta. Ao invés, coloque o comando junto com seus argumentos dentro de uma tarefa. Veja também as notas de lançamento da versão 1.14.",
 	"JsonSchema.windows": "Configuração de comando específica do Windows",
 	"JsonSchema.mac": "Configuração de comando específica do Mac",
 	"JsonSchema.linux": "Configuração de comando específica do Linux"
