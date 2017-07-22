@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -44,7 +45,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $startDebugging(nameOrConfiguration: string | IConfig): TPromise<boolean> {
+	public $startDebugging(folder: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
 		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
 			return true;
 		}, err => {

@@ -139,11 +139,14 @@ declare module 'vscode' {
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,
 		 * or by directly passing a DebugConfiguration.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are up-to-date.
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. 'workspaceRoot') are resolved against the given folder.
+		 * @param folder The workspace folder for looking up named configurations and resolving variables or undefined.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugging(nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
 	}
 
 	/**
