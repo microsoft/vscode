@@ -21,7 +21,7 @@ import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 
 export function activate(context: vscode.ExtensionContext) {
-	registerCompletionProviders(context);
+	registerCompletionProviders(context, true);
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
@@ -114,7 +114,7 @@ export function activate(context: vscode.ExtensionContext) {
 	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		updateExtensionsPath();
-		registerCompletionProviders(context);
+		registerCompletionProviders(context, false);
 	}));
 }
 
@@ -123,12 +123,14 @@ export function activate(context: vscode.ExtensionContext) {
  */
 const registeredCompletionProviders: string[] = [];
 
-function registerCompletionProviders(context: vscode.ExtensionContext) {
-	let completionProvider = new DefaultCompletionItemProvider();
-	Object.keys(LANGUAGE_MODES).forEach(language => {
-		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
-		context.subscriptions.push(provider);
-	});
+function registerCompletionProviders(context: vscode.ExtensionContext, isFirstStart: boolean) {
+	if (isFirstStart) {
+		let completionProvider = new DefaultCompletionItemProvider();
+		Object.keys(LANGUAGE_MODES).forEach(language => {
+			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
+			context.subscriptions.push(provider);
+		});
+	}
 
 	let includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
