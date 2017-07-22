@@ -139,8 +139,9 @@ export function activate(context: vscode.ExtensionContext) {
 const registeredCompletionProviders: string[] = [];
 
 function registerCompletionProviders(context: vscode.ExtensionContext, isFirstStart: boolean) {
+	let completionProvider = new DefaultCompletionItemProvider();
+
 	if (isFirstStart) {
-		let completionProvider = new DefaultCompletionItemProvider();
 		Object.keys(LANGUAGE_MODES).forEach(language => {
 			const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[language]);
 			context.subscriptions.push(provider);
