@@ -90,7 +90,7 @@ export class FileWalker {
 		this.folderExcludePatterns = new Map<string, glob.ParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = objects.assign({}, this.config.excludePattern || {}, folderQuery.excludePattern || {});
+			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
 
 			// Add excludes for other root folders
 			config.folderQueries

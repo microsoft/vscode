@@ -35,8 +35,10 @@
 	"JsonSchema.tasks.customize.deprecated": "A customize tulajdonság elavult. A feladat egyedi konfigurálásának új megközelítésével kapcsolatban további információt az 1.14-es verzió kiadási jegyzékében talál.",
 	"JsonSchema.tasks.showOputput.deprecated": "A showOutput tulajdonság elavult. Használja helyette a presentation tulajdonságon belül a reveal tulajdonságot! További információt az 1.14-es verzió kiadási jegyzékében talál.",
 	"JsonSchema.tasks.echoCommand.deprecated": "Az echoCommand tulajdonság elavult. Használja helyette a presentation tulajdonságon belül az echo tulajdonságot! További információt az 1.14-es verzió kiadási jegyzékében talál.",
+	"JsonSchema.tasks.suppressTaskName.deprecated": "Az suppressTaskName tulajdonság elavult. Helyette olvassza be a parancsot az argumentumaival együtt a feladatba! További információt az 1.14-es verzió kiadási jegyzékében talál.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "Az isBuildCommand tulajdonság elavult. Használja helyette a group tulajdonságot! További információt az 1.14-es verzió kiadási jegyzékében talál.",
 	"JsonSchema.tasks.isTestCommand.deprecated": "Az isTestCommand tulajdonság elavult. Használja helyette a group tulajdonságot! További információt az 1.14-es verzió kiadási jegyzékében talál.",
+	"JsonSchema.tasks.taskSelector.deprecated": "A taskSelector tulajdonság elavult. Helyette olvassza be a parancsot az argumentumaival együtt a feladatba! További információt az 1.14-es verzió kiadási jegyzékében talál.",
 	"JsonSchema.windows": "Windows-specifikus parancskonfiguráció",
 	"JsonSchema.mac": "Mac-specifikus parancskonfiguráció",
 	"JsonSchema.linux": "Linux-specifikus parancskonfiguráció"

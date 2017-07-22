@@ -165,11 +165,11 @@ exports.copyFont = function() {
 };
 
 //var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
-//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/icons/mapping.less';
+//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
 //var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
 
 var fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
-var mappings = '../../../seti-ui/styles/icons/mapping.less';
+var mappings = '../../../seti-ui/styles/components/icons/mapping.less';
 var colors = '../../../seti-ui/styles/ui-variables.less';
 
 exports.update = function () {

@@ -126,7 +126,7 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			let value = options.codeBlockRenderer(lang, code);
+			const value = options.codeBlockRenderer(lang, code);
 			if (typeof value === 'string') {
 				return value;
 			}
@@ -136,15 +136,15 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 				// but update the node with the real result later.
 				const id = defaultGenerator.nextId();
 				TPromise.join([value, withInnerHTML]).done(values => {
-					let strValue = values[0] as string;
-					let span = element.querySelector(`span[data-code="${id}"]`);
+					const strValue = values[0] as string;
+					const span = element.querySelector(`div[data-code="${id}"]`);
 					if (span) {
 						span.innerHTML = strValue;
 					}
 				}, err => {
 					// ignore
 				});
-				return `<span data-code="${id}">${escape(code)}</span>`;
+				return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 			}
 
 			return code;

@@ -329,6 +329,13 @@ suite('Filters', () => {
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
 	});
 
+	test('Cannot set property \'1\' of undefined, #26511', function () {
+		let word = new Array<void>(123).join('a');
+		let pattern = new Array<void>(120).join('a');
+		fuzzyScore(pattern, word);
+		assert.ok(true); // must not explode
+	});
+
 	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 		assertMatches('  ', '  group', undefined, fuzzyScore);
 		assertMatches('  g', '  group', '  ^group', fuzzyScore);

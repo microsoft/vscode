@@ -81,7 +81,7 @@ export interface IDefaultConfigurationExtension {
 	defaults: { [key: string]: {} };
 }
 
-const schemaId = 'vscode://schemas/settings';
+export const schemaId = 'vscode://schemas/settings';
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 

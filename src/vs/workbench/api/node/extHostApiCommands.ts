@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -205,12 +205,12 @@ export class ExtHostApiCommands {
 			});
 
 		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-
-			let editorOptions: IEditorOptions;
+			let editorOptions: ITextEditorOptions;
 			if (options) {
 				editorOptions = {
-					pinned: !options.preview,
-					preserveFocus: options.preserveFocus
+					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+					preserveFocus: options.preserveFocus,
+					selection: typeof options.selection === 'object' ? typeConverters.fromRange(options.selection) : undefined
 				};
 			}
 
@@ -399,11 +399,11 @@ export class ExtHostApiCommands {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<modes.CodeAction[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Command[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return undefined;
 			}
-			return value.map(quickFix => this._commands.converter.fromInternal(quickFix.command));
+			return value.map(quickFix => this._commands.converter.fromInternal(quickFix));
 		});
 	}
 

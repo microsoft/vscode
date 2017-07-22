@@ -36,10 +36,5 @@
 	"welcomePage.interfaceOverview": "界面概述",
 	"welcomePage.interfaceOverviewDescription": "查看突出显示主要 UI 组件的叠加图",
 	"welcomePage.interactivePlayground": "交互式演练场",
-	"welcomePage.interactivePlaygroundDescription": "在简短演练中试用编辑器的基本功能",
-	"welcomePage.quickLinks": "快速链接",
-	"welcomePage.keybindingsReference": "键盘快捷方式参考",
-	"welcomePage.keybindingsReferenceDescription": "包含常见键盘快捷方式的可打印 PDF 文件",
-	"welcomePage.configureSettings": "配置设置",
-	"welcomePage.configureSettingsDescription": "通过调整设置来解锁 VS Code 的全部功能"
+	"welcomePage.interactivePlaygroundDescription": "在简短演练中试用编辑器的基本功能"
 }

@@ -107,7 +107,7 @@ export class ResourceGlobMatcher {
 
 		// Add excludes per workspaces that got added
 		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace2().roots.forEach(root => {
+			this.contextService.getWorkspace().roots.forEach(root => {
 				const rootExcludes = this.globFn(root);
 				if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
 					changed = true;
@@ -148,7 +148,13 @@ export class ResourceGlobMatcher {
 
 	public matches(resource: URI): boolean {
 		const root = this.contextService.getRoot(resource);
-		const expressionForRoot = this.mapRootToParsedExpression.get(root ? root.toString() : ResourceGlobMatcher.NO_ROOT);
+
+		let expressionForRoot: ParsedExpression;
+		if (root && this.mapRootToParsedExpression.has(root.toString())) {
+			expressionForRoot = this.mapRootToParsedExpression.get(root.toString());
+		} else {
+			expressionForRoot = this.mapRootToParsedExpression.get(ResourceGlobMatcher.NO_ROOT);
+		}
 
 		// If the resource if from a workspace, convert its absolute path to a relative
 		// path so that glob patterns have a higher probability to match. For example

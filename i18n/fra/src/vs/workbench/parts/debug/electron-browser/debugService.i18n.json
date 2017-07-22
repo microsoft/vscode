@@ -20,6 +20,5 @@
 	"debugAnyway": "Déboguer quand même",
 	"noFolderWorkspaceDebugError": "Impossible de déboguer le fichier actif. Vérifiez qu'il est enregistré sur le disque et qu'une extension de débogage est installée pour ce type de fichier.",
 	"NewLaunchConfig": "Configurez le fichier config de lancement de votre application. {0}",
-	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable.",
-	"differentTaskRunning": "Une tâche {0} est en cours d'exécution. Impossible d'exécuter la tâche de préparation au lancement {1}."
+	"DebugTaskNotFound": "preLaunchTask '{0}' introuvable."
 }

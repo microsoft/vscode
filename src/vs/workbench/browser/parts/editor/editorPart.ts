@@ -41,6 +41,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { createCSSRule } from "vs/base/browser/dom";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { join } from "vs/base/common/paths";
 
 class ProgressMonitor {
 
@@ -122,7 +125,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -172,7 +176,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			this.revealIfOpen = false;
 		}
 
+		this.initStyles();
 		this.registerListeners();
+	}
+
+	private initStyles(): void {
+
+		// Letterpress Background when Empty
+		createCSSRule('.vs .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress.svg')}')`);
+		createCSSRule('.vs-dark .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-dark.svg')}')`);
+		createCSSRule('.hc-black .monaco-workbench > .part.editor.empty', `background-image: url('${join(this.environmentService.appRoot, 'resources/letterpress-hc.svg')}')`);
 	}
 
 	private registerListeners(): void {
@@ -320,6 +333,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
 		const pinned = !this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
+
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
 

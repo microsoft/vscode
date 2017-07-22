@@ -406,7 +406,7 @@ class RenderedViewLine {
 		this._cachedWidth = -1;
 
 		this._pixelOffsetCache = null;
-		if (!containsRTL) {
+		if (!containsRTL || this._characterMapping.length === 0 /* the line is empty */) {
 			this._pixelOffsetCache = new Int32Array(this._characterMapping.length + 1);
 			for (let column = 0, len = this._characterMapping.length; column <= len; column++) {
 				this._pixelOffsetCache[column] = -1;
@@ -484,8 +484,11 @@ class RenderedViewLine {
 
 	protected _readPixelOffset(column: number, context: DomReadingContext): number {
 		if (this._characterMapping.length === 0) {
-			// This line is empty
-			return 0;
+			// This line has no content
+			if (!this._containsForeignElements) {
+				// We can assume the line is really empty
+				return 0;
+			}
 		}
 
 		if (this._pixelOffsetCache !== null) {
@@ -505,6 +508,14 @@ class RenderedViewLine {
 	}
 
 	private _actualReadPixelOffset(column: number, context: DomReadingContext): number {
+		if (this._characterMapping.length === 0) {
+			// This line has no content
+			let r = RangeUtil.readHorizontalRanges(this._getReadingTarget(), 0, 0, 0, 0, context.clientRectDeltaLeft, context.endNode);
+			if (!r || r.length === 0) {
+				return -1;
+			}
+			return r[0].left;
+		}
 
 		if (column === this._characterMapping.length && this._isWhitespaceOnly && !this._containsForeignElements) {
 			// This branch helps in the case of whitespace only lines which have a width set

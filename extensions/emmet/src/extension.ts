@@ -19,6 +19,7 @@ import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context, true);
@@ -35,9 +36,12 @@ export function activate(context: vscode.ExtensionContext) {
 		removeTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', () => {
-		vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			updateTag(tagName);
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', (inputTag) => {
+		if (inputTag && typeof inputTag === 'string') {
+			return updateTag(inputTag);
+		}
+		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
+			return updateTag(tagName);
 		});
 	}));
 
@@ -86,35 +90,46 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOneTenth', () => {
-		incrementDecrement(.1);
+		return incrementDecrement(.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOne', () => {
-		incrementDecrement(1);
+		return incrementDecrement(1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByTen', () => {
-		incrementDecrement(10);
+		return incrementDecrement(10);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOneTenth', () => {
-		incrementDecrement(-0.1);
+		return incrementDecrement(-0.1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOne', () => {
-		incrementDecrement(-1);
+		return incrementDecrement(-1);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByTen', () => {
-		incrementDecrement(-10);
+		return incrementDecrement(-10);
 	}));
 
+	let currentExtensionsPath = undefined;
+	let resolveUpdateExtensionsPath = () => {
+		let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+		if (extensionsPath && !path.isAbsolute(extensionsPath)) {
+			extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+		}
+		if (currentExtensionsPath !== extensionsPath) {
+			currentExtensionsPath = extensionsPath;
+			updateExtensionsPath(currentExtensionsPath);
+		}
+	};
 
+	resolveUpdateExtensionsPath();
 
-	updateExtensionsPath();
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		updateExtensionsPath();
 		registerCompletionProviders(context, false);
+		resolveUpdateExtensionsPath();
 	}));
 }
 
@@ -134,7 +149,9 @@ function registerCompletionProviders(context: vscode.ExtensionContext, isFirstSt
 
 	let includedLanguages = getMappingForIncludedLanguages();
 	Object.keys(includedLanguages).forEach(language => {
-		if(registeredCompletionProviders.includes(language)) return;
+		if (registeredCompletionProviders.includes(language)) {
+			return;
+		}
 		const provider = vscode.languages.registerCompletionItemProvider(language, completionProvider, ...LANGUAGE_MODES[includedLanguages[language]]);
 		context.subscriptions.push(provider);
 		registeredCompletionProviders.push(language);

@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { once } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { parse, IExpression } from 'vs/base/common/glob';
@@ -166,7 +166,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		super(editorGroupService, editorService);
@@ -395,7 +395,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.removeFromHistory(arg1);
 		this.removeFromStack(arg1);
 		this.removeFromRecentlyClosedFiles(arg1);
-		this.removeFromRecentlyOpen(arg1);
+		this.removeFromRecentlyOpened(arg1);
 	}
 
 	private removeExcludedFromHistory(): void {
@@ -568,14 +568,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = this.recentlyClosedFiles.filter(e => !this.matchesFile(e.resource, arg1));
 	}
 
-	private removeFromRecentlyOpen(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
+	private removeFromRecentlyOpened(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		if (arg1 instanceof EditorInput || arg1 instanceof FileChangesEvent) {
 			return; // for now do not delete from file events since recently open are likely out of workspace files for which there are no delete events
 		}
 
 		const input = arg1 as IResourceInput;
 
-		this.windowService.removeFromRecentlyOpen([input.resource.fsPath]);
+		this.windowService.removeFromRecentlyOpened([input.resource.fsPath]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
@@ -703,6 +703,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// fallback to first workspace
-		return this.contextService.getWorkspace2().roots[0];
+		return this.contextService.getWorkspace().roots[0];
 	}
 }

@@ -18,6 +18,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { Emitter } from 'vs/base/common/event';
 
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
@@ -43,13 +45,13 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		const workspace = this._contextService.getWorkspace2();
+		const workspace = this._contextService.getWorkspace();
 		if (!workspace) {
 			return undefined;
 		}
@@ -108,4 +110,32 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
 			.then(() => true);
 	}
+
+	// --- EXPERIMENT: workspace provider
+
+	private _provider = new Map<number, [IRemoteFileSystemProvider, Emitter<URI>]>();
+
+	$registerFileSystemProvider(handle: number, authority: string): void {
+		if (!(this._fileService instanceof RemoteFileService)) {
+			throw new Error();
+		}
+		const emitter = new Emitter<URI>();
+		const provider = {
+			onDidChange: emitter.event,
+			resolve: (resource) => {
+				return this._proxy.$resolveFile(handle, resource);
+			},
+			update: (resource, value) => {
+				return this._proxy.$storeFile(handle, resource, value);
+			}
+		};
+		this._provider.set(handle, [provider, emitter]);
+		this._fileService.registerProvider(authority, provider);
+	}
+
+	$onFileSystemChange(handle: number, resource: URI) {
+		const [, emitter] = this._provider.get(handle);
+		emitter.fire(resource);
+	};
 }
+

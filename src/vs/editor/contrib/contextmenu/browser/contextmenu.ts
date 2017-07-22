@@ -183,7 +183,7 @@ export class ContextMenuController implements IEditorContribution {
 					return customActionItem.getActionItem();
 				}
 
-				return null;
+				return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
 			},
 
 			getKeyBinding: (action): ResolvedKeybinding => {

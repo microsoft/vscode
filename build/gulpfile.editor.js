@@ -21,8 +21,8 @@ var editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: [],
-		prepend: [ 'vs/css.js', 'vs/nls.js' ],
+		exclude: [ 'vs/css', 'vs/nls' ],
+		prepend: [ 'out-build/vs/css.js', 'out-build/vs/nls.js' ],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',

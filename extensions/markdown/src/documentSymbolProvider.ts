@@ -16,9 +16,9 @@ export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolPr
 		private engine: MarkdownEngine
 	) { }
 
-	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
-		const toc = new TableOfContentsProvider(this.engine, document);
-		return toc.getToc().map(entry => {
+	public async provideDocumentSymbols(document: vscode.TextDocument): Promise<vscode.SymbolInformation[]> {
+		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
+		return toc.map(entry => {
 			return new vscode.SymbolInformation(entry.text, vscode.SymbolKind.Namespace, '', entry.location);
 		});
 	}

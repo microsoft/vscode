@@ -33,7 +33,14 @@ const HOVER_MESSAGE_GENERAL_META = (
 		: nls.localize('links.navigate', "Ctrl + click to follow link")
 );
 
+const HOVER_MESSAGE_COMMAND_META = (
+	platform.isMacintosh
+		? nls.localize('links.command.mac', "Cmd + click to execute command")
+		: nls.localize('links.command', "Ctrl + click to execute command")
+);
+
 const HOVER_MESSAGE_GENERAL_ALT = nls.localize('links.navigate.al', "Alt + click to follow link");
+const HOVER_MESSAGE_COMMAND_ALT = nls.localize('links.command.al', "Alt + click to execute command");
 
 const decoration = {
 	meta: ModelDecorationOptions.register({
@@ -56,27 +63,52 @@ const decoration = {
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
+	altCommand: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link',
+		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
+	}),
+	altCommandActive: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link-active',
+		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
+	}),
+	metaCommand: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link',
+		hoverMessage: HOVER_MESSAGE_COMMAND_META
+	}),
+	metaCommandActive: ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link-active',
+		hoverMessage: HOVER_MESSAGE_COMMAND_META
+	}),
 };
+
 
 class LinkOccurrence {
 
 	public static decoration(link: Link, useMetaKey: boolean): editorCommon.IModelDeltaDecoration {
 		return {
-			range: {
-				startLineNumber: link.range.startLineNumber,
-				startColumn: link.range.startColumn,
-				endLineNumber: link.range.endLineNumber,
-				endColumn: link.range.endColumn
-			},
-			options: LinkOccurrence._getOptions(useMetaKey, false)
+			range: link.range,
+			options: LinkOccurrence._getOptions(link, useMetaKey, false)
 		};
 	}
 
-	private static _getOptions(useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		if (useMetaKey) {
-			return (isActive ? decoration.metaActive : decoration.meta);
+	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		if (/^command:/i.test(link.url)) {
+			if (useMetaKey) {
+				return (isActive ? decoration.metaCommandActive : decoration.metaCommand);
+			} else {
+				return (isActive ? decoration.altCommandActive : decoration.altCommand);
+			}
+		} else {
+			if (useMetaKey) {
+				return (isActive ? decoration.metaActive : decoration.meta);
+			} else {
+				return (isActive ? decoration.altActive : decoration.alt);
+			}
 		}
-		return (isActive ? decoration.altActive : decoration.alt);
 	}
 
 	public decorationId: string;
@@ -88,11 +120,11 @@ class LinkOccurrence {
 	}
 
 	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(useMetaKey, true));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
 	}
 
 	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(useMetaKey, false));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
 	}
 }
 

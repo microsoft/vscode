@@ -104,8 +104,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -355,11 +355,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -368,8 +368,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -377,11 +377,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -399,11 +399,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -412,8 +412,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -421,11 +421,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -465,11 +465,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -478,8 +478,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -487,11 +487,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -509,11 +509,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{
@@ -522,8 +522,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -531,11 +531,11 @@
 		"c": " ",
 		"t": "source.ts string.template.ts meta.template.expression.ts",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "meta.template.expression.ts: #D4D4D4",
+			"light_plus": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression.ts: #D4D4D4",
+			"light_vs": "meta.template.expression.ts: #000000",
+			"hc_black": "meta.template.expression.ts: #FFFFFF"
 		}
 	},
 	{

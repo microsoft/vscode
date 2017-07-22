@@ -46,6 +46,7 @@
 	"autoClosingBrackets": "Contrôle si l'éditeur doit automatiquement fermer les crochets après les avoir ouverts",
 	"formatOnType": "Contrôle si l'éditeur doit automatiquement mettre en forme la ligne après la saisie",
 	"formatOnPaste": "Contrôle si l'éditeur doit automatiquement mettre en forme le contenu collé. Un formateur doit être disponible et doit pouvoir mettre en forme une plage dans un document.",
+	"autoIndent": "Contrôle si l'éditeur doit automatiquement ajuster l'indentation quand les utilisateurs écrivent, collent ou déplacent des lignes. Les règles d'indentation du langage doivent être disponibles.",
 	"suggestOnTriggerCharacters": "Contrôle si les suggestions doivent s'afficher automatiquement durant la saisie de caractères de déclenchement",
 	"acceptSuggestionOnEnter": "Contrôle si les suggestions doivent être acceptées avec 'Entrée', en plus de 'Tab'. Cela permet d'éviter toute ambiguïté entre l'insertion de nouvelles lignes et l'acceptation de suggestions. La valeur 'smart' signifie que vous acceptez uniquement une suggestion avec Entrée quand elle applique une modification de texte",
 	"acceptSuggestionOnCommitCharacter": "Contrôle si les suggestions doivent être acceptées avec des caractères de validation. Par exemple, en JavaScript, le point-virgule (';') peut être un caractère de validation qui permet d'accepter une suggestion et de taper ce caractère.",

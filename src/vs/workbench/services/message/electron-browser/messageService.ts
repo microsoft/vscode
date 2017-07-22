@@ -5,21 +5,22 @@
 
 'use strict';
 
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
+import { IWindowService } from "vs/platform/windows/common/windows";
+import { mnemonicButtonLabel } from "vs/base/common/labels";
 
 export class MessageService extends WorkbenchMessageService implements IChoiceService {
 
 	constructor(
 		container: HTMLElement,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(container, telemetryService);
@@ -84,7 +85,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	}
 
 	private showMessageBox(opts: Electron.ShowMessageBoxOptions): number {
-		opts.buttons = opts.buttons.map(button => this.mnemonicLabel(button));
+		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
 		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
 
 		if (opts.defaultId !== void 0) {
@@ -98,15 +99,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		opts.noLink = true;
 		opts.title = opts.title || product.nameLong;
 
-		const result = this.windowService.getWindow().showMessageBox(opts);
+		const result = this.windowService.showMessageBox(opts);
 		return isLinux ? opts.buttons.length - result - 1 : result;
-	}
-
-	private mnemonicLabel(label: string): string {
-		if (!isWindows) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
-		}
-
-		return label.replace(/&&/g, '&');
 	}
 }

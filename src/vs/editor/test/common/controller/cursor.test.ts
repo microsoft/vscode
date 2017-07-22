@@ -2246,7 +2246,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 suite('Editor Controller - Indentation Rules', () => {
 	let mode = new IndentRulesMode({
 		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
 		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	});
@@ -2258,7 +2258,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
@@ -2281,7 +2282,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 2, false);
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
@@ -2299,7 +2301,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 15, false);
 			assertCursor(cursor, new Selection(2, 15, 2, 15));
@@ -2318,7 +2321,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t\t\t\treturn true'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
@@ -2374,7 +2378,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
@@ -2509,7 +2514,8 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
 		}, (model, cursor) => {
 			moveTo(cursor, 5, 4, false);
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
@@ -2962,6 +2968,40 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 	});
 
+	test('bug #31015: When pressing Tab on lines and Enter rules are avail, indent straight to the right spotTab', () => {
+		let mode = new OnEnterMode(IndentAction.Indent);
+		let model = Model.createFromString(
+			[
+				'    if (a) {',
+				'        ',
+				'',
+				'',
+				'    }'
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, 1);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), '    if (a) {');
+			assert.equal(model.getLineContent(2), '        ');
+			assert.equal(model.getLineContent(3), '        ');
+			assert.equal(model.getLineContent(4), '');
+			assert.equal(model.getLineContent(5), '    }');
+		});
+
+		model.dispose();
+	});
+
 	test('type honors indentation rules: ruby keywords', () => {
 		let rubyMode = new IndentRulesMode({
 			increaseIndentPattern: /^\s*((begin|class|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while)|(.*\sdo\b))\b[^\{;]*$/,
@@ -3014,6 +3054,48 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: 'e' }, 'keyboard');
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
 			assert.equal(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
+		});
+	});
+
+	test('type honors users indentation adjustment', () => {
+		usingCursor({
+			text: [
+				'\tif (true ||',
+				'\t ) {',
+				'\t}',
+				'if (true ||',
+				') {',
+				'}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3, false);
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
+
+			cursorCommand(cursor, H.Type, { text: ' ' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 4, 2, 4));
+			assert.equal(model.getLineContent(2), '\t  ) {', 'This line should not decrease indent');
+		});
+	});
+
+	test('bug 29972: if a line is line comment, open bracket should not indent next line', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\t// {',
+				'\t\t'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 3, false);
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+			assert.equal(model.getLineContent(3), '}');
 		});
 	});
 });

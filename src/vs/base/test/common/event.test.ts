@@ -209,6 +209,42 @@ suite('Event', function () {
 		doc.setText('2');
 		doc.setText('3');
 	});
+
+	test('Debounce Event - leading', function (done: () => void) {
+		const emitter = new Emitter<void>();
+		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+		let calls = 0;
+		debounced(() => {
+			calls++;
+		});
+
+		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
+		emitter.fire();
+		setTimeout(() => {
+			assert.equal(calls, 1);
+			done();
+		});
+	});
+
+	test('Debounce Event - leading', function (done: () => void) {
+		const emitter = new Emitter<void>();
+		let debounced = debounceEvent(emitter.event, (l, e) => e, 0, /*leading=*/true);
+
+		let calls = 0;
+		debounced(() => {
+			calls++;
+		});
+
+		// If the source event is fired multiple times, the debounced (on the leading edge) event should be fired twice
+		emitter.fire();
+		emitter.fire();
+		emitter.fire();
+		setTimeout(() => {
+			assert.equal(calls, 2);
+			done();
+		});
+	});
 });
 
 suite('Event utils', () => {

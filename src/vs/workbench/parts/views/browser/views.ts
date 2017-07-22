@@ -12,7 +12,7 @@ import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Viewlet, ViewletRegistry, Extensions } from 'vs/workbench/browser/viewlet';
@@ -31,7 +31,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IViewOptions {
@@ -48,7 +48,7 @@ export interface IViewOptions {
 
 export interface IViewConstructorSignature {
 
-	new (options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
+	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
 
 }
 
@@ -57,6 +57,8 @@ export interface IView extends IBaseView, IThemable {
 	id: string;
 
 	name: string;
+
+	getHeaderElement(): HTMLElement;
 
 	create(): TPromise<void>;
 
@@ -137,8 +139,14 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		super.changeState(state);
 	}
 
+	get draggableLabel(): string { return this.name; }
+
 	public create(): TPromise<void> {
 		return TPromise.as(null);
+	}
+
+	getHeaderElement(): HTMLElement {
+		return this.header;
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -297,6 +305,8 @@ interface IViewState {
 
 	isHidden: boolean;
 
+	order: number;
+
 }
 
 export class ComposedViewsViewlet extends Viewlet {
@@ -305,7 +315,7 @@ export class ComposedViewsViewlet extends Viewlet {
 	protected lastFocusedView: IView;
 
 	private splitView: SplitView;
-	protected views: IView[];
+	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private dimension: Dimension;
 	private viewletSettings: object;
 
@@ -317,6 +327,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		id: string,
 		private location: ViewLocation,
 		private viewletStateStorageId: string,
+		private showHeaderInTitleWhenSingleView: boolean,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -328,7 +339,6 @@ export class ComposedViewsViewlet extends Viewlet {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.views = [];
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.viewsStates = this.loadViewsStates();
 
@@ -346,50 +356,60 @@ export class ComposedViewsViewlet extends Viewlet {
 		super.create(parent);
 
 		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
-		this.splitView = this._register(new SplitView(this.viewletContainer));
+		this.splitView = this._register(new SplitView(this.viewletContainer, { canChangeOrderByDragAndDrop: true }));
+		this.attachSplitViewStyler(this.splitView);
 		this._register(this.splitView.onFocus((view: IView) => this.lastFocusedView = view));
-		this._register(DOM.addDisposableListener(this.viewletContainer, 'contextmenu', e => this.onContextMenu(new StandardMouseEvent(e))));
+		this._register(this.splitView.onDidOrderChange(() => {
+			const views = this.splitView.getViews<IView>();
+			for (let order = 0; order < views.length; order++) {
+				this.viewsStates.get(views[order].id).order = order;
+			}
+		}));
 
 		return this.onViewDescriptorsChanged()
 			.then(() => {
-				this.lastFocusedView = this.views[0];
+				this.lastFocusedView = this.splitView.getViews<IView>()[0];
 				this.focus();
 			});
 	}
 
 	public getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
-		if (this.hasSingleView() && this.views[0]) {
-			title += ': ' + this.views[0].name;
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
+			title += ': ' + this.splitView.getViews<IView>()[0].name;
 		}
 		return title;
 	}
 
 	public getActions(): IAction[] {
-		if (this.hasSingleView() && this.views[0]) {
-			return this.views[0].getActions();
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
+			return this.splitView.getViews<IView>()[0].getActions();
 		}
 		return [];
 	}
 
 	public getSecondaryActions(): IAction[] {
-		let actions = [];
-		if (this.hasSingleView() && this.views[0]) {
-			actions = this.views[0].getSecondaryActions();
+		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
+			return this.splitView.getViews<IView>()[0].getSecondaryActions();
 		}
+		return [];
+	}
 
-		if (actions.length) {
-			actions.push(new Separator());
-		}
-
-		actions.push(...this.getToggleVisibilityActions(this.getViewDescriptorsFromRegistry()));
-
-		return actions;
+	public getContextMenuActions(): IAction[] {
+		return this.getViewDescriptorsFromRegistry(true)
+			.filter(viewDescriptor => viewDescriptor.canToggleVisibility)
+			.map(viewDescriptor => (<IAction>{
+				id: `${viewDescriptor.id}.toggleVisibility`,
+				label: viewDescriptor.name,
+				checked: this.isCurrentlyVisible(viewDescriptor),
+				enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
+				run: () => this.toggleViewVisibility(viewDescriptor.id)
+			}));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible)
-			.then(() => TPromise.join(this.views.filter(view => view.isVisible() !== visible)
+			.then(() => TPromise.join(this.splitView.getViews<IView>().filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}
@@ -408,60 +428,41 @@ export class ComposedViewsViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		const additionalMargin = 16;
-		const optimalWidth = Math.max(...this.views.map(view => view.getOptimalWidth() || 0));
+		const optimalWidth = Math.max(...this.splitView.getViews<IView>().map(view => view.getOptimalWidth() || 0));
 		return optimalWidth + additionalMargin;
 	}
 
 	public shutdown(): void {
 		this.saveViewsStates();
-		this.views.forEach((view) => view.shutdown());
+		this.splitView.getViews<IView>().forEach((view) => view.shutdown());
 		super.shutdown();
 	}
 
 	private layoutViews(): void {
 		if (this.splitView) {
 			this.splitView.layout(this.dimension.height);
-			for (const view of this.views) {
-				let viewState = this.createViewState(view);
+			for (const view of this.splitView.getViews<IView>()) {
+				let viewState = this.updateViewStateSize(view);
 				this.viewsStates.set(view.id, viewState);
 			}
 		}
 	}
 
-	private onContextMenu(event: StandardMouseEvent): void {
-		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getSecondaryActions()),
-		});
-	}
-
-	private getToggleVisibilityActions(viewDescriptors: IViewDescriptor[]): IAction[] {
-		// return viewDescriptors.map(viewDescriptor => (<IAction>{
-		// 	id: `${viewDescriptor.id}.toggleVisibility`,
-		// 	label: viewDescriptor.name,
-		// 	checked: this.isCurrentlyVisible(viewDescriptor),
-		// 	enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
-		// 	run: () => this.toggleViewVisibility(viewDescriptor)
-		// }));
-		return [];
-	}
-
-	protected toggleViewVisibility(viewDescriptor: IViewDescriptor): void {
-		const view = this.getView(viewDescriptor.id);
-		let viewState = this.viewsStates.get(viewDescriptor.id);
+	private toggleViewVisibility(id: string): void {
+		const view = this.getView(id);
+		let viewState = this.viewsStates.get(id);
 		if (view) {
 			viewState = viewState || this.createViewState(view);
 			viewState.isHidden = true;
 		} else {
-			viewState = viewState || { collapsed: true, size: void 0, isHidden: false };
+			viewState = viewState || { collapsed: true, size: void 0, isHidden: false, order: void 0 };
 			viewState.isHidden = false;
 		}
-		this.viewsStates.set(viewDescriptor.id, viewState);
+		this.viewsStates.set(id, viewState);
 		this.updateViews();
 	}
 
-	private onViewDescriptorsChanged(): TPromise<void> {
+	private onViewDescriptorsChanged(): TPromise<any> {
 		this.viewsContextKeys.clear();
 		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			if (viewDescriptor.when) {
@@ -491,7 +492,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	protected updateViews(): TPromise<void> {
+	protected updateViews(): TPromise<IView[]> {
 		if (this.splitView) {
 
 			const registeredViews = this.getViewDescriptorsFromRegistry();
@@ -518,10 +519,10 @@ export class ComposedViewsViewlet extends Viewlet {
 			const toCreate = [];
 
 			if (toAdd.length || toRemove.length) {
-				for (const view of this.views) {
+				for (const view of this.splitView.getViews<IView>()) {
 					let viewState = this.viewsStates.get(view.id);
 					if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
-						viewState = { ...this.createViewState(view), isHidden: viewState && viewState.isHidden };
+						viewState = this.updateViewStateSize(view);
 						this.viewsStates.set(view.id, viewState);
 						this.splitView.updateWeight(view, viewState.size);
 					}
@@ -529,7 +530,6 @@ export class ComposedViewsViewlet extends Viewlet {
 				if (toRemove.length) {
 					for (const viewDescriptor of toRemove) {
 						let view = this.getView(viewDescriptor.id);
-						this.views.splice(this.views.indexOf(view), 1);
 						this.splitView.removeView(view);
 						if (this.lastFocusedView === view) {
 							this.lastFocusedView = null;
@@ -549,23 +549,29 @@ export class ComposedViewsViewlet extends Viewlet {
 					});
 					toCreate.push(view);
 
-					this.views.splice(index, 0, view);
-					this.attachHeaderViewStyler(view, this.themeService);
+					this.attachViewStyler(view);
 					this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
 				}
 
 				return TPromise.join(toCreate.map(view => view.create()))
-					.then(() => this.onViewsUpdated());
+					.then(() => this.onViewsUpdated())
+					.then(() => toCreate);
 			}
 		}
-		return TPromise.as(null);
+		return TPromise.as([]);
 	}
 
-	private attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
-		return attachStyler(themeService, {
+	private attachViewStyler(widget: IThemable, options?: { noContrastBorder?: boolean }): IDisposable {
+		return attachStyler(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 			headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
+		}, widget);
+	}
+
+	private attachSplitViewStyler(widget: IThemable): IDisposable {
+		return attachStyler(this.themeService, {
+			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, widget);
 	}
 
@@ -586,21 +592,35 @@ export class ComposedViewsViewlet extends Viewlet {
 			return TPromise.as(null);
 		}
 
-		if (this.hasSingleView()) {
-			if (this.views[0]) {
-				this.views[0].hideHeader();
-				if (!this.views[0].isExpanded()) {
-					this.views[0].expand();
+		if (this.showHeaderInTitleArea()) {
+			if (this.splitView.getViews<IView>()[0]) {
+				this.splitView.getViews<IView>()[0].hideHeader();
+				if (!this.splitView.getViews<IView>()[0].isExpanded()) {
+					this.splitView.getViews<IView>()[0].expand();
 				}
 			}
 		} else {
-			for (const view of this.views) {
+			for (const view of this.splitView.getViews<IView>()) {
 				view.showHeader();
 			}
 		}
 
 		// Update title area since the title actions have changed.
 		this.updateTitleArea();
+
+		this.viewHeaderContextMenuListeners = dispose(this.viewHeaderContextMenuListeners);
+		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
+			const view = this.getView(viewDescriptor.id);
+			if (view) {
+				this.viewHeaderContextMenuListeners.push(DOM.addDisposableListener(view.getHeaderElement(), DOM.EventType.CONTEXT_MENU, e => {
+					e.stopPropagation();
+					e.preventDefault();
+					if (viewDescriptor.canToggleVisibility) {
+						this.onContextMenu(new StandardMouseEvent(e), view);
+					}
+				}));
+			}
+		}
 
 		if (this.dimension) {
 			this.layoutViews();
@@ -609,8 +629,27 @@ export class ComposedViewsViewlet extends Viewlet {
 		return this.setVisible(this.isVisible());
 	}
 
-	private hasSingleView(): boolean {
-		if (this.views.length > 1) {
+	private onContextMenu(event: StandardMouseEvent, view: IView): void {
+		event.stopPropagation();
+		event.preventDefault();
+
+		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as([<IAction>{
+				id: `${view.id}.removeView`,
+				label: nls.localize('removeView', "Remove from Side Bar"),
+				enabled: true,
+				run: () => this.toggleViewVisibility(view.id)
+			}]),
+		});
+	}
+
+	private showHeaderInTitleArea(): boolean {
+		if (!this.showHeaderInTitleWhenSingleView) {
+			return false;
+		}
+		if (this.splitView.getViews<IView>().length > 1) {
 			return false;
 		}
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
@@ -620,26 +659,38 @@ export class ComposedViewsViewlet extends Viewlet {
 		return true;
 	}
 
-	private getViewDescriptorsFromRegistry(): IViewDescriptor[] {
+	private getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
-				if (b.order === void 0 || b.order === null) {
+				const viewStateA = this.viewsStates.get(a.id);
+				const viewStateB = this.viewsStates.get(b.id);
+				const orderA = !defaultOrder && viewStateA ? viewStateA.order : a.order;
+				const orderB = !defaultOrder && viewStateB ? viewStateB.order : b.order;
+
+				if (orderB === void 0 || orderB === null) {
 					return -1;
 				}
-				if (a.order === void 0 || a.order === null) {
+				if (orderA === void 0 || orderA === null) {
 					return 1;
 				}
-				return a.order - b.order;
+
+				return orderA - orderB;
 			});
 	}
 
 	private saveViewsStates(): void {
 		const viewsStates = {};
+		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
 		this.viewsStates.forEach((viewState, id) => {
 			const view = this.getView(id);
 			if (view) {
-				viewState = view ? this.createViewState(view) : viewState;
-				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden };
+				viewState = this.createViewState(view);
+				viewsStates[id] = { size: viewState.size, collapsed: viewState.collapsed, isHidden: viewState.isHidden, order: viewState.order };
+			} else {
+				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
+				if (viewDescriptor) {
+					viewsStates[id] = viewState;
+				}
 			}
 		});
 
@@ -659,8 +710,18 @@ export class ComposedViewsViewlet extends Viewlet {
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
 	}
 
+	protected get views(): IView[] {
+		return this.splitView ? this.splitView.getViews<IView>() : [];
+	}
+
 	protected getView(id: string): IView {
-		return this.views.filter(view => view.id === id)[0];
+		return this.splitView.getViews<IView>().filter(view => view.id === id)[0];
+	}
+
+	private updateViewStateSize(view: IView): IViewState {
+		const currentState = this.viewsStates.get(view.id);
+		const newViewState = this.createViewState(view);
+		return currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
 	}
 
 	private createViewState(view: IView): IViewState {
@@ -669,7 +730,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		return {
 			collapsed,
 			size: size && size > 0 ? size : void 0,
-			isHidden: false
+			isHidden: false,
+			order: this.splitView.getViews<IView>().indexOf(view)
 		};
 	}
 }

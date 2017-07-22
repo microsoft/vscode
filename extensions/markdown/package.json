@@ -117,6 +117,10 @@
 					"command": "markdown.showSource",
 					"when": "resourceScheme == markdown",
 					"group": "navigation"
+				},
+				{
+					"command": "markdown.showPreviewSecuritySelector",
+					"when": "editorLangId == markdown"
 				}
 			]
 		},
@@ -199,11 +203,6 @@
 					"default": true,
 					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%"
 				},
-				"markdown.enableExperimentalExtensionApi": {
-					"type": "boolean",
-					"default": false,
-					"description": "%markdown.preview.enableExperimentalExtensionApi.desc%"
-				},
 				"markdown.trace": {
 					"type": "string",
 					"enum": [
@@ -234,6 +233,8 @@
 		"vscode-nls": "2.0.2"
 	},
 	"devDependencies": {
+		"@types/highlight.js": "^9.1.9",
+		"@types/markdown-it": "0.0.2",
 		"@types/node": "^7.0.4",
 		"gulp-rename": "^1.2.2",
 		"gulp-replace": "^0.5.4"
