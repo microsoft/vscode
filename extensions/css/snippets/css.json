@@ -2,27 +2,28 @@
 	"transition property": {
 		"prefix": "transition",
 		"body": [
-			"-webkit-transition: ${property} ${duration} ${timing-function} ${delay};",
-			"-moz-transition: ${property} ${duration} ${timing-function} ${delay};",
-			"transition: ${property} ${duration} ${timing-function} ${delay};"
+			"-webkit-transition: ${1:property} ${2:duration} ${3:timing-function} ${4:delay};",
+			"-moz-transition: ${1:property} ${2:duration} ${3:timing-function} ${4:delay};",
+			"transition: ${1:property} ${2:duration} ${3:timing-function} ${4:delay};"
 		],
 		"description": "The transition property across browsers"
 	},
 	"border": {
 		"prefix": "border",
 		"body": [
-			"border: ${width} ${border-style} ${color};$0"
+			"border: ${1:width} ${2:border-style} ${3:color};$0"
 		],
 		"description": "[width] [border-style] [color]"
 	},
 	"gradient": {
 		"prefix": "gradient",
 		"body": [
-			"background-image: -webkit-gradient(linear, left top, left bottom, from(${start-color}), to(${end-color}));",
-			"background-image: -webkit-linear-gradient(top, ${start-color}, ${end-color});",
-			"background-image: -moz-linear-gradient(top, ${start-color}, ${end-color});",
-			"background-image: linear-gradient(to bottom, ${start-color}, ${end-color});"
+			"background-image: -webkit-gradient(linear, left top, left bottom, from(${1:start-color}), to(${2:end-color}));",
+			"background-image: -webkit-linear-gradient(top, ${1:start-color}, ${2:end-color});",
+			"background-image: -moz-linear-gradient(top, ${1:start-color}, ${2:end-color});",
+			"background-image: linear-gradient(to bottom, ${1:start-color}, ${2:end-color});"
 		],
 		"description": "Set the 'background-image' property to a linear gradient"
 	}
 }
+

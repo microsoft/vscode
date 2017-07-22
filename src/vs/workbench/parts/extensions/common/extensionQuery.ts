@@ -5,46 +5,37 @@
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string, public sortOrder: string) {
+	constructor(public value: string, public sortBy: string) {
 		this.value = value.trim();
 	}
 
 	static parse(value: string): Query {
 		let sortBy = '';
-		let sortOrder = '';
 
 		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			if (order === '-asc' || order === '-desc') {
-				sortOrder = order.substr(1);
-			}
-
 			sortBy = by;
 
 			return '';
 		});
 
-		return new Query(value, sortBy, sortOrder);
+		return new Query(value, sortBy);
 	}
 
 	toString(): string {
 		let result = this.value;
 
 		if (this.sortBy) {
-			result = `${ result }${ result ? ' ' : '' }@sort:${ this.sortBy }`;
-
-			if (this.sortOrder) {
-				result = `${ result }-${ this.sortOrder }`;
-			}
+			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
 		}
 
 		return result;
 	}
 
 	isValid(): boolean {
-		return !/@outdated/.test(this.value) && (!!this.sortBy || !this.sortOrder);
+		return !/@outdated/.test(this.value);
 	}
 
 	equals(other: Query): boolean {
-		return this.value === other.value && this.sortBy === other.sortBy && this.sortOrder === other.sortOrder;
+		return this.value === other.value && this.sortBy === other.sortBy;
 	}
 }

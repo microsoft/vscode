@@ -3,6 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path='../../../declares.d.ts'/>
-/// <reference path='../../../lib.core.d.ts'/>
-/// <reference path='../../../node.d.ts'/>
+/// <reference path='../../../../src/vs/vscode.d.ts'/>
+/// <reference types='@types/node'/>

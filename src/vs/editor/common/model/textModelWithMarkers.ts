@@ -4,43 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IdGenerator} from 'vs/base/common/idGenerator';
-import {Position} from 'vs/editor/common/core/position';
-import {IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
-import {ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
-import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { Position } from 'vs/editor/common/core/position';
+import { ITextModelWithMarkers, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+import { LineMarker } from 'vs/editor/common/model/modelLine';
+import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export interface IMarkerIdToMarkerMap {
-	[key:string]:ILineMarker;
+	[key: string]: LineMarker;
 }
 
 export interface INewMarker {
-	lineNumber:number;
-	column:number;
-	stickToPreviousCharacter:boolean;
-}
-
-export class LineMarker implements ILineMarker {
-
-	id:string;
-	column:number;
-	stickToPreviousCharacter:boolean;
-	oldLineNumber:number;
-	oldColumn:number;
-	line:ModelLine;
-
-	constructor(id:string, column:number, stickToPreviousCharacter:boolean) {
-		this.id = id;
-		this.column = column;
-		this.stickToPreviousCharacter = stickToPreviousCharacter;
-		this.oldLineNumber = 0;
-		this.oldColumn = 0;
-		this.line = null;
-	}
-
-	public toString(): string {
-		return '{\'' + this.id + '\';' + this.column + ',' + this.stickToPreviousCharacter + ',[' + this.oldLineNumber + ',' + this.oldColumn + ']}';
-	}
+	internalDecorationId: number;
+	position: Position;
+	stickToPreviousCharacter: boolean;
 }
 
 var _INSTANCE_COUNT = 0;
@@ -49,10 +28,11 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
-	constructor(allowedEventTypes:string[], rawText:IRawText, languageId:string) {
-		super(allowedEventTypes, rawText, languageId);
+
+	constructor(rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
-		this._markerIdToMarker = {};
+		this._markerIdToMarker = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -60,17 +40,17 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	protected _resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
-		super._resetValue(e, newValue);
+	protected _resetValue(newValue: ITextSource): void {
+		super._resetValue(newValue);
 
 		// Destroy all my markers
-		this._markerIdToMarker = {};
+		this._markerIdToMarker = Object.create(null);
 	}
 
-	_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string {
+	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string {
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
-		var marker = new LineMarker(this._markerIdGenerator.nextId(), pos.column, stickToPreviousCharacter);
+		var marker = new LineMarker(this._markerIdGenerator.nextId(), internalDecorationId, pos, stickToPreviousCharacter);
 		this._markerIdToMarker[marker.id] = marker;
 
 		this._lines[pos.lineNumber - 1].addMarker(marker);
@@ -78,131 +58,117 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		return marker.id;
 	}
 
-	protected _addMarkers(newMarkers:INewMarker[]): string[] {
-		let addMarkersPerLine: {
-			[lineNumber:number]: LineMarker[];
-		} = Object.create(null);
+	protected _addMarkers(newMarkers: INewMarker[]): LineMarker[] {
+		if (newMarkers.length === 0) {
+			return [];
+		}
 
-		let result:string[] = [];
+		let markers: LineMarker[] = [];
 		for (let i = 0, len = newMarkers.length; i < len; i++) {
 			let newMarker = newMarkers[i];
 
-			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.column, newMarker.stickToPreviousCharacter);
+			let marker = new LineMarker(this._markerIdGenerator.nextId(), newMarker.internalDecorationId, newMarker.position, newMarker.stickToPreviousCharacter);
 			this._markerIdToMarker[marker.id] = marker;
 
-			if (!addMarkersPerLine[newMarker.lineNumber]) {
-				addMarkersPerLine[newMarker.lineNumber] = [];
-			}
-			addMarkersPerLine[newMarker.lineNumber].push(marker);
-
-			result.push(marker.id);
+			markers[i] = marker;
 		}
 
-		let lineNumbers = Object.keys(addMarkersPerLine);
-		for (let i = 0, len = lineNumbers.length; i < len; i++) {
-			let lineNumber = parseInt(lineNumbers[i], 10);
-			this._lines[lineNumber - 1].addMarkers(addMarkersPerLine[lineNumbers[i]]);
-		}
+		let sortedMarkers = markers.slice(0);
+		sortedMarkers.sort((a, b) => {
+			return a.position.lineNumber - b.position.lineNumber;
+		});
 
-		return result;
-	}
+		let currentLineNumber = 0;
+		let currentMarkers: LineMarker[] = [], currentMarkersLen = 0;
+		for (let i = 0, len = sortedMarkers.length; i < len; i++) {
+			let marker = sortedMarkers[i];
 
-	_changeMarker(id:string, lineNumber:number, column:number): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			var newPos = this.validatePosition(new Position(lineNumber, column));
-
-			if (newPos.lineNumber !== marker.line.lineNumber) {
-				// Move marker between lines
-				marker.line.removeMarker(marker);
-				this._lines[newPos.lineNumber - 1].addMarker(marker);
+			if (marker.position.lineNumber !== currentLineNumber) {
+				if (currentLineNumber !== 0) {
+					this._lines[currentLineNumber - 1].addMarkers(currentMarkers);
+				}
+				currentLineNumber = marker.position.lineNumber;
+				currentMarkers.length = 0;
+				currentMarkersLen = 0;
 			}
 
-			// Update marker column
-			marker.column = newPos.column;
+			currentMarkers[currentMarkersLen++] = marker;
 		}
+		this._lines[currentLineNumber - 1].addMarkers(currentMarkers);
+
+		return markers;
 	}
 
-	_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-
-			if (marker.stickToPreviousCharacter !== newStickToPreviousCharacter) {
-				marker.stickToPreviousCharacter = newStickToPreviousCharacter;
-			}
+	_changeMarker(id: string, lineNumber: number, column: number): void {
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
+
+		let newPos = this.validatePosition(new Position(lineNumber, column));
+
+		if (newPos.lineNumber !== marker.position.lineNumber) {
+			// Move marker between lines
+			this._lines[marker.position.lineNumber - 1].removeMarker(marker);
+			this._lines[newPos.lineNumber - 1].addMarker(marker);
+		}
+
+		marker.setPosition(newPos);
 	}
 
-	_getMarker(id:string): Position {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			return new Position(marker.line.lineNumber, marker.column);
+	_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void {
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
-		return null;
+
+		marker.stickToPreviousCharacter = newStickToPreviousCharacter;
+	}
+
+	_getMarker(id: string): Position {
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return null;
+		}
+
+		return marker.position;
 	}
 
 	_getMarkersCount(): number {
 		return Object.keys(this._markerIdToMarker).length;
 	}
 
-	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+	_removeMarker(id: string): void {
+		let marker = this._markerIdToMarker[id];
+		if (!marker) {
+			return;
 		}
 
-		return this._lines[lineNumber - 1].getMarkers();
+		this._lines[marker.position.lineNumber - 1].removeMarker(marker);
+		delete this._markerIdToMarker[id];
 	}
 
-	_removeMarker(id:string): void {
-		if (this._markerIdToMarker.hasOwnProperty(id)) {
-			var marker = this._markerIdToMarker[id];
-			marker.line.removeMarker(marker);
-			delete this._markerIdToMarker[id];
-		}
-	}
+	protected _removeMarkers(markers: LineMarker[]): void {
+		markers.sort((a, b) => {
+			return a.position.lineNumber - b.position.lineNumber;
+		});
 
-	protected _removeMarkers(ids:string[]): void {
-		let removeMarkersPerLine: {
-			[lineNumber:number]: {
-				[markerId:string]: boolean;
-			};
-		} = Object.create(null);
+		let currentLineNumber = 0;
+		let currentMarkers: { [markerId: string]: boolean; } = null;
+		for (let i = 0, len = markers.length; i < len; i++) {
+			let marker = markers[i];
+			delete this._markerIdToMarker[marker.id];
 
-		for (let i = 0, len = ids.length; i < len; i++) {
-			let id = ids[i];
-
-			if (!this._markerIdToMarker.hasOwnProperty(id)) {
-				continue;
+			if (marker.position.lineNumber !== currentLineNumber) {
+				if (currentLineNumber !== 0) {
+					this._lines[currentLineNumber - 1].removeMarkers(currentMarkers);
+				}
+				currentLineNumber = marker.position.lineNumber;
+				currentMarkers = Object.create(null);
 			}
 
-			let marker = this._markerIdToMarker[id];
-
-			let lineNumber = marker.line.lineNumber;
-			if (!removeMarkersPerLine[lineNumber]) {
-				removeMarkersPerLine[lineNumber] = Object.create(null);
-			}
-			removeMarkersPerLine[lineNumber][id] = true;
-
-			delete this._markerIdToMarker[id];
+			currentMarkers[marker.id] = true;
 		}
-
-		let lineNumbers = Object.keys(removeMarkersPerLine);
-		for (let i = 0, len = lineNumbers.length; i < len; i++) {
-			let lineNumber = parseInt(lineNumbers[i], 10);
-			this._lines[lineNumber - 1].removeMarkers(removeMarkersPerLine[lineNumbers[i]]);
-		}
-	}
-
-	protected _getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
-		let result: ILineMarker[] = [];
-		let keys = Object.keys(markersMap);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let markerId = keys[i];
-			if (this._markerIdToMarker.hasOwnProperty(markerId)) {
-				result.push(this._markerIdToMarker[markerId]);
-			}
-		}
-
-		return result;
+		this._lines[currentLineNumber - 1].removeMarkers(currentMarkers);
 	}
 }

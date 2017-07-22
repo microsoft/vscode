@@ -5,33 +5,34 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Range} from 'vs/editor/common/core/range';
-import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Node, build, find} from './tokenTree';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { Node, build, find } from './tokenTree';
+import { Position } from 'vs/editor/common/core/position';
 
 /**
  * Interface used to compute a hierachry of logical ranges.
  */
 export interface ILogicalSelectionEntry {
-	type:string;
-	range:IRange;
+	type: string;
+	range: Range;
 }
 
 export class TokenSelectionSupport {
 
 	private _modelService: IModelService;
 
-	constructor(@IModelService modelService: IModelService) {
+	constructor( @IModelService modelService: IModelService) {
 		this._modelService = modelService;
 	}
 
-	public getRangesToPosition(resource: URI, position: IPosition): TPromise<ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource: URI, position: Position): TPromise<ILogicalSelectionEntry[]> {
 		return TPromise.as(this.getRangesToPositionSync(resource, position));
 	}
 
-	public getRangesToPositionSync(resource: URI, position: IPosition): ILogicalSelectionEntry[] {
+	public getRangesToPositionSync(resource: URI, position: Position): ILogicalSelectionEntry[] {
 		var model = this._modelService.getModel(resource),
 			entries: ILogicalSelectionEntry[] = [];
 
@@ -47,14 +48,14 @@ export class TokenSelectionSupport {
 		return entries;
 	}
 
-	private _doGetRangesToPosition(model: IModel, position: IPosition): IRange[] {
+	private _doGetRangesToPosition(model: IModel, position: Position): Range[] {
 
 		var tree = build(model),
 			node: Node,
-			lastRange: IRange;
+			lastRange: Range;
 
 		node = find(tree, position);
-		var ranges: IRange[] = [];
+		var ranges: Range[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
 				ranges.push(node.range);

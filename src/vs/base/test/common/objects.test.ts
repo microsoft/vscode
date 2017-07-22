@@ -7,19 +7,19 @@
 import * as assert from 'assert';
 import objects = require('vs/base/common/objects');
 
-var check = (one, other, msg) => {
+let check = (one, other, msg) => {
 	assert(objects.equals(one, other), msg);
 	assert(objects.equals(other, one), '[reverse] ' + msg);
 };
 
-var checkNot = (one, other, msg) => {
+let checkNot = (one, other, msg) => {
 	assert(!objects.equals(one, other), msg);
 	assert(!objects.equals(other, one), '[reverse] ' + msg);
 };
 
 suite('Objects', () => {
 
-	test('equals', function() {
+	test('equals', function () {
 		check(null, null, 'null');
 		check(undefined, undefined, 'undefined');
 		check(1234, 1234, 'numbers');
@@ -27,7 +27,7 @@ suite('Objects', () => {
 		check('1234', '1234', 'strings');
 		check([], [], 'empty arrays');
 		// check(['', 123], ['', 123], 'arrays');
-		check([[1,2,3], [4,5,6]], [[1,2,3], [4,5,6]], 'nested arrays');
+		check([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]], 'nested arrays');
 		check({}, {}, 'empty objects');
 		check({ a: 1, b: '123' }, { a: 1, b: '123' }, 'objects');
 		check({ a: 1, b: '123' }, { b: '123', a: 1 }, 'objects (key order)');
@@ -51,14 +51,14 @@ suite('Objects', () => {
 
 		checkNot('1234', 1234, 'string !== number');
 
-		checkNot([[1,2,3], [4,5,6]], [[1,2,3], [4,5,6000]], 'arrays');
+		checkNot([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6000]], 'arrays');
 		checkNot({ a: { b: 1, c: 2 }, b: 3 }, { b: 3, a: { b: 9, c: 2 } }, 'objects');
 	});
 
-	test('mixin - array', function() {
+	test('mixin - array', function () {
 
-		var foo:any = {};
-		objects.mixin(foo, { bar: [1,2,3] });
+		let foo: any = {};
+		objects.mixin(foo, { bar: [1, 2, 3] });
 
 		assert(foo.bar);
 		assert(Array.isArray(foo.bar));
@@ -68,12 +68,12 @@ suite('Objects', () => {
 		assert.equal(foo.bar[2], 3);
 	});
 
-	test('mixin - no overwrite', function() {
-		var foo:any = {
+	test('mixin - no overwrite', function () {
+		let foo: any = {
 			bar: '123'
 		};
 
-		var bar:any = {
+		let bar: any = {
 			bar: '456'
 		};
 
@@ -82,31 +82,31 @@ suite('Objects', () => {
 		assert.equal(foo.bar, '123');
 	});
 
-	test('cloneAndChange',() => {
-		var o1 = { something: 'hello' };
-		var o = {
+	test('cloneAndChange', () => {
+		let o1 = { something: 'hello' };
+		let o = {
 			o1: o1,
 			o2: o1
 		};
-		assert.deepEqual(objects.cloneAndChange(o,() => { }), o);
+		assert.deepEqual(objects.cloneAndChange(o, () => { }), o);
 	});
 
-	test('safeStringify', function() {
-		var obj1 = {
+	test('safeStringify', function () {
+		let obj1 = {
 			friend: null
 		};
 
-		var obj2 = {
+		let obj2 = {
 			friend: null
 		};
 
 		obj1.friend = obj2;
 		obj2.friend = obj1;
 
-		var arr:any = [1];
+		let arr: any = [1];
 		arr.push(arr);
 
-		var circular = {
+		let circular = {
 			a: 42,
 			b: null,
 			c: [
@@ -121,45 +121,47 @@ suite('Objects', () => {
 		circular.b = circular;
 		circular.d = arr;
 
-		var result = objects.safeStringify(circular);
+		let result = objects.safeStringify(circular);
 
 		assert.deepEqual(JSON.parse(result), {
 			a: 42,
 			b: '[Circular]',
 			c: [
-				{friend: {
-					friend: '[Circular]'
-				}},
+				{
+					friend: {
+						friend: '[Circular]'
+					}
+				},
 				'[Circular]'
 			],
 			d: [1, '[Circular]', '[Circular]']
 		});
 	});
 
-	test('derive', function() {
+	test('derive', function () {
 
-		var someValue = 2;
+		let someValue = 2;
 
-		function Base():void {
+		function Base(): void {
 			//example
 		}
 		(<any>Base).favoriteColor = 'blue';
-		Base.prototype.test = function() { return 42; };
+		Base.prototype.test = function () { return 42; };
 
-		function Child():void {
+		function Child(): void {
 			//example
 		}
-		Child.prototype.test2 = function() { return 43; };
+		Child.prototype.test2 = function () { return 43; };
 		Object.defineProperty(Child.prototype, 'getter', {
-			get: function() { return someValue; },
+			get: function () { return someValue; },
 			enumerable: true,
 			configurable: true
 		});
 
 		objects.derive(Base, Child);
 
-		var base = new Base();
-		var child = new Child();
+		let base = new Base();
+		let child = new Child();
 
 		assert(base instanceof Base);
 		assert(child instanceof Child);
@@ -170,5 +172,82 @@ suite('Objects', () => {
 		assert.strictEqual((<any>Child).favoriteColor, 'blue');
 		someValue = 4;
 		assert.strictEqual(child.getter, 4);
+	});
+
+	test('distinct', function () {
+		let base = {
+			one: 'one',
+			two: 2,
+			three: {
+				3: true
+			},
+			four: false
+		};
+
+		let diff = objects.distinct(base, base);
+		assert.deepEqual(diff, {});
+
+		let obj = {};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			one: 'one',
+			two: 2
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			three: {
+				3: true
+			},
+			four: false
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			one: 'two',
+			two: 2,
+			three: {
+				3: true
+			},
+			four: true
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {
+			one: 'two',
+			four: true
+		});
+
+		obj = {
+			one: null,
+			two: 2,
+			three: {
+				3: true
+			},
+			four: void 0
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {
+			one: null,
+			four: void 0
+		});
+
+		obj = {
+			one: 'two',
+			two: 3,
+			three: { 3: false },
+			four: true
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, obj);
 	});
 });

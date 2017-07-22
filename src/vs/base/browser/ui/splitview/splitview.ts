@@ -9,13 +9,13 @@ import 'vs/css!./splitview';
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
 import types = require('vs/base/common/types');
-import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeyCode} from 'vs/base/common/keyCodes';
-import Event, {Emitter} from 'vs/base/common/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
 
 export enum Orientation {
 	VERTICAL,
@@ -29,6 +29,7 @@ export enum ViewSizing {
 
 export interface IOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
+	canChangeOrderByDragAndDrop?: boolean;
 }
 
 export interface ISashEvent {
@@ -48,6 +49,8 @@ export interface IView extends ee.IEventEmitter {
 	fixedSize: number;
 	minimumSize: number;
 	maximumSize: number;
+	draggableElement?: HTMLElement;
+	draggableLabel?: string;
 	render(container: HTMLElement, orientation: Orientation): void;
 	layout(size: number, orientation: Orientation): void;
 	focus(): void;
@@ -101,21 +104,68 @@ export abstract class View extends ee.EventEmitter implements IView {
 	abstract layout(size: number, orientation: Orientation): void;
 }
 
-export interface IHeaderViewOptions {
+export interface IHeaderViewOptions extends IHeaderViewStyles, IViewOptions {
 	headerSize?: number;
 }
 
+export interface IHeaderViewStyles {
+	headerForeground?: Color;
+	headerBackground?: Color;
+	headerHighContrastBorder?: Color;
+}
+
+const headerDefaultOpts = {
+	headerBackground: Color.fromHex('#808080').transparent(0.2)
+};
+
 export abstract class HeaderView extends View {
 
-	protected headerSize: number;
+	private _headerSize: number;
+	private _showHeader: boolean;
+
 	protected header: HTMLElement;
 	protected body: HTMLElement;
+
+	private headerForeground: Color;
+	private headerBackground: Color;
+	private headerHighContrastBorder;
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
 
-		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._showHeader = this._headerSize > 0;
+
+		this.headerForeground = opts.headerForeground;
+		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
+		this.headerHighContrastBorder = opts.headerHighContrastBorder;
 	}
+
+	style(styles: IHeaderViewStyles): void {
+		this.headerForeground = styles.headerForeground;
+		this.headerBackground = styles.headerBackground;
+		this.headerHighContrastBorder = styles.headerHighContrastBorder;
+
+		this.applyStyles();
+	}
+
+	protected get headerSize(): number {
+		return this._showHeader ? this._headerSize : 0;
+	}
+
+	protected applyStyles(): void {
+		if (this.header) {
+			const headerForegroundColor = this.headerForeground ? this.headerForeground.toString() : null;
+			const headerBackgroundColor = this.headerBackground ? this.headerBackground.toString() : null;
+			const headerHighContrastBorderColor = this.headerHighContrastBorder ? this.headerHighContrastBorder.toString() : null;
+
+			this.header.style.color = headerForegroundColor;
+			this.header.style.backgroundColor = headerBackgroundColor;
+			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
+		}
+	}
+
+	get draggableElement(): HTMLElement { return this.header; }
 
 	render(container: HTMLElement, orientation: Orientation): void {
 		this.header = document.createElement('div');
@@ -129,7 +179,7 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		if (this.headerSize > 0) {
+		if (this._showHeader) {
 			this.renderHeader(this.header);
 			container.appendChild(this.header);
 		}
@@ -140,6 +190,30 @@ export abstract class HeaderView extends View {
 		this.layoutBodyContainer(orientation);
 		this.renderBody(this.body);
 		container.appendChild(this.body);
+
+		this.applyStyles();
+	}
+
+	showHeader(): boolean {
+		if (!this._showHeader) {
+			if (!this.body.parentElement.contains(this.header)) {
+				this.renderHeader(this.header);
+				this.body.parentElement.insertBefore(this.header, this.body);
+			}
+			dom.removeClass(this.header, 'hide');
+			this._showHeader = true;
+			return true;
+		}
+		return false;
+	}
+
+	hideHeader(): boolean {
+		if (this._showHeader) {
+			dom.addClass(this.header, 'hide');
+			this._showHeader = false;
+			return true;
+		}
+		return false;
 	}
 
 	layout(size: number, orientation: Orientation): void {
@@ -170,10 +244,9 @@ export abstract class HeaderView extends View {
 }
 
 export interface ICollapsibleViewOptions {
-	ariaHeaderLabel?: string;
-	fixedSize?: number;
-	minimumSize?: number;
-	headerSize?: number;
+	sizing: ViewSizing;
+	ariaHeaderLabel: string;
+	bodySize?: number;
 	initialState?: CollapsibleState;
 }
 
@@ -190,12 +263,41 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 	private headerClickListener: lifecycle.IDisposable;
 	private headerKeyListener: lifecycle.IDisposable;
 	private focusTracker: dom.IFocusTracker;
+	private _bodySize: number;
+	private _previousSize: number = null;
+	private readonly viewSizing: ViewSizing;
 
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
+		this.viewSizing = opts.sizing;
+		this.ariaHeaderLabel = opts.ariaHeaderLabel;
 
-		this.ariaHeaderLabel = opts && opts.ariaHeaderLabel;
+		this.setBodySize(types.isUndefined(opts.bodySize) ? 22 : opts.bodySize);
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
+	}
+
+	get previousSize(): number {
+		return this._previousSize;
+	}
+
+	setBodySize(bodySize: number) {
+		this._bodySize = bodySize;
+		this.updateSize();
+	}
+
+	private updateSize() {
+		if (this.viewSizing === ViewSizing.Fixed) {
+			this.setFixed(this.state === CollapsibleState.EXPANDED ? this._bodySize + this.headerSize : this.headerSize);
+		} else {
+			this._minimumSize = this._bodySize + this.headerSize;
+			this._previousSize = !this.previousSize || this._previousSize < this._minimumSize ? this._minimumSize : this._previousSize;
+			if (this.state === CollapsibleState.EXPANDED) {
+				this.setFlexible(this._previousSize || this._minimumSize);
+			} else {
+				this._previousSize = this.size || this._minimumSize;
+				this.setFixed(this.headerSize);
+			}
+		}
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
@@ -307,6 +409,23 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		}
 
 		this.layoutHeader();
+		this.updateSize();
+	}
+
+	showHeader(): boolean {
+		const result = super.showHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
+	}
+
+	hideHeader(): boolean {
+		const result = super.hideHeader();
+		if (result) {
+			this.updateSize();
+		}
+		return result;
 	}
 
 	dispose(): void {
@@ -329,59 +448,10 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 	}
 }
 
-export abstract class CollapsibleView extends AbstractCollapsibleView {
-
-	private previousSize: number;
-
-	constructor(opts: ICollapsibleViewOptions) {
-		super(opts);
-		this.previousSize = null;
-	}
-
-	protected changeState(state: CollapsibleState): void {
-		super.changeState(state);
-
-		if (state === CollapsibleState.EXPANDED) {
-			this.setFlexible(this.previousSize || this._minimumSize);
-		} else {
-			this.previousSize = this.size;
-			this.setFixed();
-		}
-	}
-}
-
-export interface IFixedCollapsibleViewOptions extends ICollapsibleViewOptions {
-	expandedBodySize?: number;
-}
-
-export abstract class FixedCollapsibleView extends AbstractCollapsibleView {
-
-	private _expandedBodySize: number;
-
-	constructor(opts: IFixedCollapsibleViewOptions) {
-		super(objects.mixin({ sizing: ViewSizing.Fixed }, opts));
-		this._expandedBodySize = types.isUndefined(opts.expandedBodySize) ? 22 : opts.expandedBodySize;
-	}
-
-	get fixedSize(): number { return this.state === CollapsibleState.EXPANDED ? this.expandedSize : this.headerSize; }
-	private get expandedSize(): number { return this.expandedBodySize + this.headerSize; }
-
-	get expandedBodySize(): number { return this._expandedBodySize; }
-	set expandedBodySize(size: number) {
-		this._expandedBodySize = size;
-		this.setFixed(this.fixedSize);
-	}
-
-	protected changeState(state: CollapsibleState): void {
-		super.changeState(state);
-		this.setFixed(this.fixedSize);
-	}
-}
-
 class PlainView extends View {
-	render() {}
-	focus() {}
-	layout() {}
+	render() { }
+	focus() { }
+	layout() { }
 }
 
 class DeadView extends PlainView {
@@ -411,11 +481,15 @@ function sum(arr: number[]): number {
 	return arr.reduce((a, b) => a + b);
 }
 
-export class SplitView implements
+export interface SplitViewStyles {
+	dropBackground?: Color;
+}
+
+export class SplitView extends lifecycle.Disposable implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider
-{
+	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
+	private canDragAndDrop: boolean;
 	private el: HTMLElement;
 	private size: number;
 	private viewElements: HTMLElement[];
@@ -424,6 +498,7 @@ export class SplitView implements
 	private viewFocusPreviousListeners: lifecycle.IDisposable[];
 	private viewFocusNextListeners: lifecycle.IDisposable[];
 	private viewFocusListeners: lifecycle.IDisposable[];
+	private viewDnDListeners: lifecycle.IDisposable[][];
 	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
@@ -432,13 +507,22 @@ export class SplitView implements
 	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
 	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
-	private _onFocus: Emitter<IView>;
 	private state: IState;
+	private draggedView: IView;
+	private dropBackground: Color;
+
+	private _onFocus: Emitter<IView> = this._register(new Emitter<IView>());
+	readonly onFocus: Event<IView> = this._onFocus.event;
+
+	private _onDidOrderChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidOrderChange: Event<void> = this._onDidOrderChange.event;
 
 	constructor(container: HTMLElement, options?: IOptions) {
+		super();
 		options = options || {};
 
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
+		this.canDragAndDrop = !!options.canChangeOrderByDragAndDrop;
 
 		this.el = document.createElement('div');
 		dom.addClass(this.el, 'monaco-split-view');
@@ -452,11 +536,11 @@ export class SplitView implements
 		this.viewFocusPreviousListeners = [];
 		this.viewFocusNextListeners = [];
 		this.viewFocusListeners = [];
+		this.viewDnDListeners = [];
 		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
-		this._onFocus = new Emitter<IView>();
 
 		this.sashOrientation = this.orientation === Orientation.VERTICAL
 			? sash.Orientation.HORIZONTAL
@@ -476,14 +560,19 @@ export class SplitView implements
 		this.addView(new VoidView(), 1, 0);
 	}
 
-	get onFocus(): Event<IView> {
-		return this._onFocus.event;
+	getViews<T extends IView>(): T[] {
+		return <T[]>this.views.slice(0, this.views.length - 1);
 	}
 
 	addView(view: IView, initialWeight: number = 1, index = this.views.length - 1): void {
 		if (initialWeight <= 0) {
 			throw new Error('Initial weight must be a positive number.');
 		}
+
+		/**
+		 * Reset size to null. This will layout newly added views to initial weights.
+		 */
+		this.size = null;
 
 		let viewCount = this.views.length;
 
@@ -506,23 +595,34 @@ export class SplitView implements
 			this.el.insertBefore(viewElement, this.el.children.item(index));
 		}
 
+		// Listen to Drag and Drop
+		this.viewDnDListeners[index] = this.createDnDListeners(view, viewElement);
+
 		// Add sash
 		if (this.views.length > 2) {
 			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
 			this.sashes.splice(index - 1, 0, s);
-			this.sashesListeners.push(s.addListener2('start', e => this.onSashStart(s, this.eventWrapper(e))));
-			this.sashesListeners.push(s.addListener2('change', e => this.onSashChange(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('start', e => this.onSashStart(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('change', e => this.onSashChange(s, this.eventWrapper(e))));
 		}
 
-		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
+		this.viewChangeListeners.splice(index, 0, view.addListener('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
 
 		let viewFocusTracker = dom.trackFocus(viewElement);
 		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
 		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
 
-		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
-		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
+		this.viewFocusPreviousListeners.splice(index, 0, view.addListener('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
+		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
+	}
+
+	updateWeight(view: IView, weight: number) {
+		let index = this.views.indexOf(view);
+		if (index < 0) {
+			return;
+		}
+		this.initialWeights[index] = weight;
 	}
 
 	removeView(view: IView): void {
@@ -532,13 +632,16 @@ export class SplitView implements
 			return;
 		}
 
+		this.size = null;
 		let deadView = new DeadView(view);
 		this.views[index] = deadView;
 		this.onViewChange(deadView, 0);
 
 		let sashIndex = Math.max(index - 1, 0);
-		this.sashes[sashIndex].dispose();
-		this.sashes.splice(sashIndex, 1);
+		if (sashIndex < this.sashes.length) {
+			this.sashes[sashIndex].dispose();
+			this.sashes.splice(sashIndex, 1);
+		}
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);
@@ -552,7 +655,11 @@ export class SplitView implements
 		this.viewFocusNextListeners[index].dispose();
 		this.viewFocusNextListeners.splice(index, 1);
 
+		lifecycle.dispose(this.viewDnDListeners[index]);
+		this.viewDnDListeners.splice(index, 1);
+
 		this.views.splice(index, 1);
+		this.initialWeights.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
 		this.viewElements.splice(index, 1);
 
@@ -585,6 +692,116 @@ export class SplitView implements
 
 		this.size = size;
 		this.layoutViews();
+	}
+
+	style(styles: SplitViewStyles): void {
+		this.dropBackground = styles.dropBackground;
+	}
+
+	private createDnDListeners(view: IView, viewElement: HTMLElement): lifecycle.IDisposable[] {
+		if (!this.canDragAndDrop || view instanceof VoidView) {
+			return [];
+		}
+
+		const disposables: lifecycle.IDisposable[] = [];
+
+		// Allow to drag
+		if (view.draggableElement) {
+			view.draggableElement.draggable = true;
+			disposables.push(dom.addDisposableListener(view.draggableElement, dom.EventType.DRAG_START, (e: DragEvent) => {
+				e.dataTransfer.effectAllowed = 'move';
+
+				const dragImage = document.createElement('div');
+				dragImage.className = 'monaco-tree-drag-image';
+				dragImage.textContent = view.draggableLabel ? view.draggableLabel : view.draggableElement.textContent;
+				document.body.appendChild(dragImage);
+				e.dataTransfer.setDragImage(dragImage, -10, -10);
+				setTimeout(() => document.body.removeChild(dragImage), 0);
+
+				this.draggedView = view;
+			}));
+		}
+
+		// Drag enter
+		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_ENTER, (e: DragEvent) => {
+			if (this.draggedView && this.draggedView !== view) {
+				counter++;
+				this.updateFromDragging(view, viewElement, true);
+			}
+		}));
+
+		// Drag leave
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			if (this.draggedView && this.draggedView !== view) {
+				counter--;
+				if (counter === 0) {
+					this.updateFromDragging(view, viewElement, false);
+				}
+			}
+		}));
+
+		// Drag end
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_END, (e: DragEvent) => {
+			if (this.draggedView) {
+				counter = 0;
+				this.updateFromDragging(view, viewElement, false);
+				this.draggedView = null;
+			}
+		}));
+
+		// Drop
+		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DROP, (e: DragEvent) => {
+			dom.EventHelper.stop(e, true);
+			counter = 0;
+			this.updateFromDragging(view, viewElement, false);
+			if (this.draggedView && this.draggedView !== view) {
+				this.move(this.views.indexOf(this.draggedView), this.views.indexOf(view));
+			}
+			this.draggedView = null;
+		}));
+
+		return disposables;
+	}
+
+	private updateFromDragging(view: IView, viewElement: HTMLElement, isDragging: boolean): void {
+		viewElement.style.backgroundColor = isDragging && this.dropBackground ? this.dropBackground.toString() : null;
+	}
+
+	private move(fromIndex: number, toIndex: number): void {
+		if (fromIndex < 0 || toIndex > this.views.length - 2) {
+			return;
+		}
+
+		const [viewChangeListener] = this.viewChangeListeners.splice(fromIndex, 1);
+		this.viewChangeListeners.splice(toIndex, 0, viewChangeListener);
+
+		const [viewFocusPreviousListener] = this.viewFocusPreviousListeners.splice(fromIndex, 1);
+		this.viewFocusPreviousListeners.splice(toIndex, 0, viewFocusPreviousListener);
+
+		const [viewFocusListener] = this.viewFocusListeners.splice(fromIndex, 1);
+		this.viewFocusListeners.splice(toIndex, 0, viewFocusListener);
+
+		const [viewFocusNextListener] = this.viewFocusNextListeners.splice(fromIndex, 1);
+		this.viewFocusNextListeners.splice(toIndex, 0, viewFocusNextListener);
+
+		const [viewDnDListeners] = this.viewDnDListeners.splice(fromIndex, 1);
+		this.viewDnDListeners.splice(toIndex, 0, viewDnDListeners);
+
+		const [view] = this.views.splice(fromIndex, 1);
+		this.views.splice(toIndex, 0, view);
+
+		const [weight] = this.initialWeights.splice(fromIndex, 1);
+		this.initialWeights.splice(toIndex, 0, weight);
+
+		this.el.removeChild(this.viewElements[fromIndex]);
+		this.el.insertBefore(this.viewElements[fromIndex], this.viewElements[toIndex < fromIndex ? toIndex : toIndex + 1]);
+		const [viewElement] = this.viewElements.splice(fromIndex, 1);
+		this.viewElements.splice(toIndex, 0, viewElement);
+
+		this.layout();
+
+		this._onDidOrderChange.fire();
 	}
 
 	private onSashStart(sash: sash.Sash, event: ISashEvent): void {
@@ -828,5 +1045,7 @@ export class SplitView implements
 		this.layoutViewElement = null;
 		this.eventWrapper = null;
 		this.state = null;
+
+		super.dispose();
 	}
 }

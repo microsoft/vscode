@@ -98,9 +98,9 @@ if (!process.env['VSCODE_ALLOW_IO']) {
 		write: function () { /* No OP */ }
 	});
 
-	process.__defineGetter__('stdout', function() { return writable; });
-	process.__defineGetter__('stderr', function() { return writable; });
-	process.__defineGetter__('stdin', function() { return writable; });
+	process.__defineGetter__('stdout', function () { return writable; });
+	process.__defineGetter__('stderr', function () { return writable; });
+	process.__defineGetter__('stdin', function () { return writable; });
 }
 
 // Handle uncaught exceptions
@@ -123,6 +123,18 @@ if (process.env['VSCODE_PARENT_PID']) {
 				process.exit();
 			}
 		}, 5000);
+	}
+}
+
+const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+if (typeof crashReporterOptionsRaw === 'string') {
+	try {
+		const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
+		if (crashReporterOptions) {
+			process.crashReporter.start(crashReporterOptions);
+		}
+	} catch (error) {
+		console.error(error);
 	}
 }
 

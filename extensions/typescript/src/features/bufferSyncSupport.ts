@@ -2,77 +2,81 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import * as path from 'path';
+import * as fs from 'fs';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient, APIVersion } from '../typescriptService';
+import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: Map<"TS" | "JS" | "TSX" | "JSX"> = {
-	'typescript': 'TS',
-	'typescriptreact': 'TSX',
-	'javascript': 'JS',
-	'javascriptreact': 'JSX'
-};
+function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
+	switch (mode) {
+		case 'typescript': return 'TS';
+		case 'typescriptreact': return 'TSX';
+		case 'javascript': return 'JS';
+		case 'javascriptreact': return 'JSX';
+	}
+	return undefined;
+}
 
 class SyncedBuffer {
 
-	private document: TextDocument;
-	private filepath: string;
-	private diagnosticRequestor: IDiagnosticRequestor;
-	private client: ITypescriptServiceClient;
-
-	constructor(document: TextDocument, filepath: string, diagnosticRequestor: IDiagnosticRequestor, client: ITypescriptServiceClient) {
-		this.document = document;
-		this.filepath = filepath;
-		this.diagnosticRequestor = diagnosticRequestor;
-		this.client = client;
-	}
+	constructor(
+		private readonly document: TextDocument,
+		private readonly filepath: string,
+		private readonly diagnosticRequestor: IDiagnosticRequestor,
+		private readonly client: ITypescriptServiceClient
+	) { }
 
 	public open(): void {
-		let args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 		};
-		if (this.client.apiVersion === APIVersion.v2_0_0) {
-			// we have no extension. So check the mode and
-			// set the script kind accordningly.
-			const ext = path.extname(this.filepath);
-			if (ext === '') {
-				const scriptKind = Mode2ScriptKind[this.document.languageId];
-				if (scriptKind) {
-					args.scriptKindName = scriptKind;
-				}
+
+		if (this.client.apiVersion.has203Features()) {
+			const scriptKind = mode2ScriptKind(this.document.languageId);
+			if (scriptKind) {
+				args.scriptKindName = scriptKind;
 			}
 		}
+
+		if (this.client.apiVersion.has230Features()) {
+			const root = this.client.getWorkspaceRootForResource(this.document.uri);
+			if (root) {
+				args.projectRootPath = root;
+			}
+		}
+
 		this.client.execute('open', args, false);
 	}
 
+	public get lineCount(): number {
+		return this.document.lineCount;
+	}
+
 	public close(): void {
-		let args: Proto.FileRequestArgs = {
+		const args: Proto.FileRequestArgs = {
 			file: this.filepath
 		};
 		this.client.execute('close', args, false);
 	}
 
-	onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		let filePath = this.client.asAbsolutePath(this.document.uri);
+	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
+		const filePath = this.client.normalizePath(this.document.uri);
 		if (!filePath) {
 			return;
 		}
 
-		for (let i = 0; i < events.length; i++) {
-			let event = events[i];
-			let range = event.range;
-			let text = event.text;
-			let args: Proto.ChangeRequestArgs = {
+		for (const event of events) {
+			const range = event.range;
+			const text = event.text;
+			const args: Proto.ChangeRequestArgs = {
 				file: filePath,
 				line: range.start.line + 1,
 				offset: range.start.character + 1,
@@ -92,34 +96,31 @@ export interface Diagnostics {
 
 export default class BufferSyncSupport {
 
-	private client: ITypescriptServiceClient;
+	private readonly client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: Map<boolean>;
-	private extensions: Map<boolean>;
-	private diagnostics: Diagnostics;
-	private disposables: Disposable[] = [];
-	private syncedBuffers: Map<SyncedBuffer>;
+	private readonly modeIds: Set<string>;
+	private readonly diagnostics: Diagnostics;
+	private readonly disposables: Disposable[] = [];
+	private readonly syncedBuffers: Map<string, SyncedBuffer>;
 
-	private projectValidationRequested: boolean;
+	private pendingDiagnostics = new Map<string, number>();
+	private readonly diagnosticDelayer: Delayer<any>;
 
-	private pendingDiagnostics: { [key: string]: number; };
-	private diagnosticDelayer: Delayer<any>;
-
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
+	constructor(
+		client: ITypescriptServiceClient,
+		modeIds: string[],
+		diagnostics: Diagnostics,
+		validate: boolean
+	) {
 		this.client = client;
-		this.modeIds = Object.create(null);
-		modeIds.forEach(modeId => this.modeIds[modeId] = true);
+		this.modeIds = new Set<string>(modeIds);
 		this.diagnostics = diagnostics;
-		this.extensions = extensions;
 		this._validate = validate;
 
-		this.projectValidationRequested = false;
+		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.pendingDiagnostics = Object.create(null);
-		this.diagnosticDelayer = new Delayer<any>(100);
-
-		this.syncedBuffers = Object.create(null);
+		this.syncedBuffers = new Map<string, SyncedBuffer>();
 	}
 
 	public listen(): void {
@@ -129,68 +130,67 @@ export default class BufferSyncSupport {
 		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
 	}
 
-	public get validate(): boolean {
-		return this._validate;
-	}
-
 	public set validate(value: boolean) {
 		this._validate = value;
 	}
 
 	public handles(file: string): boolean {
-		return !!this.syncedBuffers[file];
+		return this.syncedBuffers.has(file);
 	}
 
 	public reOpenDocuments(): void {
-		Object.keys(this.syncedBuffers).forEach(key => {
-			this.syncedBuffers[key].open();
-		});
+		for (const buffer of this.syncedBuffers.values()) {
+			buffer.open();
+		}
 	}
 
 	public dispose(): void {
 		while (this.disposables.length) {
-			this.disposables.pop().dispose();
+			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
 		}
 	}
 
 	private onDidOpenTextDocument(document: TextDocument): void {
-		if (!this.modeIds[document.languageId]) {
+		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
-		if (document.isUntitled) {
-			return;
-		}
-		let resource = document.uri;
-		let filepath = this.client.asAbsolutePath(resource);
+		const resource = document.uri;
+		const filepath = this.client.normalizePath(resource);
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
-		this.syncedBuffers[filepath] = syncedBuffer;
+		const syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
+		this.syncedBuffers.set(filepath, syncedBuffer);
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
 	}
 
 	private onDidCloseTextDocument(document: TextDocument): void {
-		let filepath: string = this.client.asAbsolutePath(document.uri);
+		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = this.syncedBuffers[filepath];
+		const syncedBuffer = this.syncedBuffers.get(filepath);
 		if (!syncedBuffer) {
 			return;
 		}
 		this.diagnostics.delete(filepath);
-		delete this.syncedBuffers[filepath];
+		this.syncedBuffers.delete(filepath);
 		syncedBuffer.close();
+		if (!fs.existsSync(filepath)) {
+			this.requestAllDiagnostics();
+		}
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
-		let filepath: string = this.client.asAbsolutePath(e.document.uri);
+		const filepath = this.client.normalizePath(e.document.uri);
 		if (!filepath) {
 			return;
 		}
-		let syncedBuffer = this.syncedBuffers[filepath];
+		let syncedBuffer = this.syncedBuffers.get(filepath);
 		if (!syncedBuffer) {
 			return;
 		}
@@ -201,31 +201,39 @@ export default class BufferSyncSupport {
 		if (!this._validate) {
 			return;
 		}
-		Object.keys(this.syncedBuffers).forEach(filePath => this.pendingDiagnostics[filePath] = Date.now());
+		for (const filePath of this.syncedBuffers.keys()) {
+			this.pendingDiagnostics.set(filePath, Date.now());
+		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
-		});
+		}, 200);
 	}
 
 	public requestDiagnostic(file: string): void {
-		if (!this._validate || this.client.experimentalAutoBuild) {
+		if (!this._validate) {
 			return;
 		}
 
-		this.pendingDiagnostics[file] = Date.now();
+		this.pendingDiagnostics.set(file, Date.now());
+		const buffer = this.syncedBuffers.get(file);
+		let delay = 300;
+		if (buffer) {
+			let lineCount = buffer.lineCount;
+			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
-		});
+		}, delay);
 	}
 
 	private sendPendingDiagnostics(): void {
 		if (!this._validate) {
 			return;
 		}
-		let files = Object.keys(this.pendingDiagnostics).map((key) => {
+		let files = Array.from(this.pendingDiagnostics.entries()).map(([key, value]) => {
 			return {
 				file: key,
-				time: this.pendingDiagnostics[key]
+				time: value
 			};
 		}).sort((a, b) => {
 			return a.time - b.time;
@@ -234,17 +242,19 @@ export default class BufferSyncSupport {
 		});
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		Object.keys(this.syncedBuffers).forEach((file) => {
-			if (!this.pendingDiagnostics[file]) {
+		for (const file of this.syncedBuffers.keys()) {
+			if (!this.pendingDiagnostics.get(file)) {
 				files.push(file);
 			}
-		});
+		}
 
-		let args: Proto.GeterrRequestArgs = {
-			delay: 0,
-			files: files
-		};
-		this.client.execute('geterr', args, false);
-		this.pendingDiagnostics = Object.create(null);
+		if (files.length) {
+			const args: Proto.GeterrRequestArgs = {
+				delay: 0,
+				files: files
+			};
+			this.client.execute('geterr', args, false);
+		}
+		this.pendingDiagnostics.clear();
 	}
 }

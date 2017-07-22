@@ -21,17 +21,18 @@ export interface IListElementEvent<T, E> {
 	event: E;
 }
 
+export interface IListEvent<T> {
+	elements: T[];
+	indexes: number[];
+}
+
 export interface IListMouseEvent<T> extends MouseEvent {
 	element: T;
 	index: number;
 }
 
-export interface IFocusChangeEvent<T> {
-	elements: T[];
-	indexes: number[];
-}
-
-export interface ISelectionChangeEvent<T> {
-	elements: T[];
-	indexes: number[];
+export interface IListContextMenuEvent<T> {
+	element: T;
+	index: number;
+	anchor: HTMLElement | { x: number; y: number; };
 }

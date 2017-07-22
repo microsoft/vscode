@@ -14,23 +14,23 @@ suite('Graph', () => {
 		graph = new Graph<string>(s => s);
 	});
 
-	test('cannot be traversed when empty', function() {
+	test('cannot be traversed when empty', function () {
 		graph.traverse('foo', true, () => assert(false));
 		graph.traverse('foo', false, () => assert(false));
 		assert(true);
 	});
 
-	test('is possible to lookup nodes that don\'t exist', function() {
+	test('is possible to lookup nodes that don\'t exist', function () {
 		assert.deepEqual(graph.lookup('ddd'), null);
 	});
 
-	test('inserts nodes when not there yet', function() {
+	test('inserts nodes when not there yet', function () {
 		assert.deepEqual(graph.lookup('ddd'), null);
 		assert.deepEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
 		assert.deepEqual(graph.lookup('ddd').data, 'ddd');
 	});
 
-	test('can remove nodes and get length', function() {
+	test('can remove nodes and get length', function () {
 		assert.equal(graph.length, 0);
 		assert.deepEqual(graph.lookup('ddd'), null);
 		assert.deepEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
@@ -40,14 +40,14 @@ suite('Graph', () => {
 		assert.equal(graph.length, 0);
 	});
 
-	test('traverse from leaf', function() {
+	test('traverse from leaf', function () {
 		graph.insertEdge('foo', 'bar');
 		graph.traverse('bar', true, (node) => assert.equal(node, 'bar'));
 		var items = ['bar', 'foo'];
 		graph.traverse('bar', false, (node) => assert.equal(node, items.shift()));
 	});
 
-	test('traverse from center', function() {
+	test('traverse from center', function () {
 		graph.insertEdge('1', '3');
 		graph.insertEdge('2', '3');
 		graph.insertEdge('3', '4');
@@ -60,7 +60,7 @@ suite('Graph', () => {
 		graph.traverse('3', false, (node) => assert.equal(node, items.shift()));
 	});
 
-	test('traverse a chain', function() {
+	test('traverse a chain', function () {
 		graph.insertEdge('1', '2');
 		graph.insertEdge('2', '3');
 		graph.insertEdge('3', '4');
@@ -73,7 +73,7 @@ suite('Graph', () => {
 		graph.traverse('5', false, (node) => assert.equal(node, items.shift()));
 	});
 
-	test('root', function() {
+	test('root', function () {
 		graph.insertEdge('1', '2');
 		var roots = graph.roots();
 		assert.equal(roots.length, 1);
@@ -84,7 +84,7 @@ suite('Graph', () => {
 		assert.equal(roots.length, 0);
 	});
 
-	test('root complex', function() {
+	test('root complex', function () {
 		graph.insertEdge('1', '2');
 		graph.insertEdge('1', '3');
 		graph.insertEdge('3', '4');

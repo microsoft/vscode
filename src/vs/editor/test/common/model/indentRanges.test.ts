@@ -6,12 +6,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Model} from 'vs/editor/common/model/model';
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
-import {computeRanges} from 'vs/editor/common/model/indentRanges';
+import { Model } from 'vs/editor/common/model/model';
+import { computeRanges } from 'vs/editor/common/model/indentRanges';
+
+export interface IndentRange {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
+}
 
 suite('Indentation Folding', () => {
-	function assertRanges(lines: string[], expected:IFoldingRange[]): void {
+	function assertRanges(lines: string[], expected: IndentRange[]): void {
 		let model = Model.createFromString(lines.join('\n'));
 		let actual = computeRanges(model);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
@@ -19,7 +24,7 @@ suite('Indentation Folding', () => {
 		model.dispose();
 	}
 
-	function r(startLineNumber: number, endLineNumber: number, indent: number): IFoldingRange {
+	function r(startLineNumber: number, endLineNumber: number, indent: number): IndentRange {
 		return { startLineNumber, endLineNumber, indent };
 	}
 
@@ -39,7 +44,7 @@ suite('Indentation Folding', () => {
 			'  A',
 			'    A',
 			'    A'
-		], [r(1, 5, 0), r(3, 5, 2)] );
+		], [r(1, 5, 0), r(3, 5, 2)]);
 	});
 
 	test('Fold three levels', () => {
@@ -49,7 +54,7 @@ suite('Indentation Folding', () => {
 			'    A',
 			'      A',
 			'A'
-		], [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)] );
+		], [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)]);
 	});
 
 	test('Fold decreasing indent', () => {
@@ -57,7 +62,7 @@ suite('Indentation Folding', () => {
 			'    A',
 			'  A',
 			'A'
-		], [] );
+		], []);
 	});
 
 	test('Fold Java', () => {
@@ -75,7 +80,7 @@ suite('Indentation Folding', () => {
 		/*11*/	'interface B {',
 		/*12*/	'  void bar();',
 		/*13*/	'}',
-		], [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)] );
+		], [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)]);
 	});
 
 	test('Fold Javadoc', () => {
@@ -87,7 +92,7 @@ suite('Indentation Folding', () => {
 		/* 5*/	'  void foo() {',
 		/* 6*/	'  }',
 		/* 7*/	'}',
-		], [r(1, 3, 0), r(4, 6, 0)] );
+		], [r(1, 3, 0), r(4, 6, 0)]);
 	});
 	test('Fold Whitespace', () => {
 		assertRanges([
@@ -99,7 +104,7 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  }',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 2)] );
+		], [r(1, 7, 0), r(3, 5, 2)]);
 	});
 
 	test('Fold Tabs', () => {
@@ -112,6 +117,6 @@ suite('Indentation Folding', () => {
 		/* 6*/	'  \t}',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], [r(1, 7, 0), r(3, 5, 4)] );
+		], [r(1, 7, 0), r(3, 5, 4)]);
 	});
 });

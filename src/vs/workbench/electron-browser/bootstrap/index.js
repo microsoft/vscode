@@ -7,17 +7,35 @@
 
 'use strict';
 
-/*global window,document,define*/
+if (window.location.search.indexOf('prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	profiler.startProfiling('renderer', true);
+}
 
+/*global window,document,define,Monaco_Loader_Init*/
+
+const startTimer = require('../../../base/node/startupTimers').startTimer;
 const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
-const windowId = remote.getCurrentWindow().id;
+
+process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
+		resolve();
+		console.warn('renderer did not receive lazyEnv in time');
+	}, 10000);
+	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		clearTimeout(handle);
+		assign(process.env, shellEnv);
+		resolve(process.env);
+	});
+	ipc.send('vscode:fetchShellEnv', remote.getCurrentWindow().id);
+});
 
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools', windowId);
+		remote.getCurrentWebContents().openDevTools();
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -63,6 +81,7 @@ function uriFromPath(_path) {
 function registerListeners(enableDeveloperTools) {
 
 	// Devtools & reload support
+	var listener;
 	if (enableDeveloperTools) {
 		const extractKey = function (e) {
 			return [
@@ -77,17 +96,25 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		window.addEventListener('keydown', function (e) {
+		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools', windowId);
+				remote.getCurrentWebContents().toggleDevTools();
 			} else if (key === RELOAD_KB) {
-				ipc.send('vscode:reloadWindow', windowId);
+				remote.getCurrentWindow().reload();
 			}
-		});
+		};
+		window.addEventListener('keydown', listener);
 	}
 
-	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools) });
+	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
+
+	return function () {
+		if (listener) {
+			window.removeEventListener('keydown', listener);
+			listener = void 0;
+		}
+	};
 }
 
 function main() {
@@ -117,12 +144,12 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
-	const enableDeveloperTools = process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath;
-	registerListeners(enableDeveloperTools);
+	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
+	const unbind = registerListeners(enableDeveloperTools);
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setZoomLevelLimits(1, 1);
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
@@ -130,18 +157,20 @@ function main() {
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
-	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	// loads as soon as the loader loads. To be able to have pseudo translation
-	createScript(rootUrl + '/vs/loader.js', function () {
+	function onLoader() {
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+		loaderTimer.stop();
 
+		window.MonacoEnvironment = {};
+
+		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
-			ignoreDuplicateModules: [
-				'vs/workbench/parts/search/common/searchQuery'
-			]
+			nodeCachedDataDir: configuration.nodeCachedDataDir,
+			onNodeCachedData: function () { onNodeCachedData.push(arguments); },
+			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
 		if (nlsConfig.pseudo) {
@@ -150,32 +179,49 @@ function main() {
 			});
 		}
 
-		window.MonacoEnvironment = {};
-
+		// Perf Counters
 		const timers = window.MonacoEnvironment.timers = {
-			start: new Date()
+			isInitialStartup: !!configuration.isInitialStartup,
+			hasAccessibilitySupport: !!configuration.accessibilitySupport,
+			start: configuration.perfStartTime,
+			appReady: configuration.perfAppReady,
+			windowLoad: configuration.perfWindowLoadTime,
+			beforeLoadWorkbenchMain: Date.now()
 		};
 
-		if (configuration.performance) {
-			const vscodeStart = remote.getGlobal('vscodeStart');
-			timers.vscodeStart = new Date(vscodeStart);
-			timers.start = new Date(vscodeStart);
-		}
-
-		timers.beforeLoad = new Date();
-
+		const workbenchMainTimer = startTimer('load:workbench.main');
 		require([
 			'vs/workbench/workbench.main',
 			'vs/nls!vs/workbench/workbench.main',
 			'vs/css!vs/workbench/workbench.main'
 		], function () {
-			timers.afterLoad = new Date();
+			workbenchMainTimer.stop();
+			timers.afterLoadWorkbenchMain = Date.now();
 
-			require('vs/workbench/electron-browser/main')
-				.startup(configuration)
-				.done(null, function (error) { onError(error, enableDeveloperTools); });
+			process.lazyEnv.then(function () {
+				require('vs/workbench/electron-browser/main')
+					.startup(configuration)
+					.done(function () {
+						unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+					}, function (error) {
+						onError(error, enableDeveloperTools);
+					});
+			});
 		});
-	});
+	}
+
+	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
+	// loads as soon as the loader loads. To be able to have pseudo translation
+	const loaderTimer = startTimer('load:loader');
+	if (typeof Monaco_Loader_Init === 'function') {
+		const loader = Monaco_Loader_Init();
+		//eslint-disable-next-line no-global-assign
+		define = loader.define; require = loader.require;
+		onLoader();
+
+	} else {
+		createScript(rootUrl + '/vs/loader.js', onLoader);
+	}
 }
 
 main();

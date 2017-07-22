@@ -3,206 +3,230 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
-import platform = require('vs/base/common/platform');
-import { Builder } from 'vs/base/browser/builder';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from 'vs/nls';
+import * as pfs from 'vs/base/node/pfs';
+import * as platform from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITerminalInstance, ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { TerminalConfigHelper, IShell } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
+import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
+import { TerminalPanel } from "vs/workbench/parts/terminal/electron-browser/terminalPanel";
+import { IWindowService } from "vs/platform/windows/common/windows";
 
-export class TerminalService implements ITerminalService {
-	public _serviceBrand: any;
-
-	private _activeTerminalInstanceIndex: number;
+export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
-	private _onActiveInstanceChanged: Emitter<string>;
-	private _onInstanceDisposed: Emitter<ITerminalInstance>;
-	private _onInstanceTitleChanged: Emitter<string>;
-	private _onInstancesChanged: Emitter<string>;
-	private _terminalContainer: HTMLElement;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalInstances: ITerminalInstance[];
-
-	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
-	public get configHelper(): TerminalConfigHelper { return this._configHelper; }
-	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
-	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
-	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
-	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
-	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IPanelService _panelService: IPanelService,
+		@IPartService _partService: IPartService,
+		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IPanelService private _panelService: IPanelService,
-		@IPartService private _partService: IPartService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
+		@IWindowService private _windowService: IWindowService,
+		@IQuickOpenService private _quickOpenService: IQuickOpenService,
+		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
+		@IChoiceService private _choiceService: IChoiceService,
+		@IStorageService private _storageService: IStorageService
 	) {
-		this._terminalInstances = [];
-		this._activeTerminalInstanceIndex = 0;
+		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
-		this._onActiveInstanceChanged = new Emitter<string>();
-		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
-		this._onInstancesChanged = new Emitter<string>();
-		this._onInstanceTitleChanged = new Emitter<string>();
-
-		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._configHelper = <TerminalConfigHelper>this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
-		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
 	}
 
-	public createInstance(name?: string, shellPath?: string, shellArgs?: string[]): ITerminalInstance {
-		let shell: IShell = {
-			executable: shellPath,
-			args: shellArgs
-		};
-		let terminalInstance = <TerminalInstance>this._instantiationService.createInstance(TerminalInstance,
+	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
+		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
-			this._workspaceContextService.getWorkspace(),
-			name,
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		terminalInstance.addDisposable(terminalInstance.onClosed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onDataForApi(this._onInstanceData.fire, this._onInstanceData));
+		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
+		this._suggestShellChange(wasNewTerminalAction);
 		return terminalInstance;
 	}
 
-	public getInstanceLabels(): string[] {
-		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
-	}
-
-	private _removeInstance(terminalInstance: ITerminalInstance): void {
-		let index = this.terminalInstances.indexOf(terminalInstance);
-		let wasActiveInstance = terminalInstance === this.getActiveInstance();
-		if (index !== -1) {
-			this.terminalInstances.splice(index, 1);
-		}
-		if (wasActiveInstance && this.terminalInstances.length > 0) {
-			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
-			this.setActiveInstanceByIndex(newIndex);
-		}
-		if (this.terminalInstances.length === 0) {
-			this.hidePanel();
-		}
-		this._onInstancesChanged.fire();
-		if (wasActiveInstance) {
-			this._onActiveInstanceChanged.fire();
-		}
-	}
-
-	public getActiveInstance(): ITerminalInstance {
-		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
-			return null;
-		}
-		return this.terminalInstances[this.activeTerminalInstanceIndex];
-	}
-
-	public getInstanceFromId(terminalId: number): ITerminalInstance {
-		return this.terminalInstances[this._getIndexFromId(terminalId)];
-	}
-
-	public setActiveInstance(terminalInstance: ITerminalInstance): void {
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
-	}
-
-	public setActiveInstanceByIndex(terminalIndex: number): void {
-		this._activeTerminalInstanceIndex = terminalIndex;
-		this._terminalInstances.forEach((terminalInstance, i) => {
-			terminalInstance.setVisible(i === terminalIndex);
+	public focusFindWidget(): TPromise<void> {
+		return this.showPanel(false).then(() => {
+			let panel = this._panelService.getActivePanel() as TerminalPanel;
+			panel.focusFindWidget();
+			this._findWidgetVisible.set(true);
 		});
-		this._onActiveInstanceChanged.fire();
 	}
 
-	public setActiveInstanceToNext(): void {
-		if (this.terminalInstances.length <= 1) {
+	public hideFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.hideFindWidget();
+			this._findWidgetVisible.reset();
+			panel.focus();
+		}
+	}
+
+	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
+		// Only suggest on Windows since $SHELL works great for macOS/Linux
+		if (!platform.isWindows) {
 			return;
 		}
-		let newIndex = this._activeTerminalInstanceIndex + 1;
-		if (newIndex >= this.terminalInstances.length) {
-			newIndex = 0;
-		}
-		this.setActiveInstanceByIndex(newIndex);
-	}
 
-	public setActiveInstanceToPrevious(): void {
-		if (this.terminalInstances.length <= 1) {
+		// Only suggest when the terminal instance is being created by an explicit user action to
+		// launch a terminal, as opposed to something like tasks, debug, panel restore, etc.
+		if (!wasNewTerminalAction) {
 			return;
 		}
-		let newIndex = this._activeTerminalInstanceIndex - 1;
-		if (newIndex < 0) {
-			newIndex = this.terminalInstances.length - 1;
+
+		// Don't suggest if the user has explicitly opted out
+		const neverSuggest = this._storageService.getBoolean(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, StorageScope.GLOBAL, false);
+		if (neverSuggest) {
+			return;
 		}
-		this.setActiveInstanceByIndex(newIndex);
+
+		// Never suggest if the setting is non-default already (ie. they set the setting manually)
+		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
+			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
+			return;
+		}
+
+		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
+		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
+		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
+			switch (choice) {
+				case 0:
+					return this.selectDefaultWindowsShell().then(shell => {
+						if (!shell) {
+							return TPromise.as(null);
+						}
+						// Launch a new instance with the newly selected shell
+						const instance = this.createInstance({
+							executable: shell,
+							args: this._configHelper.config.shellArgs.windows
+						});
+						if (instance) {
+							this.setActiveInstance(instance);
+						}
+						return TPromise.as(null);
+					});
+				case 1:
+					return TPromise.as(null);
+				case 2:
+					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
+				default:
+					return TPromise.as(null);
+			}
+		});
 	}
 
-	public setContainers(panelContainer: Builder, terminalContainer: HTMLElement): void {
+	public selectDefaultWindowsShell(): TPromise<string> {
+		return this._detectWindowsShells().then(shells => {
+			const options: IPickOptions = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			return this._quickOpenService.pick(shells, options).then(value => {
+				if (!value) {
+					return null;
+				}
+				const shell = value.description;
+				const configChange = { key: 'terminal.integrated.shell.windows', value: shell };
+				return this._configurationEditingService.writeConfiguration(ConfigurationTarget.USER, configChange).then(() => shell);
+			});
+		});
+	}
+
+	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
+		// Determine the correct System32 path. We want to point to Sysnative
+		// when the 32-bit version of VS Code is running on a 64-bit machine.
+		// The reason for this is because PowerShell's important PSReadline
+		// module doesn't work if this is not the case. See #27915.
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
+		const expectedLocations = {
+			'Command Prompt': [`${system32Path}\\cmd.exe`],
+			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'WSL Bash': [`${system32Path}\\bash.exe`],
+			'Git Bash': [
+				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			]
+		};
+		const promises: TPromise<[string, string]>[] = [];
+		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
+		return TPromise.join(promises).then(results => {
+			return results.filter(result => !!result).map(result => {
+				return <IPickOpenEntry>{
+					label: result[0],
+					description: result[1]
+				};
+			});
+		});
+	}
+
+	private _validateShellPaths(label: string, potentialPaths: string[]): TPromise<[string, string]> {
+		const current = potentialPaths.shift();
+		return pfs.fileExists(current).then(exists => {
+			if (!exists) {
+				if (potentialPaths.length === 0) {
+					return null;
+				}
+				return this._validateShellPaths(label, potentialPaths);
+			}
+			return [label, current] as [string, string];
+		});
+	}
+
+	public getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance {
+		const activeInstance = this.getActiveInstance();
+		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
+	}
+
+	protected _showTerminalCloseConfirmation(): boolean {
+		const cancelId = 1;
+		let message;
+		if (this.terminalInstances.length === 1) {
+			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
+		} else {
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
+		}
+		const opts: Electron.ShowMessageBoxOptions = {
+			title: product.nameLong,
+			message,
+			type: 'warning',
+			buttons: [nls.localize('yes', "Yes"), nls.localize('cancel', "Cancel")],
+			noLink: true,
+			cancelId
+		};
+		return this._windowService.showMessageBox(opts) === cancelId;
+	}
+
+	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this._terminalContainer);
 		});
-	}
-
-	public showPanel(focus?: boolean): TPromise<void> {
-		return new TPromise<void>((complete) => {
-			let panel = this._panelService.getActivePanel();
-			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
-				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
-					if (focus) {
-						this.getActiveInstance().focus(true);
-					}
-					complete(void 0);
-				});
-			} else {
-				if (focus) {
-					this.getActiveInstance().focus(true);
-				}
-				complete(void 0);
-			}
-		});
-	}
-
-	public hidePanel(): void {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
-		}
-	}
-
-	public togglePanel(): TPromise<any> {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true);
-			return TPromise.as(null);
-		}
-		this.showPanel(true);
-	}
-
-	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = -1;
-		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
-				terminalIndex = i;
-			}
-		});
-		if (terminalIndex === -1) {
-			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
-		}
-		return terminalIndex;
 	}
 }

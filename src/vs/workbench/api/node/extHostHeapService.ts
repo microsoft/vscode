@@ -4,36 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ExtHostHeapServiceShape} from './extHost.protocol';
+import { ExtHostHeapServiceShape } from './extHost.protocol';
 
 export class ExtHostHeapService extends ExtHostHeapServiceShape {
 
 	private static _idPool = 0;
 
-	private _data: { [n: number]: any } = Object.create(null);
-	private _callbacks: { [n: number]: Function } = Object.create(null);
+	private _data = new Map<number, any>();
 
-	keep(obj:any, callback?:() => any): number {
+	keep(obj: any): number {
 		const id = ExtHostHeapService._idPool++;
-		this._data[id] = obj;
-		if (typeof callback === 'function') {
-			this._callbacks[id] = callback;
-		}
+		this._data.set(id, obj);
 		return id;
 	}
 
 	delete(id: number): boolean {
-		delete this._callbacks[id];
-		return this._data[id];
+		return this._data.delete(id);
 	}
 
 	get<T>(id: number): T {
-		return this._data[id];
+		return this._data.get(id);
 	}
 
 	$onGarbageCollection(ids: number[]): void {
 		for (const id of ids) {
-			setTimeout(this._callbacks[id]);
 			this.delete(id);
 		}
 	}

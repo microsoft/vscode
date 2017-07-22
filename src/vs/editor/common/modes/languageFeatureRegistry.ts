@@ -5,15 +5,14 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {
 	selector: LanguageSelector;
 	provider: T;
-	isBuiltin: boolean;
 	_score: number;
 	_time: number;
 }
@@ -31,12 +30,11 @@ export default class LanguageFeatureRegistry<T> {
 		return this._onDidChange.event;
 	}
 
-	register(selector: LanguageSelector, provider: T, isBuiltin = false): IDisposable {
+	register(selector: LanguageSelector, provider: T): IDisposable {
 
 		let entry: Entry<T> = {
 			selector,
 			provider,
-			isBuiltin,
 			_score: -1,
 			_time: this._clock++
 		};
@@ -65,7 +63,7 @@ export default class LanguageFeatureRegistry<T> {
 	}
 
 	all(model: IReadOnlyModel): T[] {
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return [];
 		}
 
@@ -108,7 +106,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: IReadOnlyModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model || model.isTooLargeForHavingAMode()) {
+		if (!model || model.isTooLargeForHavingARichMode()) {
 			return;
 		}
 
@@ -124,11 +122,11 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _lastCandidate: { uri: string; language: string; };
 
-	private _updateScores(model: IReadOnlyModel): boolean {
+	private _updateScores(model: IReadOnlyModel): void {
 
 		let candidate = {
 			uri: model.uri.toString(),
-			language: model.getModeId()
+			language: model.getLanguageIdentifier().language
 		};
 
 		if (this._lastCandidate
@@ -142,11 +140,7 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getModeId());
-			if (entry.isBuiltin && entry._score > 0) {
-				entry._score = .5;
-				entry._time = -1;
-			}
+			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language);
 		}
 
 		// needs sorting

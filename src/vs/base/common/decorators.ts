@@ -5,6 +5,27 @@
 
 'use strict';
 
+export function createDecorator(mapFn: (fn: Function) => Function): Function {
+	return (target: any, key: string, descriptor: any) => {
+		let fnKey: string = null;
+		let fn: Function = null;
+
+		if (typeof descriptor.value === 'function') {
+			fnKey = 'value';
+			fn = descriptor.value;
+		} else if (typeof descriptor.get === 'function') {
+			fnKey = 'get';
+			fn = descriptor.get;
+		}
+
+		if (!fn) {
+			throw new Error('not supported');
+		}
+
+		descriptor[fnKey] = mapFn(fn);
+	};
+}
+
 export function memoize(target: any, key: string, descriptor: any) {
 	let fnKey: string = null;
 	let fn: Function = null;
@@ -21,9 +42,9 @@ export function memoize(target: any, key: string, descriptor: any) {
 		throw new Error('not supported');
 	}
 
-	const memoizeKey = `$memoize$${ key }`;
+	const memoizeKey = `$memoize$${key}`;
 
-	descriptor[fnKey] = function (...args) {
+	descriptor[fnKey] = function (...args: any[]) {
 		if (!this.hasOwnProperty(memoizeKey)) {
 			Object.defineProperty(this, memoizeKey, {
 				configurable: false,

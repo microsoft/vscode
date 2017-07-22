@@ -12,17 +12,17 @@ import * as Platform from 'vs/base/common/platform';
  */
 
 var globals = Platform.globals;
-if(!globals.Monaco) {
+if (!globals.Monaco) {
 	globals.Monaco = {};
 }
 globals.Monaco.Diagnostics = {};
 
 var switches = globals.Monaco.Diagnostics;
-var map = {};
-var data = [];
+var map = new Map<string, Function[]>();
+var data: any[] = [];
 
-function fifo(array:any[], size:number) {
-	while(array.length > size) {
+function fifo(array: any[], size: number) {
+	while (array.length > size) {
 		array.shift();
 	}
 }
@@ -41,27 +41,27 @@ export function register(what: string, fn: Function): (...args: any[]) => void {
 	switches[what] = flag;
 
 	// register function
-	var tracers = map[what] || [];
+	var tracers = map.get(what) || [];
 	tracers.push(fn);
-	map[what] = tracers;
+	map.set(what, tracers);
 
-	var result = function(...args:any[]) {
+	var result = function (...args: any[]) {
 
-		var idx:number;
+		var idx: number;
 
-		if(switches[what] === true) {
+		if (switches[what] === true) {
 			// replay back-in-time functions
 			var allArgs = [arguments];
 			idx = data.indexOf(fn);
-			if(idx !== -1) {
+			if (idx !== -1) {
 				allArgs.unshift.apply(allArgs, data[idx + 1] || []);
 				data[idx + 1] = [];
 			}
 
-			var doIt:()=>void = function() {
+			var doIt: () => void = function () {
 				var thisArguments = allArgs.shift();
 				fn.apply(fn, thisArguments);
-				if(allArgs.length > 0) {
+				if (allArgs.length > 0) {
 					Platform.setTimeout(doIt, 500);
 				}
 			};

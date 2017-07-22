@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export default class Cache<T> {
 
 	private promise: TPromise<T> = null;
-	constructor(private task: ()=>TPromise<T>) {}
+	constructor(private task: () => TPromise<T>) { }
 
 	get(): TPromise<T> {
 		if (this.promise) {

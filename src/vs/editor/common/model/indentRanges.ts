@@ -5,22 +5,22 @@
 
 'use strict';
 
-import {ITextModel} from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/editorCommon';
 
 export class IndentRange {
 	_indentRangeBrand: void;
-	startLineNumber:number;
-	endLineNumber:number;
-	indent:number;
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
 
-	constructor(startLineNumber:number, endLineNumber:number, indent:number) {
+	constructor(startLineNumber: number, endLineNumber: number, indent: number) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
 		this.indent = indent;
 	}
 
-	public static deepCloneArr(indentRanges:IndentRange[]): IndentRange[] {
-		let result:IndentRange[] = [];
+	public static deepCloneArr(indentRanges: IndentRange[]): IndentRange[] {
+		let result: IndentRange[] = [];
 		for (let i = 0, len = indentRanges.length; i < len; i++) {
 			let r = indentRanges[i];
 			result[i] = new IndentRange(r.startLineNumber, r.endLineNumber, r.indent);

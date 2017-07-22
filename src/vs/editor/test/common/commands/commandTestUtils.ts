@@ -5,39 +5,34 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Model} from 'vs/editor/common/model/model';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {viewModelHelper} from 'vs/editor/test/common/editorTestUtils';
+import { Model } from 'vs/editor/common/model/model';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 export function testCommand(
 	lines: string[],
-	mode: string,
+	languageIdentifier: LanguageIdentifier,
 	selection: Selection,
-	commandFactory: (selection:Selection) => editorCommon.ICommand,
+	commandFactory: (selection: Selection) => editorCommon.ICommand,
 	expectedLines: string[],
 	expectedSelection: Selection
 ): void {
+	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
+	withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 
-	let model = Model.createFromString(lines.join('\n'), undefined, mode);
-	let config = new MockConfiguration(null);
-	let cursor = new Cursor(0, config, model, viewModelHelper(model), false);
+		cursor.setSelections('tests', [selection]);
 
-	cursor.setSelections('tests', [selection]);
+		cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
 
-	cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+		assert.deepEqual(model.getLinesContent(), expectedLines);
 
-	let actualValue = model.toRawText().lines;
-	assert.deepEqual(actualValue, expectedLines);
+		let actualSelection = cursor.getSelection();
+		assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
 
-	let actualSelection = cursor.getSelection();
-	assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
-
-	cursor.dispose();
-	config.dispose();
+	});
 	model.dispose();
 }
 
@@ -56,6 +51,16 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 			});
 		},
 
+		addTrackedEditOperation: (range: Range, text: string) => {
+			operations.push({
+				identifier: null,
+				range: range,
+				text: text,
+				forceMoveMarkers: false
+			});
+		},
+
+
 		trackSelection: (selection: Selection) => {
 			return null;
 		}
@@ -67,7 +72,7 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 /**
  * Create single edit operation
  */
-export function createSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):editorCommon.IIdentifiedSingleEditOperation {
+export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
 	return {
 		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
@@ -79,7 +84,7 @@ export function createSingleEditOp(text:string, positionLineNumber:number, posit
 /**
  * Create single edit operation
  */
-export function createInsertDeleteSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):editorCommon.IIdentifiedSingleEditOperation {
+export function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): editorCommon.IIdentifiedSingleEditOperation {
 	return {
 		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),

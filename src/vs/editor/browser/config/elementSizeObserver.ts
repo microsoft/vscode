@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable} from 'vs/base/common/lifecycle';
-import {IDimension} from 'vs/editor/common/editorCommon';
-import {IElementSizeObserver} from 'vs/editor/common/config/commonEditorConfig';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
-export class ElementSizeObserver extends Disposable implements IElementSizeObserver {
+export class ElementSizeObserver extends Disposable {
 
-	private referenceDomElement:HTMLElement;
-	private measureReferenceDomElementToken:number;
-	private changeCallback:()=>void;
-	private width:number;
-	private height:number;
+	private referenceDomElement: HTMLElement;
+	private measureReferenceDomElementToken: number;
+	private changeCallback: () => void;
+	private width: number;
+	private height: number;
 
-	constructor(referenceDomElement:HTMLElement, changeCallback:()=>void) {
+	constructor(referenceDomElement: HTMLElement, changeCallback: () => void) {
 		super();
 		this.referenceDomElement = referenceDomElement;
 		this.changeCallback = changeCallback;
@@ -52,13 +51,13 @@ export class ElementSizeObserver extends Disposable implements IElementSizeObser
 		}
 	}
 
-	public observe(dimension?:IDimension): void {
+	public observe(dimension?: IDimension): void {
 		this.measureReferenceDomElement(true, dimension);
 	}
 
-	private measureReferenceDomElement(callChangeCallback:boolean, dimension?:IDimension): void {
-		var observedWidth = 0;
-		var observedHeight = 0;
+	private measureReferenceDomElement(callChangeCallback: boolean, dimension?: IDimension): void {
+		let observedWidth = 0;
+		let observedHeight = 0;
 		if (dimension) {
 			observedWidth = dimension.width;
 			observedHeight = dimension.height;

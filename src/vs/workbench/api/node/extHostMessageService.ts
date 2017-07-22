@@ -4,10 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Severity from 'vs/base/common/severity';
 import vscode = require('vscode');
-import {MainContext, MainThreadMessageServiceShape} from './extHost.protocol';
+import { MainContext, MainThreadMessageServiceShape } from './extHost.protocol';
+
+const emptyMessageOptions: vscode.MessageOptions = Object.create(null);
+
+function isMessageItem<T>(item: any): item is vscode.MessageItem {
+	return item && item.title;
+}
+
+function parseMessageArguments(first: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): { options: vscode.MessageOptions; items: (string | vscode.MessageItem)[]; } {
+	if (typeof first === 'string' || isMessageItem(first)) {
+		return { options: emptyMessageOptions, items: [first, ...rest] };
+	} else {
+		return { options: first || emptyMessageOptions, items: rest };
+	}
+}
 
 export class ExtHostMessageService {
 
@@ -17,26 +31,29 @@ export class ExtHostMessageService {
 		this._proxy = threadService.get(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Thenable<vscode.MessageItem | undefined>;
+	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: (string | vscode.MessageItem)[]): Thenable<string | vscode.MessageItem | undefined> {
+		const { options, items } = parseMessageArguments(optionsOrFirstItem, rest);
+		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
-		const items: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
-
-		for (let handle = 0; handle < commands.length; handle++) {
-			let command = commands[handle];
+		for (let handle = 0; handle < items.length; handle++) {
+			let command = items[handle];
 			if (typeof command === 'string') {
-				items.push({ title: command, handle, isCloseAffordance: false });
+				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
-				let {title, isCloseAffordance} = command;
-				items.push({ title, isCloseAffordance, handle });
+				let { title, isCloseAffordance } = command;
+				commands.push({ title, isCloseAffordance, handle });
 			} else {
 				console.warn('Invalid message item:', command);
 			}
 		}
 
-		return this._proxy.$showMessage(severity, message, items).then(handle => {
+		return this._proxy.$showMessage(severity, message, options, commands).then(handle => {
 			if (typeof handle === 'number') {
-				return commands[handle];
+				return items[handle];
 			}
+			return undefined;
 		});
 	}
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IAction, IActionItem} from 'vs/base/common/actions';
-import {IEditorControl} from 'vs/platform/editor/common/editor';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { IEditorControl } from 'vs/platform/editor/common/editor';
 
 export interface IComposite {
 
@@ -27,6 +27,11 @@ export interface IComposite {
 	 * Returns the secondary actions of the composite.
 	 */
 	getSecondaryActions(): IAction[];
+
+	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	getContextMenuActions(): IAction[];
 
 	/**
 	 * Returns the action item for a specific action.

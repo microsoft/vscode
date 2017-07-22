@@ -15,13 +15,17 @@ import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } fr
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, {Emitter, chain} from 'vs/base/common/event';
-import {domEvent, stop} from 'vs/base/browser/event';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
+import Event, { Emitter, chain } from 'vs/base/common/event';
+import { domEvent, stop } from 'vs/base/browser/event';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -45,7 +49,7 @@ export class ParameterHintsModel extends Disposable {
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
 
-	constructor(editor:ICommonCodeEditor) {
+	constructor(editor: ICommonCodeEditor) {
 		super();
 
 		this.editor = editor;
@@ -58,7 +62,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
-		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 
@@ -77,7 +81,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -89,7 +93,7 @@ export class ParameterHintsModel extends Disposable {
 		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
 			.then<SignatureHelp>(null, onUnexpectedError)
 			.then(result => {
-				if (!result || result.signatures.length === 0) {
+				if (!result || !result.signatures || result.signatures.length === 0) {
 					this.cancel();
 					this._onCancel.fire(void 0);
 					return false;
@@ -97,13 +101,13 @@ export class ParameterHintsModel extends Disposable {
 
 				this.active = true;
 
-				const event:IHintEvent = { hints: result };
+				const event: IHintEvent = { hints: result };
 				this._onHint.fire(event);
 				return true;
 			});
 	}
 
-	isTriggered():boolean {
+	isTriggered(): boolean {
 		return this.active || this.throttledDelayer.isScheduled();
 	}
 
@@ -118,16 +122,24 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		const support = SignatureHelpProviderRegistry.ordered(model)[0];
-		if (!support) {
-			return;
+		const triggerChars = new CharacterSet();
+		for (const support of SignatureHelpProviderRegistry.ordered(model)) {
+			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
+				for (const ch of support.signatureHelpTriggerCharacters) {
+					triggerChars.add(ch.charCodeAt(0));
+				}
+			}
 		}
 
-		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
-			return this.editor.addTypingListener(ch, () => {
+		this.triggerCharactersListeners.push(this.editor.onDidType((text: string) => {
+			if (!this.enabled) {
+				return;
+			}
+
+			if (triggerChars.has(text.charCodeAt(text.length - 1))) {
 				this.trigger();
-			});
-		});
+			}
+		}));
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
@@ -211,14 +223,14 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
-		const body = dom.append(wrapper, $('.body'));
+		const body = $('.body');
+		this.scrollbar = new DomScrollableElement(body, {});
+		this.disposables.push(this.scrollbar);
+		wrapper.appendChild(this.scrollbar.getDomNode());
 
 		this.signature = dom.append(body, $('.signature'));
 
-		this.docs = $('.docs');
-		this.scrollbar = new DomScrollableElement(this.docs, { canUseTranslate3d: false });
-		this.disposables.push(this.scrollbar);
-		body.appendChild(this.scrollbar.getDomNode());
+		this.docs = dom.append(body, $('.docs'));
 
 		this.currentSignature = 0;
 
@@ -270,7 +282,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.layoutContentWidget(this);
 	}
 
-	getPosition():IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition {
 		if (this.visible) {
 			return {
 				position: this.editor.getPosition(),
@@ -290,6 +302,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		const signature = this.hints.signatures[this.currentSignature];
 
+		if (!signature) {
+			return;
+		}
+
 		const code = dom.append(this.signature, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
@@ -297,7 +313,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
 
-		if(!hasParameters) {
+		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
 
@@ -307,7 +323,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		const activeParameter = signature.parameters[this.hints.activeParameter];
 
-		if(activeParameter && activeParameter.documentation) {
+		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
 			documentation.textContent = activeParameter.documentation;
 			dom.append(this.docs, $('p', null, documentation));
@@ -315,7 +331,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
-		if(signature.documentation) {
+		if (signature.documentation) {
 			dom.append(this.docs, $('p', null, signature.documentation));
 		}
 
@@ -349,7 +365,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		for (let i = signature.parameters.length - 1; i >= 0; i--) {
 			const parameter = signature.parameters[i];
-			idx = signature.label.lastIndexOf(parameter.label, end);
+			idx = signature.label.lastIndexOf(parameter.label, end - 1);
 
 			let signatureLabelOffset = 0;
 			let signatureLabelEnd = 0;
@@ -453,7 +469,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private updateMaxHeight(): void {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		this.element.style.maxHeight = `${ height }px`;
+		this.element.style.maxHeight = `${height}px`;
 	}
 
 	dispose(): void {
@@ -461,3 +477,18 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.model = null;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorHoverBorder);
+	if (border) {
+		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
+
+	}
+	let background = theme.getColor(editorHoverBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
+	}
+});

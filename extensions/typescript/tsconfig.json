@@ -1,16 +1,21 @@
 {
 	"compilerOptions": {
-		"noLib": true,
-		"target": "es5",
+		"target": "es6",
 		"module": "commonjs",
-		"sourceMap": true,
-		"sourceRoot": "../src",
-		"outDir": "./out"
+		"lib": [
+			"es6",
+			"es2015.promise"
+		],
+		"outDir": "./out",
+		"strictNullChecks": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"strict": true,
+		"alwaysStrict": true
 	},
-	"exclude": [
-		"node_modules",
-		"server",
-		"out",
-		"test/colorize-fixtures"
+	"include": [
+		"src/**/*"
 	]
 }

@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.task-statusbar-runningItem {
+	display: inline-block;
+}
+
+.task-statusbar-runningItem-label {
+	display: inline-block;
+	cursor: pointer;
+	padding: 0 5px 0 5px;
+}
+
+.task-statusbar-runningItem-label > .octicon {
+	font-size: 11px;
+	vertical-align: -webkit-baseline-middle;
+	height: 19px;
+}
+
 .task-statusbar-item {
 	display: inline-block;
 }
@@ -11,7 +27,7 @@
 	background: url('task.svg') 50% 2px no-repeat;
 	background-size: 18px;
 	cursor: pointer;
-	height: 24px;
+	height: 22px;
 	width: 24px;
 	vertical-align: top;
 }
@@ -22,31 +38,135 @@
 	padding: 0px 2px 0px 2px;
 	display: inline-block;
 	text-align: center;
+	vertical-align: top;
 }
 
 .task-statusbar-item-label {
 	display: inline-block;
 	cursor: pointer;
-	padding: 0 5px 0 5px;
+	padding: 0 5px 0 0;
 }
 
-.task-statusbar-item-label-error {
+.task-statusbar-item-label > .task-statusbar-item-label-counter {
 	display: inline-block;
-	padding: 0px 0px 2px 16px;
-	background: url('status-error.svg') 0px 6px no-repeat;
-	background-size: 11px;
+	vertical-align: top;
+	padding-left: 2px;
+	padding-right: 2px;
 }
 
-.task-statusbar-item-label-warning {
+.task-statusbar-item-label > .task-statusbar-item-label-error,
+.task-statusbar-item-label > .task-statusbar-item-label-warning,
+.task-statusbar-item-label > .task-statusbar-item-label-info {
 	display: inline-block;
-	padding: 0px 0px 2px 22px;
-	background: url('status-warning.svg') 6px 6px no-repeat;
-	background-size: 11px;
+	padding-right: 8px;
+	width: 8px;
+	height: 22px;
 }
 
-.task-statusbar-item-label-info {
+.task-statusbar-item-label > .task-statusbar-item-label-error {
+	-webkit-mask: url('status-error.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 11px;
+}
+
+.task-statusbar-item-label > .task-statusbar-item-label-warning {
+	-webkit-mask: url('status-warning.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 11px;
+}
+
+.task-statusbar-item-label > .task-statusbar-item-label-info {
+	-webkit-mask: url('status-info.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 11px;
+}
+
+.monaco-workbench .quick-open-task-configure {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .monaco-workbench .quick-open-task-configure,
+.hc-black .monaco-workbench .quick-open-task-configure {
+	background-image: url('configure-inverse.svg');
+}
+
+
+/*
+ * Task Panel styles
+ */
+
+.task-panel-feedback-button {
+	width: 50px;
+	height: 50px;
 	display: inline-block;
-	padding: 0px 0px 2px 22px;
-	background: url('status-info.svg') 6px 6px no-repeat;
-	background-size: 11px;
+	vertical-align: middle;
+}
+
+.task-panel-no-telemetry.light {
+	background-image: url('thumbs-down.svg');
+}
+
+.task-panel-no-telemetry.dark {
+	background-image: url('thumbs-down-inverse.svg');
+}
+
+.task-panel-yes-telemetry.light {
+	background-image: url('thumbs-up.svg');
+}
+
+.task-panel-yes-telemetry.dark {
+	background-image: url('thumbs-up-inverse.svg');
+}
+
+.task-panel {
+	padding-left: 10px;
+	padding-right: 10px;
+	overflow-y: scroll;
+}
+
+.task-panel-container {
+	outline: grey dotted thin;
+	padding: 1px 17px;
+	margin: 10px auto 0px;
+	max-width: 800px;
+}
+
+.task-panel-example-item {
+	outline: grey solid thin;
+	padding-left: 5px;
+	padding-right: 5px;
+	padding: 1px;
+	margin-bottom: 10px;
+}
+
+.task-panel-mockup-button {
+	display: inline-block;
+	padding: 2px;
+	margin-right: 2px;
+	margin-left: 2px;
+}
+
+.task-panel-oneliner {
+	text-align: left;
+	margin: 10px;
+}
+
+.task-panel-right-aligned {
+	float: right;
+	/* cancel out 2px button padding */
+	margin-top: -2px;
+}
+
+.task-panel-centered {
+	text-align: center;
+	margin-top: 10px;
+}
+
+.task-panel-header-item {
+	font-size: 19px;
+}
+
+.task-panel-feedback {
+	font-size: smaller;
+}
+
+.task-panel-hidden {
+	display: none;
 }

@@ -5,16 +5,19 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Promise} from 'vs/base/common/winjs.base';
+import { Promise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { Server as IPCServer, Client as IPCClient, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Emitter } from 'vs/base/common/event';
+import { fromEventEmitter } from 'vs/base/node/event';
+import { createQueuedSender } from 'vs/base/node/processes';
+import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
 	constructor() {
 		super({
 			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: cb => process.on('message', cb)
+			onMessage: fromEventEmitter(process, 'message', msg => msg)
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -31,30 +34,44 @@ export interface IIPCOptions {
 	/**
 	 * Time in millies before killing the ipc process. The next request after killing will start it again.
 	 */
-	timeout?:number;
+	timeout?: number;
 
 	/**
 	 * Arguments to the module to execute.
 	 */
-	args?:string[];
+	args?: string[];
 
 	/**
 	 * Environment key-value pairs to be passed to the process that gets spawned for the ipc.
 	 */
-	env?:any;
+	env?: any;
 
 	/**
 	 * Allows to assign a debug port for debugging the application executed.
 	 */
-	debug?:number;
+	debug?: number;
 
 	/**
 	 * Allows to assign a debug port for debugging the application and breaking it on the first line.
 	 */
-	debugBrk?:number;
+	debugBrk?: number;
+
+	/**
+	 * See https://github.com/Microsoft/vscode/issues/27665
+	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
+	 * e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
+	 * results in the forked process inheriting `--debug-brk=xxx`.
+	 */
+	freshExecArgv?: boolean;
+
+	/**
+	 * Enables our createQueuedSender helper for this Client. Uses a queue when the internal Node.js queue is
+	 * full of messages - see notes on that method.
+	 */
+	useQueue?: boolean;
 }
 
-export class Client implements IClient, IDisposable {
+export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests: Promise[];
@@ -77,6 +94,10 @@ export class Client implements IClient, IDisposable {
 	}
 
 	protected request(channelName: string, name: string, arg: any): Promise {
+		if (!this.disposeDelayer) {
+			return Promise.wrapError(new Error('disposed'));
+		}
+
 		this.disposeDelayer.cancel();
 
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
@@ -112,6 +133,10 @@ export class Client implements IClient, IDisposable {
 				forkOpts.env = assign(forkOpts.env, this.options.env);
 			}
 
+			if (this.options && this.options.freshExecArgv) {
+				forkOpts.execArgv = [];
+			}
+
 			if (this.options && typeof this.options.debug === 'number') {
 				forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
 			}
@@ -121,31 +146,37 @@ export class Client implements IClient, IDisposable {
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);
-			this._client = new IPCClient({
-				send: r => this.child && this.child.connected && this.child.send(r),
-				onMessage: cb => {
-					this.child.on('message', (msg) => {
 
-						// Handle console logs specially
-						if (msg && msg.type === '__$console') {
-							let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-							try {
-								const parsed = JSON.parse(msg.arguments);
-								args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-							} catch (error) {
-								args.push(msg.arguments);
-							}
+			const onMessageEmitter = new Emitter<any>();
+			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
 
-							console[msg.severity].apply(console, args);
-						}
+			onRawMessage(msg => {
+				// Handle console logs specially
+				if (msg && msg.type === '__$console') {
+					let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
+					try {
+						const parsed = JSON.parse(msg.arguments);
+						args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
+					} catch (error) {
+						args.push(msg.arguments);
+					}
 
-						// Anything else goes to the outside
-						else {
-							cb(msg);
-						}
-					});
+					console[msg.severity].apply(console, args);
+					return null;
+				}
+
+				// Anything else goes to the outside
+				else {
+					onMessageEmitter.fire(msg);
 				}
 			});
+
+			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
+			const send = r => this.child && this.child.connected && sender.send(r);
+			const onMessage = onMessageEmitter.event;
+			const protocol = { send, onMessage };
+
+			this._client = new IPCClient(protocol);
 
 			const onExit = () => this.disposeClient();
 			process.once('exit', onExit);
@@ -160,7 +191,7 @@ export class Client implements IClient, IDisposable {
 					this.activeRequests = [];
 				}
 
-				if (code && signal !== 'SIGTERM') {
+				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
 					this.disposeDelayer.cancel();
 					this.disposeClient();

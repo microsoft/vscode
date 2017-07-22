@@ -5,7 +5,7 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 export namespace EventType {
@@ -114,7 +114,6 @@ export class Gesture implements IDisposable {
 	private onTouchStart(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 		e.preventDefault();
-		e.stopPropagation();
 
 		if (this.handle) {
 			this.handle.dispose();

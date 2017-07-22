@@ -4,98 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
-	IAutoClosingPairConditional, IRichEditOnEnter, CharacterPair,
-	IRichEditElectricCharacter, EnterAction, IndentAction} from 'vs/editor/common/modes';
-import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
-import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
-import {IndentationRule, OnEnterRule, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
-import Event, {Emitter} from 'vs/base/common/event';
-import {ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {Position} from 'vs/editor/common/core/position';
+import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
+import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
+import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
+import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {DEFAULT_WORD_REGEXP} from 'vs/editor/common/model/wordHelper';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Range } from 'vs/editor/common/core/range';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
- * Describes how comments for a language work.
+ * Interface used to support insertion of mode specific comments.
  */
-export interface CommentRule {
-	/**
-	 * The line comment token, like `// this is a comment`
-	 */
-	lineComment?: string;
-	/**
-	 * The block comment character pair, like `/* block comment *&#47;`
-	 */
-	blockComment?: CharacterPair;
+export interface ICommentsConfiguration {
+	lineCommentToken?: string;
+	blockCommentStartToken?: string;
+	blockCommentEndToken?: string;
 }
 
-/**
- * The language configuration interface defines the contract between extensions and
- * various editor features, like automatic bracket insertion, automatic indentation etc.
- */
-export interface LanguageConfiguration {
-	/**
-	 * The language's comment settings.
-	 */
-	comments?: CommentRule;
-	/**
-	 * The language's brackets.
-	 * This configuration implicitly affects pressing Enter around these brackets.
-	 */
-	brackets?: CharacterPair[];
-	/**
-	 * The language's word definition.
-	 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-	 * to provide a word definition that uses exclusion of known separators.
-	 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-	 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
-	 */
-	wordPattern?: RegExp;
-	/**
-	 * The language's indentation settings.
-	 */
-	indentationRules?: IndentationRule;
-	/**
-		 * The language's rules to be evaluated when pressing Enter.
-		 */
-	onEnterRules?: OnEnterRule[];
-	/**
-	 * The language's auto closing pairs. The 'close' character is automatically inserted with the
-	 * 'open' character is typed. If not set, the configured brackets will be used.
-	 */
-	autoClosingPairs?: IAutoClosingPairConditional[];
-	/**
-	 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
-	 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
-	 * settings will be used.
-	 */
-	surroundingPairs?: IAutoClosingPair[];
-	/**
-	 * **Deprecated** Do not use.
-	 *
-	 * @deprecated Will be replaced by a better API soon.
-	 */
-	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+export interface IVirtualModel {
+	getLineTokens(lineNumber: number): LineTokens;
+	getLanguageIdentifier(): LanguageIdentifier;
+	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
+	getLineContent(lineNumber: number): string;
+}
+
+export interface IIndentConverter {
+	shiftIndent?(indentation: string): string;
+	unshiftIndent?(indentation: string): string;
+	normalizeIndentation?(indentation: string): string;
 }
 
 export class RichEditSupport {
 
-	private _conf: LanguageConfiguration;
+	private readonly _conf: LanguageConfiguration;
 
-	public electricCharacter: BracketElectricCharacterSupport;
-	public comments: ICommentsConfiguration;
-	public characterPair: IRichEditCharacterPair;
-	public wordDefinition: RegExp;
-	public onEnter: IRichEditOnEnter;
-	public brackets: IRichEditBrackets;
+	public readonly electricCharacter: BracketElectricCharacterSupport;
+	public readonly comments: ICommentsConfiguration;
+	public readonly characterPair: CharacterPairSupport;
+	public readonly wordDefinition: RegExp;
+	public readonly onEnter: OnEnterSupport;
+	public readonly indentRulesSupport: IndentRulesSupport;
+	public readonly brackets: RichEditBrackets;
+	public readonly indentationRules: IndentationRule;
 
-	constructor(modeId:string, previous:RichEditSupport, rawConf:LanguageConfiguration) {
+	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 
-		let prev:LanguageConfiguration = null;
+		let prev: LanguageConfiguration = null;
 		if (previous) {
 			prev = previous._conf;
 		}
@@ -103,20 +66,25 @@ export class RichEditSupport {
 		this._conf = RichEditSupport._mergeConf(prev, rawConf);
 
 		if (this._conf.brackets) {
-			this.brackets = new RichEditBrackets(modeId, this._conf.brackets);
+			this.brackets = new RichEditBrackets(languageIdentifier, this._conf.brackets);
 		}
 
-		this._handleOnEnter(modeId, this._conf);
+		this.onEnter = RichEditSupport._handleOnEnter(this._conf);
 
-		this._handleComments(modeId, this._conf);
+		this.comments = RichEditSupport._handleComments(this._conf);
 
-		this.characterPair = new CharacterPairSupport(LanguageConfigurationRegistry, modeId, this._conf);
-		this.electricCharacter = new BracketElectricCharacterSupport(LanguageConfigurationRegistry, modeId, this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
+		this.characterPair = new CharacterPairSupport(this._conf);
+		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
+
+		this.indentationRules = this._conf.indentationRules;
+		if (this._conf.indentationRules) {
+			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
+		}
 	}
 
-	private static _mergeConf(prev:LanguageConfiguration, current:LanguageConfiguration): LanguageConfiguration {
+	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
 		return {
 			comments: (prev ? current.comments || prev.comments : current.comments),
 			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
@@ -129,7 +97,7 @@ export class RichEditSupport {
 		};
 	}
 
-	private _handleOnEnter(modeId:string, conf:LanguageConfiguration): void {
+	private static _handleOnEnter(conf: LanguageConfiguration): OnEnterSupport {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
@@ -148,148 +116,650 @@ export class RichEditSupport {
 		}
 
 		if (!empty) {
-			this.onEnter = new OnEnterSupport(LanguageConfigurationRegistry, modeId, onEnter);
+			return new OnEnterSupport(onEnter);
 		}
+		return null;
 	}
 
-	private _handleComments(modeId:string, conf:LanguageConfiguration): void {
+	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration {
 		let commentRule = conf.comments;
+		if (!commentRule) {
+			return null;
+		}
 
 		// comment configuration
-		if (commentRule) {
-			this.comments = {};
+		let comments: ICommentsConfiguration = {};
 
-			if (commentRule.lineComment) {
-				this.comments.lineCommentToken = commentRule.lineComment;
-			}
-			if (commentRule.blockComment) {
-				let [blockStart, blockEnd] = commentRule.blockComment;
-				this.comments.blockCommentStartToken = blockStart;
-				this.comments.blockCommentEndToken = blockEnd;
-			}
+		if (commentRule.lineComment) {
+			comments.lineCommentToken = commentRule.lineComment;
 		}
-	}
+		if (commentRule.blockComment) {
+			let [blockStart, blockEnd] = commentRule.blockComment;
+			comments.blockCommentStartToken = blockStart;
+			comments.blockCommentEndToken = blockEnd;
+		}
 
+		return comments;
+	}
 }
 
 export class LanguageConfigurationRegistryImpl {
 
-	private _entries: {[languageId:string]:RichEditSupport;};
+	private _entries: RichEditSupport[];
 
 	private _onDidChange: Emitter<void> = new Emitter<void>();
 	public onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor() {
-		this._entries = Object.create(null);
+		this._entries = [];
 	}
 
-	public register(languageId:string, configuration:LanguageConfiguration): IDisposable {
-		let previous = this._entries[languageId] || null;
-		this._entries[languageId] = new RichEditSupport(languageId, previous, configuration);
+	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration): IDisposable {
+		let previous = this._getRichEditSupport(languageIdentifier.id);
+		let current = new RichEditSupport(languageIdentifier, previous, configuration);
+		this._entries[languageIdentifier.id] = current;
 		this._onDidChange.fire(void 0);
 		return {
-			dispose: () => {}
+			dispose: () => {
+				if (this._entries[languageIdentifier.id] === current) {
+					this._entries[languageIdentifier.id] = previous;
+					this._onDidChange.fire(void 0);
+				}
+			}
 		};
 	}
 
-	private _getRichEditSupport(modeId:string): RichEditSupport {
-		return this._entries[modeId];
+	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
+		return this._entries[languageId] || null;
 	}
 
-	public getElectricCharacterSupport(modeId:string): IRichEditElectricCharacter {
-		let value = this._getRichEditSupport(modeId);
+	public getIndentationRules(languageId: LanguageId) {
+		let value = this._entries[languageId];
+
+		if (!value) {
+			return null;
+		}
+
+		return value.indentationRules || null;
+	}
+
+	// begin electricCharacter
+
+	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.electricCharacter || null;
 	}
 
-	public getComments(modeId:string): ICommentsConfiguration {
-		let value = this._getRichEditSupport(modeId);
+	public getElectricCharacters(languageId: LanguageId): string[] {
+		let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
+		if (!electricCharacterSupport) {
+			return [];
+		}
+		return electricCharacterSupport.getElectricCharacters();
+	}
+
+	/**
+	 * Should return opening bracket type to match indentation with
+	 */
+	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
+		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
+		if (!electricCharacterSupport) {
+			return null;
+		}
+		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
+	// end electricCharacter
+
+	public getComments(languageId: LanguageId): ICommentsConfiguration {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.comments || null;
 	}
 
-	public getCharacterPairSupport(modeId:string): IRichEditCharacterPair {
-		let value = this._getRichEditSupport(modeId);
+	// begin characterPair
+
+	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.characterPair || null;
 	}
 
-	public getWordDefinition(modeId:string): RegExp {
-		let value = this._getRichEditSupport(modeId);
+	public getAutoClosingPairs(languageId: LanguageId): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
+		if (!characterPairSupport) {
+			return [];
+		}
+		return characterPairSupport.getAutoClosingPairs();
+	}
+
+	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
+		if (!characterPairSupport) {
+			return [];
+		}
+		return characterPairSupport.getSurroundingPairs();
+	}
+
+	public shouldAutoClosePair(character: string, context: LineTokens, column: number): boolean {
+		let scopedLineTokens = createScopedLineTokens(context, column - 1);
+		let characterPairSupport = this._getCharacterPairSupport(scopedLineTokens.languageId);
+		if (!characterPairSupport) {
+			return false;
+		}
+		return characterPairSupport.shouldAutoClosePair(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	}
+
+	// end characterPair
+
+	public getWordDefinition(languageId: LanguageId): RegExp {
+		let value = this._getRichEditSupport(languageId);
+		if (!value) {
+			return ensureValidWordDefinition(null);
+		}
+		return ensureValidWordDefinition(value.wordDefinition || null);
+	}
+
+
+
+	// beigin Indent Rules
+
+	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
-		return value.wordDefinition || null;
+		return value.indentRulesSupport || null;
 	}
 
-	public getOnEnterSupport(modeId:string): IRichEditOnEnter {
-		let value = this._getRichEditSupport(modeId);
+	/**
+	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+	 */
+	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
+		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
+		if (lineNumber > 1) {
+			let lastLineNumber = lineNumber - 1;
+			let resultLineNumber = -1;
+
+			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
+				if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageID) {
+					return resultLineNumber;
+				}
+				let text = model.getLineContent(lastLineNumber);
+				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
+					resultLineNumber = lastLineNumber;
+					continue;
+				}
+
+				return lastLineNumber;
+			}
+		}
+
+		return -1;
+	}
+
+	/**
+	 * Get inherited indentation from above lines.
+	 * 1. Find the nearest preceding line which doesn't match unIndentedLinePattern.
+	 * 2. If this line matches indentNextLinePattern or increaseIndentPattern, it means that the indent level of `lineNumber` should be 1 greater than this line.
+	 * 3. If this line doesn't match any indent rules
+	 *   a. check whether the line above it matches indentNextLinePattern
+	 *   b. If not, the indent level of this line is the result
+	 *   c. If so, it means the indent of this line is *temporary*, go upward utill we find a line whose indent is not temporary (the same workflow a -> b -> c).
+	 * 4. Otherwise, we fail to get an inherited indent from aboves. Return null and we should not touch the indent of `lineNumber`
+	 *
+	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
+	 */
+	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
+		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		if (lineNumber <= 1) {
+			return {
+				indentation: '',
+				action: null
+			};
+		}
+
+		let precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
+		if (precedingUnIgnoredLine < 1) {
+			return {
+				indentation: '',
+				action: null
+			};
+		}
+
+		let precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+
+		if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
+			return {
+				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
+				action: IndentAction.Indent,
+				line: precedingUnIgnoredLine
+			};
+		} else if (indentRulesSupport.shouldDecrease(precedingUnIgnoredLineContent)) {
+			return {
+				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
+				action: null,
+				line: precedingUnIgnoredLine
+			};
+		} else {
+			// precedingUnIgnoredLine can not be ignored.
+			// it doesn't increase indent of following lines
+			// it doesn't increase just next line
+			// so current line is not affect by precedingUnIgnoredLine
+			// and then we should get a correct inheritted indentation from above lines
+			if (precedingUnIgnoredLine === 1) {
+				return {
+					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
+					action: null,
+					line: precedingUnIgnoredLine
+				};
+			}
+
+			let previousLine = precedingUnIgnoredLine - 1;
+
+			let previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
+			if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
+				(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
+				let stopLine = 0;
+				for (let i = previousLine - 1; i > 0; i--) {
+					if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+						continue;
+					}
+					stopLine = i;
+					break;
+				}
+
+				return {
+					indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
+					action: null,
+					line: stopLine + 1
+				};
+			}
+
+			if (honorIntentialIndent) {
+				return {
+					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
+					action: null,
+					line: precedingUnIgnoredLine
+				};
+			} else {
+				// search from precedingUnIgnoredLine until we find one whose indent is not temporary
+				for (let i = precedingUnIgnoredLine; i > 0; i--) {
+					let lineContent = model.getLineContent(i);
+					if (indentRulesSupport.shouldIncrease(lineContent)) {
+						return {
+							indentation: strings.getLeadingWhitespace(lineContent),
+							action: IndentAction.Indent,
+							line: i
+						};
+					} else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
+						let stopLine = 0;
+						for (let j = i - 1; j > 0; j--) {
+							if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+								continue;
+							}
+							stopLine = j;
+							break;
+						}
+
+						return {
+							indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
+							action: null,
+							line: stopLine + 1
+						};
+					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
+						return {
+							indentation: strings.getLeadingWhitespace(lineContent),
+							action: null,
+							line: i
+						};
+					}
+				}
+
+				return {
+					indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
+					action: null,
+					line: 1
+				};
+			}
+		}
+	}
+
+	public getGoodIndentForLine(virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IIndentConverter): string {
+		let indentRulesSupport = this.getIndentRulesSupport(languageId);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		let indent = this.getInheritIndentForLine(virtualModel, lineNumber);
+		let lineContent = virtualModel.getLineContent(lineNumber);
+
+		if (indent) {
+			let inheritLine = indent.line;
+			if (inheritLine !== undefined) {
+				let onEnterSupport = this._getOnEnterSupport(languageId);
+				let enterResult: EnterAction = null;
+				try {
+					enterResult = onEnterSupport.onEnter('', virtualModel.getLineContent(inheritLine), '');
+				} catch (e) {
+					onUnexpectedError(e);
+				}
+
+				if (enterResult) {
+					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
+
+					if (enterResult.removeText) {
+						indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+					}
+
+					if (
+						(enterResult.indentAction === IndentAction.Indent) ||
+						(enterResult.indentAction === IndentAction.IndentOutdent)
+					) {
+						indentation = indentConverter.shiftIndent(indentation);
+					} else if (enterResult.indentAction === IndentAction.Outdent) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
+					if (indentRulesSupport.shouldDecrease(lineContent)) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
+					if (enterResult.appendText) {
+						indentation += enterResult.appendText;
+					}
+
+					return strings.getLeadingWhitespace(indentation);
+				}
+			}
+
+			if (indentRulesSupport.shouldDecrease(lineContent)) {
+				if (indent.action === IndentAction.Indent) {
+					return indent.indentation;
+				} else {
+					return indentConverter.unshiftIndent(indent.indentation);
+				}
+			} else {
+				if (indent.action === IndentAction.Indent) {
+					return indentConverter.shiftIndent(indent.indentation);
+				} else {
+					return indent.indentation;
+				}
+			}
+		}
+		return null;
+	}
+
+	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } {
+		model.forceTokenization(range.startLineNumber);
+		let lineTokens = model.getLineTokens(range.startLineNumber);
+
+		let beforeEnterText;
+		let afterEnterText;
+		let scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
+		let scopedLineText = scopedLineTokens.getLineContent();
+
+		let embeddedLanguage = false;
+		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
+			// we are in the embeded language content
+			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
+			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
+		}
+
+		if (range.isEmpty()) {
+			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		}
+
+		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
+
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		let beforeEnterResult = beforeEnterText;
+		let beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
+
+		if (!autoIndent && !embeddedLanguage) {
+			let beforeEnterIndentAction = this.getInheritIndentForLine(model, range.startLineNumber);
+
+			if (indentRulesSupport.shouldDecrease(beforeEnterText)) {
+				if (beforeEnterIndentAction) {
+					beforeEnterIndent = beforeEnterIndentAction.indentation;
+					if (beforeEnterIndentAction.action !== IndentAction.Indent) {
+						beforeEnterIndent = indentConverter.unshiftIndent(beforeEnterIndent);
+					}
+				}
+			}
+
+			beforeEnterResult = beforeEnterIndent + strings.ltrim(strings.ltrim(beforeEnterText, ' '), '\t');
+		}
+
+		let virtualModel: IVirtualModel = {
+			getLineTokens: (lineNumber: number) => {
+				return model.getLineTokens(lineNumber);
+			},
+			getLanguageIdentifier: () => {
+				return model.getLanguageIdentifier();
+			},
+			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
+				return model.getLanguageIdAtPosition(lineNumber, column);
+			},
+			getLineContent: (lineNumber: number) => {
+				if (lineNumber === range.startLineNumber) {
+					return beforeEnterResult;
+				} else {
+					return model.getLineContent(lineNumber);
+				}
+			}
+		};
+
+		let currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
+		let afterEnterAction = this.getInheritIndentForLine(virtualModel, range.startLineNumber + 1);
+		if (!afterEnterAction) {
+			let beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
+			return {
+				beforeEnter: beforeEnter,
+				afterEnter: beforeEnter
+			};
+		}
+
+		let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
+
+		if (afterEnterAction.action === IndentAction.Indent) {
+			afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
+		}
+
+		if (indentRulesSupport.shouldDecrease(afterEnterText)) {
+			afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
+		}
+
+		return {
+			beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
+			afterEnter: afterEnterIndent
+		};
+	}
+
+	/**
+	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
+	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
+	 */
+	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: IIndentConverter): string {
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		let afterTypeText;
+
+		// selection support
+		if (range.isEmpty()) {
+			afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		}
+
+		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
+		// Users might change the indentation by purpose and we should honor that instead of readjusting.
+		if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
+			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
+			// 1. Get inherited indent action
+			let r = this.getInheritIndentForLine(model, range.startLineNumber, false);
+			if (!r) {
+				return null;
+			}
+
+			let indentation = r.indentation;
+
+			if (r.action !== IndentAction.Indent) {
+				indentation = indentConverter.unshiftIndent(indentation);
+			}
+
+			return indentation;
+		}
+
+		return null;
+	}
+
+	public getIndentMetadata(model: ITokenizedModel, lineNumber: number): number {
+		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
+		if (!indentRulesSupport) {
+			return null;
+		}
+
+		if (lineNumber < 1 || lineNumber > model.getLineCount()) {
+			return null;
+		}
+
+		return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+	}
+
+	// end Indent Rules
+
+	// begin onEnter
+
+	private _getOnEnterSupport(languageId: LanguageId): OnEnterSupport {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.onEnter || null;
 	}
 
-	public getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): EnterAction {
-		let result:EnterAction;
+	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
+		let r = this.getEnterAction(model, new Range(lineNumber, column, lineNumber, column));
 
-		let onEnterSupport = this.getOnEnterSupport(model.getMode().getId());
+		return r ? r.enterAction : null;
+	}
 
-		if (onEnterSupport) {
-			try {
-				result = onEnterSupport.onEnter(model, new Position(lineNumber, column));
-			} catch (e) {
-				onUnexpectedError(e);
+	public getEnterAction(model: ITokenizedModel, range: Range): { enterAction: EnterAction; indentation: string; } {
+		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
+
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
+		if (!onEnterSupport) {
+			return null;
+		}
+
+		let scopedLineText = scopedLineTokens.getLineContent();
+		let beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		let afterEnterText;
+
+		// selection support
+		if (range.isEmpty()) {
+			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		}
+
+		let lineNumber = range.startLineNumber;
+		let oneLineAboveText = '';
+
+		if (lineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
+			// This is not the first line and the entire line belongs to this mode
+			let oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, lineNumber - 1);
+			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
+				// The line above ends with text belonging to the same mode
+				oneLineAboveText = oneLineAboveScopedLineTokens.getLineContent();
 			}
 		}
 
-		return result;
+		let enterResult: EnterAction = null;
+		try {
+			enterResult = onEnterSupport.onEnter(oneLineAboveText, beforeEnterText, afterEnterText);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+
+		if (!enterResult) {
+			return null;
+		} else {
+			// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
+			if (!enterResult.appendText) {
+				if (
+					(enterResult.indentAction === IndentAction.Indent) ||
+					(enterResult.indentAction === IndentAction.IndentOutdent)
+				) {
+					enterResult.appendText = '\t';
+				} else {
+					enterResult.appendText = '';
+				}
+			}
+		}
+
+		if (enterResult.removeText) {
+			indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+		}
+
+		return {
+			enterAction: enterResult,
+			indentation: indentation,
+		};
 	}
 
-	public getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: EnterAction; indentation: string; } {
+	public getIndentationAtPosition(model: ITokenizedModel, lineNumber: number, column: number): string {
 		let lineText = model.getLineContent(lineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText);
 		if (indentation.length > column - 1) {
 			indentation = indentation.substring(0, column - 1);
 		}
 
-		let enterAction = this.getRawEnterActionAtPosition(model, lineNumber, column);
-		if (!enterAction) {
-			enterAction = {
-				indentAction: IndentAction.None,
-				appendText: '',
-			};
-		} else {
-			if(!enterAction.appendText) {
-				if (
-					(enterAction.indentAction === IndentAction.Indent) ||
-					(enterAction.indentAction === IndentAction.IndentOutdent)
-				) {
-					enterAction.appendText = '\t';
-				} else {
-					enterAction.appendText = '';
-				}
-			}
-		}
-
-		if (enterAction.removeText) {
-			indentation = indentation.substring(0, indentation.length - 1);
-		}
-
-		return {
-			enterAction: enterAction,
-			indentation: indentation
-		};
+		return indentation;
 	}
 
-	public getBracketsSupport(modeId:string): IRichEditBrackets {
-		let value = this._getRichEditSupport(modeId);
+	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number, columnNumber?: number) {
+		model.forceTokenization(lineNumber);
+		let lineTokens = model.getLineTokens(lineNumber);
+		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1;
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column);
+		return scopedLineTokens;
+	}
+
+	// end onEnter
+
+	public getBracketsSupport(languageId: LanguageId): RichEditBrackets {
+		let value = this._getRichEditSupport(languageId);
 		if (!value) {
 			return null;
 		}

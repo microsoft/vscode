@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import stream = require('stream');
-import uuid = require('vs/base/common/uuid');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {canceled} from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { canceled } from 'vs/base/common/errors';
 
 export abstract class V8Protocol {
 
@@ -14,17 +13,15 @@ export abstract class V8Protocol {
 
 	private outputStream: stream.Writable;
 	private sequence: number;
-	private pendingRequests: { [id: number]: (e: DebugProtocol.Response) => void; };
+	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
 	private rawData: Buffer;
-	private id: string;
 	private contentLength: number;
 
-	constructor() {
+	constructor(private id: string) {
 		this.sequence = 1;
 		this.contentLength = -1;
-		this.pendingRequests = {};
+		this.pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
 		this.rawData = new Buffer(0);
-		this.id = uuid.generateUuid();
 	}
 
 	public getId(): string {
@@ -45,11 +42,11 @@ export abstract class V8Protocol {
 		});
 	}
 
-	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
+	protected send<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
 		let errorCallback;
-		return new TPromise((completeDispatch, errorDispatch) => {
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
 			errorCallback = errorDispatch;
-			this.doSend(command, args, (result: DebugProtocol.Response) => {
+			this.doSend(command, args, (result: R) => {
 				if (result.success) {
 					completeDispatch(result);
 				} else {
@@ -80,7 +77,7 @@ export abstract class V8Protocol {
 
 		if (clb) {
 			// store callback for this request
-			this.pendingRequests[request.seq] = clb;
+			this.pendingRequests.set(request.seq, clb);
 		}
 	}
 
@@ -133,9 +130,9 @@ export abstract class V8Protocol {
 					break;
 				case 'response':
 					const response = <DebugProtocol.Response>rawData;
-					const clb = this.pendingRequests[response.request_seq];
+					const clb = this.pendingRequests.get(response.request_seq);
 					if (clb) {
-						delete this.pendingRequests[response.request_seq];
+						this.pendingRequests.delete(response.request_seq);
 						clb(response);
 					}
 					break;

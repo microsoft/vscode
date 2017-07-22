@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import {ParsedArgs} from 'vs/platform/environment/node/argv';
 import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
-import pkg from 'vs/platform/package';
-import product from 'vs/platform/product';
+import pkg from 'vs/platform/node/package';
+import product from 'vs/platform/node/product';
 
 function getUniqueUserId(): string {
 	let username: string;
@@ -30,25 +29,29 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
-function getIPCHandleBaseName(): string {
-	let name = pkg.name;
-
-	// Support to run VS Code multiple times as different user
-	// by making the socket unique over the logged in user
-	let userId = getUniqueUserId();
-	if (userId) {
-		name += `-${ userId }`;
+function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
 	}
-
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${ name }`;
-	}
-
-	return path.join(os.tmpdir(), name);
+	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
-const IPCHandlePrefix = getIPCHandleBaseName();
-const IPCHandleSuffix = process.platform === 'win32' ? '-sock' : '.sock';
+function getWin32IPCHandle(type: string): string {
+	// Support to run VS Code multiple times as different user
+	// by making the socket unique over the logged in user
+	const userId = getUniqueUserId();
+	const name = product.applicationName + (userId ? `-${userId}` : '');
+
+	return `\\\\.\\pipe\\${name}-${pkg.version}-${type}-sock`;
+}
+
+function getIPCHandle(userDataPath: string, type: string): string {
+	if (process.platform === 'win32') {
+		return getWin32IPCHandle(type);
+	} else {
+		return getNixIPCHandle(userDataPath, type);
+	}
+}
 
 export class EnvironmentService implements IEnvironmentService {
 
@@ -62,10 +65,14 @@ export class EnvironmentService implements IEnvironmentService {
 	get execPath(): string { return this._execPath; }
 
 	@memoize
-	get userHome(): string { return path.join(os.homedir(), product.dataFolderName); }
+	get userHome(): string { return os.homedir(); }
 
 	@memoize
-	get userDataPath(): string { return path.resolve(this._args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform)); }
+	get userDataPath(): string { return parseUserDataDir(this._args, process); }
+
+	get appNameLong(): string { return product.nameLong; }
+
+	get appQuality(): string { return product.quality; }
 
 	@memoize
 	get appSettingsHome(): string { return path.join(this.userDataPath, 'User'); }
@@ -77,33 +84,87 @@ export class EnvironmentService implements IEnvironmentService {
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
-	get extensionsPath(): string { return path.normalize(this._args.extensionHomePath || path.join(this.userHome, 'extensions')); }
-
-	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath; }
-
-	get extensionTestsPath(): string { return this._args.extensionTestsPath; }
-	get disableExtensions(): boolean { return this._args['disable-extensions'];  }
+	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
+
+	@memoize
+	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
+
+	@memoize
+	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
+
+	@memoize
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userHome, product.dataFolderName, 'extensions'); }
+
+	@memoize
+	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
+
+	@memoize
+	get extensionTestsPath(): string { return this._args.extensionTestsPath ? path.normalize(this._args.extensionTestsPath) : this._args.extensionTestsPath; }
+
+	get disableExtensions(): boolean { return this._args['disable-extensions']; }
+
+	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
+
+	@memoize
+	get debugExtensionHost(): { port: number; break: boolean; debugId: string } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
-	get performance(): boolean { return this._args.performance; }
+	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
-	@memoize
-	get mainIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }${ IPCHandleSuffix }`; }
+	get performance(): boolean { return this._args.performance; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${ IPCHandlePrefix }-${ pkg.version }-shared${ IPCHandleSuffix }`; }
+	get profileStartup(): { prefix: string, dir: string } | undefined {
+		if (this._args['prof-startup']) {
+			return {
+				prefix: process.env.VSCODE_PROFILES_PREFIX,
+				dir: os.homedir()
+			};
+		} else {
+			return undefined;
+		}
+	}
 
-	constructor(private _args: ParsedArgs, private _execPath: string) {}
+	@memoize
+	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
+
+	@memoize
+	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
+
+	@memoize
+	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit) : undefined; }
+
+	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; debugId: string } {
 	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
 	const port = Number(portStr) || (!isBuild ? 5870 : null);
 	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
-	return { port, break: brk };
+	return { port, break: brk, debugId: args.debugId };
+}
+
+function parsePathArg(arg: string, process: NodeJS.Process): string {
+	if (!arg) {
+		return undefined;
+	}
+
+	// Determine if the arg is relative or absolute, if relative use the original CWD
+	// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
+	const resolved = path.resolve(arg);
+
+	if (path.normalize(arg) === resolved) {
+		return resolved;
+	} else {
+		return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
+	}
+}
+
+export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process): string {
+	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
 }

@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getMachineId } from '../node/machineId';
-import { resolveCommonProperties } from '../node/commonProperties';
+import { getMachineId } from 'vs/base/node/id';
+import { resolveCommonProperties, machineIdStorageKey } from '../node/commonProperties';
 
 const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
@@ -34,8 +34,8 @@ export function resolveWorkbenchCommonProperties(storageService: IStorageService
 		promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
 
 		if (process.platform === 'win32') {
-			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid']= value));
-			promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid']= value));
+			promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid'] = value));
+			promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid'] = value));
 		}
 
 		return TPromise.join(promises).then(() => result);
@@ -48,22 +48,21 @@ function getOrCreateInstanceId(storageService: IStorageService): TPromise<string
 	return TPromise.as(result);
 }
 
-function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
-	const key = 'telemetry.machineId';
-	let result = storageService.get(key);
+export function getOrCreateMachineId(storageService: IStorageService): TPromise<string> {
+	let result = storageService.get(machineIdStorageKey);
 
 	if (result) {
 		return TPromise.as(result);
 	}
 
 	return getMachineId().then(result => {
-		storageService.store(key, result);
+		storageService.store(machineIdStorageKey, result);
 		return result;
 	});
 }
 
 function getSqmUserId(storageService: IStorageService): TPromise<string> {
-	var sqmUserId = storageService.get('telemetry.sqm.userId');
+	const sqmUserId = storageService.get('telemetry.sqm.userId');
 	if (sqmUserId) {
 		return TPromise.as(sqmUserId);
 	}
@@ -72,6 +71,7 @@ function getSqmUserId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.userId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 
@@ -85,6 +85,7 @@ function getSqmMachineId(storageService: IStorageService): TPromise<string> {
 			storageService.store('telemetry.sqm.machineId', result);
 			return result;
 		}
+		return undefined;
 	});
 }
 
@@ -92,7 +93,7 @@ function getWinRegKeyData(key: string, name: string, hive: string): TPromise<str
 	return new TPromise<string>((resolve, reject) => {
 		if (process.platform === 'win32') {
 			try {
-				var reg = new winreg({ hive, key });
+				const reg = new winreg({ hive, key });
 				reg.get(name, (e, result) => {
 					if (e || !result) {
 						reject(null);

@@ -1,12 +1,15 @@
 "use strict";
-var ts = require('./typescript/typescriptServices');
-var lazy = require('lazy.js');
-var event_stream_1 = require('event-stream');
-var File = require('vinyl');
-var sm = require('source-map');
-var assign = require('object-assign');
-var clone = require('clone');
-var path = require('path');
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+var ts = require("typescript");
+var lazy = require("lazy.js");
+var event_stream_1 = require("event-stream");
+var File = require("vinyl");
+var sm = require("source-map");
+var assign = require("object-assign");
+var path = require("path");
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -26,6 +29,13 @@ function collect(node, fn) {
         }
     }
     loop(node);
+    return result;
+}
+function clone(object) {
+    var result = {};
+    for (var id in object) {
+        result[id] = object[id];
+    }
     return result;
 }
 function template(lines) {
@@ -63,9 +73,8 @@ function nls() {
     return event_stream_1.duplex(input, output);
 }
 function isImportNode(node) {
-    return node.kind === 212 /* ImportDeclaration */ || node.kind === 211 /* ImportEqualsDeclaration */;
+    return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
 }
-var nls;
 (function (nls_1) {
     function fileFrom(file, contents, path) {
         if (path === void 0) { path = file.path; }
@@ -106,27 +115,27 @@ var nls;
         if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {
             return CollectStepResult.No;
         }
-        return node.kind === 160 /* CallExpression */ ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
+        return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
     }
     function analyze(contents, options) {
         if (options === void 0) { options = {}; }
         var filename = 'file.ts';
         var serviceHost = new SingleFileServiceHost(assign(clone(options), { noResolve: true }), filename, contents);
         var service = ts.createLanguageService(serviceHost);
-        var sourceFile = service.getSourceFile(filename);
+        var sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
         // all imports
         var imports = lazy(collect(sourceFile, function (n) { return isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse; }));
         // import nls = require('vs/nls');
         var importEqualsDeclarations = imports
-            .filter(function (n) { return n.kind === 211 /* ImportEqualsDeclaration */; })
+            .filter(function (n) { return n.kind === ts.SyntaxKind.ImportEqualsDeclaration; })
             .map(function (n) { return n; })
-            .filter(function (d) { return d.moduleReference.kind === 222 /* ExternalModuleReference */; })
+            .filter(function (d) { return d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference; })
             .filter(function (d) { return d.moduleReference.expression.getText() === '\'vs/nls\''; });
         // import ... from 'vs/nls';
         var importDeclarations = imports
-            .filter(function (n) { return n.kind === 212 /* ImportDeclaration */; })
+            .filter(function (n) { return n.kind === ts.SyntaxKind.ImportDeclaration; })
             .map(function (n) { return n; })
-            .filter(function (d) { return d.moduleSpecifier.kind === 8 /* StringLiteral */; })
+            .filter(function (d) { return d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral; })
             .filter(function (d) { return d.moduleSpecifier.getText() === '\'vs/nls\''; })
             .filter(function (d) { return !!d.importClause && !!d.importClause.namedBindings; });
         var nlsExpressions = importEqualsDeclarations
@@ -138,7 +147,7 @@ var nls;
         }); });
         // `nls.localize(...)` calls
         var nlsLocalizeCallExpressions = importDeclarations
-            .filter(function (d) { return d.importClause.namedBindings.kind === 214 /* NamespaceImport */; })
+            .filter(function (d) { return d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport; })
             .map(function (d) { return d.importClause.namedBindings.name; })
             .concat(importEqualsDeclarations.map(function (d) { return d.name; }))
             .map(function (n) { return service.getReferencesAtPosition(filename, n.pos + 1); })
@@ -148,10 +157,10 @@ var nls;
             .map(function (a) { return lazy(a).last(); })
             .filter(function (n) { return !!n; })
             .map(function (n) { return n; })
-            .filter(function (n) { return n.expression.kind === 158 /* PropertyAccessExpression */ && n.expression.name.getText() === 'localize'; });
+            .filter(function (n) { return n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === 'localize'; });
         // `localize` named imports
         var allLocalizeImportDeclarations = importDeclarations
-            .filter(function (d) { return d.importClause.namedBindings.kind === 215 /* NamedImports */; })
+            .filter(function (d) { return d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports; })
             .map(function (d) { return d.importClause.namedBindings.elements; })
             .flatten();
         // `localize` read-only references

@@ -4,5 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface ArrayConstructor {
-    isArray<T>(arg: any): arg is Array<T>;
+	isArray(arg: any): arg is Array<any>;
+	isArray<T>(arg: any): arg is Array<T>;
 }

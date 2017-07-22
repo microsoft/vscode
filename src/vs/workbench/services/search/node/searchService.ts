@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {PPromise, TPromise} from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
-import {getNextTickChannel} from 'vs/base/parts/ipc/common/ipc';
-import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
-import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService} from './search';
-import {ISearchChannel, SearchChannelClient} from './searchIpc';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, getMergedExcludes } from 'vs/platform/search/common/search';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService } from './search';
+import { ISearchChannel, SearchChannelClient } from './searchIpc';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ResourceMap } from 'vs/base/common/map';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -29,7 +30,7 @@ export class SearchService implements ISearchService {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -41,17 +42,19 @@ export class SearchService implements ISearchService {
 
 		// Configuration: Encoding
 		if (!query.fileEncoding) {
-			let fileEncoding = configuration && configuration.files && configuration.files.encoding;
+			const fileEncoding = configuration && configuration.files && configuration.files.encoding;
 			query.fileEncoding = fileEncoding;
 		}
 
 		// Configuration: File Excludes
-		let fileExcludes = configuration && configuration.files && configuration.files.exclude;
-		if (fileExcludes) {
-			if (!query.excludePattern) {
-				query.excludePattern = fileExcludes;
-			} else {
-				objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+		if (!query.disregardExcludeSettings) {
+			const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+			if (fileExcludes) {
+				if (!query.excludePattern) {
+					query.excludePattern = fileExcludes;
+				} else {
+					objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+				}
 			}
 		}
 	}
@@ -62,43 +65,36 @@ export class SearchService implements ISearchService {
 		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
 		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
+			const searchP = this.diskSearch.search(query);
+
 			// Get local results from dirty/untitled
-			let localResultsFlushed = false;
-			let localResults = this.getLocalResults(query);
+			const localResults = this.getLocalResults(query);
 
-			let flushLocalResultsOnce = function () {
-				if (!localResultsFlushed) {
-					localResultsFlushed = true;
-					Object.keys(localResults).map((key) => localResults[key]).filter((res) => !!res).forEach(onProgress);
-				}
-			};
+			// Allow caller to register progress callback
+			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			// Delegate to parent for real file results
-			rawSearchQuery = this.diskSearch.search(query).then(
+			rawSearchQuery = searchP.then(
 
 				// on Complete
 				(complete) => {
-					flushLocalResultsOnce();
 					onComplete({
 						limitHit: complete.limitHit,
-						results: complete.results.filter((match) => typeof localResults[match.resource.toString()] === 'undefined'), // dont override local results
+						results: complete.results.filter((match) => !localResults.has(match.resource)), // dont override local results
 						stats: complete.stats
 					});
 				},
 
 				// on Error
 				(error) => {
-					flushLocalResultsOnce();
 					onError(error);
 				},
 
 				// on Progress
 				(progress) => {
-					flushLocalResultsOnce();
 
 					// Match
 					if (progress.resource) {
-						if (typeof localResults[progress.resource.toString()] === 'undefined') { // don't override local results
+						if (!localResults.has(progress.resource)) { // don't override local results
 							onProgress(progress);
 						}
 					}
@@ -111,8 +107,8 @@ export class SearchService implements ISearchService {
 		}, () => rawSearchQuery && rawSearchQuery.cancel());
 	}
 
-	private getLocalResults(query: ISearchQuery): { [resourcePath: string]: IFileMatch; } {
-		let localResults: { [resourcePath: string]: IFileMatch; } = Object.create(null);
+	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
+		const localResults = new ResourceMap<IFileMatch>();
 
 		if (query.type === QueryType.Text) {
 			let models = this.modelService.getModels();
@@ -124,7 +120,7 @@ export class SearchService implements ISearchService {
 
 				// Support untitled files
 				if (resource.scheme === 'untitled') {
-					if (!this.untitledEditorService.get(resource)) {
+					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
 				}
@@ -134,21 +130,21 @@ export class SearchService implements ISearchService {
 					return;
 				}
 
-				if (!this.matches(resource, query.filePattern, query.includePattern, query.excludePattern)) {
+				if (!this.matches(resource, query)) {
 					return; // respect user filters
 				}
 
 				// Use editor API to find matches
-				let ranges = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch);
-				if (ranges.length) {
+				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
+				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
-					localResults[resource.toString()] = fileMatch;
+					localResults.set(resource, fileMatch);
 
-					ranges.forEach((range) => {
-						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(range.startLineNumber), range.startLineNumber - 1, [[range.startColumn - 1, range.endColumn - range.startColumn]]));
+					matches.forEach((match) => {
+						fileMatch.lineMatches.push(new LineMatch(model.getLineContent(match.range.startLineNumber), match.range.startLineNumber - 1, [[match.range.startColumn - 1, match.range.endColumn - match.range.startColumn]]));
 					});
 				} else {
-					localResults[resource.toString()] = false; // flag as empty result
+					localResults.set(resource, null);
 				}
 			});
 		}
@@ -156,8 +152,11 @@ export class SearchService implements ISearchService {
 		return localResults;
 	}
 
-	private matches(resource: uri, filePattern: string, includePattern: glob.IExpression, excludePattern: glob.IExpression): boolean {
-		let workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
+	private matches(resource: uri, query: ISearchQuery): boolean {
+		const {
+			filePattern,
+			includePattern,
+		} = query;
 
 		// file pattern
 		if (filePattern) {
@@ -176,20 +175,20 @@ export class SearchService implements ISearchService {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
 
-			if (!glob.match(includePattern, workspaceRelativePath || resource.fsPath)) {
+			if (!glob.match(includePattern, resource.fsPath)) {
 				return false;
 			}
 		}
 
 		// excludes
-		if (excludePattern) {
-			if (resource.scheme !== 'file') {
-				return true; // e.g. untitled files can never be excluded with file patterns
-			}
 
-			if (glob.match(excludePattern, workspaceRelativePath || resource.fsPath)) {
-				return false;
-			}
+		const allFolderExcludes = getMergedExcludes(query, /*absolutePaths=*/true);
+		if (resource.scheme !== 'file') {
+			return true; // e.g. untitled files can never be excluded with file patterns
+		}
+
+		if (glob.match(allFolderExcludes, resource.fsPath)) {
+			return false;
 		}
 
 		return true;
@@ -204,13 +203,18 @@ export class DiskSearch {
 
 	private raw: IRawSearchService;
 
-	constructor(verboseLogging: boolean) {
+	constructor(verboseLogging: boolean, timeout: number = 60 * 60 * 1000) {
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
 				serverName: 'Search',
-				timeout: 60 * 60 * 1000,
+				timeout: timeout,
 				args: ['--type=searchService'],
+				// See https://github.com/Microsoft/vscode/issues/27665
+				// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
+				// e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
+				// results in the forked process inheriting `--debug-brk=xxx`.
+				freshExecArgv: true,
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 					PIPE_LOGGING: 'true',
@@ -227,19 +231,27 @@ export class DiskSearch {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
-			rootFolders: query.folderResources ? query.folderResources.map(r => r.fsPath) : [],
+			folderQueries: query.folderQueries ? query.folderQueries.map(q => {
+				return <IFolderSearch>{
+					excludePattern: q.excludePattern,
+					includePattern: q.includePattern,
+					fileEncoding: q.fileEncoding,
+					folder: q.folder.fsPath
+				};
+			}) : [],
 			extraFiles: query.extraFileResources ? query.extraFileResources.map(r => r.fsPath) : [],
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
 			maxResults: query.maxResults,
 			sortByScore: query.sortByScore,
-			cacheKey: query.cacheKey
+			cacheKey: query.cacheKey,
+			useRipgrep: query.useRipgrep,
+			disregardIgnoreFiles: query.disregardIgnoreFiles
 		};
 
 		if (query.type === QueryType.Text) {
 			rawSearch.contentPattern = query.contentPattern;
-			rawSearch.fileEncoding = query.fileEncoding;
 		}
 
 		if (query.type === QueryType.File) {

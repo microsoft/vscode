@@ -5,9 +5,9 @@
 'use strict';
 
 export const DifferenceType = {
-	Add : 0,
-	Remove : 1,
-	Change : 2
+	Add: 0,
+	Remove: 1,
+	Change: 2
 };
 
 /**
@@ -19,31 +19,31 @@ export class DiffChange {
 	 * The position of the first element in the original sequence which
 	 * this change affects.
 	 */
-	public originalStart:number;
+	public originalStart: number;
 
 	/**
 	 * The number of elements from the original sequence which were
 	 * affected.
 	 */
-	public originalLength:number;
+	public originalLength: number;
 
 	/**
 	 * The position of the first element in the modified sequence which
 	 * this change affects.
 	 */
-	public modifiedStart:number;
+	public modifiedStart: number;
 
 	/**
 	 * The number of elements from the modified sequence which were
 	 * affected (added).
 	 */
-	public modifiedLength:number;
+	public modifiedLength: number;
 
 	/**
 	 * Constructs a new DiffChange with the given sequence information
 	 * and content.
 	 */
-	constructor(originalStart:number, originalLength:number, modifiedStart:number, modifiedLength:number) {
+	constructor(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number) {
 		//Debug.Assert(originalLength > 0 || modifiedLength > 0, "originalLength and modifiedLength cannot both be <= 0");
 		this.originalStart = originalStart;
 		this.originalLength = originalLength;

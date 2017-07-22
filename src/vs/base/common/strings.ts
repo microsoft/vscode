@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {BoundedLinkedMap} from 'vs/base/common/map';
-import {CharCode} from 'vs/base/common/charCode';
+import { BoundedMap } from 'vs/base/common/map';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * The empty string.
  */
 export const empty = '';
+
+export function isFalsyOrWhitespace(str: string): boolean {
+	if (!str || typeof str !== 'string') {
+		return true;
+	}
+	return str.trim().length === 0;
+}
 
 /**
  * @returns the provided number with the given number of preceding zeros.
@@ -38,7 +45,7 @@ export function format(value: string, ...args: any[]): string {
 	if (args.length === 0) {
 		return value;
 	}
-	return value.replace(_formatRegexp, function(match, group) {
+	return value.replace(_formatRegexp, function (match, group) {
 		let idx = parseInt(group, 10);
 		return isNaN(idx) || idx < 0 || idx >= args.length ?
 			match :
@@ -51,7 +58,7 @@ export function format(value: string, ...args: any[]): string {
  * being used e.g. in HTMLElement.innerHTML.
  */
 export function escape(html: string): string {
-	return html.replace(/[<|>|&]/g, function(match) {
+	return html.replace(/[<|>|&]/g, function (match) {
 		switch (match) {
 			case '<': return '&lt;';
 			case '>': return '&gt;';
@@ -65,7 +72,7 @@ export function escape(html: string): string {
  * Escapes regular expression characters in a given string
  */
 export function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+	return value.replace(/[\-\\\{\}\*\+\?\|\^\$\.\[\]\(\)\#]/g, '\\$&');
 }
 
 /**
@@ -175,6 +182,18 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
+export function indexOfIgnoreCase(haystack: string, needle: string, position: number = 0): number {
+	let index = haystack.indexOf(needle, position);
+	if (index < 0) {
+		if (position > 0) {
+			haystack = haystack.substr(position);
+		}
+		needle = escapeRegExpCharacters(needle);
+		index = haystack.search(new RegExp(needle, 'i'));
+	}
+	return index;
+}
+
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;
@@ -183,11 +202,11 @@ export interface RegExpOptions {
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (searchString === '') {
+	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
-		searchString = searchString.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+		searchString = escapeRegExpCharacters(searchString);
 	}
 	if (options.wholeWord) {
 		if (!/\B/.test(searchString.charAt(0))) {
@@ -230,9 +249,9 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export let canNormalize = typeof ((<any>'').normalize) === 'function';
+export const canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new BoundedLinkedMap<string>(10000); // bounded to 10000 elements
+const normalizedCache = new BoundedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -274,14 +293,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string): string {
-	for (let i = 0, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(0, i);
+			return str.substring(start, i);
 		}
 	}
-	return str;
+	return str.substring(start, end);
 }
 
 /**
@@ -301,47 +320,118 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;
-	} else if(a > b) {
+	} else if (a > b) {
 		return 1;
 	} else {
 		return 0;
 	}
 }
 
-function isAsciiChar(code: number): boolean {
-	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
+export function compareIgnoreCase(a: string, b: string): number {
+	const len = Math.min(a.length, b.length);
+	for (let i = 0; i < len; i++) {
+		let codeA = a.charCodeAt(i);
+		let codeB = b.charCodeAt(i);
+
+		if (codeA === codeB) {
+			// equal
+			continue;
+		}
+
+		if (isUpperAsciiLetter(codeA)) {
+			codeA += 32;
+		}
+
+		if (isUpperAsciiLetter(codeB)) {
+			codeB += 32;
+		}
+
+		const diff = codeA - codeB;
+
+		if (diff === 0) {
+			// equal -> ignoreCase
+			continue;
+
+		} else if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
+			//
+			return diff;
+
+		} else {
+			return compare(a.toLowerCase(), b.toLowerCase());
+		}
+	}
+
+	if (a.length < b.length) {
+		return -1;
+	} else if (a.length > b.length) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+function isLowerAsciiLetter(code: number): boolean {
+	return code >= CharCode.a && code <= CharCode.z;
+}
+
+function isUpperAsciiLetter(code: number): boolean {
+	return code >= CharCode.A && code <= CharCode.Z;
+}
+
+function isAsciiLetter(code: number): boolean {
+	return isLowerAsciiLetter(code) || isUpperAsciiLetter(code);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
-
-	let len1 = a.length,
-		len2 = b.length;
+	const len1 = a ? a.length : 0;
+	const len2 = b ? b.length : 0;
 
 	if (len1 !== len2) {
 		return false;
 	}
 
-	for (let i = 0; i < len1; i++) {
+	return doEqualsIgnoreCase(a, b);
+}
 
-		let codeA = a.charCodeAt(i),
-			codeB = b.charCodeAt(i);
+function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+	if (typeof a !== 'string' || typeof b !== 'string') {
+		return false;
+	}
+
+	for (let i = 0; i < stopAt; i++) {
+		const codeA = a.charCodeAt(i);
+		const codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			continue;
+		}
 
-		} else if (isAsciiChar(codeA) && isAsciiChar(codeB)) {
+		// a-z A-Z
+		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
 			let diff = Math.abs(codeA - codeB);
 			if (diff !== 0 && diff !== 32) {
 				return false;
 			}
-		} else {
-			if (String.fromCharCode(codeA).toLocaleLowerCase() !== String.fromCharCode(codeB).toLocaleLowerCase()) {
+		}
+
+		// Any other charcode
+		else {
+			if (String.fromCharCode(codeA).toLowerCase() !== String.fromCharCode(codeB).toLowerCase()) {
 				return false;
 			}
 		}
 	}
 
 	return true;
+}
+
+export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+	const candidateLength = candidate.length;
+	if (candidate.length > str.length) {
+		return false;
+	}
+
+	return doEqualsIgnoreCase(str, candidate, candidateLength);
 }
 
 /**
@@ -381,6 +471,43 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
+function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
+	while (aStart < aEnd && bStart < bEnd) {
+		if (a[aStart] !== b[bStart]) {
+			return false;
+		}
+		aStart += 1;
+		bStart += 1;
+	}
+	return true;
+}
+
+/**
+ * Return the overlap between the suffix of `a` and the prefix of `b`.
+ * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ */
+export function overlap(a: string, b: string): number {
+	let aEnd = a.length;
+	let bEnd = b.length;
+	let aStart = aEnd - bEnd;
+
+	if (aStart === 0) {
+		return a === b ? aEnd : 0;
+	} else if (aStart < 0) {
+		bEnd += aStart;
+		aStart = 0;
+	}
+
+	while (aStart < aEnd && bEnd > 0) {
+		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
+			return bEnd;
+		}
+		bEnd -= 1;
+		aStart += 1;
+	}
+	return 0;
+}
+
 // --- unicode
 // http://en.wikipedia.org/wiki/Surrogate_pair
 // Returns the code point starting at a specified index in a string
@@ -396,17 +523,53 @@ export function commonSuffixLength(a: string, b: string): number {
 //	}
 //	return chrCode;
 //}
-//export function isLeadSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return ;
-//}
-//
-//export function isTrailSurrogate(chr:string) {
-//	let chrCode = chr.charCodeAt(0);
-//	return 0xDC00 <= chrCode && chrCode <= 0xDFFF;
-//}
+export function isHighSurrogate(charCode: number): boolean {
+	return (0xD800 <= charCode && charCode <= 0xDBFF);
+}
 
-export function isFullWidthCharacter(charCode:number): boolean {
+export function isLowSurrogate(charCode: number): boolean {
+	return (0xDC00 <= charCode && charCode <= 0xDFFF);
+}
+
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-rtl-test.js
+ */
+const CONTAINS_RTL = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u08BD\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE33\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDCFF]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD50-\uDFFF]|\uD83B[\uDC00-\uDEBB])/;
+
+/**
+ * Returns true if `str` contains any Unicode character that is classified as "R" or "AL".
+ */
+export function containsRTL(str: string): boolean {
+	return CONTAINS_RTL.test(str);
+}
+
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-emoji-test.js
+ */
+const CONTAINS_EMOJI = /(?:[\u231A\u231B\u23F0\u23F3\u2600-\u27BF\u2B50\u2B55]|\uD83C[\uDDE6-\uDDFF\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEF8]|\uD83E[\uDD00-\uDDE6])/;
+
+export function containsEmoji(str: string): boolean {
+	return CONTAINS_EMOJI.test(str);
+}
+
+const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
+/**
+ * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
+ */
+export function isBasicASCII(str: string): boolean {
+	return IS_BASIC_ASCII.test(str);
+}
+
+export function containsFullWidthCharacter(str: string): boolean {
+	for (let i = 0, len = str.length; i < len; i++) {
+		if (isFullWidthCharacter(str.charCodeAt(i))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php
 	//          2E80 — 2EFF   CJK Radicals Supplement
@@ -533,14 +696,12 @@ export function lcut(text: string, n: number): string {
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
 const EL = /\x1B\x5B[12]?K/g; // Erase in line
-const LF = /\xA/g; // line feed
 const COLOR_START = /\x1b\[\d+m/g; // Color
 const COLOR_END = /\x1b\[0?m/g; // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
 		str = str.replace(EL, '');
-		str = str.replace(LF, '\n');
 		str = str.replace(COLOR_START, '');
 		str = str.replace(COLOR_END, '');
 	}
@@ -579,9 +740,9 @@ export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
 }
 
-export function repeat(s:string, count: number): string {
-	var result = '';
-	for (var i = 0; i < count; i++) {
+export function repeat(s: string, count: number): string {
+	let result = '';
+	for (let i = 0; i < count; i++) {
 		result += s;
 	}
 	return result;

@@ -33,31 +33,10 @@
 	opacity: 1;
 }
 
-.custom-checkbox:hover {
-	background-color: #EEE;
-}
-
-.custom-checkbox.checked {
-	border-color: #007ACC;
-}
-
-.vs-dark .custom-checkbox:hover {
-	background-color: #292929;
-}
-
-.vs-dark .custom-checkbox.checked {
-	border-color: #007ACC;
-}
-
 .hc-black .custom-checkbox {
 	background: none;
-	border: none;
 }
 
 .hc-black .custom-checkbox:hover {
 	background: none;
-}
-
-.hc-black .custom-checkbox.checked {
-	border: 1px solid #f38518;
 }

@@ -5,12 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {CommandService} from 'vs/platform/commands/common/commandService';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/platform/commands/common/commandService';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -20,8 +21,14 @@ class SimpleExtensionService implements IExtensionService {
 	onReady(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		return TPromise.as([]);
+	}
 	getExtensionsStatus() {
 		return undefined;
+	}
+	getExtensions(): TPromise<IExtensionDescription[]> {
+		return TPromise.wrap([]);
 	}
 }
 
@@ -62,12 +69,12 @@ suite('CommandService', function () {
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			activateByEvent(activationEvent: string): TPromise<void> {
-				return TPromise.wrapError<void>('bad_activate');
+				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
 		});
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err, 'bad_activate');
+			assert.equal(err.message, 'bad_activate');
 		});
 	});
 
@@ -79,7 +86,7 @@ suite('CommandService', function () {
 		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			onReady() {
-				return new TPromise(_resolve => { resolve = _resolve; });
+				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
 			}
 		});
 

@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!../browser/media/output.contribution';
 import nls = require('vs/nls');
-import {KeyMod, KeyChord, KeyCode} from 'vs/base/common/keyCodes';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import platform = require('vs/platform/platform');
-import {MenuId, MenuRegistry, SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybinding';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {OutputService} from 'vs/workbench/parts/output/browser/outputServices';
-import {ToggleOutputAction, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
-import {OUTPUT_MIME, OUTPUT_MODE_ID, OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
-import panel = require('vs/workbench/browser/panel');
-import {EditorContextKeys} from 'vs/editor/common/editorCommon';
-import {CommandsRegistry, ICommandHandler} from 'vs/platform/commands/common/commands';
-import {ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
+import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
+import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -33,16 +30,18 @@ ModesRegistry.registerLanguage({
 });
 
 // Register Output Panel
-(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
+Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 	'vs/workbench/parts/output/browser/outputPanel',
 	'OutputPanel',
 	OUTPUT_PANEL_ID,
 	nls.localize('output', "Output"),
-	'output'
+	'output',
+	20,
+	ToggleOutputAction.ID
 ));
 
 // register toggle output action globally
-let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputAction, ToggleOutputAction.ID, ToggleOutputAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
 	linux: {
@@ -52,6 +51,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
+
 
 interface IActionDescriptor {
 	id: string;
@@ -63,14 +63,14 @@ interface IActionDescriptor {
 	iconClass?: string;
 	f1?: boolean;
 
-	//
+	// menus
 	menu?: {
 		menuId: MenuId,
 		when?: ContextKeyExpr;
 		group?: string;
 	};
 
-	//
+	// keybindings
 	keybinding?: {
 		when?: ContextKeyExpr;
 		weight: number;
@@ -80,7 +80,7 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const {id, handler, title, category, iconClass, f1, menu, keybinding} = desc;
+	const { id, handler, title, category, iconClass, f1, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
@@ -93,7 +93,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 3) menus
 	if (menu) {
-		let {menuId, when, group} = menu;
+		let { menuId, when, group } = menu;
 		MenuRegistry.appendMenuItem(menuId, {
 			command,
 			when,
@@ -103,7 +103,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 4) keybindings
 	if (keybinding) {
-		let {when, weight, keys} = keybinding;
+		let { when, weight, keys } = keybinding;
 		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,
@@ -123,7 +123,7 @@ registerAction({
 	title: nls.localize('clearOutput.label', "Clear Output"),
 	menu: {
 		menuId: MenuId.EditorContext,
-		when: EditorContextKeys.LanguageId.isEqualTo(OUTPUT_MODE_ID)
+		when: CONTEXT_IN_OUTPUT
 	},
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();

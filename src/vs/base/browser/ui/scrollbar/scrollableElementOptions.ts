@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
-	/**
-	 * Allow scrollbar rendering to use translate3d.
-	 */
-	canUseTranslate3d: boolean;
 	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
@@ -102,20 +98,14 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	verticalHasArrows?: boolean;
-	/**
-	 * Add a `last-scroll-time` attribute to scroll targets or parents of scroll targets matching the following class name
-	 */
-	saveLastScrollTimeOnClassName?: string;
 }
 
 export interface ScrollableElementChangeOptions {
-	canUseTranslate3d: boolean;
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
 }
 
 export interface ScrollableElementResolvedOptions {
-	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
@@ -134,5 +124,4 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
-	saveLastScrollTimeOnClassName: string;
 }

@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "移至行",
 	"gotoSymbolDescription": "前往檔案中的符號",
 	"gotoSymbolDescriptionScoped": "前往檔案中的符號 (依分類)",
-	"helpDescription": "顯示說明"
+	"helpDescription": "顯示說明",
+	"viewPickerDescription": "開啟檢視"
 }

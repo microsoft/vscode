@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 
 suite('Command Tests', function () {
@@ -50,7 +50,7 @@ suite('Command Tests', function () {
 		assert.ok(CommandsRegistry.getCommand('foo') === void 0);
 	});
 
-	test('command with description', function() {
+	test('command with description', function () {
 
 		CommandsRegistry.registerCommand('test', function (accessor, args) {
 			assert.ok(typeof args === 'string');

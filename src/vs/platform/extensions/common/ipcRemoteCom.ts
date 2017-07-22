@@ -6,32 +6,33 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import marshalling = require('vs/base/common/marshalling');
-import remote = require('vs/base/common/remote');
 import errors = require('vs/base/common/errors');
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
 }
 
+let lastMessageId = 0;
 const pendingRPCReplies: { [msgId: string]: LazyPromise; } = {};
 
 class MessageFactory {
-	public static cancel(req:string): string {
+	public static cancel(req: string): string {
 		return `{"cancel":"${req}"}`;
 	}
 
-	public static request(req:string, rpcId:string, method:string, args:any[]): string {
+	public static request(req: string, rpcId: string, method: string, args: any[]): string {
 		return `{"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
 	}
 
-	public static replyOK(req:string, res:any): string {
+	public static replyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
 			return `{"seq":"${req}"}`;
 		}
 		return `{"seq":"${req}","res":${marshalling.stringify(res)}}`;
 	}
 
-	public static replyErr(req:string, err:any): string {
+	public static replyErr(req: string, err: any): string {
 		if (typeof err === 'undefined') {
 			return `{"seq":"${req}","err":null}`;
 		}
@@ -41,7 +42,7 @@ class MessageFactory {
 
 class LazyPromise {
 
-	private _onCancel: ()=>void;
+	private _onCancel: () => void;
 
 	private _actual: winjs.TPromise<any>;
 	private _actualOk: winjs.ValueCallback;
@@ -55,7 +56,7 @@ class LazyPromise {
 
 	private _isCanceled: boolean;
 
-	constructor(onCancel: ()=>void) {
+	constructor(onCancel: () => void) {
 		this._onCancel = onCancel;
 		this._actual = null;
 		this._actualOk = null;
@@ -85,7 +86,7 @@ class LazyPromise {
 		return this._actual;
 	}
 
-	public resolveOk(value:any): void {
+	public resolveOk(value: any): void {
 		if (this._isCanceled || this._hasErr) {
 			return;
 		}
@@ -98,7 +99,7 @@ class LazyPromise {
 		}
 	}
 
-	public resolveErr(err:any): void {
+	public resolveErr(err: any): void {
 		if (this._isCanceled || this._hasValue) {
 			return;
 		}
@@ -111,7 +112,7 @@ class LazyPromise {
 		}
 	}
 
-	public then(success:any, error:any): any {
+	public then(success: any, error: any): any {
 		if (this._isCanceled) {
 			return;
 		}
@@ -119,7 +120,7 @@ class LazyPromise {
 		return this._ensureActual().then(success, error);
 	}
 
-	public done(success:any, error:any): void {
+	public done(success: any, error: any): void {
 		if (this._isCanceled) {
 			return;
 		}
@@ -143,7 +144,6 @@ class LazyPromise {
 }
 
 function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
-	let lastMessageId = 0;
 
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		let req = String(++lastMessageId);
@@ -159,13 +159,18 @@ function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
 	};
 }
 
-export interface IMainProcessExtHostIPC extends remote.IRemoteCom {
-	handle(msg: string[]): void;
+export interface IManyHandler {
+	handle(rpcId: string, method: string, args: any[]): any;
 }
 
-export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
+export interface IRemoteCom {
+	callOnRemote(proxyId: string, path: string, args: any[]): winjs.TPromise<any>;
+	setManyHandler(handler: IManyHandler): void;
+}
+
+export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteCom {
 	let rpc = createRPC(sendDelayed);
-	let bigHandler: remote.IManyHandler = null;
+	let bigHandler: IManyHandler = null;
 	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
 	let messagesToSend: string[] = [];
 
@@ -234,18 +239,19 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		});
 	};
 
-	let r: IMainProcessExtHostIPC = {
-		callOnRemote: rpc,
-		setManyHandler: (_bigHandler: remote.IManyHandler): void => {
-			bigHandler = _bigHandler;
-		},
-		handle: (rawmsg) => {
-			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
-			if (messagesToReceive.length === 0) {
-				process.nextTick(receiveOneMessage);
-			}
+	protocol.onMessage(data => {
+		// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
+		if (messagesToReceive.length === 0) {
+			process.nextTick(receiveOneMessage);
+		}
 
-			messagesToReceive = messagesToReceive.concat(rawmsg);
+		messagesToReceive = messagesToReceive.concat(data);
+	});
+
+	let r: IRemoteCom = {
+		callOnRemote: rpc,
+		setManyHandler: (_bigHandler: IManyHandler): void => {
+			bigHandler = _bigHandler;
 		}
 	};
 
@@ -254,7 +260,7 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		messagesToSend = [];
 
 		// console.log('SENDING ' + tmp.length + ' MESSAGES.');
-		send(tmp);
+		protocol.send(tmp);
 	}
 
 	function sendDelayed(value: string): void {

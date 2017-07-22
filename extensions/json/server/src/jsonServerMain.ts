@@ -6,20 +6,18 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
+	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
+	DocumentRangeFormattingRequest, Disposable, Range
 } from 'vscode-languageserver';
 
-import {xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription} from 'request-light';
+import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import {JSONDocument, JSONSchema, LanguageSettings, getLanguageService} from 'vscode-json-languageservice';
-import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
-import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
-import {FileAssociationContribution} from './jsoncontributions/fileAssociationContribution';
-import {getLanguageModelCache} from './languageModelCache';
+import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
+import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -29,11 +27,15 @@ interface ISchemaAssociations {
 }
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
+	export const type: NotificationType<ISchemaAssociations, any> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
+	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = new RequestType('json/colorSymbols');
 }
 
 // Create a connection for the server
@@ -49,23 +51,33 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-const filesAssociationContribution = new FileAssociationContribution();
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
+
+	function hasClientCapability(...keys: string[]) {
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
+		}
+		return !!c;
+	}
+
+	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
+	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: true, triggerCharacters: ['"', ':'] },
+			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: true,
-			documentFormattingProvider: true
+			documentRangeFormattingProvider: false
 		}
 	};
 });
@@ -76,7 +88,7 @@ let workspaceContext = {
 	}
 };
 
-let schemaRequestService = (uri:string): Thenable<string> => {
+let schemaRequestService = (uri: string): Thenable<string> => {
 	if (Strings.startsWith(uri, 'file://')) {
 		let fsPath = URI.parse(uri).fsPath;
 		return new Promise<string>((c, e) => {
@@ -99,7 +111,8 @@ let schemaRequestService = (uri:string): Thenable<string> => {
 			}
 		});
 	}
-	return xhr({ url: uri, followRedirects: 5 }).then(response => {
+	let headers = { 'Accept-Encoding': 'gzip, deflate' };
+	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
 		return response.responseText;
 	}, (error: XHRResponse) => {
 		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
@@ -110,17 +123,14 @@ let schemaRequestService = (uri:string): Thenable<string> => {
 let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: [
-		new ProjectJSONContribution(),
-		new GlobPatternContribution(),
-		filesAssociationContribution
-	]
+	contributions: []
 });
 
 // The settings interface describes the server relevant settings part
 interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
+		format: { enable: boolean; };
 	};
 	http: {
 		proxy: string;
@@ -136,6 +146,7 @@ interface JSONSchemaSettings {
 
 let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
 let schemaAssociations: ISchemaAssociations = void 0;
+let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -144,6 +155,21 @@ connection.onDidChangeConfiguration((change) => {
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
+
+	// dynamically enable & disable the formatter
+	if (clientDynamicRegisterSupport) {
+		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+		if (enableFormatter) {
+			if (!formatterRegistration) {
+				console.log('enable');
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }] });
+			}
+		} else if (formatterRegistration) {
+			console.log('enable');
+			formatterRegistration.then(r => r.dispose());
+			formatterRegistration = null;
+		}
+	}
 });
 
 // The jsonValidation extension configuration has changed
@@ -153,7 +179,7 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 });
 
 function updateConfiguration() {
-	let languageSettings : LanguageSettings = {
+	let languageSettings: LanguageSettings = {
 		validate: true,
 		allowComments: true,
 		schemas: []
@@ -204,7 +230,7 @@ documents.onDidClose(event => {
 	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
 });
 
-let pendingValidationRequests : { [uri: string]: NodeJS.Timer; } = {};
+let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
 const validationDelayMs = 200;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
@@ -251,6 +277,12 @@ connection.onDidChangeWatchedFiles((change) => {
 });
 
 let jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
+documents.onDidClose(e => {
+	jsonDocuments.onDocumentRemoved(e.document);
+});
+connection.onShutdown(() => {
+	jsonDocuments.dispose();
+});
 
 function getJSONDocument(document: TextDocument): JSONDocument {
 	return jsonDocuments.get(document);
@@ -278,14 +310,18 @@ connection.onDocumentSymbol(documentSymbolParams => {
 	return languageService.findDocumentSymbols(document, jsonDocument);
 });
 
-connection.onDocumentFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, null, formatParams.options);
-});
-
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return languageService.format(document, formatParams.range, formatParams.options);
+});
+
+connection.onRequest(ColorSymbolRequest.type, uri => {
+	let document = documents.get(uri);
+	if (document) {
+		let jsonDocument = getJSONDocument(document);
+		return languageService.findColorSymbols(document, jsonDocument);
+	}
+	return [];
 });
 
 // Listen on the connection

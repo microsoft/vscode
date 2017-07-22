@@ -6,13 +6,13 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
+import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 
 suite('references', function () {
 
-	test('neartestReference', function () {
+	test('nearestReference', function () {
 		const model = new ReferencesModel([{
 			uri: URI.file('/out/obj/can'),
 			range: new Range(1, 1, 1, 1)

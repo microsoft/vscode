@@ -10,11 +10,19 @@ import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import Event from 'vs/base/common/event';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Color } from 'vs/base/common/color';
 
 export interface ITree extends Events.IEventEmitter {
 
-	emit(eventType:string, data?:any):void;
+	emit(eventType: string, data?: any): void;
+
+	onDOMFocus: Event<void>;
+	onDOMBlur: Event<void>;
+	onHighlightChange: Event<void>;
+	onDispose: Event<void>;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -69,11 +77,6 @@ export interface ITree extends Events.IEventEmitter {
 	refresh(element?: any, recursive?: boolean): WinJS.Promise;
 
 	/**
-	 * Refreshes all given elements.
-	 */
-	refreshAll(elements: any[], recursive?: boolean): WinJS.Promise;
-
-	/**
 	 * Expands an element.
 	 * The returned promise returns a boolean for whether the element was expanded or not.
 	 */
@@ -122,7 +125,7 @@ export interface ITree extends Events.IEventEmitter {
 	 * Reveals an element in the tree. The relativeTop is a value between 0 and 1. The closer to 0 the more the
 	 * element will scroll up to the top.
 	 */
-	reveal(element: any, relativeTop?:number): WinJS.Promise;
+	reveal(element: any, relativeTop?: number): WinJS.Promise;
 
 	/**
 	 * Returns the relative top position of any given element, if visible.
@@ -152,7 +155,7 @@ export interface ITree extends Events.IEventEmitter {
 	 * Sets the tree's highlight to be the given element.
 	 * Provide no arguments and it clears the tree's highlight.
 	 */
-	setHighlight(element?: any, eventPayload?:any): void;
+	setHighlight(element?: any, eventPayload?: any): void;
 
 	/**
 	 * Returns the currently highlighted element.
@@ -167,47 +170,47 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Clears the highlight.
 	 */
-	clearHighlight(eventPayload?:any): void;
+	clearHighlight(eventPayload?: any): void;
 
 	/**
 	 * Selects an element.
 	 */
-	select(element: any, eventPayload?:any): void;
+	select(element: any, eventPayload?: any): void;
 
 	/**
 	 * Selects a range of elements.
 	 */
-	selectRange(fromElement: any, toElement: any, eventPayload?:any): void;
+	selectRange(fromElement: any, toElement: any, eventPayload?: any): void;
 
 	/**
 	 * Deselects a range of elements.
 	 */
-	deselectRange(fromElement: any, toElement: any, eventPayload?:any): void;
+	deselectRange(fromElement: any, toElement: any, eventPayload?: any): void;
 
 	/**
 	 * Selects several elements.
 	 */
-	selectAll(elements: any[], eventPayload?:any): void;
+	selectAll(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Deselects an element.
 	 */
-	deselect(element: any, eventPayload?:any): void;
+	deselect(element: any, eventPayload?: any): void;
 
 	/**
 	 * Deselects several elements.
 	 */
-	deselectAll(elements: any[], eventPayload?:any): void;
+	deselectAll(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Replaces the current selection with the given elements.
 	 */
-	setSelection(elements: any[], eventPayload?:any): void;
+	setSelection(elements: any[], eventPayload?: any): void;
 
 	/**
 	 * Toggles the element's selection.
 	 */
-	toggleSelection(element: any, eventPayload?:any): void;
+	toggleSelection(element: any, eventPayload?: any): void;
 
 	/**
 	 * Returns the currently selected elements.
@@ -222,27 +225,27 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Selects the next `count`-nth element, in visible order.
 	 */
-	selectNext(count?: number, clearSelection?: boolean, eventPayload?:any): void;
+	selectNext(count?: number, clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Selects the previous `count`-nth element, in visible order.
 	 */
-	selectPrevious(count?: number, clearSelection?: boolean, eventPayload?:any): void;
+	selectPrevious(count?: number, clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Selects the currently selected element's parent.
 	 */
-	selectParent(clearSelection?: boolean, eventPayload?:any): void;
+	selectParent(clearSelection?: boolean, eventPayload?: any): void;
 
 	/**
 	 * Clears the selection.
 	 */
-	clearSelection(eventPayload?:any): void;
+	clearSelection(eventPayload?: any): void;
 
 	/**
 	 * Sets the focused element.
 	 */
-	setFocus(element?: any, eventPayload?:any): void;
+	setFocus(element?: any, eventPayload?: any): void;
 
 	/**
 	 * Returns whether an element is focused or not.
@@ -257,12 +260,12 @@ export interface ITree extends Events.IEventEmitter {
 	/**
 	 * Focuses the next `count`-nth element, in visible order.
 	 */
-	focusNext(count?: number, eventPayload?:any): void;
+	focusNext(count?: number, eventPayload?: any): void;
 
 	/**
 	 * Focuses the previous `count`-nth element, in visible order.
 	 */
-	focusPrevious(count?: number, eventPayload?:any): void;
+	focusPrevious(count?: number, eventPayload?: any): void;
 
 	/**
 	 * Focuses the currently focused element's parent.
@@ -275,39 +278,41 @@ export interface ITree extends Events.IEventEmitter {
 	focusFirstChild(eventPayload?: any): void;
 
 	/**
-	 * Focuses the second element, in visible order.
+	 * Focuses the second element, in visible order. Will focus the first
+	 * child from the provided element's parent if any.
 	 */
-	focusFirst(eventPayload?:any): void;
+	focusFirst(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the nth element, in visible order.
 	 */
-	focusNth(index:number, eventPayload?:any): void;
+	focusNth(index: number, eventPayload?: any): void;
 
 	/**
-	 * Focuses the last element, in visible order.
+	 * Focuses the last element, in visible order. Will focus the last
+	 * child from the provided element's parent if any.
 	 */
-	focusLast(eventPayload?:any): void;
+	focusLast(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the element at the end of the next page, in visible order.
 	 */
-	focusNextPage(eventPayload?:any): void;
+	focusNextPage(eventPayload?: any): void;
 
 	/**
 	 * Focuses the element at the beginning of the previous page, in visible order.
 	 */
-	focusPreviousPage(eventPayload?:any): void;
+	focusPreviousPage(eventPayload?: any): void;
 
 	/**
 	 * Clears the focus.
 	 */
-	clearFocus(eventPayload?:any): void;
+	clearFocus(eventPayload?: any): void;
 
 	/**
 	 * Adds the trait to elements.
 	 */
-	addTraits(trait:string, elements: any[]): void;
+	addTraits(trait: string, elements: any[]): void;
 
 	/**
 	 * Removes the trait from elements.
@@ -328,7 +333,12 @@ export interface ITree extends Events.IEventEmitter {
 	 * Returns a navigator which allows to discover the visible and
 	 * expanded elements in the tree.
 	 */
-	getNavigator(): INavigator<any>;
+	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any>;
+
+	/**
+	 * Apply styles to the tree.
+	 */
+	style(styles: ITreeStyles): void;
 
 	/**
 	 * Disposes the tree
@@ -358,6 +368,11 @@ export interface IDataSource {
 	 * Returns the element's parent in a promise.
 	 */
 	getParent(tree: ITree, element: any): WinJS.Promise;
+
+	/**
+	 * Returns whether an element should be expanded when first added to the tree.
+	 */
+	shouldAutoexpand?(tree: ITree, element: any): boolean;
 }
 
 export interface IRenderer {
@@ -413,6 +428,18 @@ export interface IAccessibilityProvider {
 	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
 	 */
 	getAriaLabel(tree: ITree, element: any): string;
+
+	/**
+	 * Given an element in the tree return its aria-posinset. Should be between 1 and aria-setsize
+	 * https://www.w3.org/TR/wai-aria/states_and_properties#aria-posinset
+	 */
+	getPosInSet?(tree: ITree, element: any): string;
+
+	/**
+	 * Return the aria-setsize of the tree.
+	 * https://www.w3.org/TR/wai-aria/states_and_properties#aria-setsize
+	 */
+	getSetSize?(): string;
 }
 
 export /* abstract */ class ContextMenuEvent {
@@ -536,14 +563,15 @@ export interface IDragOverReaction {
 	accept: boolean;
 	effect?: DragOverEffect;
 	bubble?: DragOverBubble;
+	autoExpand?: boolean;
 }
 
-export var DRAG_OVER_REJECT: IDragOverReaction = { accept: false };
-export var DRAG_OVER_ACCEPT: IDragOverReaction = { accept: true };
-export var DRAG_OVER_ACCEPT_BUBBLE_UP: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP };
-export var DRAG_OVER_ACCEPT_BUBBLE_DOWN: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_DOWN };
-export var DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
-export var DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY };
+export const DRAG_OVER_REJECT: IDragOverReaction = { accept: false };
+export const DRAG_OVER_ACCEPT: IDragOverReaction = { accept: true };
+export const DRAG_OVER_ACCEPT_BUBBLE_UP: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP };
+export const DRAG_OVER_ACCEPT_BUBBLE_DOWN = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, autoExpand });
+export const DRAG_OVER_ACCEPT_BUBBLE_UP_COPY: IDragOverReaction = { accept: true, bubble: DragOverBubble.BUBBLE_UP, effect: DragOverEffect.COPY };
+export const DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY = (autoExpand = false) => ({ accept: true, bubble: DragOverBubble.BUBBLE_DOWN, effect: DragOverEffect.COPY, autoExpand });
 
 export interface IDragAndDropData {
 	update(event: Mouse.DragMouseEvent): void;
@@ -559,20 +587,25 @@ export interface IDragAndDrop {
 	getDragURI(tree: ITree, element: any): string;
 
 	/**
+	 * Returns a label to display when dragging the element.
+	 */
+	getDragLabel?(tree: ITree, elements: any[]): string;
+
+	/**
 	 * Sent when the drag operation is starting.
 	 */
-	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent:Mouse.DragMouseEvent): void;
+	onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: Mouse.DragMouseEvent): void;
 
 	/**
 	 * Returns a DragOverReaction indicating whether sources can be
 	 * dropped into target or some parent of the target.
 	 */
-	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent:Mouse.DragMouseEvent): IDragOverReaction;
+	onDragOver(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): IDragOverReaction;
 
 	/**
 	 * Handles the action of dropping sources into target.
 	 */
-	drop(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent:Mouse.DragMouseEvent): void;
+	drop(tree: ITree, data: IDragAndDropData, targetElement: any, originalEvent: Mouse.DragMouseEvent): void;
 }
 
 export interface IFilter {
@@ -587,7 +620,7 @@ export interface IElementCallback {
 	(tree: ITree, element: any): void;
 }
 
-export type ICallback = ()=>void;
+export type ICallback = () => void;
 
 export interface ISorter {
 
@@ -626,18 +659,63 @@ export interface ITreeConfiguration {
 	accessibilityProvider?: IAccessibilityProvider;
 }
 
-export interface ITreeOptions {
+export interface ITreeOptions extends ITreeStyles {
 	twistiePixels?: number;
+	showTwistie?: boolean;
 	indentPixels?: number;
 	verticalScrollMode?: ScrollbarVisibility;
 	alwaysFocused?: boolean;
 	autoExpandSingleChildren?: boolean;
-	useShadows?:boolean;
-	paddingOnRow?:boolean;
-	ariaLabel?:string;
+	useShadows?: boolean;
+	paddingOnRow?: boolean;
+	ariaLabel?: string;
+	keyboardSupport?: boolean;
+}
+
+export interface ITreeStyles {
+	listFocusBackground?: Color;
+	listFocusForeground?: Color;
+	listActiveSelectionBackground?: Color;
+	listActiveSelectionForeground?: Color;
+	listFocusAndSelectionBackground?: Color;
+	listFocusAndSelectionForeground?: Color;
+	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
+	listHoverBackground?: Color;
+	listHoverForeground?: Color;
+	listDropBackground?: Color;
+	listFocusOutline?: Color;
 }
 
 export interface ITreeContext extends ITreeConfiguration {
 	tree: ITree;
 	options: ITreeOptions;
+}
+
+export interface IActionProvider {
+
+	/**
+	 * Returns whether or not the element has actions. These show up in place right to the element in the tree.
+	 */
+	hasActions(tree: ITree, element: any): boolean;
+
+	/**
+	 * Returns a promise of an array with the actions of the element that should show up in place right to the element in the tree.
+	 */
+	getActions(tree: ITree, element: any): WinJS.TPromise<IAction[]>;
+
+	/**
+	 * Returns whether or not the element has secondary actions. These show up once the user has expanded the element's action bar.
+	 */
+	hasSecondaryActions(tree: ITree, element: any): boolean;
+
+	/**
+	 * Returns a promise of an array with the secondary actions of the element that should show up once the user has expanded the element's action bar.
+	 */
+	getSecondaryActions(tree: ITree, element: any): WinJS.TPromise<IAction[]>;
+
+	/**
+	 * Returns an action item to render an action.
+	 */
+	getActionItem(tree: ITree, element: any, action: IAction): IActionItem;
 }

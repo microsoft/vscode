@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .panel.integrated-terminal {
-	font-feature-settings: "liga" 0;
-}
-
-.monaco-workbench .panel.integrated-terminal.enable-ligatures {
-	font-feature-settings: "liga" 1;
-}
-
 .monaco-workbench .panel.integrated-terminal .xterm {
-	background-color: transparent!important;
 	position: relative;
+	height: 100%;
+	user-select: none;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm:focus {
@@ -21,9 +14,16 @@
 	outline: none;
 }
 
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus {
-	outline: 2px solid #f38518;
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: -5px;
+	bottom: 0;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
@@ -38,6 +38,7 @@
 	 * Move textarea out of the screen to the far left, so that the cursor is not visible.
 	 */
 	left: -9999em;
+	top: 0;
 	opacity: 0;
 	width: 0;
 	height: 0;
@@ -49,84 +50,70 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #CCC; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #1e1e1e; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .reverse-video,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .reverse-video { color: #000; }
-
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #333; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #CCC; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor { background-color: #FFF; }
+.monaco-workbench .panel.integrated-terminal .xterm a {
+	color: inherit;
+	cursor: inherit;
+	text-decoration: none;
+}
 
 .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
 	background-color: transparent;
-	outline: 1px solid #333;
+	outline-width: 1px;
+	outline-style: solid;
 	outline-offset: -1px;
 }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
+
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink-on:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar).focus .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-blink-on:not(.xterm-cursor-style-underline):not(.xterm-cursor-style-bar):focus .terminal-cursor {
 	background-color: transparent;
-	outline: 1px solid #CCC;
-	outline-offset: -1px;
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:not(.focus):not(:focus) .terminal-cursor {
-	background-color: transparent;
-	outline: 1px solid #FFF;
-	outline-offset: -1px;
+	color: inherit;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor 1.2s infinite step-end; }
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-dark 1.2s infinite step-end; }
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus .terminal-cursor.blinking,
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus .terminal-cursor.blinking { animation: blink-cursor-hc-black 1.2s infinite step-end; }
-
-@keyframes blink-cursor {
-	0% {
-		background-color: #333;
-		color: #CCC;
-	}
-	50% {
-		background-color: transparent;
-		color: #333;
-	}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor {
+	position: relative;
 }
-
-@keyframes blink-cursor-dark {
-	0% {
-		background-color: #CCC;
-		color: #1e1e1e;
-	}
-	50% {
-		background-color: transparent;
-		color: #CCC;
-	}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	content: "";
+	display: block;
+	position: absolute;
 }
-
-@keyframes blink-cursor-hc-black {
-	0% {
-		background-color: #fff;
-		color: #000;
-	}
-	50% {
-		background-color: transparent;
-		color: #FFF;
-	}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar .terminal-cursor::before {
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: 1px;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline .terminal-cursor::before {
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+}
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-bar.focus.xterm-cursor-blink.xterm-cursor-blink-on .terminal-cursor::before,
+.monaco-workbench .panel.integrated-terminal .xterm.xterm-cursor-style-underline.focus.xterm-cursor-blink.xterm-cursor-blink-on .terminal-cursor::before {
+	background-color: transparent !important;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport {
 	overflow-y: scroll;
 }
 
+.terminal .xterm-wide-char,
+.terminal .xterm-normal-char  {
+	display: inline-block;
+}
+
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-rows {
 	position: absolute;
 	left: 0;
 	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-rows > div {
+	/* Lines containing spans and text nodes ocassionally wrap despite being the same width (#327) */
+	white-space: nowrap;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-scroll-area {
@@ -139,6 +126,28 @@
 	position: absolute;
 	left: -9999em;
 }
+
+.monaco-workbench .panel.integrated-terminal .xterm.enable-mouse-events {
+	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
+	cursor: default;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection {
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	z-index: 1;
+	opacity: 0.3;
+	pointer-events: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div {
+	position: absolute;
+}
+/* TODO: Remove in favor of theme keys, see #28397*/
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #000; }
+.vs-dark .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm .xterm-selection div { background-color: #FFF; }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-bold {
 	font-weight: bold;
@@ -169,23 +178,6 @@
 
 .terminal .composition-view.active {
 	display: block;
-}
-
-/* Base selection colors */
-
-.monaco-workbench .panel.integrated-terminal .xterm *::selection {
-	color: #FFF;
-	background-color: rgba(51, 51, 51, 0.996);
-}
-
-.vs-dark .monaco-workbench .panel.integrated-terminal .xterm *::selection {
-	color: #1e1e1e;
-	background-color: rgba(204, 204, 204, 0.996);
-}
-
-.hc-black .monaco-workbench .panel.integrated-terminal .xterm *::selection {
-	color: #000;
-	background-color: rgba(255, 255, 255, 0.996);
 }
 
 /* Terminal colors 16-255 */

@@ -12,18 +12,19 @@ import path = require('path');
 import fs = require('fs');
 import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
-import {ConfigWatcher} from 'vs/base/node/config';
+import { ConfigWatcher } from 'vs/base/node/config';
+import { onError } from 'vs/base/test/common/utils';
 
 suite('Config', () => {
 
-	function testFile(callback: (path: string, cleanUp: (callback: () => void) => void) => void): void {
+	function testFile(callback: (error: Error, path: string, cleanUp: (callback: () => void) => void) => void): void {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
-		extfs.mkdirp(newDir, 493, (error) => {
-			callback(testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+		extfs.mkdirp(newDir, 493, error => {
+			callback(error, testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
 		});
 	}
 
@@ -41,7 +42,7 @@ suite('Config', () => {
 
 		watcher.dispose();
 
-		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'] });
+		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'], onError: console.error });
 
 		let config2 = watcher2.getConfig();
 		assert.ok(Array.isArray(config2));
@@ -51,7 +52,11 @@ suite('Config', () => {
 	});
 
 	test('getConfig / getValue', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -71,7 +76,11 @@ suite('Config', () => {
 	});
 
 	test('getConfig / getValue - broken JSON', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			fs.writeFileSync(testFile, '// my comment\n "foo": "bar ... ');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -89,7 +98,13 @@ suite('Config', () => {
 	});
 
 	test('watching', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		this.timeout(10000); // watching is timing intense
+
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -111,7 +126,13 @@ suite('Config', () => {
 	});
 
 	test('watching also works when file created later', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		this.timeout(10000); // watching is timing intense
+
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
 			watcher.getConfig(); // ensure we are in sync
 
@@ -131,7 +152,13 @@ suite('Config', () => {
 	});
 
 	test('watching detects the config file getting deleted', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		this.timeout(10000); // watching is timing intense
+
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
 			let watcher = new ConfigWatcher<{ foo: string; }>(testFile);
@@ -150,10 +177,14 @@ suite('Config', () => {
 	});
 
 	test('reload', function (done: () => void) {
-		testFile((testFile, cleanUp) => {
+		testFile((error, testFile, cleanUp) => {
+			if (error) {
+				return onError(error, done);
+			}
+
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100, onError: console.error });
 			watcher.getConfig(); // ensure we are in sync
 
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');

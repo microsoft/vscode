@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {HistoryNavigator} from 'vs/base/common/history';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 suite('History Navigator', () => {
 

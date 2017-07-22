@@ -4,37 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybinding';
-import {IContextKeyService} from 'vs/platform/contextkey/common/contextkey';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {editorContribution} from 'vs/editor/browser/editorBrowserExtensions';
-import {FindWidget, IFindController} from 'vs/editor/contrib/find/browser/findWidget';
-import {CommonFindController, FindStartFocusAction, IFindStartOptions} from 'vs/editor/contrib/find/common/findController';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
+import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 @editorContribution
-class FindController extends CommonFindController implements IFindController {
+export class FindController extends CommonFindController implements IFindController {
 
 	private _widget: FindWidget;
+	private _findOptionsWidget: FindOptionsWidget;
 
 	constructor(
-		editor:ICodeEditor,
+		editor: ICodeEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
-		super(editor, contextKeyService);
+		super(editor, contextKeyService, storageService);
 
-		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService));
+		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
+		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService, themeService));
 	}
 
-	protected _start(opts:IFindStartOptions): void {
+	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
 			this._widget.focusReplaceInput();
 		} else if (opts.shouldFocus === FindStartFocusAction.FocusFindInput) {
 			this._widget.focusFindInput();
+		}
+	}
+
+	public highlightFindOptions(): void {
+		if (this._state.isRevealed) {
+			this._widget.highlightFindOptions();
+		} else {
+			this._findOptionsWidget.highlightFindOptions();
 		}
 	}
 }

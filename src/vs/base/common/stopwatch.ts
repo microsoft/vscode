@@ -6,7 +6,7 @@
 
 import { globals } from 'vs/base/common/platform';
 
-var hasPerformanceNow = (globals.performance && typeof globals.performance.now === 'function');
+const hasPerformanceNow = (globals.performance && typeof globals.performance.now === 'function');
 
 export class StopWatch {
 
@@ -14,7 +14,7 @@ export class StopWatch {
 	private _startTime: number;
 	private _stopTime: number;
 
-	public static create(highResolution:boolean = true): StopWatch {
+	public static create(highResolution: boolean = true): StopWatch {
 		return new StopWatch(highResolution);
 	}
 

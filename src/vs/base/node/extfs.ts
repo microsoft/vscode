@@ -5,22 +5,31 @@
 
 'use strict';
 
-import uuid = require('vs/base/common/uuid');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
+import * as uuid from 'vs/base/common/uuid';
+import * as strings from 'vs/base/common/strings';
+import * as platform from 'vs/base/common/platform';
+import * as flow from 'vs/base/node/flow';
 
-import flow = require('vs/base/node/flow');
-
-import fs = require('fs');
-import paths = require('path');
+import * as fs from 'fs';
+import * as paths from 'path';
 
 const loop = flow.loop;
+
+export function readdirSync(path: string): string[] {
+	// Mac: uses NFD unicode form on disk, but we want NFC
+	// See also https://github.com/nodejs/node/issues/2165
+	if (platform.isMacintosh) {
+		return fs.readdirSync(path).map(c => strings.normalizeNFC(c));
+	}
+
+	return fs.readdirSync(path);
+}
 
 export function readdir(path: string, callback: (error: Error, files: string[]) => void): void {
 	// Mac: uses NFD unicode form on disk, but we want NFC
 	// See also https://github.com/nodejs/node/issues/2165
 	if (platform.isMacintosh) {
-		return readdirNormalize(path, (error, children) => {
+		return fs.readdir(path, (error, children) => {
 			if (error) {
 				return callback(error, null);
 			}
@@ -29,22 +38,7 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 		});
 	}
 
-	return readdirNormalize(path, callback);
-}
-
-function readdirNormalize(path: string, callback: (error: Error, files: string[]) => void): void {
-	fs.readdir(path, (error, children) => {
-		if (error) {
-			return callback(error, null);
-		}
-
-		// Bug in node: In some environments we get "." and ".." as entries from the call to readdir().
-		// For example Sharepoint via WebDav on Windows includes them. We never want those
-		// entries in the result set though because they are not valid children of the folder
-		// for our concerns.
-		// See https://github.com/nodejs/node/issues/4002
-		return callback(null, children.filter(c => c !== '.' && c !== '..'));
-	});
+	return fs.readdir(path, callback);
 }
 
 export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
@@ -106,8 +100,8 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 
 		mkdirp(target, stat.mode & 511, (err) => {
 			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), clb, copiedSources);
+				loop(files, (file: string, clb: (error: Error, _result) => void) => {
+					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, undefined), copiedSources);
 				}, callback);
 			});
 		});
@@ -251,6 +245,24 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 	});
 }
 
+export function delSync(path: string): void {
+	try {
+		const stat = fs.lstatSync(path);
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
+			readdirSync(path).forEach(child => delSync(paths.join(path, child)));
+			fs.rmdirSync(path);
+		} else {
+			fs.unlinkSync(path);
+		}
+	} catch (err) {
+		if (err.code === 'ENOENT') {
+			return; // not found
+		}
+
+		throw err;
+	}
+}
+
 export function mv(source: string, target: string, callback: (error: Error) => void): void {
 	if (source === target) {
 		return callback(null);
@@ -357,4 +369,86 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 			});
 		});
 	});
+}
+
+/**
+ * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
+ *
+ * Given an absolute, normalized, and existing file path 'realcase' returns the exact path that the file has on disk.
+ * On a case insensitive file system, the returned path might differ from the original path by character casing.
+ * On a case sensitive file system, the returned path will always be identical to the original path.
+ * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
+ * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ */
+export function realcaseSync(path: string): string {
+	const dir = paths.dirname(path);
+	if (path === dir) {	// end recursion
+		return path;
+	}
+
+	const name = paths.basename(path).toLowerCase();
+	try {
+		const entries = readdirSync(dir);
+		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
+		if (found.length === 1) {
+			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
+			const prefix = realcaseSync(dir);   // recurse
+			if (prefix) {
+				return paths.join(prefix, found[0]);
+			}
+		} else if (found.length > 1) {
+			// must be a case sensitive $filesystem
+			const ix = found.indexOf(name);
+			if (ix >= 0) {	// case sensitive
+				const prefix = realcaseSync(dir);   // recurse
+				if (prefix) {
+					return paths.join(prefix, found[ix]);
+				}
+			}
+		}
+	} catch (error) {
+		// silently ignore error
+	}
+
+	return null;
+}
+
+export function realpathSync(path: string): string {
+	try {
+		return fs.realpathSync(path);
+	} catch (error) {
+
+		// We hit an error calling fs.realpathSync(). Since fs.realpathSync() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
+
+		return normalizedPath;
+	}
+}
+
+export function realpath(path: string, callback: (error: Error, realpath: string) => void): void {
+	return fs.realpath(path, (error, realpath) => {
+		if (!error) {
+			return callback(null, realpath);
+		}
+
+		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+
+		return fs.access(normalizedPath, fs.constants.R_OK, error => {
+			return callback(error, normalizedPath);
+		});
+	});
+}
+
+function normalizePath(path: string): string {
+	return strings.rtrim(paths.normalize(path), paths.sep);
 }

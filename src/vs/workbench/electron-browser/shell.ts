@@ -8,91 +8,105 @@
 import 'vs/css!./media/shell';
 
 import * as nls from 'vs/nls';
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
-import {toErrorMessage} from 'vs/base/common/errorMessage';
-import product from 'vs/platform/product';
-import pkg from 'vs/platform/package';
-import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
-import timer = require('vs/base/common/timer');
-import {Workbench} from 'vs/workbench/electron-browser/workbench';
-import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ITelemetryAppenderChannel, TelemetryAppenderClient} from 'vs/platform/telemetry/common/telemetryIpc';
-import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
-import {IdleMonitor, UserStatus} from  'vs/platform/telemetry/browser/idleMonitor';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import product from 'vs/platform/node/product';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import pkg from 'vs/platform/node/package';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import {resolveWorkbenchCommonProperties} from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
-import {Update} from 'vs/workbench/electron-browser/update';
-import {WorkspaceStats} from 'vs/workbench/services/telemetry/common/workspaceStats';
-import {IWindowService, WindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {RequestService} from 'vs/platform/request/node/requestService';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {SearchService} from 'vs/workbench/services/search/node/searchService';
-import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
-import {ICompatWorkerService} from 'vs/editor/common/services/compatWorkerService';
-import {MainThreadCompatWorkerService} from 'vs/editor/common/services/compatWorkerServiceMain';
-import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {MainProcessExtensionService} from 'vs/workbench/api/node/mainThreadExtensionService';
-import {IOptions} from 'vs/workbench/common/options';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {IEnvironmentService} from 'vs/platform/environment/common/environment';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {ISearchService} from 'vs/platform/search/common/search';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {CommandService} from 'vs/platform/commands/common/commandService';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
-import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
-import {connect as connectNet} from 'vs/base/parts/ipc/node/ipc.net';
-import {Client as ElectronIPCClient} from 'vs/base/parts/ipc/common/ipc.electron';
-import {ipcRenderer} from 'electron';
-import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
-import {URLChannelClient} from 'vs/platform/url/common/urlIpc';
-import {IURLService} from 'vs/platform/url/common/url';
-import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
-
-// self registering services
+import { ElectronWindow } from 'vs/workbench/electron-browser/window';
+import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
+import { WorkspaceStats } from 'vs/workbench/services/telemetry/common/workspaceStats';
+import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
+import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { RequestService } from 'vs/platform/request/electron-browser/requestService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SearchService } from 'vs/workbench/services/search/node/searchService';
+import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
+import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
+import { ISearchService } from 'vs/platform/search/common/search';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/platform/commands/common/commandService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { ICrashReporterService, NullCrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
+import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
+import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
+import { remote, ipcRenderer as ipc } from 'electron';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
+import * as browser from 'vs/base/browser/browser';
 import 'vs/platform/opener/browser/opener.contribution';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
+import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
 
 /**
  * Services that we require for the Shell
  */
 export interface ICoreServices {
 	contextService: IWorkspaceContextService;
-	eventService: IEventService;
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
+	timerService: ITimerService;
+	storageService: IStorageService;
 }
+
+const currentWindow = remote.getCurrentWindow();
 
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
@@ -101,15 +115,18 @@ export interface ICoreServices {
 export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: MessageService;
-	private eventService: IEventService;
-	private environmentService:IEnvironmentService;
+	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
-	private windowService: IWindowService;
 	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
-	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
+	private extensionService: MainProcessExtensionService;
+	private broadcastService: IBroadcastService;
+	private timerService: ITimerService;
+	private themeService: WorkbenchThemeService;
+	private lifecycleService: LifecycleService;
+	private mainProcessServices: ServiceCollection;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -118,20 +135,21 @@ export class WorkbenchShell {
 	private content: HTMLElement;
 	private contentsContainer: Builder;
 
-	private workspace: IWorkspace;
-	private options: IOptions;
+	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, options: IOptions) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
 		this.container = container;
 
-		this.workspace = workspace;
-		this.options = options;
+		this.configuration = configuration;
 
-		this.contextService = services.contextService;
-		this.eventService = services.eventService;
-		this.configurationService = services.configurationService;
-		this.environmentService = services.environmentService;
+		this.contextService = coreServices.contextService;
+		this.configurationService = coreServices.configurationService;
+		this.environmentService = coreServices.environmentService;
+		this.timerService = coreServices.timerService;
+		this.storageService = coreServices.storageService;
+
+		this.mainProcessServices = mainProcessServices;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -148,25 +166,25 @@ export class WorkbenchShell {
 		// Instantiation service with services
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
-		//crash reporting
-		if (!!product.crashReporter) {
-			const crashReporter = instantiationService.createInstance(CrashReporter, pkg.version, product.commit);
-			crashReporter.start(product.crashReporter);
-		}
-
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
 		this.workbench.startup({
-			onWorkbenchStarted: (customKeybindingsCount) => {
-				this.onWorkbenchStarted(customKeybindingsCount);
+			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
+
+				// run workbench started logic
+				this.onWorkbenchStarted(info);
+
+				// start cached data manager
+				instantiationService.createInstance(NodeCachedDataManager);
+
+				// Set lifecycle phase to `Runnning` so that other contributions
+				// can now do something
+				this.lifecycleService.phase = LifecyclePhase.Running;
 			}
 		});
 
-		// Electron integration
-		this.workbench.getInstantiationService().createInstance(ElectronIntegration).integrate(this.container);
-
-		// Update
-		this.workbench.getInstantiationService().createInstance(Update);
+		// Window
+		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
@@ -180,68 +198,78 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(customKeybindingsCount: number): void {
+	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
-		// Log to telemetry service
-		const windowSize = {
-			innerHeight: window.innerHeight,
-			innerWidth: window.innerWidth,
-			outerHeight: window.outerHeight,
-			outerWidth: window.outerWidth
-		};
+		// Telemetry: workspace info
+		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
+		this.telemetryService.publicLog('workspaceLoad', {
+			userAgent: navigator.userAgent,
+			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
+			emptyWorkbench: !this.contextService.hasWorkspace(),
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
+			customKeybindingsCount: info.customKeybindingsCount,
+			theme: this.themeService.getColorTheme().id,
+			language: platform.language,
+			experiments: loadExperiments(),
+			pinnedViewlets: info.pinnedViewlets,
+			restoredViewlet: info.restoredViewlet,
+			restoredEditors: info.restoredEditors.length,
+			startupKind: this.lifecycleService.startupKind
+		});
 
-		this.telemetryService.publicLog('workspaceLoad',
-			{
-				userAgent: navigator.userAgent,
-				windowSize: windowSize,
-				emptyWorkbench: !this.contextService.getWorkspace(),
-				customKeybindingsCount,
-				theme: this.themeService.getColorTheme(),
-				language: platform.language
-			});
+		// Telemetry: startup metrics
+		this.timerService.workbenchStarted = Date.now();
+		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
+		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
+		this.extensionService.onReady().done(() => {
+			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
+		});
 
+		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags();
+		workspaceStats.reportWorkspaceTags(this.configuration);
+		workspaceStats.reportCloudStats();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
 	}
 
-	private initServiceCollection(container: HTMLElement): [InstantiationService, ServiceCollection] {
-		const disposables = new Disposables();
-
-		const sharedProcess = connectNet(this.environmentService.sharedIPCHandle);
-		sharedProcess.done(service => {
-			service.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
-
-		const mainProcessClient = new ElectronIPCClient(ipcRenderer);
-		disposables.add(mainProcessClient);
+	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
+		const disposables: IDisposable[] = [];
 
 		const serviceCollection = new ServiceCollection();
-		serviceCollection.set(IEventService, this.eventService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
-
-		const instantiationService = new InstantiationService(serviceCollection, true);
-
-		this.windowService = instantiationService.createInstance(WindowService);
-		serviceCollection.set(IWindowService, this.windowService);
-
-		// Storage
-		const disableWorkspaceStorage = this.environmentService.extensionTestsPath || (!this.workspace && !this.environmentService.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
+		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
+			serviceCollection.set(serviceIdentifier, serviceInstance);
+		});
+
+		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
+
+		this.broadcastService = new BroadcastService(currentWindow.id);
+		serviceCollection.set(IBroadcastService, this.broadcastService);
+
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id));
+
+		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
+
+		sharedProcess
+			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
+
+		// Warm up font cache information before building up too many dom elements
+		restoreFontInfo(this.storageService);
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
 
 		// Telemetry
-		if (this.environmentService.isBuilt && !this.environmentService.extensionDevelopmentPath && !!product.enableTelemetry) {
+		this.sendMachineIdToMain(this.storageService);
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
 			const version = pkg.version;
@@ -264,70 +292,88 @@ export class WorkbenchShell {
 					: TelemetryService.IDLE_START_EVENT_NAME
 				));
 
-			disposables.add(telemetryService, errorTelemetry, listener, idleMonitor);
+			disposables.push(telemetryService, errorTelemetry, listener, idleMonitor);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
+		disposables.push(configurationTelemetry(this.telemetryService, this.configurationService));
+
+		let crashReporterService = NullCrashReporterService;
+		if (product.crashReporter && product.hockeyApp) {
+			crashReporterService = instantiationService.createInstance(CrashReporterService);
+		}
+		serviceCollection.set(ICrashReporterService, crashReporterService);
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
+		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
+		disposables.push(lifecycleTelemetry(this.telemetryService, lifecycleService));
+		this.lifecycleService = lifecycleService;
 
-		this.threadService = instantiationService.createInstance(MainThreadService);
+		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
+
+		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
+		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
+		disposables.push(extensionEnablementService);
+
+		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
+		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
-		const extensionService = instantiationService.createInstance(MainProcessExtensionService);
-		serviceCollection.set(IExtensionService, extensionService);
+		this.timerService.beforeExtensionLoad = Date.now();
 
-		serviceCollection.set(ICommandService, new CommandService(instantiationService, extensionService));
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
+		serviceCollection.set(IExtensionService, this.extensionService);
+		extensionHostProcessWorker.start(this.extensionService);
+		this.extensionService.onReady().done(() => {
+			this.timerService.afterExtensionLoad = Date.now();
+		});
+
+		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
+		serviceCollection.set(IWorkbenchThemeService, this.themeService);
+
+		serviceCollection.set(ICommandService, new SyncDescriptor(CommandService));
 
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		const requestService = instantiationService.createInstance(RequestService);
-		serviceCollection.set(IRequestService, requestService);
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
-		const markerService = instantiationService.createInstance(MarkerService);
-		serviceCollection.set(IMarkerService, markerService);
+		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
-		const modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
-		serviceCollection.set(IModeService, modeService);
+		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
 
-		const modelService = instantiationService.createInstance(ModelServiceImpl);
-		serviceCollection.set(IModelService, modelService);
+		serviceCollection.set(IModelService, new SyncDescriptor(ModelServiceImpl));
 
-		const compatWorkerService = instantiationService.createInstance(MainThreadCompatWorkerService);
-		serviceCollection.set(ICompatWorkerService, compatWorkerService);
+		serviceCollection.set(ITextResourceConfigurationService, new SyncDescriptor(TextResourceConfigurationService));
 
-		const editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
-		serviceCollection.set(IEditorWorkerService, editorWorkerService);
+		serviceCollection.set(IEditorWorkerService, new SyncDescriptor(EditorWorkerServiceImpl));
 
-		const untitledEditorService = instantiationService.createInstance(UntitledEditorService);
-		serviceCollection.set(IUntitledEditorService, untitledEditorService);
+		serviceCollection.set(IUntitledEditorService, new SyncDescriptor(UntitledEditorService));
 
-		this.themeService = instantiationService.createInstance(ThemeService);
-		serviceCollection.set(IThemeService, this.themeService);
+		serviceCollection.set(ITextMateService, new SyncDescriptor(TextMateService));
 
-		const searchService = instantiationService.createInstance(SearchService);
-		serviceCollection.set(ISearchService, searchService);
+		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
-		const codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
-		serviceCollection.set(ICodeEditorService, codeEditorService);
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
-		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel);
-		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
-
-		const urlChannel = mainProcessClient.getChannel('url');
-		const urlChannelClient = new URLChannelClient(urlChannel, this.windowService.getWindowId());
-		serviceCollection.set(IURLService, urlChannelClient);
+		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		return [instantiationService, serviceCollection];
+	}
+
+	private sendMachineIdToMain(storageService: IStorageService) {
+		getOrCreateMachineId(storageService).then(machineId => {
+			ipc.send(machineIdIpcChannel, machineId);
+		}).then(null, errors.onUnexpectedError);
 	}
 
 	public open(): void {
@@ -343,9 +389,6 @@ export class WorkbenchShell {
 		// Controls
 		this.content = $('.monaco-shell-content').appendTo(this.container).getHTMLElement();
 
-		// Handle Load Performance Timers
-		this.writeTimers();
-
 		// Create Contents
 		this.contentsContainer = this.createContents($(this.content));
 
@@ -354,56 +397,12 @@ export class WorkbenchShell {
 
 		// Listeners
 		this.registerListeners();
-
-		// Enable theme support
-		this.themeService.initialize(this.container).then(null, error => {
-			errors.onUnexpectedError(error);
-		});
 	}
 
 	private registerListeners(): void {
 
 		// Resize
 		$(window).on(dom.EventType.RESIZE, () => this.layout(), this.toUnbind);
-	}
-
-	private writeTimers(): void {
-		const timers = (<any>window).MonacoEnvironment.timers;
-		if (timers) {
-			const events: timer.IExistingTimerEvent[] = [];
-
-			// Window
-			if (timers.vscodeStart) {
-				events.push({
-					startTime: timers.vscodeStart,
-					stopTime: timers.beforeLoad,
-					topic: 'Startup',
-					name: 'VSCode Startup',
-					description: 'Time it takes to create a window and startup VSCode'
-				});
-			}
-
-			// Load
-			events.push({
-				startTime: timers.beforeLoad,
-				stopTime: timers.afterLoad,
-				topic: 'Startup',
-				name: 'Load Modules',
-				description: 'Time it takes to load VSCodes main modules'
-			});
-
-			// Ready
-			events.push({
-				startTime: timers.beforeReady,
-				stopTime: timers.afterReady,
-				topic: 'Startup',
-				name: 'Event DOMContentLoaded',
-				description: 'Time it takes for the DOM to emit DOMContentLoaded event'
-			});
-
-			// Write to Timer
-			timer.getTimeKeeper().setInitialCollectedEvents(events, timers.start);
-		}
 	}
 
 	public onUnexpectedError(error: any): void {
@@ -459,3 +458,114 @@ export class WorkbenchShell {
 		$(this.container).empty();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Foreground
+	const windowForeground = theme.getColor(foreground);
+	if (windowForeground) {
+		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
+	}
+
+	// Selection
+	const windowSelectionBackground = theme.getColor(selectionBackground);
+	if (windowSelectionBackground) {
+		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
+	}
+
+	// Input placeholder
+	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
+	if (placeholderForeground) {
+		collector.addRule(`.monaco-shell input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`.monaco-shell textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+	}
+
+	// List highlight
+	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
+	if (listHighlightForegroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
+			.monaco-shell .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+				color: ${listHighlightForegroundColor};
+			}
+		`);
+	}
+
+	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
+	let workbenchBackground: string;
+	switch (theme.type) {
+		case 'dark':
+			workbenchBackground = '#252526';
+			break;
+		case 'light':
+			workbenchBackground = '#F3F3F3';
+			break;
+		default:
+			workbenchBackground = '#000000';
+	}
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
+	// Scrollbars
+	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
+	if (scrollbarShadowColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-shell .monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-shell .monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`);
+	}
+
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`);
+	}
+
+	// Focus outline
+	const focusOutline = theme.getColor(focusBorder);
+	if (focusOutline) {
+		collector.addRule(`
+			.monaco-shell [tabindex="0"]:focus,
+			.monaco-shell .synthetic-focus,
+			.monaco-shell select:focus,
+			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+			.monaco-shell input[type="button"]:focus,
+			.monaco-shell input[type="text"]:focus,
+			.monaco-shell button:focus,
+			.monaco-shell textarea:focus,
+			.monaco-shell input[type="search"]:focus,
+			.monaco-shell input[type="checkbox"]:focus {
+				outline-color: ${focusOutline};
+			}
+		`);
+	}
+});

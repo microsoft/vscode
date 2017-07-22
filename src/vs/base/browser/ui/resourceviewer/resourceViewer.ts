@@ -10,13 +10,18 @@ import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {BoundedLinkedMap} from 'vs/base/common/map';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { BoundedMap } from 'vs/base/common/map';
+
+
+interface MapExtToMediaMimes {
+	[index: string]: string;
+}
 
 // Known media mimes that we can handle
-const mapExtToMediaMimes = {
+const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.bmp': 'image/bmp',
 	'.gif': 'image/gif',
 	'.jpg': 'image/jpg',
@@ -75,7 +80,7 @@ export interface IResourceDescriptor {
 // we need to bypass the cache or not. We could always bypass the cache everytime we show the image
 // however that has very bad impact on memory consumption because each time the image gets shown,
 // memory grows (see also https://github.com/electron/electron/issues/6275)
-const IMAGE_RESOURCE_ETAG_CACHE = new BoundedLinkedMap<{ etag: string, src: string }>(100);
+const IMAGE_RESOURCE_ETAG_CACHE = new BoundedMap<{ etag: string, src: string }>(100);
 function imageSrc(descriptor: IResourceDescriptor): string {
 	const src = descriptor.resource.toString();
 
@@ -99,10 +104,20 @@ function imageSrc(descriptor: IResourceDescriptor): string {
  */
 export class ResourceViewer {
 
-	private static MAX_IMAGE_SIZE = 1024 * 1024; // showing images inline is memory intense, so we have a limit
+	private static KB = 1024;
+	private static MB = ResourceViewer.KB * ResourceViewer.KB;
+	private static GB = ResourceViewer.MB * ResourceViewer.KB;
+	private static TB = ResourceViewer.GB * ResourceViewer.KB;
 
-	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement): void {
+	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
+	public static show(
+		descriptor: IResourceDescriptor,
+		container: Builder,
+		scrollbar: DomScrollableElement,
+		openExternal: (URI) => void,
+		metadataClb?: (meta: string) => void
+	): void {
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
 
@@ -118,28 +133,44 @@ export class ResourceViewer {
 		}
 
 		// Show Image inline
-		if (mime.indexOf('image/') >= 0 && descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
-			$(container)
-				.empty()
-				.addClass('image')
-				.img({ src: imageSrc(descriptor) })
-				.on(DOM.EventType.LOAD, (e, img) => {
-					const imgElement = <HTMLImageElement>img.getHTMLElement();
-					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
-						$(container).addClass('oversized');
+		if (mime.indexOf('image/') >= 0) {
+			if (descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
+				$(container)
+					.empty()
+					.addClass('image')
+					.img({ src: imageSrc(descriptor) })
+					.on(DOM.EventType.LOAD, (e, img) => {
+						const imgElement = <HTMLImageElement>img.getHTMLElement();
+						if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
+							$(container).addClass('oversized');
 
-						img.on(DOM.EventType.CLICK, (e, img) => {
-							$(container).toggleClass('full-size');
+							img.on(DOM.EventType.CLICK, (e, img) => {
+								$(container).toggleClass('full-size');
 
-							scrollbar.scanDomNode();
-						});
-					}
+								scrollbar.scanDomNode();
+							});
+						}
 
-					// Update title when we know the image bounds
-					img.title(nls.localize('imgTitle', "{0} ({1}x{2})", paths.basename(descriptor.resource.fsPath), imgElement.naturalWidth, imgElement.naturalHeight));
+						if (metadataClb) {
+							metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+						}
 
-					scrollbar.scanDomNode();
-				});
+						scrollbar.scanDomNode();
+					});
+			} else {
+				$(container)
+					.empty()
+					.p({
+						text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+					})
+					.append($('a', {
+						role: 'button',
+						class: 'open-external',
+						text: nls.localize('resourceOpenExternalButton', "Open image using external program?")
+					}).on(DOM.EventType.CLICK, (e) => {
+						openExternal(descriptor.resource);
+					}));
+			}
 		}
 
 		// Handle generic Binary Files
@@ -150,7 +181,31 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
+			if (metadataClb) {
+				metadataClb(ResourceViewer.formatSize(descriptor.size));
+			}
+
 			scrollbar.scanDomNode();
 		}
+	}
+
+	private static formatSize(size: number): string {
+		if (size < ResourceViewer.KB) {
+			return nls.localize('sizeB', "{0}B", size);
+		}
+
+		if (size < ResourceViewer.MB) {
+			return nls.localize('sizeKB', "{0}KB", (size / ResourceViewer.KB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.GB) {
+			return nls.localize('sizeMB', "{0}MB", (size / ResourceViewer.MB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.TB) {
+			return nls.localize('sizeGB', "{0}GB", (size / ResourceViewer.GB).toFixed(2));
+		}
+
+		return nls.localize('sizeTB', "{0}TB", (size / ResourceViewer.TB).toFixed(2));
 	}
 }

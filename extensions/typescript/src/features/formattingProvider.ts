@@ -3,41 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
+import { workspace as Workspace, DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration, Disposable, languages, workspace } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 interface Configuration {
+	enable: boolean;
 	insertSpaceAfterCommaDelimiter: boolean;
+	insertSpaceAfterConstructor: boolean;
 	insertSpaceAfterSemicolonInForStatements: boolean;
 	insertSpaceBeforeAndAfterBinaryOperators: boolean;
 	insertSpaceAfterKeywordsInControlFlowStatements: boolean;
 	insertSpaceAfterFunctionKeywordForAnonymousFunctions: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
+	insertSpaceAfterTypeAssertion: boolean;
+	insertSpaceBeforeFunctionParenthesis: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
 }
 
 namespace Configuration {
-	export const insertSpaceAfterCommaDelimiter: string = 'insertSpaceAfterCommaDelimiter';
-	export const insertSpaceAfterSemicolonInForStatements: string = 'insertSpaceAfterSemicolonInForStatements';
-	export const insertSpaceBeforeAndAfterBinaryOperators: string = 'insertSpaceBeforeAndAfterBinaryOperators';
-	export const insertSpaceAfterKeywordsInControlFlowStatements: string = 'insertSpaceAfterKeywordsInControlFlowStatements';
-	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions: string = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
-	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
-	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
-	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
-	export const placeOpenBraceOnNewLineForControlBlocks: string = 'placeOpenBraceOnNewLineForControlBlocks';
+	export const insertSpaceAfterCommaDelimiter = 'insertSpaceAfterCommaDelimiter';
+	export const insertSpaceAfterConstructor = 'insertSpaceAfterConstructor';
+	export const insertSpaceAfterSemicolonInForStatements = 'insertSpaceAfterSemicolonInForStatements';
+	export const insertSpaceBeforeAndAfterBinaryOperators = 'insertSpaceBeforeAndAfterBinaryOperators';
+	export const insertSpaceAfterKeywordsInControlFlowStatements = 'insertSpaceAfterKeywordsInControlFlowStatements';
+	export const insertSpaceAfterFunctionKeywordForAnonymousFunctions = 'insertSpaceAfterFunctionKeywordForAnonymousFunctions';
+	export const insertSpaceBeforeFunctionParenthesis = 'insertSpaceBeforeFunctionParenthesis';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
+	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
+	export const insertSpaceAfterTypeAssertion = 'insertSpaceAfterTypeAssertion';
+	export const placeOpenBraceOnNewLineForFunctions = 'placeOpenBraceOnNewLineForFunctions';
+	export const placeOpenBraceOnNewLineForControlBlocks = 'placeOpenBraceOnNewLineForControlBlocks';
 
 	export function equals(a: Configuration, b: Configuration): boolean {
 		let keys = Object.keys(a);
 		for (let i = 0; i < keys.length; i++) {
 			let key = keys[i];
-			if (a[key] !== b[key]) {
+			if ((a as any)[key] !== (b as any)[key]) {
 				return false;
 			}
 		}
@@ -46,29 +57,43 @@ namespace Configuration {
 
 	export function def(): Configuration {
 		let result: Configuration = Object.create(null);
+		result.enable = true;
 		result.insertSpaceAfterCommaDelimiter = true;
+		result.insertSpaceAfterConstructor = false;
 		result.insertSpaceAfterSemicolonInForStatements = true;
 		result.insertSpaceBeforeAndAfterBinaryOperators = true;
 		result.insertSpaceAfterKeywordsInControlFlowStatements = true;
 		result.insertSpaceAfterFunctionKeywordForAnonymousFunctions = false;
+		result.insertSpaceBeforeFunctionParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = true;
+		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
+		result.insertSpaceAfterTypeAssertion = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
 	}
 }
 
-export default class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
-
-	private client: ITypescriptServiceClient;
+export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
 	private config: Configuration;
-	private formatOptions: { [key: string]: Proto.FormatOptions; };
+	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
+	public constructor(
+		private client: ITypescriptServiceClient
+	) {
 		this.config = Configuration.def();
 		this.formatOptions = Object.create(null);
+		Workspace.onDidCloseTextDocument((textDocument) => {
+			let key = textDocument.uri.toString();
+			// When a document gets closed delete the cached formatting options.
+			// This is necessary sine the tsserver now closed a project when its
+			// last file in it closes which drops the stored formatting options
+			// as well.
+			delete this.formatOptions[key];
+		});
 	}
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
@@ -80,19 +105,29 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 		}
 	}
 
-	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatOptions> {
-		let key = document.uri.toString();
-		let currentOptions = this.formatOptions[key];
+	public isEnabled(): boolean {
+		return this.config.enable;
+	}
+
+	private ensureFormatOptions(document: TextDocument, options: FormattingOptions, token: CancellationToken): Promise<Proto.FormatCodeSettings> {
+		const key = document.uri.toString();
+		const currentOptions = this.formatOptions[key];
 		if (currentOptions && currentOptions.tabSize === options.tabSize && currentOptions.indentSize === options.tabSize && currentOptions.convertTabsToSpaces === options.insertSpaces) {
 			return Promise.resolve(currentOptions);
 		} else {
-			let args: Proto.ConfigureRequestArguments = {
-				file: this.client.asAbsolutePath(document.uri),
-				formatOptions: this.getFormatOptions(options)
+			const absPath = this.client.normalizePath(document.uri);
+			if (!absPath) {
+				return Promise.resolve(Object.create(null));
+			}
+
+			const formatOptions = this.getFormatOptions(options);
+			const args: Proto.ConfigureRequestArguments = {
+				file: absPath,
+				formatOptions: formatOptions
 			};
-			return this.client.execute('configure', args, token).then((response) => {
-				this.formatOptions[key] = args.formatOptions;
-				return args.formatOptions;
+			return this.client.execute('configure', args, token).then(_ => {
+				this.formatOptions[key] = formatOptions;
+				return formatOptions;
 			});
 		}
 	}
@@ -100,17 +135,24 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	private doFormat(document: TextDocument, options: FormattingOptions, args: Proto.FormatRequestArgs, token: CancellationToken): Promise<TextEdit[]> {
 		return this.ensureFormatOptions(document, options, token).then(() => {
 			return this.client.execute('format', args, token).then((response): TextEdit[] => {
-				return response.body.map(this.codeEdit2SingleEditOperation);
-			}, (err: any) => {
-				this.client.error(`'format' request failed with error.`, err);
+				if (response.body) {
+					return response.body.map(this.codeEdit2SingleEditOperation);
+				} else {
+					return [];
+				}
+			}, () => {
 				return [];
 			});
 		});
 	}
 
 	public provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
-		let args: Proto.FormatRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+		const absPath = this.client.normalizePath(document.uri);
+		if (!absPath) {
+			return Promise.resolve([]);
+		}
+		const args: Proto.FormatRequestArgs = {
+			file: absPath,
 			line: range.start.line + 1,
 			offset: range.start.character + 1,
 			endLine: range.end.line + 1,
@@ -120,8 +162,12 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 	}
 
 	public provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): Promise<TextEdit[]> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve([]);
+		}
 		let args: Proto.FormatOnKeyRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,
 			key: ch
@@ -131,6 +177,9 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
 				let edits = response.body;
 				let result: TextEdit[] = [];
+				if (!edits) {
+					return result;
+				}
 				for (let edit of edits) {
 					let textEdit = this.codeEdit2SingleEditOperation(edit);
 					let range = textEdit.range;
@@ -149,8 +198,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 					}
 				}
 				return result;
-			}, (err: any) => {
-				this.client.error(`'formatonkey' request failed with error.`, err);
+			}, () => {
 				return [];
 			});
 		});
@@ -161,7 +209,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			edit.newText);
 	}
 
-	private getFormatOptions(options: FormattingOptions): Proto.FormatOptions {
+	private getFormatOptions(options: FormattingOptions): Proto.FormatCodeSettings {
 		return {
 			tabSize: options.tabSize,
 			indentSize: options.tabSize,
@@ -169,14 +217,50 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			// We can use \n here since the editor normalizes later on to its line endings.
 			newLineCharacter: '\n',
 			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
+			insertSpaceAfterConstructor: this.config.insertSpaceAfterConstructor,
 			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
 			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
 			insertSpaceAfterKeywordsInControlFlowStatements: this.config.insertSpaceAfterKeywordsInControlFlowStatements,
 			insertSpaceAfterFunctionKeywordForAnonymousFunctions: this.config.insertSpaceAfterFunctionKeywordForAnonymousFunctions,
+			insertSpaceBeforeFunctionParenthesis: this.config.insertSpaceBeforeFunctionParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
+			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
-			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
+			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
+
 		};
+	}
+}
+
+export class FormattingProviderManager {
+	private formattingProviderRegistration: Disposable | undefined;
+
+	constructor(
+		private readonly modeId: string,
+		private readonly formattingProvider: TypeScriptFormattingProvider,
+		private readonly selector: string[]
+	) { }
+
+	public dispose() {
+		if (this.formattingProviderRegistration) {
+			this.formattingProviderRegistration.dispose();
+			this.formattingProviderRegistration = undefined;
+		}
+	}
+
+	public updateConfiguration(): void {
+		const config = workspace.getConfiguration(this.modeId);
+		this.formattingProvider.updateConfiguration(config);
+
+		if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
+			this.formattingProviderRegistration.dispose();
+			this.formattingProviderRegistration = undefined;
+		} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
+			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.selector, this.formattingProvider);
+		}
 	}
 }

@@ -5,9 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -19,11 +20,6 @@ export interface IEditorService {
 	 * Specific overload to open an instance of IResourceInput.
 	 */
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-
-	/**
-	 * Specific overload to resolve a IResourceInput to an editor model with a text representation.
-	 */
-	resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 }
 
 export interface IEditorModel {
@@ -41,11 +37,25 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: any;
+export interface IBaseResourceInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * Label to show for the diff editor
+	 */
+	label?: string;
+
+	/**
+	 * Description to show for the diff editor
+	 */
+	description?: string;
 }
 
-export interface IResourceInput {
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
@@ -53,19 +63,63 @@ export interface IResourceInput {
 	resource: URI;
 
 	/**
-	 * The mime type of the text input if known.
-	 */
-	mime?: string;
-
-	/**
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+}
+
+export interface IUntitledResourceInput extends IBaseResourceInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * Optional resource. If the resource is not provided a new untitled file is created.
 	 */
-	options?: ITextEditorOptions;
+	resource?: URI;
+
+	/**
+	 * Optional file path. Using the file resource will associate the file to the untitled resource.
+	 */
+	filePath?: string;
+
+	/**
+	 * Optional language of the untitled resource.
+	 */
+	language?: string;
+
+	/**
+	 * Optional contents of the untitled resource.
+	 */
+	contents?: string;
+
+	/**
+	 * Optional encoding of the untitled resource.
+	 */
+	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
+
+	/**
+	 * The left hand side URI to open inside a diff editor.
+	 */
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
 }
 
 export interface IEditorControl {
@@ -115,24 +169,30 @@ export interface IEditor {
  */
 export enum Position {
 
-	/** Opens the editor in the LEFT most position replacing the input currently showing */
-	LEFT = 0,
+	/** Opens the editor in the first position replacing the input currently showing */
+	ONE = 0,
 
-	/** Opens the editor in the CENTER position replacing the input currently showing */
-	CENTER = 1,
+	/** Opens the editor in the second position replacing the input currently showing */
+	TWO = 1,
 
-	/** Opens the editor in the RIGHT most position replacing the input currently showing */
-	RIGHT = 2
+	/** Opens the editor in the third most position replacing the input currently showing */
+	THREE = 2
 }
 
-export const POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
+export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
 
 export enum Direction {
 	LEFT,
 	RIGHT
 }
 
-export interface IEditorInput {
+export enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
+export interface IEditorInput extends IDisposable {
 
 	onDispose: Event<void>;
 
@@ -147,9 +207,24 @@ export interface IEditorInput {
 	getDescription(verbose?: boolean): string;
 
 	/**
+	 * Returns the display title of this input.
+	 */
+	getTitle(verbosity?: Verbosity): string;
+
+	/**
+	 * Resolves the input.
+	 */
+	resolve(): TPromise<IEditorModel>;
+
+	/**
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Reverts this input.
+	 */
+	revert(): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -176,6 +251,11 @@ export interface IEditorOptions {
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
 	revealIfVisible?: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	revealIfOpened?: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -206,4 +286,14 @@ export interface ITextEditorOptions extends IEditorOptions {
 		endLineNumber?: number;
 		endColumn?: number;
 	};
+
+	/**
+	 * Text editor view state.
+	 */
+	viewState?: object;
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	revealInCenterIfOutsideViewport?: boolean;
 }

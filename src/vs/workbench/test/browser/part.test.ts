@@ -6,18 +6,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Build, Builder} from 'vs/base/browser/builder';
-import {Part} from 'vs/workbench/browser/part';
+import { Build, Builder } from 'vs/base/browser/builder';
+import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import * as TestUtils from 'vs/test/utils/servicesTestUtils';
-import {IWorkspaceContextService, WorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 class MyPart extends Part {
 
 	constructor(private expectedParent: Builder) {
-		super('myPart');
+		super('myPart', { hasTitle: true }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -30,20 +30,19 @@ class MyPart extends Part {
 		return super.createContentArea(parent);
 	}
 
-	public createStatusArea(parent: Builder): Builder {
-		assert.strictEqual(parent, this.expectedParent);
-		return super.createStatusArea(parent);
+	public getMemento(storageService: IStorageService): any {
+		return super.getMemento(storageService);
 	}
 }
 
 class MyPart2 extends Part {
 
 	constructor() {
-		super('myPart2');
+		super('myPart2', { hasTitle: true }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
-		return parent.div(function(div) {
+		return parent.div(function (div) {
 			div.span({
 				id: 'myPart.title',
 				innerHtml: 'Title'
@@ -52,19 +51,10 @@ class MyPart2 extends Part {
 	}
 
 	public createContentArea(parent: Builder): Builder {
-		return parent.div(function(div) {
+		return parent.div(function (div) {
 			div.span({
 				id: 'myPart.content',
 				innerHtml: 'Content'
-			});
-		});
-	}
-
-	public createStatusArea(parent: Builder): Builder {
-		return parent.div(function(div) {
-			div.span({
-				id: 'myPart.status',
-				innerHtml: 'Status'
 			});
 		});
 	}
@@ -73,7 +63,7 @@ class MyPart2 extends Part {
 class MyPart3 extends Part {
 
 	constructor() {
-		super('myPart2');
+		super('myPart2', { hasTitle: false }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -81,38 +71,32 @@ class MyPart3 extends Part {
 	}
 
 	public createContentArea(parent: Builder): Builder {
-		return parent.div(function(div) {
+		return parent.div(function (div) {
 			div.span({
 				id: 'myPart.content',
 				innerHtml: 'Content'
 			});
 		});
 	}
-
-	public createStatusArea(parent: Builder): Builder {
-		return null;
-	}
 }
 
 suite('Workbench Part', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'workbench-part-fixture';
-	let context: IWorkspaceContextService;
 	let storage: IStorageService;
 
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new WorkspaceContextService(TestUtils.TestWorkspace);
-		storage = new Storage(new InMemoryLocalStorage(), null, context);
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	teardown(() => {
 		document.body.removeChild(fixture);
 	});
 
-	test('Creation', function() {
+	test('Creation', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -149,7 +133,7 @@ suite('Workbench Part', () => {
 		assert.strictEqual(Types.isEmptyObject(memento), true);
 	});
 
-	test('Part Layout with Title, Content and Status', function() {
+	test('Part Layout with Title and Content', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -158,10 +142,9 @@ suite('Workbench Part', () => {
 
 		assert(Build.withElementById('myPart.title'));
 		assert(Build.withElementById('myPart.content'));
-		assert(Build.withElementById('myPart.status'));
 	});
 
-	test('Part Layout with Content only', function() {
+	test('Part Layout with Content only', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
@@ -170,6 +153,5 @@ suite('Workbench Part', () => {
 
 		assert(!Build.withElementById('myPart.title'));
 		assert(Build.withElementById('myPart.content'));
-		assert(!Build.withElementById('myPart.status'));
 	});
 });

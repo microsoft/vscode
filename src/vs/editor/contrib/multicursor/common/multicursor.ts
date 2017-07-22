@@ -5,21 +5,25 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {Handler, ICommonCodeEditor, EditorContextKeys, ISelection} from 'vs/editor/common/editorCommon';
-import {editorAction, ServicesAccessor, EditorAction, HandlerEditorAction} from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
+import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 
 @editorAction
-class InsertCursorAbove extends HandlerEditorAction {
+export class InsertCursorAbove extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
 			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
 			alias: 'Add Cursor Above',
 			precondition: null,
-			handlerId: Handler.AddCursorUp,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -28,19 +32,38 @@ class InsertCursorAbove extends HandlerEditorAction {
 			}
 		});
 	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+		const cursors = editor._getCursors();
+		const context = cursors.context;
+
+		if (context.config.readOnly) {
+			return;
+		}
+
+		context.model.pushStackElement();
+		cursors.setStates(
+			args.source,
+			CursorChangeReason.Explicit,
+			CursorState.ensureInEditableRange(
+				context,
+				CursorMoveCommands.addCursorUp(context, cursors.getAll())
+			)
+		);
+		cursors.reveal(true, RevealTarget.TopMost);
+	}
 }
 
 @editorAction
-class InsertCursorBelow extends HandlerEditorAction {
+export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
 			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
 			alias: 'Add Cursor Below',
 			precondition: null,
-			handlerId: Handler.AddCursorDown,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -48,6 +71,26 @@ class InsertCursorBelow extends HandlerEditorAction {
 				}
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+		const cursors = editor._getCursors();
+		const context = cursors.context;
+
+		if (context.config.readOnly) {
+			return;
+		}
+
+		context.model.pushStackElement();
+		cursors.setStates(
+			args.source,
+			CursorChangeReason.Explicit,
+			CursorState.ensureInEditableRange(
+				context,
+				CursorMoveCommands.addCursorDown(context, cursors.getAll())
+			)
+		);
+		cursors.reveal(true, RevealTarget.BottomMost);
 	}
 }
 
@@ -57,44 +100,42 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"),
-			alias: 'Create Multiple Cursors from Selected Lines',
+			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
+			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});
 	}
 
-	public run(accessor:ServicesAccessor, editor:ICommonCodeEditor): void {
-		let selection = editor.getSelection();
+	private getCursorsForSelection(selection: Selection, editor: ICommonCodeEditor): Selection[] {
 		if (selection.isEmpty()) {
-			return;
+			return [];
 		}
 
 		let model = editor.getModel();
-		let newSelections = new Array<ISelection>();
-		let selectionStart = selection.getStartPosition();
-		let selectionEnd = selection.getEndPosition();
-		for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {
-			if(i !== selectionEnd.lineNumber) {
-				let currentLineMaxColumn = model.getLineMaxColumn(i);
-				newSelections.push({
-					selectionStartLineNumber: i,
-					selectionStartColumn: currentLineMaxColumn,
-					positionLineNumber: i,
-					positionColumn: currentLineMaxColumn
-				});
-			} else if( selectionEnd.column > 0 ) {
-				newSelections.push({
-					selectionStartLineNumber: selectionEnd.lineNumber,
-					selectionStartColumn: selectionEnd.column,
-					positionLineNumber: selectionEnd.lineNumber,
-					positionColumn: selectionEnd.column
-				});
-			}
+		let newSelections: Selection[] = [];
+		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
+			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			newSelections.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
-		editor.setSelections(newSelections);
+		if (selection.endColumn > 1) {
+			newSelections.push(new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn));
+		}
+
+		return newSelections;
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let selections = editor.getSelections();
+		let newSelections = selections
+			.map((selection) => this.getCursorsForSelection(selection, editor))
+			.reduce((prev, curr) => { return prev.concat(curr); });
+
+		if (newSelections.length > 0) {
+			editor.setSelections(newSelections);
+		}
 	}
 }

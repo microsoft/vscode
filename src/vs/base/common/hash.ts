@@ -7,7 +7,7 @@
 /**
  * Return a hash value for an object.
  */
-export function hash(obj: any, hashVal = 0) : number {
+export function hash(obj: any, hashVal = 0): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -29,11 +29,11 @@ export function hash(obj: any, hashVal = 0) : number {
 	}
 }
 
-function numberHash(val: number, initialHashVal: number) : number {
+function numberHash(val: number, initialHashVal: number): number {
 	return (((initialHashVal << 5) - initialHashVal) + val) | 0;  // hashVal * 31 + ch, keep as int32
 }
 
-function booleanHash(b: boolean, initialHashVal: number) : number {
+function booleanHash(b: boolean, initialHashVal: number): number {
 	return numberHash(b ? 433 : 863, initialHashVal);
 }
 
@@ -45,12 +45,12 @@ function stringHash(s: string, hashVal: number) {
 	return hashVal;
 }
 
-function arrayHash(arr: any[], initialHashVal: number) : number {
+function arrayHash(arr: any[], initialHashVal: number): number {
 	initialHashVal = numberHash(104579, initialHashVal);
 	return arr.reduce((hashVal, item) => hash(item, hashVal), initialHashVal);
 }
 
-function objectHash(obj: any, initialHashVal: number) : number {
+function objectHash(obj: any, initialHashVal: number): number {
 	initialHashVal = numberHash(181387, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);

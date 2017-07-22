@@ -5,11 +5,11 @@
 'use strict';
 
 import assert = require('assert');
-import {formatOptions} from 'vs/platform/environment/node/argv';
+import { formatOptions } from 'vs/platform/environment/node/argv';
 
 suite('formatOptions', () => {
 	test('Text should display small columns correctly', () => {
-		assert.equal(formatOptions({'foo': 'bar'}, 80), '  foo bar');
+		assert.equal(formatOptions({ 'foo': 'bar' }, 80), '  foo bar');
 		assert.equal(
 			formatOptions({
 				'f': 'bar',

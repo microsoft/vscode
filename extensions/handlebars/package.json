@@ -6,7 +6,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.json"
+    "update-grammar": "node ../../build/npm/update-grammar.js daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.tmLanguage.json"
   },
 	"contributes": {
 		"languages": [{
@@ -19,7 +19,7 @@
 		"grammars": [{
       "language": "handlebars",
 			"scopeName": "text.html.handlebars",
-			"path": "./syntaxes/Handlebars.json"
+			"path": "./syntaxes/Handlebars.tmLanguage.json"
 		}]
   }
 }

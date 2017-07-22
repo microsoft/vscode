@@ -7,13 +7,14 @@
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {match} from 'vs/base/common/glob';
+import { match } from 'vs/base/common/glob';
 
-export let MIME_TEXT = 'text/plain';
-export let MIME_BINARY = 'application/octet-stream';
-export let MIME_UNKNOWN = 'application/unknown';
+export const MIME_TEXT = 'text/plain';
+export const MIME_BINARY = 'application/octet-stream';
+export const MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
+	id: string;
 	mime: string;
 	filename?: string;
 	extension?: string;
@@ -75,6 +76,7 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 
 function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
 	return {
+		id: association.id,
 		mime: association.mime,
 		filename: association.filename,
 		extension: association.extension,
@@ -141,7 +143,9 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let patternMatch: ITextMimeAssociationItem;
 	let extensionMatch: ITextMimeAssociationItem;
 
-	for (var i = 0; i < associations.length; i++) {
+	// We want to prioritize associations based on the order they are registered so that the last registered
+	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	for (let i = associations.length - 1; i >= 0; i--) {
 		let association = associations[i];
 
 		// First exact name match
@@ -200,9 +204,8 @@ function guessMimeTypeByFirstline(firstLine: string): string {
 				continue;
 			}
 
-			// Make sure the entire line matches, not just a subpart.
 			let matches = firstLine.match(association.firstline);
-			if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
+			if (matches && matches.length > 0) {
 				return association.mime;
 			}
 		}
@@ -240,14 +243,14 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
-export function suggestFilename(theMime: string, prefix: string): string {
-	for (var i = 0; i < registeredAssociations.length; i++) {
+export function suggestFilename(langId: string, prefix: string): string {
+	for (let i = 0; i < registeredAssociations.length; i++) {
 		let association = registeredAssociations[i];
 		if (association.userConfigured) {
 			continue; // only support registered ones
 		}
 
-		if (association.mime === theMime && association.extension) {
+		if (association.id === langId && association.extension) {
 			return prefix + association.extension;
 		}
 	}

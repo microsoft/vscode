@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const _typeof = {
 	number: 'number',
@@ -33,7 +33,7 @@ export function isArray(array: any): array is any[] {
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: any): str is string {
-	if (typeof (str) === _typeof.string|| str instanceof String) {
+	if (typeof (str) === _typeof.string || str instanceof String) {
 		return true;
 	}
 
@@ -52,7 +52,10 @@ export function isStringArray(value: any): value is string[] {
  * @returns whether the provided parameter is of type `object` but **not**
  *	`null`, an `array`, a `regexp`, nor a `date`.
  */
-export function isObject(obj: any): obj is any {
+export function isObject(obj: any): boolean {
+	// The method can't do a type cast since there are type (like strings) which
+	// are subclasses of any put not positvely matched by the function. Hence type
+	// narrowing results in wrong results.
 	return typeof obj === _typeof.object
 		&& obj !== null
 		&& !Array.isArray(obj)

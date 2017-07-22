@@ -1,5 +1,5 @@
 declare module 'ansi-regex' {
 	function result(): RegExp;
-	module result {}
+	module result { }
 	export = result;
 }

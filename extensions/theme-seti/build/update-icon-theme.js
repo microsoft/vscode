@@ -28,12 +28,15 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-function download(urlString) {
+function download(source) {
+	if (source.startsWith('.')) {
+		return readFile(source);
+	}
 	return new Promise((c, e) => {
-		var _url = url.parse(urlString);
+		var _url = url.parse(source);
 		var options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
 		var content = '';
-		var request = https.get(options, function (response) {
+		https.get(options, function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
 			}).on('end', function () {
@@ -45,8 +48,77 @@ function download(urlString) {
 	});
 }
 
+function readFile(fileName) {
+	return new Promise((c, e) => {
+		fs.readFile(fileName, function(err, data) {
+			if (err) {
+				e(err);
+			} else {
+				c(data.toString());
+			}
+		});
+	});
+}
+
+function downloadBinary(source, dest) {
+	if (source.startsWith('.')) {
+		return copyFile(source, dest);
+	}
+
+	return new Promise((c, e) => {
+		https.get(source, function (response) {
+			switch(response.statusCode) {
+				case 200:
+					var file = fs.createWriteStream(dest);
+					response.on('data', function(chunk){
+						file.write(chunk);
+					}).on('end', function(){
+						file.end();
+						c(null);
+					}).on('error', function (err) {
+						fs.unlink(dest);
+						e(err.message);
+					});
+					break;
+				case 301:
+				case 302:
+				case 303:
+				case 307:
+					console.log('redirect to ' + response.headers.location);
+					downloadBinary(response.headers.location, dest).then(c, e);
+					break;
+				default:
+					e(new Error('Server responded with status code ' + response.statusCode));
+			}
+		});
+	});
+}
+
+function copyFile(fileName, dest) {
+	return new Promise((c, e) => {
+		var cbCalled = false;
+		function handleError(err) {
+			if (!cbCalled) {
+				e(err);
+				cbCalled = true;
+			}
+		}
+		var rd = fs.createReadStream(fileName);
+		rd.on("error", handleError);
+		var wr = fs.createWriteStream(dest);
+		wr.on("error", handleError);
+		wr.on("close", function() {
+			if (!cbCalled) {
+				c();
+				cbCalled = true;
+			}
+		});
+		rd.pipe(wr);
+	});
+}
+
 function invertColor(color) {
-	var res = '#'
+	var res = '#';
 	for (var i = 1; i < 7; i+=2) {
 		var newVal = 255 - parseInt('0x' + color.substr(i, 2), 16);
 		res += newVal.toString(16);
@@ -55,37 +127,53 @@ function invertColor(color) {
 }
 
 function getLanguageMappings() {
-	var langToExt = {
-		'csharp': ['cs', 'csx']
-	};
-
+	let langMappings = {}
 	var allExtensions = fs.readdirSync('..');
 	for (var i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
-		if (!fs.lstatSync(path.join('..', allExtensions[i])).isDirectory() ||  !fs.lstatSync(dirPath).isFile()) {
-			continue;
-		}
-
-		let content = fs.readFileSync(dirPath).toString();
-		let jsonContent = JSON.parse(content);
-		let languages = jsonContent.contributes && jsonContent.contributes.languages;
-		if (Array.isArray(languages)) {
-			for (var k = 0; k < languages.length; k++) {
-				var extensions = languages[k].extensions;
-				var languageId = languages[k].id;
-				if (Array.isArray(extensions) && languageId) {
-					langToExt[languageId] = extensions.map(function (e) { return e.substr(1); });
+		if (fs.existsSync(dirPath)) {
+			let content = fs.readFileSync(dirPath).toString();
+			let jsonContent = JSON.parse(content);
+			let languages = jsonContent.contributes && jsonContent.contributes.languages;
+			if (Array.isArray(languages)) {
+				for (var k = 0; k < languages.length; k++) {
+					var languageId = languages[k].id;
+					if (languageId) {
+						var extensions = languages[k].extensions;
+						var mapping = {};
+						if (Array.isArray(extensions)) {
+							mapping.extensions = extensions.map(function (e) { return e.substr(1).toLowerCase(); });
+						}
+						var filenames = languages[k].filenames;
+						if (Array.isArray(filenames)) {
+							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
+						}
+						langMappings[languageId] = mapping;
+					}
 				}
 			}
 		}
 	}
-
-	return langToExt;
+	return langMappings;
 }
 
+//var font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+var font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
+
+exports.copyFont = function() {
+	return downloadBinary(font, './icons/seti.woff');
+};
+
+//var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
+//var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+
+var fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
+var mappings = '../../../seti-ui/styles/components/icons/mapping.less';
+var colors = '../../../seti-ui/styles/ui-variables.less';
 
 exports.update = function () {
-	var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+
 	console.log('Reading from ' + fontMappings);
 	var def2Content = {};
 	var ext2Def = {};
@@ -115,7 +203,7 @@ exports.update = function () {
 		function getInvertSet(input) {
 			var result = {};
 			for (var assoc in input) {
-				let invertDef = input[assoc] + '_light';;
+				let invertDef = input[assoc] + '_light';
 				if (iconDefinitions[invertDef]) {
 					result[assoc] = invertDef;
 				}
@@ -124,6 +212,14 @@ exports.update = function () {
 		}
 
 		var res = {
+			information_for_contributors: [
+				'This file has been generated from data in https://github.com/jesseweed/seti-ui:',
+				'- icon definitions: styles/_fonts/seti.less',
+				'- icon colors: styles/ui-variables.less',
+				'- file associations: styles/icons/mapping.less',
+				'If you want to provide a fix or improvement, please create a pull request against the jesseweed/seti-ui repository.',
+				'Once accepted there, we are happy to receive an update request.',
+			],
 			fonts: [{
 				id: "seti",
 				src: [{ "path": "./seti.woff", "format": "woff" }],
@@ -145,8 +241,10 @@ exports.update = function () {
 			},
 			version: 'https://github.com/jesseweed/seti-ui/commit/' + info.commitSha,
 		};
-		fs.writeFileSync('./icons/vs-seti-icon-theme.json', JSON.stringify(res, null, '\t'));
 
+		var path = './icons/vs-seti-icon-theme.json';
+		fs.writeFileSync(path, JSON.stringify(res, null, '\t'));
+		console.log('written ' + path);
 	}
 
 
@@ -158,7 +256,6 @@ exports.update = function () {
 			def2Content['_' + match[1]] = match[2];
 		}
 
-		var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/icons/mapping.less';
 		return download(mappings).then(function (content) {
 			var regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
@@ -166,33 +263,45 @@ exports.update = function () {
 				let def = '_' + match[2];
 				let colorId = match[3];
 				if (pattern[0] === '.') {
-					ext2Def[pattern.substr(1)] = def;
+					ext2Def[pattern.substr(1).toLowerCase()] = def;
 				} else {
-					fileName2Def[pattern] = def;
+					fileName2Def[pattern.toLowerCase()] = def;
 				}
 				def2ColorId[def] = colorId;
 			}
 			// replace extensions for languageId
-			var langToExt = getLanguageMappings();
-			for (var lang in langToExt) {
-				var exts = langToExt[lang];
+			var langMappings = getLanguageMappings();
+			for (var lang in langMappings) {
+				var mappings = langMappings[lang];
+				var exts = mappings.extensions || [];
+				var fileNames = mappings.fileNames || [];
 				var preferredDef = null;
 				// use the first file association for the preferred definition
-				for (var i1 = 0; i1 < exts.length && !preferredDef; i1++) {
+				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
+				}
+				// use the first file association for the preferred definition
+				for (let i1 = 0; i1 < fileNames.length && !preferredDef; i1++) {
+					preferredDef = fileName2Def[fileNames[i1]];
 				}
 				if (preferredDef) {
 					lang2Def[lang] = preferredDef;
-					for (var i1 = 0; i1 < exts.length; i1++) {
-						// remove the extention association, unless it is different from the preferred
-						if (ext2Def[exts[i1]] === preferredDef) {
-							delete ext2Def[exts[i1]];
+					for (let i2 = 0; i2 < exts.length; i2++) {
+						// remove the extension association, unless it is different from the preferred
+						if (ext2Def[exts[i2]] === preferredDef) {
+							delete ext2Def[exts[i2]];
+						}
+					}
+					for (let i2 = 0; i2 < fileNames.length; i2++) {
+						// remove the fileName association, unless it is different from the preferred
+						if (fileName2Def[fileNames[i2]] === preferredDef) {
+							delete fileName2Def[fileNames[i2]];
 						}
 					}
 				}
 			}
 
-			var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+
 			return download(colors).then(function (content) {
 				var regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
 				while ((match = regex3.exec(content)) !== null) {
@@ -204,6 +313,7 @@ exports.update = function () {
 						if (info) {
 							console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 						}
+
 					} catch (e) {
 						console.error(e);
 					}
@@ -211,10 +321,10 @@ exports.update = function () {
 			});
 		});
 	}, console.error);
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-icon-theme.js') {
-	exports.update();
+	exports.copyFont().then(() => exports.update());
 }
 
 

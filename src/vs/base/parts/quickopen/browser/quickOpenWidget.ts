@@ -6,27 +6,27 @@
 
 import 'vs/css!./quickopen';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
-import browser = require('vs/base/browser/browser');
-import {EventType} from 'vs/base/common/events';
+import { EventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
-import {InputBox, MessageType} from 'vs/base/browser/ui/inputbox/inputBox';
+import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
+import { Dimension, Builder, $ } from 'vs/base/browser/builder';
+import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
+import { InputBox, MessageType, IInputBoxStyles, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { DefaultController, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
-import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -37,17 +37,29 @@ export interface IQuickOpenCallbacks {
 	onFocusLost?: () => boolean /* veto close */;
 }
 
-export interface IQuickOpenOptions {
+export interface IQuickOpenOptions extends IQuickOpenStyles {
 	minItemsToShow?: number;
 	maxItemsToShow?: number;
 	inputPlaceHolder: string;
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
+	keyboardSupport?: boolean;
+}
+
+export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
+	background?: Color;
+	foreground?: Color;
+	borderColor?: Color;
+	pickerGroupForeground?: Color;
+	pickerGroupBorder?: Color;
+	widgetShadow?: Color;
+	progressBarBackground?: Color;
 }
 
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
+	inputSelection?: IRange;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -71,6 +83,15 @@ export enum HideReason {
 	CANCELED
 }
 
+const defaultStyles = {
+	background: Color.fromHex('#1E1E1E'),
+	foreground: Color.fromHex('#CCCCCC'),
+	pickerGroupForeground: Color.fromHex('#0097FB'),
+	pickerGroupBorder: Color.fromHex('#3F3F46'),
+	widgetShadow: Color.fromHex('#000000'),
+	progressBarBackground: Color.fromHex('#0E70C0')
+};
+
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
 export class QuickOpenWidget implements IModelProvider {
@@ -78,6 +99,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private static MAX_WIDTH = 600;				// Max total width of quick open widget
 	private static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
+	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
 	private builder: Builder;
 	private tree: ITree;
@@ -98,17 +120,26 @@ export class QuickOpenWidget implements IModelProvider {
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
+	private styles: IQuickOpenStyles;
+	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
+		this.styles = options || Object.create(null);
+		mixin(this.styles, defaultStyles, false);
 		this.usageLogger = usageLogger;
 		this.model = null;
 	}
 
-	getModel(): IModel<any> {
+	public getElement(): Builder {
+		return $(this.builder);
+	}
+
+	public getModel(): IModel<any> {
 		return this.model;
 	}
 
@@ -116,12 +147,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks = callbacks;
 	}
 
-	public create(): void {
+	public create(): HTMLElement {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
 			div.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
 
@@ -133,7 +164,7 @@ export class QuickOpenWidget implements IModelProvider {
 				.on(DOM.EventType.BLUR, (e: Event) => this.loosingFocus(e), null, true);
 
 			// Progress Bar
-			this.progressBar = new ProgressBar(div.clone());
+			this.progressBar = new ProgressBar(div.clone(), { progressBarBackground: this.styles.progressBarBackground });
 			this.progressBar.getContainer().hide();
 
 			// Input Field
@@ -141,7 +172,16 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputContainer = inputContainer;
 				this.inputBox = new InputBox(inputContainer.getHTMLElement(), null, {
 					placeholder: this.options.inputPlaceHolder || '',
-					ariaLabel: DEFAULT_INPUT_ARIA_LABEL
+					ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
+					inputBackground: this.styles.inputBackground,
+					inputForeground: this.styles.inputForeground,
+					inputBorder: this.styles.inputBorder,
+					inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+					inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+					inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+					inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+					inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+					inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 				});
 
 				// ARIA
@@ -151,7 +191,8 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputElement.setAttribute('aria-autocomplete', 'list');
 
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const shouldOpenInBackground = this.shouldOpenInBackground(keyboardEvent);
 
 					// Do not handle Tab: It is used to navigate between elements without mouse
 					if (keyboardEvent.keyCode === KeyCode.Tab) {
@@ -159,25 +200,26 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Pass tree navigation keys to the tree but leave focus in input field
-					else if (keyboardEvent.keyCode === KeyCode.Tab || keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+					else if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
 						DOM.EventHelper.stop(e, true);
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
-					}
 
-					// Select element on Enter
-					else if (keyboardEvent.keyCode === KeyCode.Enter) {
-						DOM.EventHelper.stop(e, true);
-
-						let focus = this.tree.getFocus();
-						if (focus) {
-							this.elementSelected(focus, e);
+						// Position cursor at the end of input to allow right arrow (open in background)
+						// to function immediately unless the user has made a selection
+						if (this.inputBox.inputElement.selectionStart === this.inputBox.inputElement.selectionEnd) {
+							this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
 						}
 					}
 
-					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
-					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
-						this.onType();
+					// Select element on Enter or on Arrow-Right if we are at the end of the input
+					else if (keyboardEvent.keyCode === KeyCode.Enter || shouldOpenInBackground) {
+						DOM.EventHelper.stop(e, true);
+
+						const focus = this.tree.getFocus();
+						if (focus) {
+							this.elementSelected(focus, e, shouldOpenInBackground ? Mode.OPEN_IN_BACKGROUND : Mode.OPEN);
+						}
 					}
 				});
 
@@ -192,8 +234,8 @@ export class QuickOpenWidget implements IModelProvider {
 			}, (div: Builder) => {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP }),
-					renderer: new Renderer(this),
+					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
+					renderer: (this.renderer = new Renderer(this, this.styles)),
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)
 				}, {
@@ -201,24 +243,25 @@ export class QuickOpenWidget implements IModelProvider {
 						indentPixels: 0,
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
-						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
+						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
+						keyboardSupport: this.options.keyboardSupport
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
-				this.toUnbind.push(this.tree.addListener2(EventType.FOCUS, (event: IFocusEvent) => {
+				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
 					this.elementFocused(event.focus, event);
 				}));
 
-				this.toUnbind.push(this.tree.addListener2(EventType.SELECTION, (event: ISelectionEvent) => {
+				this.toUnbind.push(this.tree.addListener(EventType.SELECTION, (event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
 						this.elementSelected(event.selection[0], event);
 					}
 				}));
 			}).
 				on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
@@ -233,8 +276,8 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 				}).
 				on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-					let keyCode = keyboardEvent.keyCode;
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+					const keyCode = keyboardEvent.keyCode;
 
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
@@ -242,9 +285,14 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 
 					// Select element when keys are pressed that signal it
-					let quickNavKeys = this.quickNavigateConfiguration.keybindings;
-					let wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.hasShift() && keyCode === KeyCode.Shift) {
+					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
+					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
+						const [firstPart, chordPart] = k.getParts();
+						if (chordPart) {
+							return false;
+						}
+
+						if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -252,37 +300,23 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAlt() && keyCode === KeyCode.Alt) {
+						if (firstPart.altKey && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						// Mac is a bit special
-						if (platform.isMacintosh) {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Meta) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
+						if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
+							return true;
 						}
 
-						// Windows/Linux are not :)
-						else {
-							if (k.hasCtrlCmd() && keyCode === KeyCode.Ctrl) {
-								return true;
-							}
-
-							if (k.hasWinCtrl() && keyCode === KeyCode.Meta) {
-								return true;
-							}
+						if (firstPart.metaKey && keyCode === KeyCode.Meta) {
+							return true;
 						}
 
 						return false;
 					});
 
 					if (wasTriggerKeyPressed) {
-						let focus = this.tree.getFocus();
+						const focus = this.tree.getFocus();
 						if (focus) {
 							this.elementSelected(focus, e);
 						}
@@ -293,17 +327,84 @@ export class QuickOpenWidget implements IModelProvider {
 
 			// Widget Attributes
 			.addClass('quick-open-widget')
-			.addClass((browser.isIE10orEarlier) ? ' no-shadow' : '')
 			.build(this.container);
 
 		// Support layout
 		if (this.layoutDimensions) {
 			this.layout(this.layoutDimensions);
 		}
+
+		this.applyStyles();
+
+		return this.builder.getHTMLElement();
+	}
+
+	public style(styles: IQuickOpenStyles): void {
+		this.styles = styles;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.builder) {
+			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
+			const background = this.styles.background ? this.styles.background.toString() : null;
+			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
+			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
+
+			this.builder.style('color', foreground);
+			this.builder.style('background-color', background);
+			this.builder.style('border-color', borderColor);
+			this.builder.style('border-width', borderColor ? '1px' : null);
+			this.builder.style('border-style', borderColor ? 'solid' : null);
+			this.builder.style('box-shadow', widgetShadow ? `0 5px 8px ${widgetShadow}` : null);
+		}
+
+		if (this.progressBar) {
+			this.progressBar.style({
+				progressBarBackground: this.styles.progressBarBackground
+			});
+		}
+
+		if (this.inputBox) {
+			this.inputBox.style({
+				inputBackground: this.styles.inputBackground,
+				inputForeground: this.styles.inputForeground,
+				inputBorder: this.styles.inputBorder,
+				inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.styles.inputValidationErrorBorder
+			});
+		}
+
+		if (this.tree) {
+			this.tree.style(this.styles);
+		}
+
+		if (this.renderer) {
+			this.renderer.updateStyles(this.styles);
+		}
+	}
+
+	private shouldOpenInBackground(e: StandardKeyboardEvent): boolean {
+		if (e.keyCode !== KeyCode.RightArrow) {
+			return false; // only for right arrow
+		}
+
+		if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+			return false; // no modifiers allowed
+		}
+
+		// validate the cursor is at the end of the input, and if not prevent
+		// opening in the background such as the selection can be changed
+		return this.inputBox.inputElement.selectionEnd === this.inputBox.value.length;
 	}
 
 	private onType(): void {
-		let value = this.inputBox.value;
+		const value = this.inputBox.value;
 
 		// Adjust help text as needed if present
 		if (this.helpText) {
@@ -318,12 +419,12 @@ export class QuickOpenWidget implements IModelProvider {
 		this.callbacks.onType(value);
 	}
 
-	public quickNavigate(configuration: IQuickNavigateConfiguration, next: boolean): void {
-		if (this.isVisible) {
+	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
+		if (this.isVisible()) {
 
 			// Transition into quick navigate mode if not yet done
-			if (!this.quickNavigateConfiguration) {
-				this.quickNavigateConfiguration = configuration;
+			if (!this.quickNavigateConfiguration && quickNavigate) {
+				this.quickNavigateConfiguration = quickNavigate;
 				this.tree.DOMFocus();
 			}
 
@@ -399,20 +500,23 @@ export class QuickOpenWidget implements IModelProvider {
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
-	private elementSelected(value: any, event?: any): void {
+	private elementSelected(value: any, event?: any, preferredMode?: Mode): void {
 		let hide = true;
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
+			let mode = preferredMode || Mode.OPEN;
+
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
-			hide = this.model.runner.run(value, Mode.OPEN, context);
+
+			hide = this.model.runner.run(value, mode, context);
 		}
 
 		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
 		// to measure the rate of the success and the relevance of the order
 		if (this.usageLogger) {
-			let indexOfAcceptedElement = this.model.entries.indexOf(value);
-			let entriesCount = this.model.entries.length;
+			const indexOfAcceptedElement = this.model.entries.indexOf(value);
+			const entriesCount = this.model.entries.length;
 			this.usageLogger.publicLog('quickOpenWidgetItemAccepted', { index: indexOfAcceptedElement, count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 		}
 
@@ -463,6 +567,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.doShowWithPrefix(param);
 		} else {
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
+		}
+
+		// Respect selectAll option
+		if (options && options.inputSelection && !this.quickNavigateConfiguration) {
+			this.inputBox.select(options.inputSelection);
 		}
 
 		if (this.callbacks.onShow) {
@@ -516,10 +625,10 @@ export class QuickOpenWidget implements IModelProvider {
 		if (autoFocus.autoFocusPrefixMatch) {
 			let caseSensitiveMatch: any;
 			let caseInsensitiveMatch: any;
-			let prefix = autoFocus.autoFocusPrefixMatch;
-			let lowerCasePrefix = prefix.toLowerCase();
+			const prefix = autoFocus.autoFocusPrefixMatch;
+			const lowerCasePrefix = prefix.toLowerCase();
 			for (let i = 0; i < entries.length; i++) {
-				let entry = entries[i];
+				const entry = entries[i];
 				const label = input.dataSource.getLabel(entry);
 
 				if (!caseSensitiveMatch && label.indexOf(prefix) === 0) {
@@ -533,10 +642,10 @@ export class QuickOpenWidget implements IModelProvider {
 				}
 			}
 
-			let entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
+			const entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
-				this.tree.reveal(entryToFocus, 0).done(null, errors.onUnexpectedError);
+				this.tree.reveal(entryToFocus, 0.5).done(null, errors.onUnexpectedError);
 
 				return;
 			}
@@ -545,7 +654,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// Second check for auto focus of first entry
 		if (autoFocus.autoFocusFirstEntry) {
 			this.tree.focusFirst();
-			this.tree.reveal(this.tree.getFocus(), 0).done(null, errors.onUnexpectedError);
+			this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
 		}
 
 		// Third check for specific index option
@@ -571,8 +680,16 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public refresh(input: IModel<any>, autoFocus: IAutoFocus): void {
+	public refresh(input?: IModel<any>, autoFocus?: IAutoFocus): void {
 		if (!this.isVisible()) {
+			return;
+		}
+
+		if (!input) {
+			input = this.tree.getInput();
+		}
+
+		if (!input) {
 			return;
 		}
 
@@ -583,14 +700,12 @@ export class QuickOpenWidget implements IModelProvider {
 			// Indicate entries to tree
 			this.tree.layout();
 
-			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-			if (doAutoFocus && !autoFocus.autoFocusPrefixMatch) {
-				doAutoFocus = !this.tree.getFocus(); // if auto focus is not for prefix matches, we do not want to change what the user has focussed already
-			}
-
 			// Handle auto focus
-			if (doAutoFocus) {
-				this.autoFocus(input, autoFocus);
+			if (autoFocus) {
+				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
+				if (doAutoFocus) {
+					this.autoFocus(input, autoFocus);
+				}
 			}
 		}, errors.onUnexpectedError);
 	}
@@ -599,7 +714,7 @@ export class QuickOpenWidget implements IModelProvider {
 		const renderer = input.renderer;
 
 		if (!input) {
-			let itemHeight = renderer.getHeight(null);
+			const itemHeight = renderer.getHeight(null);
 
 			return this.options.minItemsToShow ? this.options.minItemsToShow * itemHeight : 0;
 		}
@@ -615,10 +730,10 @@ export class QuickOpenWidget implements IModelProvider {
 			preferredItemsHeight = QuickOpenWidget.MAX_ITEMS_HEIGHT;
 		}
 
-		let entries = input.entries.filter(e => this.isElementVisible(input, e));
-		let maxEntries = this.options.maxItemsToShow || entries.length;
+		const entries = input.entries.filter(e => this.isElementVisible(input, e));
+		const maxEntries = this.options.maxItemsToShow || entries.length;
 		for (let i = 0; i < maxEntries && i < entries.length; i++) {
-			let entryHeight = renderer.getHeight(entries[i]);
+			const entryHeight = renderer.getHeight(entries[i]);
 			if (height + entryHeight <= preferredItemsHeight) {
 				height += entryHeight;
 			} else {
@@ -641,7 +756,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// report failure cases
 		if (reason === HideReason.CANCELED) {
 			if (this.model) {
-				let entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
+				const entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
 				if (this.usageLogger) {
 					this.usageLogger.publicLog('quickOpenWidgetCancelled', { count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 				}
@@ -690,10 +805,13 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public setValue(value: string, select: boolean): void {
+	public setValue(value: string, selection?: [number, number]): void {
 		if (this.inputBox) {
 			this.inputBox.value = value;
-			if (select) {
+			if (Array.isArray(selection)) {
+				const [start, end] = selection;
+				this.inputBox.select({ start, end });
+			} else {
 				this.inputBox.select();
 			}
 		}
@@ -742,6 +860,10 @@ export class QuickOpenWidget implements IModelProvider {
 		return this.tree.getInput();
 	}
 
+	public getTree(): ITree {
+		return this.tree;
+	}
+
 	public showInputDecoration(decoration: Severity): void {
 		if (this.inputBox) {
 			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
@@ -762,7 +884,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public accept(): void {
 		if (this.isVisible()) {
-			let focus = this.tree.getFocus();
+			const focus = this.tree.getFocus();
 			if (focus) {
 				this.elementSelected(focus);
 			}
@@ -773,8 +895,12 @@ export class QuickOpenWidget implements IModelProvider {
 		return this.progressBar;
 	}
 
+	public getInputBox(): InputBox {
+		return this.inputBox;
+	}
+
 	public setExtraClass(clazz: string): void {
-		let previousClass = this.builder.getProperty('extra-class');
+		const previousClass = this.builder.getProperty('extra-class');
 		if (previousClass) {
 			this.builder.removeClass(previousClass);
 		}
@@ -795,7 +921,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.layoutDimensions = dimension;
 
 		// Apply to quick open width (height is dynamic by number of items to show)
-		let quickOpenWidth = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickOpenWidget.MAX_WIDTH);
+		const quickOpenWidth = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickOpenWidget.MAX_WIDTH);
 		if (this.builder) {
 
 			// quick open
@@ -830,6 +956,9 @@ export class QuickOpenWidget implements IModelProvider {
 			if (!this.isLoosingFocus) {
 				return;
 			}
+			if (this.isDisposed) {
+				return;
+			}
 
 			const veto = this.callbacks.onFocusLost && this.callbacks.onFocusLost();
 			if (!veto) {
@@ -839,6 +968,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public dispose(): void {
+		this.isDisposed = true;
 		this.toUnbind = dispose(this.toUnbind);
 
 		this.progressBar.dispose();

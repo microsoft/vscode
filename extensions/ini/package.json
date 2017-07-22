@@ -3,18 +3,31 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "ini",
-			"extensions": [ ".ini", ".properties", ".gitconfig" ],
-			"filenames": ["config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig"],
+			"extensions": [ ".ini"],
 			"aliases": [ "Ini", "ini" ],
-			"configuration": "./language-configuration.json"
+			"configuration": "./ini.language-configuration.json"
+		},
+		{
+			"id": "properties",
+			"extensions": [ ".properties", ".gitconfig", ".cfg", ".conf" ],
+			"filenames": [ "config", ".gitattributes", ".gitconfig", "gitconfig", ".editorconfig" ],
+			"aliases": [ "Properties", "properties" ],
+			"configuration": "./properties.language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "ini",
 			"scopeName": "source.ini",
-			"path": "./syntaxes/Ini.plist"
+			"path": "./syntaxes/ini.tmLanguage.json"
+		},{
+			"language": "properties",
+			"scopeName": "source.ini",
+			"path": "./syntaxes/ini.tmLanguage.json"
 		}]
 	}
 }

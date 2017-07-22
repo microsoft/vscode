@@ -4,73 +4,67 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone} from 'vs/editor/common/editorCommon';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import * as browser from 'vs/base/browser/browser';
-import {OverviewZoneManager} from 'vs/editor/common/view/overviewZoneManager';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
+import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { Color } from 'vs/base/common/color';
+import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { ThemeType, LIGHT } from 'vs/platform/theme/common/themeService';
 
 export class OverviewRulerImpl {
 
-	public static hasCanvas = (window.navigator.userAgent.indexOf('MSIE 8') === -1);
-
 	private _canvasLeftOffset: number;
-	private _domNode: HTMLCanvasElement;
-	private _lanesCount:number;
+	private _domNode: FastDomNode<HTMLCanvasElement>;
+	private _lanesCount: number;
 	private _zoneManager: OverviewZoneManager;
-	private _canUseTranslate3d: boolean;
+	private _background: Color;
 
-	private _zoomListener: IDisposable;
-
-	constructor(canvasLeftOffset:number, cssClassName:string, scrollHeight:number, lineHeight:number, canUseTranslate3d:boolean, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(
+		canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number,
+		pixelRatio: number, minimumHeight: number, maximumHeight: number,
+		getVerticalOffsetForLine: (lineNumber: number) => number
+	) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
-		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
-		this._domNode.className = cssClassName;
-		this._domNode.style.position = 'absolute';
+		this._domNode = createFastDomNode(document.createElement('canvas'));
+
+		this._domNode.setClassName(cssClassName);
+		this._domNode.setPosition('absolute');
+		this._domNode.setLayerHinting(true);
 
 		this._lanesCount = 3;
 
-		this._canUseTranslate3d = canUseTranslate3d;
+		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
 		this._zoneManager.setMaximumHeight(maximumHeight);
-		this._zoneManager.setUseDarkColor(false);
+		this._zoneManager.setThemeType(LIGHT);
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(scrollHeight);
 		this._zoneManager.setLineHeight(lineHeight);
 
-		this._zoomListener = browser.onDidChangeZoomLevel(() => {
-			this._zoneManager.setPixelRatio(browser.getPixelRatio());
-			this._domNode.style.width = this._zoneManager.getDOMWidth() + 'px';
-			this._domNode.style.height = this._zoneManager.getDOMHeight() + 'px';
-			this._domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.height = this._zoneManager.getCanvasHeight();
-			this.render(true);
-		});
-		this._zoneManager.setPixelRatio(browser.getPixelRatio());
+		this._zoneManager.setPixelRatio(pixelRatio);
 	}
 
 	public dispose(): void {
-		this._zoomListener.dispose();
 		this._zoneManager = null;
 	}
 
-	public setLayout(position:OverviewRulerPosition, render:boolean): void {
-		StyleMutator.setTop(this._domNode, position.top);
-		StyleMutator.setRight(this._domNode, position.right);
+	public setLayout(position: OverviewRulerPosition, render: boolean): void {
+		this._domNode.setTop(position.top);
+		this._domNode.setRight(position.right);
 
 		let hasChanged = false;
 		hasChanged = this._zoneManager.setDOMWidth(position.width) || hasChanged;
 		hasChanged = this._zoneManager.setDOMHeight(position.height) || hasChanged;
 
 		if (hasChanged) {
-			this._domNode.style.width = this._zoneManager.getDOMWidth() + 'px';
-			this._domNode.style.height = this._zoneManager.getDOMHeight() + 'px';
-			this._domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.height = this._zoneManager.getCanvasHeight();
+			this._domNode.setWidth(this._zoneManager.getDOMWidth());
+			this._domNode.setHeight(this._zoneManager.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 
 			if (render) {
 				this.render(true);
@@ -82,7 +76,7 @@ export class OverviewRulerImpl {
 		return this._lanesCount;
 	}
 
-	public setLanesCount(newLanesCount:number, render:boolean): void {
+	public setLanesCount(newLanesCount: number, render: boolean): void {
 		this._lanesCount = newLanesCount;
 
 		if (render) {
@@ -90,8 +84,16 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setUseDarkColor(useDarkColor:boolean, render:boolean): void {
-		this._zoneManager.setUseDarkColor(useDarkColor);
+	public setThemeType(themeType: ThemeType, render: boolean): void {
+		this._zoneManager.setThemeType(themeType);
+
+		if (render) {
+			this.render(true);
+		}
+	}
+
+	public setUseBackground(background: Color, render: boolean): void {
+		this._background = background;
 
 		if (render) {
 			this.render(true);
@@ -99,7 +101,7 @@ export class OverviewRulerImpl {
 	}
 
 	public getDomNode(): HTMLCanvasElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	public getPixelWidth(): number {
@@ -110,45 +112,41 @@ export class OverviewRulerImpl {
 		return this._zoneManager.getCanvasHeight();
 	}
 
-	public setScrollHeight(scrollHeight:number, render:boolean): void {
+	public setScrollHeight(scrollHeight: number, render: boolean): void {
 		this._zoneManager.setOuterHeight(scrollHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setLineHeight(lineHeight:number, render:boolean): void {
+	public setLineHeight(lineHeight: number, render: boolean): void {
 		this._zoneManager.setLineHeight(lineHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setCanUseTranslate3d(canUseTranslate3d:boolean, render:boolean): void {
-		this._canUseTranslate3d = canUseTranslate3d;
+	public setPixelRatio(pixelRatio: number, render: boolean): void {
+		this._zoneManager.setPixelRatio(pixelRatio);
+		this._domNode.setWidth(this._zoneManager.getDOMWidth());
+		this._domNode.setHeight(this._zoneManager.getDOMHeight());
+		this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+		this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setZones(zones:OverviewRulerZone[], render:boolean): void {
+	public setZones(zones: OverviewRulerZone[], render: boolean): void {
 		this._zoneManager.setZones(zones);
 		if (render) {
 			this.render(false);
 		}
 	}
 
-	public render(forceRender:boolean): boolean {
-		if (!OverviewRulerImpl.hasCanvas) {
-			return false;
-		}
+	public render(forceRender: boolean): boolean {
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
-		}
-		if (this._canUseTranslate3d) {
-			StyleMutator.setTransform(this._domNode, 'translate3d(0px, 0px, 0px)');
-		} else {
-			StyleMutator.setTransform(this._domNode, '');
 		}
 
 		const width = this._zoneManager.getCanvasWidth();
@@ -157,8 +155,13 @@ export class OverviewRulerImpl {
 		let colorZones = this._zoneManager.resolveColorZones();
 		let id2Color = this._zoneManager.getId2Color();
 
-		let ctx = this._domNode.getContext('2d');
-		ctx.clearRect (0, 0, width, height);
+		let ctx = this._domNode.domNode.getContext('2d');
+		if (this._background === null) {
+			ctx.clearRect(0, 0, width, height);
+		} else {
+			ctx.fillStyle = this._background.toRGBHex();
+			ctx.fillRect(0, 0, width, height);
+		}
 
 		if (colorZones.length > 0) {
 			let remainingWidth = width - this._canvasLeftOffset;
@@ -175,13 +178,13 @@ export class OverviewRulerImpl {
 		return true;
 	}
 
-	private _renderOneLane(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderOneLane(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Left | OverviewRulerLane.Center | OverviewRulerLane.Right, this._canvasLeftOffset, w);
 
 	}
 
-	private _renderTwoLanes(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderTwoLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		let leftWidth = Math.floor(w / 2);
 		let rightWidth = w - leftWidth;
@@ -192,7 +195,7 @@ export class OverviewRulerImpl {
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 
-	private _renderThreeLanes(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], w:number): void {
+	private _renderThreeLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
 
 		let leftWidth = Math.floor(w / 3);
 		let rightWidth = Math.floor(w / 3);
@@ -206,7 +209,7 @@ export class OverviewRulerImpl {
 		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 
-	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, colorZones:ColorZone[], id2Color:string[], laneMask:number, xpos:number, width:number): void {
+	private _renderVerticalPatch(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], laneMask: number, xpos: number, width: number): void {
 
 		let currentColorId = 0;
 		let currentFrom = 0;
@@ -224,7 +227,7 @@ export class OverviewRulerImpl {
 			let zoneTo = zone.to;
 
 			if (zoneColorId !== currentColorId) {
-				ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+				ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
 				currentColorId = zoneColorId;
 				ctx.fillStyle = id2Color[currentColorId];
@@ -234,14 +237,14 @@ export class OverviewRulerImpl {
 				if (currentTo >= zoneFrom) {
 					currentTo = Math.max(currentTo, zoneTo);
 				} else {
-					ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+					ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 					currentFrom = zoneFrom;
 					currentTo = zoneTo;
 				}
 			}
 		}
 
-		ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+		ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
 	}
 }

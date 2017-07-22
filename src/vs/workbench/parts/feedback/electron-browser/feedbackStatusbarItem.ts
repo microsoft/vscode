@@ -5,13 +5,15 @@
 
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {FeedbackDropdown, IFeedback, IFeedbackService} from 'vs/workbench/parts/feedback/browser/feedback';
-import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {shell} from 'electron';
-import product from 'vs/platform/product';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import product from 'vs/platform/node/product';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -27,7 +29,7 @@ class TwitterFeedbackService implements IFeedbackService {
 		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
 		const url = TwitterFeedbackService.TWITTER_URL + queryString;
 
-		shell.openExternal(url);
+		window.open(url);
 	}
 
 	public getCharacterLimit(sentiment: number): number {
@@ -41,24 +43,43 @@ class TwitterFeedbackService implements IFeedbackService {
 		if (TwitterFeedbackService.VIA_NAME) {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
+
 		return 140 - length;
 	}
 }
 
-export class FeedbackStatusbarItem implements IStatusbarItem {
+export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
+	private dropdown: FeedbackDropdown;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.dropdown) {
+			this.dropdown.label.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+		}
 	}
 
 	public render(element: HTMLElement): IDisposable {
 		if (product.sendASmile) {
-			return this.instantiationService.createInstance(FeedbackDropdown, element, {
+			this.dropdown = this.instantiationService.createInstance(FeedbackDropdown, element, {
 				contextViewProvider: this.contextViewService,
 				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService)
 			});
+
+			this.updateStyles();
+
+			return this.dropdown;
 		}
+
+		return null;
 	}
 }

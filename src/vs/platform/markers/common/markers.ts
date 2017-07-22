@@ -7,9 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-
-export const IMarkerService = createDecorator<IMarkerService>('markerService');
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IMarkerService {
 	_serviceBrand: any;
@@ -22,14 +20,9 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; selector?: RegExp, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; take?: number; }): IMarker[];
 
 	onMarkerChanged: Event<URI[]>;
-}
-
-export enum MarkerType {
-	transient = 1,
-	permanent = 2
 }
 
 /**
@@ -68,5 +61,56 @@ export interface MarkerStatistics {
 	errors: number;
 	warnings: number;
 	infos: number;
-	unknwons: number;
+	unknowns: number;
 }
+
+export namespace IMarkerData {
+	const emptyString = '';
+	export function makeKey(markerData: IMarkerData): string {
+		let result: string[] = [emptyString];
+		if (markerData.source) {
+			result.push(markerData.source.replace('¦', '\¦'));
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.code) {
+			result.push(markerData.code.replace('¦', '\¦'));
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.severity !== void 0 && markerData.severity !== null) {
+			result.push(Severity.toString(markerData.severity));
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.message) {
+			result.push(markerData.message.replace('¦', '\¦'));
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.startLineNumber !== void 0 && markerData.startLineNumber !== null) {
+			result.push(markerData.startLineNumber.toString());
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.startColumn !== void 0 && markerData.startColumn !== null) {
+			result.push(markerData.startColumn.toString());
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.endLineNumber !== void 0 && markerData.endLineNumber !== null) {
+			result.push(markerData.endLineNumber.toString());
+		} else {
+			result.push(emptyString);
+		}
+		if (markerData.endColumn !== void 0 && markerData.endColumn !== null) {
+			result.push(markerData.endColumn.toString());
+		} else {
+			result.push(emptyString);
+		}
+		result.push(emptyString);
+		return result.join('¦');
+	}
+}
+
+export const IMarkerService = createDecorator<IMarkerService>('markerService');

@@ -5,24 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {RenderedLinesCollection, ILine} from 'vs/editor/browser/view/viewLayer';
+import { RenderedLinesCollection, ILine } from 'vs/editor/browser/view/viewLayer';
 
 class TestLine implements ILine {
 
 	_pinged = false;
-	constructor(public id:string) {
+	constructor(public id: string) {
 	}
 
 	onContentChanged(): void {
-		this._pinged = true;
-	}
-	onLinesInsertedAbove(): void {
-		this._pinged = true;
-	}
-	onLinesDeletedAbove(): void {
-		this._pinged = true;
-	}
-	onLineChangedAbove(): void {
 		this._pinged = true;
 	}
 	onTokensChanged(): void {
@@ -36,8 +27,8 @@ interface ILinesCollectionState {
 	pinged: boolean[];
 }
 
-function assertState(col:RenderedLinesCollection<TestLine>, state:ILinesCollectionState): void {
-	let actualState:ILinesCollectionState = {
+function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollectionState): void {
+	let actualState: ILinesCollectionState = {
 		startLineNumber: col.getStartLineNumber(),
 		lines: [],
 		pinged: []
@@ -49,9 +40,9 @@ function assertState(col:RenderedLinesCollection<TestLine>, state:ILinesCollecti
 	assert.deepEqual(actualState, state);
 }
 
-suite('RenderedLinesCollection onModelLinesDeleted', () => {
+suite('RenderedLinesCollection onLinesDeleted', () => {
 
-	function testOnModelLinesDeleted(deleteFromLineNumber:number, deleteToLineNumber:number, expectedDeleted:string[], expectedState:ILinesCollectionState): void {
+	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -59,8 +50,8 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualDeleted1 = col.onModelLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted1 = col.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
@@ -72,7 +63,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 3, [], {
 			startLineNumber: 5,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -80,7 +71,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 4, [], {
 			startLineNumber: 4,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -88,7 +79,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 5, [], {
 			startLineNumber: 3,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -96,7 +87,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 6, ['old6'], {
 			startLineNumber: 3,
 			lines: ['old7', 'old8', 'old9'],
-			pinged: [true, true, true]
+			pinged: [false, false, false]
 		});
 	});
 
@@ -104,7 +95,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 7, ['old6', 'old7'], {
 			startLineNumber: 3,
 			lines: ['old8', 'old9'],
-			pinged: [true, true]
+			pinged: [false, false]
 		});
 	});
 
@@ -112,7 +103,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(3, 8, ['old6', 'old7', 'old8'], {
 			startLineNumber: 3,
 			lines: ['old9'],
-			pinged: [true]
+			pinged: [false]
 		});
 	});
 
@@ -137,7 +128,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(5, 5, [], {
 			startLineNumber: 5,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -145,7 +136,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(5, 6, ['old6'], {
 			startLineNumber: 5,
 			lines: ['old7', 'old8', 'old9'],
-			pinged: [true, true, true]
+			pinged: [false, false, false]
 		});
 	});
 
@@ -153,7 +144,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(5, 7, ['old6', 'old7'], {
 			startLineNumber: 5,
 			lines: ['old8', 'old9'],
-			pinged: [true, true]
+			pinged: [false, false]
 		});
 	});
 
@@ -161,7 +152,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(5, 8, ['old6', 'old7', 'old8'], {
 			startLineNumber: 5,
 			lines: ['old9'],
-			pinged: [true]
+			pinged: [false]
 		});
 	});
 
@@ -186,7 +177,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(6, 6, ['old6'], {
 			startLineNumber: 6,
 			lines: ['old7', 'old8', 'old9'],
-			pinged: [true, true, true]
+			pinged: [false, false, false]
 		});
 	});
 
@@ -194,7 +185,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(6, 7, ['old6', 'old7'], {
 			startLineNumber: 6,
 			lines: ['old8', 'old9'],
-			pinged: [true, true]
+			pinged: [false, false]
 		});
 	});
 
@@ -202,7 +193,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(6, 8, ['old6', 'old7', 'old8'], {
 			startLineNumber: 6,
 			lines: ['old9'],
-			pinged: [true]
+			pinged: [false]
 		});
 	});
 
@@ -227,7 +218,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(7, 7, ['old7'], {
 			startLineNumber: 6,
 			lines: ['old6', 'old8', 'old9'],
-			pinged: [false, true, true]
+			pinged: [false, false, false]
 		});
 	});
 
@@ -235,7 +226,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(7, 8, ['old7', 'old8'], {
 			startLineNumber: 6,
 			lines: ['old6', 'old9'],
-			pinged: [false, true]
+			pinged: [false, false]
 		});
 	});
 
@@ -260,7 +251,7 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 		testOnModelLinesDeleted(8, 8, ['old8'], {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old9'],
-			pinged: [false, false, true]
+			pinged: [false, false, false]
 		});
 	});
 
@@ -324,9 +315,9 @@ suite('RenderedLinesCollection onModelLinesDeleted', () => {
 	});
 });
 
-suite('RenderedLinesCollection onModelLineChanged', () => {
+suite('RenderedLinesCollection onLineChanged', () => {
 
-	function testOnModelLineChanged(changedLineNumber:number, expectedPinged:boolean, expectedState:ILinesCollectionState): void {
+	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -334,51 +325,51 @@ suite('RenderedLinesCollection onModelLineChanged', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onModelLineChanged(changedLineNumber);
+		let actualPinged = col.onLinesChanged(changedLineNumber, changedLineNumber);
 		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}
 
 	test('3', () => {
-		testOnModelLineChanged(3, true, {
+		testOnModelLineChanged(3, false, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 	test('4', () => {
-		testOnModelLineChanged(4, true, {
+		testOnModelLineChanged(4, false, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 	test('5', () => {
-		testOnModelLineChanged(5, true, {
+		testOnModelLineChanged(5, false, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 	test('6', () => {
 		testOnModelLineChanged(6, true, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [true, false, false, false]
 		});
 	});
 	test('7', () => {
 		testOnModelLineChanged(7, true, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, true, true, true]
+			pinged: [false, true, false, false]
 		});
 	});
 	test('8', () => {
 		testOnModelLineChanged(8, true, {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [false, false, true, true]
+			pinged: [false, false, true, false]
 		});
 	});
 	test('9', () => {
@@ -405,9 +396,9 @@ suite('RenderedLinesCollection onModelLineChanged', () => {
 
 });
 
-suite('RenderedLinesCollection onModelLinesInserted', () => {
+suite('RenderedLinesCollection onLinesInserted', () => {
 
-	function testOnModelLinesInserted(insertFromLineNumber:number, insertToLineNumber:number, expectedDeleted:string[], expectedState:ILinesCollectionState): void {
+	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -415,8 +406,8 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualDeleted1 = col.onModelLinesInserted(insertFromLineNumber, insertToLineNumber);
-		let actualDeleted = [];
+		let actualDeleted1 = col.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+		let actualDeleted: string[] = [];
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
@@ -428,7 +419,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 3, [], {
 			startLineNumber: 7,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -436,7 +427,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 4, [], {
 			startLineNumber: 8,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -444,7 +435,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 5, [], {
 			startLineNumber: 9,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -452,7 +443,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 6, [], {
 			startLineNumber: 10,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -460,7 +451,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 7, [], {
 			startLineNumber: 11,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -468,7 +459,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 8, [], {
 			startLineNumber: 12,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -476,7 +467,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 9, [], {
 			startLineNumber: 13,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -484,7 +475,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(3, 10, [], {
 			startLineNumber: 14,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -493,7 +484,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 5, [], {
 			startLineNumber: 7,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -501,7 +492,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 6, [], {
 			startLineNumber: 8,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -509,7 +500,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 7, [], {
 			startLineNumber: 9,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -517,7 +508,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 8, [], {
 			startLineNumber: 10,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -525,7 +516,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 9, [], {
 			startLineNumber: 11,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -533,7 +524,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(5, 10, [], {
 			startLineNumber: 12,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -542,7 +533,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(6, 6, [], {
 			startLineNumber: 7,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -550,7 +541,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(6, 7, [], {
 			startLineNumber: 8,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -558,7 +549,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(6, 8, [], {
 			startLineNumber: 9,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -566,7 +557,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(6, 9, [], {
 			startLineNumber: 10,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -574,7 +565,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(6, 10, [], {
 			startLineNumber: 11,
 			lines: ['old6', 'old7', 'old8', 'old9'],
-			pinged: [true, true, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -583,7 +574,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(7, 7, ['old9'], {
 			startLineNumber: 6,
 			lines: ['old6', 'new', 'old7', 'old8'],
-			pinged: [false, false, true, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -591,7 +582,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(7, 8, ['old8', 'old9'], {
 			startLineNumber: 6,
 			lines: ['old6', 'new', 'new', 'old7'],
-			pinged: [false, false, false, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -616,7 +607,7 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 		testOnModelLinesInserted(8, 8, ['old9'], {
 			startLineNumber: 6,
 			lines: ['old6', 'old7', 'new', 'old8'],
-			pinged: [false, false, false, true]
+			pinged: [false, false, false, false]
 		});
 	});
 
@@ -681,9 +672,9 @@ suite('RenderedLinesCollection onModelLinesInserted', () => {
 });
 
 
-suite('RenderedLinesCollection onModelTokensChanged', () => {
+suite('RenderedLinesCollection onTokensChanged', () => {
 
-	function testOnModelTokensChanged(changedFromLineNumber:number, changedToLineNumber:number, expectedPinged:boolean, expectedState:ILinesCollectionState): void {
+	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		let col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
 			new TestLine('old6'),
@@ -691,7 +682,7 @@ suite('RenderedLinesCollection onModelTokensChanged', () => {
 			new TestLine('old8'),
 			new TestLine('old9')
 		]);
-		let actualPinged = col.onModelTokensChanged(changedFromLineNumber, changedToLineNumber);
+		let actualPinged = col.onTokensChanged([{ fromLineNumber: changedFromLineNumber, toLineNumber: changedToLineNumber }]);
 		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}

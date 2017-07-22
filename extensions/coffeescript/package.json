@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-coffee-script grammars/coffeescript.cson ./syntaxes/coffeescript.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "coffeescript",
@@ -13,11 +16,12 @@
 		"grammars": [{
 			"language": "coffeescript",
 			"scopeName": "source.coffee",
-			"path": "./syntaxes/CoffeeScript.tmLanguage"
+			"path": "./syntaxes/coffeescript.tmLanguage.json"
 		}],
-		"debuggers": [{
-			"type": "node",
-			"enableBreakpointsFor": { "languageIds": ["coffeescript"] }
-		}]
+		"breakpoints": [
+			{
+				"language": "coffeescript"
+			}
+		]
 	}
 }

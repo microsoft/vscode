@@ -2,18 +2,32 @@
 	"name": "shaderlab",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/shaderlab.json ./syntaxes/shaderlab.json"
+	},
 	"contributes": {
-		"languages": [{
-			"id": "shaderlab",
-			"extensions": [".shader", ".cginc"],
-			"aliases": ["ShaderLab", "shaderlab"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "shaderlab",
-			"path": "./syntaxes/shaderlab.json",
-			"scopeName":"source.shaderlab"
-		}]
+		"languages": [
+			{
+				"id": "shaderlab",
+				"extensions": [
+					".shader"
+				],
+				"aliases": [
+					"ShaderLab",
+					"shaderlab"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "shaderlab",
+				"path": "./syntaxes/shaderlab.json",
+				"scopeName": "source.shaderlab"
+			}
+		]
 	}
 }

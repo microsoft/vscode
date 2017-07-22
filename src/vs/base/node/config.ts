@@ -8,8 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
-import Event, {Emitter} from 'vs/base/common/event';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 
 export interface IConfigurationChangeEvent<T> {
@@ -26,8 +26,11 @@ export interface IConfigWatcher<T> {
 }
 
 export interface IConfigOptions<T> {
+	onError: (error: Error | string) => void;
 	defaultConfig?: T;
 	changeBufferDelay?: number;
+	parse?: (content: string, errors: any[]) => T;
+	initCallback?: (config: T) => void;
 }
 
 /**
@@ -43,11 +46,11 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 	private parseErrors: json.ParseError[];
 	private disposed: boolean;
 	private loaded: boolean;
-	private timeoutHandle: number;
+	private timeoutHandle: NodeJS.Timer;
 	private disposables: IDisposable[];
 	private _onDidUpdateConfiguration: Emitter<IConfigurationChangeEvent<T>>;
 
-	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null) }) {
+	constructor(private _path: string, private options: IConfigOptions<T> = { changeBufferDelay: 0, defaultConfig: Object.create(null), onError: error => console.error(error) }) {
 		this.disposables = [];
 
 		this._onDidUpdateConfiguration = new Emitter<IConfigurationChangeEvent<T>>();
@@ -73,6 +76,9 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		this.loadAsync(config => {
 			if (!this.loaded) {
 				this.updateCache(config); // prevent race condition if config was loaded sync already
+			}
+			if (this.options.initCallback) {
+				this.options.initCallback(this.getConfig());
 			}
 		});
 	}
@@ -104,7 +110,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		let res: T;
 		try {
 			this.parseErrors = [];
-			res = json.parse(raw, this.parseErrors);
+			res = this.options.parse ? this.options.parse(raw, this.parseErrors) : json.parse(raw, this.parseErrors);
 		} catch (error) {
 			// Ignore parsing errors
 		}
@@ -145,6 +151,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		try {
 			const watcher = fs.watch(path);
 			watcher.on('change', () => this.onConfigFileChange());
+			watcher.on('error', (code, signal) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
 
 			this.disposables.push(toDisposable(() => {
 				watcher.removeAllListeners();
@@ -153,7 +160,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		} catch (error) {
 			fs.exists(path, exists => {
 				if (exists) {
-					console.warn(`Failed to watch ${path} for configuration changes (${error.toString()})`);
+					this.options.onError(`Failed to watch ${path} for configuration changes (${error.toString()})`);
 				}
 			});
 		}

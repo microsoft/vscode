@@ -3,33 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Title Decoration */
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration {
-	width: 18px;
-	padding-left: 2px;
-	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-decoration {
-	opacity: 1;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
-	background: url('close-dirty.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-decoration.dirty {
-	background: url('close-dirty-inverse.svg') center center no-repeat;
-}
-
 /* Title Label */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label {
@@ -37,7 +10,11 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
-	padding-left: 2px;
+	padding-left: 20px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .monaco-icon-label::before {
+	height: 35px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Title Actions */
@@ -49,4 +26,22 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .title-actions {
 	opacity: 1;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
+	background: url('close-dirty.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+	background: url('close.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover,
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.dirty .title-actions .close-editor-action:hover {
+	background: url('close-inverse.svg') center center no-repeat;
 }

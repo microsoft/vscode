@@ -1,0 +1,194 @@
+{
+	"editor": [
+		{
+			"name": "vs/platform",
+			"project": "vscode-editor"
+		},
+		{
+			"name": "vs/editor/contrib",
+			"project": "vscode-editor"
+		},
+		{
+			"name": "vs/editor",
+			"project": "vscode-editor"
+		},
+		{
+			"name": "vs/base",
+			"project": "vscode-editor"
+		}
+	],
+	"workbench": [
+		{
+			"name": "vs/code",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/cli",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/codeEditor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/debug",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/emmet",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/execution",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/explorers",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/extensions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/feedback",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/files",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/html",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/markers",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/nps",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/output",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/performance",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/preferences",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/quickopen",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/relauncher",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/scm",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/search",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/snippets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/surveys",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/tasks",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/terminal",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/themes",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/trust",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/update",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/views",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/watermark",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/welcome",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/configuration",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/crashReporter",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/editor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/files",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/keybinding",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/message",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/mode",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/progress",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/textfile",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/themes",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/textMate",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "setup_messages",
+			"project": "vscode-workbench"
+		}
+	]
+}

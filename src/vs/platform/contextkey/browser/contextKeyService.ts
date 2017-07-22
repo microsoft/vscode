@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IContextKey, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr} from 'vs/platform/contextkey/common/contextkey';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import Event, {Emitter, debounceEvent} from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
-export class ContextValuesContainer {
-	protected _parent: ContextValuesContainer;
-	protected _value: {[key:string]:any;};
+export class Context implements IContext {
+
+	protected _parent: Context;
+	protected _value: { [key: string]: any; };
 	protected _id: number;
 
-	constructor(id: number, parent: ContextValuesContainer) {
+	constructor(id: number, parent: Context) {
 		this._id = id;
 		this._parent = parent;
 		this._value = Object.create(null);
@@ -31,6 +32,7 @@ export class ContextValuesContainer {
 			this._value[key] = value;
 			return true;
 		}
+		return false;
 	}
 
 	public removeValue(key: string): boolean {
@@ -45,27 +47,18 @@ export class ContextValuesContainer {
 		}
 		return ret;
 	}
-
-	public fillInContext(bucket: any): void {
-		if (this._parent) {
-			this._parent.fillInContext(bucket);
-		}
-		for (let key in this._value) {
-			bucket[key] = this._value[key];
-		}
-	}
 }
 
-class ConfigAwareContextValuesContainer extends ContextValuesContainer {
+class ConfigAwareContextValuesContainer extends Context {
 
 	private _emitter: Emitter<string>;
 	private _subscription: IDisposable;
 
-	constructor(id: number, configurationService: IConfigurationService, emitter:Emitter<string>) {
+	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string>) {
 		super(id, null);
 
 		this._emitter = emitter;
-		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
+		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(configurationService.getConfiguration()));
 		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
 
@@ -168,9 +161,8 @@ export abstract class AbstractContextKeyService {
 	}
 
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
-		const ctx = Object.create(null);
-		this.getContextValuesContainer(this._myContextId).fillInContext(ctx);
-		const result = KeybindingResolver.contextMatchesRules(ctx, rules);
+		const context = this.getContextValuesContainer(this._myContextId);
+		const result = KeybindingResolver.contextMatchesRules(context, rules);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
 		// console.groupEnd();
@@ -182,24 +174,22 @@ export abstract class AbstractContextKeyService {
 	}
 
 	public setContext(key: string, value: any): void {
-		if(this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
+		if (this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
 	public removeContext(key: string): void {
-		if(this.getContextValuesContainer(this._myContextId).removeValue(key)) {
+		if (this.getContextValuesContainer(this._myContextId).removeValue(key)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}
 
-	public getContextValue(target: IContextKeyServiceTarget): any {
-		let res = Object.create(null);
-		this.getContextValuesContainer(findContextAttr(target)).fillInContext(res);
-		return res;
+	public getContext(target: IContextKeyServiceTarget): IContext {
+		return this.getContextValuesContainer(findContextAttr(target));
 	}
 
-	public abstract getContextValuesContainer(contextId: number): ContextValuesContainer;
+	public abstract getContextValuesContainer(contextId: number): Context;
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
 }
@@ -208,12 +198,12 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 
 	private _lastContextId: number;
 	private _contexts: {
-		[contextId: string]: ContextValuesContainer;
+		[contextId: string]: Context;
 	};
 
 	private _toDispose: IDisposable[] = [];
 
-	constructor(@IConfigurationService configurationService: IConfigurationService) {
+	constructor( @IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -238,13 +228,13 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public getContextValuesContainer(contextId: number): ContextValuesContainer {
+	public getContextValuesContainer(contextId: number): Context {
 		return this._contexts[String(contextId)];
 	}
 
 	public createChildContext(parentContextId: number = this._myContextId): number {
 		let id = (++this._lastContextId);
-		this._contexts[String(id)] = new ContextValuesContainer(id, this.getContextValuesContainer(parentContextId));
+		this._contexts[String(id)] = new Context(id, this.getContextValuesContainer(parentContextId));
 		return id;
 	}
 
@@ -258,24 +248,29 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget;
 
-	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContextKey = emitter;
-		this._domNode = domNode;
-		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+
+		if (domNode) {
+			this._domNode = domNode;
+			this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+		}
 	}
 
 	public dispose(): void {
 		this._parent.disposeContext(this._myContextId);
-		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		if (this._domNode) {
+			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		}
 	}
 
 	public get onDidChangeContext(): Event<string[]> {
 		return this._parent.onDidChangeContext;
 	}
 
-	public getContextValuesContainer(contextId: number): ContextValuesContainer {
+	public getContextValuesContainer(contextId: number): Context {
 		return this._parent.getContextValuesContainer(contextId);
 	}
 

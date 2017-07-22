@@ -14,7 +14,7 @@ import net = require('net');
 export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, clb: (port: number) => void): void {
 	let done = false;
 
-	const timeoutHandle = setTimeout(() =>  {
+	const timeoutHandle = setTimeout(() => {
 		if (!done) {
 			done = true;
 
@@ -46,7 +46,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
-	client.once('error', (err) => {
+	client.once('error', (err: Error & { code?: string }) => {
 		dispose(client);
 
 		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
@@ -58,7 +58,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return clb(startPort);
 	});
 
-	client.connect(startPort);
+	client.connect(startPort, '127.0.0.1');
 }
 
 function dispose(socket: net.Socket): void {

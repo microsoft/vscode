@@ -6,21 +6,29 @@
 'use strict';
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import glob = require('vs/base/common/glob');
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
+import { IExpression } from 'vs/base/common/glob';
+import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'vs/platform/search/common/search';
+
+export interface IFolderSearch {
+	folder: string;
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
+	fileEncoding?: string;
+}
 
 export interface IRawSearch {
-	rootFolders: string[];
+	folderQueries: IFolderSearch[];
 	extraFiles?: string[];
 	filePattern?: string;
-	excludePattern?: glob.IExpression;
-	includePattern?: glob.IExpression;
+	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	maxFilesize?: number;
-	fileEncoding?: string;
+	useRipgrep?: boolean;
+	disregardIgnoreFiles?: boolean;
 }
 
 export interface IRawSearchService {
@@ -37,7 +45,7 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (match: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
 	cancel: () => void;
 }
 
@@ -49,7 +57,9 @@ export interface ISerializedSearchComplete {
 export interface ISerializedFileMatch {
 	path: string;
 	lineMatches?: ILineMatch[];
+	numMatches?: number;
 }
 
 // Type of the possible values for progress calls from the engine
-export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress;
+export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress | ISearchLog;
+export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;

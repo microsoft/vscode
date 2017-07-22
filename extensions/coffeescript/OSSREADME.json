@@ -1,7 +1,9 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
-	"name": "textmate/coffee-script.tmbundle",
+	"name": "atom/language-coffee-script",
 	"version": "0.0.0",
-	"license": "TextMate Bundle License",
-	"repositoryURL": "https://github.com/textmate/coffee-script.tmbundle"
+	"license": "MIT",
+	"repositoryURL": "https://github.com/atom/language-coffee-script",
+	"description": "The file syntaxes/coffeescript.tmLanguage.json was derived from the Atom package https://github.com/atom/language-coffee-script which was originally converted from the TextMate bundle https://github.com/jashkenas/coffee-script-tmbundle."
+
 }]

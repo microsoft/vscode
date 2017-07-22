@@ -5,66 +5,69 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export class EditorState implements ICodeEditorState {
+export const enum CodeEditorStateFlag {
+	Value = 1,
+	Selection = 2,
+	Position = 4,
+	Scroll = 8
+}
 
-	private flags:CodeEditorStateFlag[];
+export class EditorState {
 
-	private position:Position;
-	private selection:Range;
-	private modelVersionId:string;
-	private scrollLeft:number;
-	private scrollTop:number;
+	private readonly flags: number;
 
-	constructor(editor:ICommonCodeEditor, flags:CodeEditorStateFlag[]) {
+	private readonly position: Position;
+	private readonly selection: Range;
+	private readonly modelVersionId: string;
+	private readonly scrollLeft: number;
+	private readonly scrollTop: number;
+
+	constructor(editor: ICommonCodeEditor, flags: number) {
 		this.flags = flags;
 
-		flags.forEach((flag) => {
-			switch(flag) {
-				case CodeEditorStateFlag.Value:
-					var model = editor.getModel();
-					this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
-					break;
-				case CodeEditorStateFlag.Position:
-					this.position = editor.getPosition();
-					break;
-				case CodeEditorStateFlag.Selection:
-					this.selection = editor.getSelection();
-					break;
-				case CodeEditorStateFlag.Scroll:
-					this.scrollLeft = editor.getScrollLeft();
-					this.scrollTop = editor.getScrollTop();
-					break;
-			}
-		});
+		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
+			var model = editor.getModel();
+			this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
+		}
+		if ((this.flags & CodeEditorStateFlag.Position) !== 0) {
+			this.position = editor.getPosition();
+		}
+		if ((this.flags & CodeEditorStateFlag.Selection) !== 0) {
+			this.selection = editor.getSelection();
+		}
+		if ((this.flags & CodeEditorStateFlag.Scroll) !== 0) {
+			this.scrollLeft = editor.getScrollLeft();
+			this.scrollTop = editor.getScrollTop();
+		}
 	}
 
-	private _equals(other:any):boolean {
+	private _equals(other: any): boolean {
 
-		if(!(other instanceof EditorState)) {
+		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		var state = <EditorState> other;
+		var state = <EditorState>other;
 
-		if(this.modelVersionId !== state.modelVersionId) {
+		if (this.modelVersionId !== state.modelVersionId) {
 			return false;
 		}
-		if(this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
+		if (this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
 			return false;
 		}
-		if(!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
+		if (!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
 			return false;
 		}
-		if(!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
+		if (!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
 			return false;
 		}
 		return true;
 	}
 
-	public validate(editor:ICommonCodeEditor):boolean {
+	public validate(editor: ICommonCodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }

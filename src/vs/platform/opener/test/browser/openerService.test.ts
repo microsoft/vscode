@@ -6,10 +6,10 @@
 
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEditorService, ITextEditorModel, IResourceInput} from 'vs/platform/editor/common/editor';
-import {ICommandService, NullCommandService, CommandsRegistry} from 'vs/platform/commands/common/commands';
-import {OpenerService} from 'vs/platform/opener/browser/openerService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorService, IResourceInput } from 'vs/platform/editor/common/editor';
+import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { OpenerService } from 'vs/platform/opener/browser/openerService';
 
 suite('OpenerService', function () {
 
@@ -20,16 +20,13 @@ suite('OpenerService', function () {
 		openEditor(input: IResourceInput): any {
 			lastInput = input;
 		}
-		resolveEditorModel(): any {
-			return TPromise.as(<ITextEditorModel>{});
-		}
 	};
-
 
 	let lastCommand: { id: string, args: any[] };
 
 	const commandService = new class implements ICommandService {
 		_serviceBrand: any;
+		onWillExecuteCommand = () => ({ dispose: () => { } });
 		executeCommand(id: string, ...args: any[]): TPromise<any> {
 			lastCommand = { id, args };
 			return TPromise.as(undefined);

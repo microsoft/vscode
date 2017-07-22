@@ -3,40 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tagsMarkdownPreview } from "./previewer";
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
-	private client: ITypescriptServiceClient;
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
-
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover> {
-		let args: Proto.FileLocationRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined | null> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
+		const args: Proto.FileLocationRequestArgs = {
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<Hover>(null);
-		}
-		return this.client.execute('quickinfo', args, token).then((response): Hover => {
-			let data = response.body;
-			if (data) {
+		return this.client.execute('quickinfo', args, token).then((response): Hover | undefined => {
+			if (response && response.body) {
+				const data = response.body;
 				return new Hover(
-					[{ language: 'typescript', value: data.displayString }, data.documentation],
+					TypeScriptHoverProvider.getContents(data),
 					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
 			}
-		}, (err) => {
-			this.client.error(`'quickinfo' request failed with error.`, err);
+			return undefined;
+		}, () => {
 			return null;
 		});
+	}
+
+	private static getContents(data: Proto.QuickInfoResponseBody) {
+		const tags = tagsMarkdownPreview(data.tags);
+		return [
+			{ language: 'typescript', value: data.displayString },
+			data.documentation + (tags ? '\n\n' + tags : '')
+		];
 	}
 }

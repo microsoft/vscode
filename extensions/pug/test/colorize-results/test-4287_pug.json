@@ -1,0 +1,24 @@
+[
+	{
+		"c": ".ssdsd",
+		"t": "text.jade entity.other.attribute-name.class.jade",
+		"r": {
+			"dark_plus": "entity.other.attribute-name: #9CDCFE",
+			"light_plus": "entity.other.attribute-name: #FF0000",
+			"dark_vs": "entity.other.attribute-name: #9CDCFE",
+			"light_vs": "entity.other.attribute-name: #FF0000",
+			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		}
+	},
+	{
+		"c": "    // asdsdas",
+		"t": "text.jade string.comment.buffered.block.jade",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"hc_black": "string: #CE9178"
+		}
+	}
+]

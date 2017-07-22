@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 
 export class SurroundSelectionCommand implements ICommand {
 	private _range: Selection;
 	private _charBeforeSelection: string;
 	private _charAfterSelection: string;
 
-	constructor(range:Selection, charBeforeSelection:string, charAfterSelection:string) {
+	constructor(range: Selection, charBeforeSelection: string, charAfterSelection: string) {
 		this._range = range;
 		this._charBeforeSelection = charBeforeSelection;
 		this._charAfterSelection = charAfterSelection;
 	}
 
-	public getEditOperations(model:ITokenizedModel, builder:IEditOperationBuilder): void {
-		builder.addEditOperation(new Range(
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(new Range(
 			this._range.startLineNumber,
 			this._range.startColumn,
 			this._range.startLineNumber,
 			this._range.startColumn
 		), this._charBeforeSelection);
 
-		builder.addEditOperation(new Range(
+		builder.addTrackedEditOperation(new Range(
 			this._range.endLineNumber,
 			this._range.endColumn,
 			this._range.endLineNumber,
@@ -36,9 +36,9 @@ export class SurroundSelectionCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var firstOperationRange = inverseEditOperations[0].range;
-		var secondOperationRange = inverseEditOperations[1].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let firstOperationRange = inverseEditOperations[0].range;
+		let secondOperationRange = inverseEditOperations[1].range;
 
 		return new Selection(
 			firstOperationRange.endLineNumber,

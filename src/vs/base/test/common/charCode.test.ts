@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {CharCode} from 'vs/base/common/charCode';
+import { CharCode } from 'vs/base/common/charCode';
 
 suite('CharCode', () => {
 	test('has good values', () => {
 
-		function assertValue(actual:CharCode, expected:string): void {
+		function assertValue(actual: CharCode, expected: string): void {
 			assert.equal(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
 		}
 

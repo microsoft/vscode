@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IFoldingRange {
-	startLineNumber:number;
-	endLineNumber:number;
-	indent:number;
-	isCollapsed?:boolean;
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
+	isCollapsed?: boolean;
 }
 
 export function toString(range: IFoldingRange): string {
@@ -25,7 +26,7 @@ export class CollapsibleRegion {
 
 	private _lastRange: IFoldingRange;
 
-	public constructor(range:IFoldingRange, model:editorCommon.IModel, changeAccessor:editorCommon.IModelDecorationsChangeAccessor) {
+	public constructor(range: IFoldingRange, model: editorCommon.IModel, changeAccessor: editorCommon.IModelDecorationsChangeAccessor) {
 		this.decorationIds = [];
 		this.update(range, model, changeAccessor);
 	}
@@ -54,47 +55,53 @@ export class CollapsibleRegion {
 		return this._lastRange ? this._lastRange.endLineNumber : void 0;
 	}
 
-	public setCollapsed(isCollaped: boolean, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
+	public setCollapsed(isCollaped: boolean, changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
 		this._isCollapsed = isCollaped;
 		if (this.decorationIds.length > 0) {
 			changeAccessor.changeDecorationOptions(this.decorationIds[0], this.getVisualDecorationOptions());
 		}
 	}
 
-	public getDecorationRange(model:editorCommon.IModel): Range {
+	public getDecorationRange(model: editorCommon.IModel): Range {
 		if (this.decorationIds.length > 0) {
 			return model.getDecorationRange(this.decorationIds[1]);
 		}
 		return null;
 	}
 
-	private getVisualDecorationOptions(): editorCommon.IModelDecorationOptions {
+	private static _COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		afterContentClassName: 'inline-folded',
+		linesDecorationsClassName: 'folding collapsed'
+	});
+
+	private static _EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		linesDecorationsClassName: 'folding'
+	});
+
+	private getVisualDecorationOptions(): ModelDecorationOptions {
 		if (this._isCollapsed) {
-			return {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				inlineClassName: 'inline-folded',
-				linesDecorationsClassName: 'folding collapsed'
-			};
+			return CollapsibleRegion._COLLAPSED_VISUAL_DECORATION;
 		} else {
-			return {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				linesDecorationsClassName: 'folding'
-			};
+			return CollapsibleRegion._EXPANDED_VISUAL_DECORATION;
 		}
 	}
 
-	private getRangeDecorationOptions(): editorCommon.IModelDecorationOptions {
-		return {
-			stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
-		};
+	private static _RANGE_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	});
+
+	private getRangeDecorationOptions(): ModelDecorationOptions {
+		return CollapsibleRegion._RANGE_DECORATION;
 	}
 
-	public update(newRange:IFoldingRange, model:editorCommon.IModel, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
+	public update(newRange: IFoldingRange, model: editorCommon.IModel, changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = newRange;
 		this._isCollapsed = !!newRange.isCollapsed;
 		this._indent = newRange.indent;
 
-		let newDecorations : editorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 
 		let maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
 		let visualRng = {
@@ -117,20 +124,20 @@ export class CollapsibleRegion {
 	}
 
 
-	public dispose(changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
+	public dispose(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = null;
 		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 	}
 
 	public toString(): string {
-		let str = this.isCollapsed ? 'collapsed ': 'expanded ';
+		let str = this.isCollapsed ? 'collapsed ' : 'expanded ';
 		if (this._lastRange) {
 			str += (this._lastRange.startLineNumber + '/' + this._lastRange.endLineNumber);
 		} else {
 			str += 'no range';
 		}
 
-		return  str;
+		return str;
 	}
 }
 
@@ -222,7 +229,7 @@ interface CollapsibleRegionsHierarchy {
 	getRegionsTill(level: number): CollapsibleRegion[];
 }
 
-class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy{
+class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy {
 
 	children: CollapsibleRegionsChildrenHierarchy[] = [];
 	lastChildIndex: number;
@@ -242,7 +249,7 @@ class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy
 		}
 	}
 
-	private processChildRegion(dec: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel, index : number): number {
+	private processChildRegion(dec: CollapsibleRegion, allRegions: CollapsibleRegion[], model: editorCommon.IModel, index: number): number {
 		let childRegion = new CollapsibleRegionsChildrenHierarchy(dec, allRegions, model);
 		this.children.push(childRegion);
 		this.lastChildIndex = index;
@@ -257,7 +264,7 @@ class CollapsibleRegionsChildrenHierarchy implements CollapsibleRegionsHierarchy
 		return result;
 	}
 }
-class CollapsibleRegionsParentHierarchy  implements CollapsibleRegionsHierarchy {
+class CollapsibleRegionsParentHierarchy implements CollapsibleRegionsHierarchy {
 
 	parent: CollapsibleRegionsParentHierarchy;
 	lastChildIndex: number;

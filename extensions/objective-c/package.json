@@ -2,18 +2,46 @@
 	"name": "objective-c",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-objective-c grammars/objective-c.cson ./syntaxes/objective-c.tmLanguage.json && node ../../build/npm/update-grammar.js atom/language-objective-c grammars/objective-c++.cson ./syntaxes/objective-c++.tmLanguage.json"
+	},
 	"contributes": {
-		"languages": [{
-			"id": "objective-c",
-			"extensions": [ ".m" ],
-			"aliases": [ "Objective-C"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "objective-c",
-			"scopeName": "source.objc",
-			"path": "./syntaxes/Objective-C.tmLanguage"
-		}]
+		"languages": [
+			{
+				"id": "objective-c",
+				"extensions": [
+					".m"
+				],
+				"aliases": [
+					"Objective-C"
+				],
+				"configuration": "./language-configuration.json"
+			},
+			{
+				"id": "objective-cpp",
+				"extensions": [
+					".mm"
+				],
+				"aliases": [
+					"Objective-C++"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "objective-c",
+				"scopeName": "source.objc",
+				"path": "./syntaxes/objective-c.tmLanguage.json"
+			},
+			{
+				"language": "objective-cpp",
+				"scopeName": "source.objcpp",
+				"path": "./syntaxes/objective-c++.tmLanguage.json"
+			}
+		]
 	}
 }

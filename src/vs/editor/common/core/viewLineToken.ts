@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
+import { ColorId } from 'vs/editor/common/modes';
+import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 
 /**
  * A token on a line.
@@ -12,33 +13,44 @@ import {Arrays} from 'vs/editor/common/core/arrays';
 export class ViewLineToken {
 	_viewLineTokenBrand: void;
 
-	public startIndex:number;
-	public type:string;
+	/**
+	 * last char index of this token (not inclusive).
+	 */
+	public readonly endIndex: number;
+	private readonly _metadata: number;
 
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex|0;// @perf
-		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
+	constructor(endIndex: number, metadata: number) {
+		this.endIndex = endIndex;
+		this._metadata = metadata;
 	}
 
-	public equals(other:ViewLineToken): boolean {
+	public getForeground(): ColorId {
+		return TokenMetadata.getForeground(this._metadata);
+	}
+
+	public getType(): string {
+		return TokenMetadata.getClassNameFromMetadata(this._metadata);
+	}
+
+	public getInlineStyle(colorMap: string[]): string {
+		return TokenMetadata.getInlineStyleFromMetadata(this._metadata, colorMap);
+	}
+
+	private static _equals(a: ViewLineToken, b: ViewLineToken): boolean {
 		return (
-			this.startIndex === other.startIndex
-			&& this.type === other.type
+			a.endIndex === b.endIndex
+			&& a._metadata === b._metadata
 		);
 	}
 
-	public static findIndexInSegmentsArray(arr:ViewLineToken[], desiredIndex: number): number {
-		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
-	}
-
-	public static equalsArray(a:ViewLineToken[], b:ViewLineToken[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
+	public static equalsArr(a: ViewLineToken[], b: ViewLineToken[]): boolean {
+		const aLen = a.length;
+		const bLen = b.length;
 		if (aLen !== bLen) {
 			return false;
 		}
 		for (let i = 0; i < aLen; i++) {
-			if (!a[i].equals(b[i])) {
+			if (!this._equals(a[i], b[i])) {
 				return false;
 			}
 		}
@@ -46,40 +58,61 @@ export class ViewLineToken {
 	}
 }
 
-export class ViewLineTokens {
-	_viewLineTokensBrand: void;
+export class ViewLineTokenFactory {
 
-	private _lineTokens:ViewLineToken[];
-	private _fauxIndentLength:number;
-	private _textLength:number;
+	public static inflateArr(tokens: Uint32Array, lineLength: number): ViewLineToken[] {
+		let result: ViewLineToken[] = [];
 
-	constructor(lineTokens:ViewLineToken[], fauxIndentLength:number, textLength:number) {
-		this._lineTokens = lineTokens;
-		this._fauxIndentLength = fauxIndentLength|0;
-		this._textLength = textLength|0;
+		for (let i = 0, len = (tokens.length >>> 1); i < len; i++) {
+			let endOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
+			let metadata = tokens[(i << 1) + 1];
+
+			result[i] = new ViewLineToken(endOffset, metadata);
+		}
+
+		return result;
 	}
 
-	public getTokens(): ViewLineToken[] {
-		return this._lineTokens;
+	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaOffset: number, lineLength: number): ViewLineToken[] {
+		const tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
+		const maxEndOffset = (endOffset - startOffset + deltaOffset);
+		let result: ViewLineToken[] = [], resultLen = 0;
+
+		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
+			let tokenStartOffset = tokens[(i << 1)];
+
+			if (tokenStartOffset >= endOffset) {
+				break;
+			}
+
+			let tokenEndOffset = (i + 1 < len ? tokens[((i + 1) << 1)] : lineLength);
+			let newEndOffset = Math.min(maxEndOffset, tokenEndOffset - startOffset + deltaOffset);
+			let metadata = tokens[(i << 1) + 1];
+
+			result[resultLen++] = new ViewLineToken(newEndOffset, metadata);
+		}
+
+		return result;
 	}
 
-	public getFauxIndentLength(): number {
-		return this._fauxIndentLength;
-	}
+	public static findIndexInSegmentsArray(tokens: Uint32Array, desiredIndex: number): number {
 
-	public getTextLength(): number {
-		return this._textLength;
-	}
+		let low = 0;
+		let high = (tokens.length >>> 1) - 1;
 
-	public equals(other:ViewLineTokens): boolean {
-		return (
-			this._fauxIndentLength === other._fauxIndentLength
-			&& this._textLength === other._textLength
-			&& ViewLineToken.equalsArray(this._lineTokens, other._lineTokens)
-		);
-	}
+		while (low < high) {
 
-	public findIndexOfOffset(offset:number): number {
-		return ViewLineToken.findIndexInSegmentsArray(this._lineTokens, offset);
+			let mid = low + Math.ceil((high - low) / 2);
+
+			let value = tokens[(mid << 1)];
+
+			if (value > desiredIndex) {
+				high = mid - 1;
+			} else {
+				low = mid;
+			}
+		}
+
+		return low;
 	}
 }

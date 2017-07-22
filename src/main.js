@@ -3,8 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
+if (process.argv.indexOf('--prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	var prefix = require('crypto').randomBytes(2).toString('hex');
+	process.env.VSCODE_PROFILES_PREFIX = prefix;
+	profiler.startProfiling('main', true);
+}
+
+// Workaround for https://github.com/electron/electron/issues/9225. Chrome has an issue where
+// in certain locales (e.g. PL), image metrics are wrongly computed. We explicitly set the
+// LC_NUMERIC to prevent this from happening (selects the numeric formatting category of the
+// C locale, http://en.cppreference.com/w/cpp/locale/LC_categories). TODO@Ben temporary.
+if (process.env.LC_ALL) {
+	process.env.LC_ALL = 'C';
+}
+process.env.LC_NUMERIC = 'C';
+
 // Perf measurements
-global.vscodeStart = Date.now();
+global.perfStartTime = Date.now();
 
 var app = require('electron').app;
 var fs = require('fs');
@@ -69,7 +87,7 @@ function getNLSConfiguration() {
 	// the locale we receive from the user or OS.
 	locale = locale ? locale.toLowerCase() : locale;
 	if (locale === 'pseudo') {
-		return { locale: locale, availableLanguages: {}, pseudo: true }
+		return { locale: locale, availableLanguages: {}, pseudo: true };
 	}
 	var initialLocale = locale;
 	if (process.env['VSCODE_DEV']) {
@@ -109,6 +127,56 @@ function getNLSConfiguration() {
 	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
+function getNodeCachedDataDir() {
+
+	// IEnvironmentService.isBuilt
+	if (process.env['VSCODE_DEV']) {
+		return Promise.resolve(undefined);
+	}
+
+	// find commit id
+	var productJson = require(path.join(__dirname, '../product.json'));
+	if (!productJson.commit) {
+		return Promise.resolve(undefined);
+	}
+
+	var dir = path.join(app.getPath('userData'), 'CachedData', productJson.commit);
+
+	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
+}
+
+function mkdirp(dir) {
+	return mkdir(dir)
+		.then(null, function (err) {
+			if (err && err.code === 'ENOENT') {
+				var parent = path.dirname(dir);
+				if (parent !== dir) { // if not arrived at root
+					return mkdirp(parent)
+						.then(function () {
+							return mkdir(dir);
+						});
+				}
+			}
+			throw err;
+		});
+}
+
+function mkdir(dir) {
+	return new Promise(function (resolve, reject) {
+		fs.mkdir(dir, function (err) {
+			if (err && err.code !== 'EEXIST') {
+				reject(err);
+			} else {
+				resolve(dir);
+			}
+		});
+	});
+}
+
+// Set userData path before app 'ready' event and call to process.chdir
+var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+app.setPath('userData', userData);
+
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
@@ -121,10 +189,6 @@ try {
 	console.error(err);
 }
 
-// Set userData path before app 'ready' event
-var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
-
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 global.macOpenFiles = [];
@@ -132,22 +196,42 @@ app.on('open-file', function (event, path) {
 	global.macOpenFiles.push(path);
 });
 
-const openUrls = [];
-const onOpenUrl = (event, url) => {
+var openUrls = [];
+var onOpenUrl = function (event, url) {
 	event.preventDefault();
 	openUrls.push(url);
 };
 
-app.on('will-finish-launching', () => app.on('open-url', onOpenUrl));
+app.on('will-finish-launching', function () {
+	app.on('open-url', onOpenUrl);
+});
 
-global.getOpenUrls = () => {
+global.getOpenUrls = function () {
 	app.removeListener('open-url', onOpenUrl);
 	return openUrls;
 };
 
+
+// use '<UserData>/CachedData'-directory to store
+// node/v8 cached data.
+var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
+	if (value) {
+		// store the data directory
+		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
+
+		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
+		// but because we generate cached data it makes subsequent startups much faster
+		app.commandLine.appendSwitch('--js-flags', '--nolazy');
+	}
+});
+
 // Load our code once ready
 app.once('ready', function () {
+	global.perfAppReady = Date.now();
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
+
+	nodeCachedDataDir.then(function () {
+		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
+	}, console.error);
 });

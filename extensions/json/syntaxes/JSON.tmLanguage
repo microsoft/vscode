@@ -98,7 +98,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>/\*\*</string>
+					<string>/\*\*(?!/)</string>
 					<key>captures</key>
 					<dict>
 						<key>0</key>

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {dispose} from 'vs/base/common/lifecycle';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { join } from 'path';
+import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
-import {IMessage, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ExtHostStorage} from 'vs/workbench/api/node/extHostStorage';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainProcessExtensionServiceShape} from './extHost.protocol';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
+import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -99,6 +99,52 @@ class ExtensionMemento implements IExtensionMemento {
 	}
 }
 
+class ExtensionStoragePath {
+
+	private readonly _workspace: IWorkspaceData;
+	private readonly _environment: IEnvironment;
+
+	private readonly _ready: TPromise<string>;
+	private _value: string;
+
+	constructor(workspace: IWorkspaceData, environment: IEnvironment) {
+		this._workspace = workspace;
+		this._environment = environment;
+		this._ready = this._getOrCreateWorkspaceStoragePath().then(value => this._value = value);
+	}
+
+	get whenReady(): TPromise<any> {
+		return this._ready;
+	}
+
+	value(extension: IExtensionDescription): string {
+		if (this._value) {
+			return join(this._value, extension.id);
+		}
+		return undefined;
+	}
+
+	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+		if (!this._workspace) {
+			return TPromise.as(undefined);
+		}
+		const storageName = this._workspace.id;
+		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+
+		return dirExists(storagePath).then(exists => {
+			if (exists) {
+				return storagePath;
+			}
+
+			return mkdirp(storagePath).then(success => {
+				return storagePath;
+			}, err => {
+				return undefined;
+			});
+		});
+	}
+}
+
 export interface IExtensionContext {
 	subscriptions: IDisposable[];
 	workspaceState: IExtensionMemento;
@@ -112,20 +158,33 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 	private _threadService: IThreadService;
 	private _storage: ExtHostStorage;
+	private _storagePath: ExtensionStoragePath;
 	private _proxy: MainProcessExtensionServiceShape;
 	private _telemetryService: ITelemetryService;
-	private _workspaceStoragePath: string;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(threadService: IThreadService, telemetryService: ITelemetryService, args: { _serviceBrand: any; workspaceStoragePath: string; }) {
+	constructor(initData: IInitData, threadService: IThreadService, telemetryService: ITelemetryService) {
 		super(false);
+		this._registry.registerExtensions(initData.extensions);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
+		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
 		this._telemetryService = telemetryService;
-		this._workspaceStoragePath = args.workspaceStoragePath;
+
+		// initialize API first
+		const apiFactory = createApiFactory(initData, threadService, this, this._telemetryService);
+		initializeExtensionApi(this, apiFactory).then(() => this._triggerOnReady());
+	}
+
+	public getAllExtensionDescriptions(): IExtensionDescription[] {
+		return this._registry.getAllExtensionDescriptions();
+	}
+
+	public getExtensionDescription(extensionId: string): IExtensionDescription {
+		return this._registry.getExtensionDescription(extensionId);
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -148,16 +207,21 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		return this._activatedExtensions[extensionId].exports;
 	}
 
-	public deactivate(extensionId: string): void {
+	public deactivate(extensionId: string): TPromise<void> {
+		let result: TPromise<void> = TPromise.as(void 0);
+
 		let extension = this._activatedExtensions[extensionId];
 		if (!extension) {
-			return;
+			return result;
 		}
 
 		// call deactivate if available
 		try {
 			if (typeof extension.module.deactivate === 'function') {
-				extension.module.deactivate();
+				result = TPromise.wrap(extension.module.deactivate()).then(null, (err) => {
+					// TODO: Do something with err if this is not the shutdown case
+					return TPromise.as(void 0);
+				});
 			}
 		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
@@ -169,14 +233,8 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
-	}
 
-	public registrationDone(messages: IMessage[]): void {
-		this._proxy.$onExtensionHostReady(ExtensionsRegistry.getAllExtensionDescriptions(), messages).then(() => {
-			// Wait for the main process to acknowledge its receival of the extensions descriptions
-			// before allowing extensions to be activated
-			this._triggerOnReady();
-		});
+		return result;
 	}
 
 	// -- overwriting AbstractExtensionService
@@ -194,21 +252,24 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
-		let storagePath = this._workspaceStoragePath ? paths.normalize(paths.join(this._workspaceStoragePath, extensionDescription.id)): undefined;
 
-		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
+		return TPromise.join([
+			globalState.whenReady,
+			workspaceState.whenReady,
+			this._storagePath.whenReady
+		]).then(() => {
 			return Object.freeze(<IExtensionContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
-				storagePath: storagePath,
-				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
+				storagePath: this._storagePath.value(extensionDescription),
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); }
 			});
 		});
 	}
 
-	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ExtHostExtension> {
 		return this._doActualActivateExtension(extensionDescription).then((activatedExtension) => {
 			this._proxy.$onExtensionActivated(extensionDescription.id);
 			return activatedExtension;
@@ -225,10 +286,21 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return TPromise.as(new ExtHostEmptyExtension());
 		}
-
-		return loadCommonJSModule<IExtensionModule>(extensionDescription.main).then((extensionModule) => {
-			return this._loadExtensionContext(extensionDescription).then(context => {
-				return ExtHostExtensionService._callActivate(extensionModule, context);
+		return this.onReady().then(() => {
+			return TPromise.join<any>([
+				loadCommonJSModule(extensionDescription.main),
+				this._loadExtensionContext(extensionDescription)
+			]).then(values => {
+				return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1]);
+			}, (errors: any[]) => {
+				// Avoid failing with an array of errors, fail with a single error
+				if (errors[0]) {
+					return TPromise.wrapError<ExtHostExtension>(errors[0]);
+				}
+				if (errors[1]) {
+					return TPromise.wrapError<ExtHostExtension>(errors[1]);
+				}
+				return undefined;
 			});
 		});
 	}
@@ -271,7 +343,7 @@ function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
 	} catch (e) {
-		return TPromise.wrapError(e);
+		return TPromise.wrapError<T>(e);
 	}
 	return TPromise.as(r);
 }

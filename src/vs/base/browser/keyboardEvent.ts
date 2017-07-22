@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {KeyCode, KeyCodeUtils, KeyMod} from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
-let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
-(function() {
+let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
+(function () {
 	KEY_CODE_MAP[3] = KeyCode.PauseBreak; // VK_CANCEL 0x03 Control-break processing
 	KEY_CODE_MAP[8] = KeyCode.Backspace;
 	KEY_CODE_MAP[9] = KeyCode.Tab;
@@ -120,6 +120,8 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[190] = KeyCode.US_DOT;
 	KEY_CODE_MAP[191] = KeyCode.US_SLASH;
 	KEY_CODE_MAP[192] = KeyCode.US_BACKTICK;
+	KEY_CODE_MAP[193] = KeyCode.ABNT_C1;
+	KEY_CODE_MAP[194] = KeyCode.ABNT_C2;
 	KEY_CODE_MAP[219] = KeyCode.US_OPEN_SQUARE_BRACKET;
 	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
 	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
@@ -128,7 +130,13 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
-	if (browser.isIE11orEarlier) {
+	/**
+	 * https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
+	 * If an Input Method Editor is processing key input and the event is keydown, return 229.
+	 */
+	KEY_CODE_MAP[229] = KeyCode.KEY_IN_COMPOSITION;
+
+	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
 	} else if (browser.isFirefox) {
 		KEY_CODE_MAP[59] = KeyCode.US_SEMICOLON;
@@ -148,40 +156,31 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	}
 })();
 
-interface INormalizedKeyCode {
-	keyCode: KeyCode;
-	key: string;
-}
-
-export function lookupKeyCode(e:KeyboardEvent): KeyCode {
-	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
-}
-
-let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
+function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
 		return KeyCodeUtils.fromString(char);
 	}
-	return lookupKeyCode(e);
+	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
 };
 
-export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
-	extractKeyCode = newExtractKeyCode;
-}
-
 export interface IKeyboardEvent {
-	browserEvent:KeyboardEvent;
-	target:HTMLElement;
+	readonly browserEvent: KeyboardEvent;
+	readonly target: HTMLElement;
 
-	ctrlKey: boolean;
-	shiftKey: boolean;
-	altKey: boolean;
-	metaKey: boolean;
-	keyCode: KeyCode;
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly keyCode: KeyCode;
+	readonly code: string;
 
-	asKeybinding(): number;
-	equals(keybinding:number): boolean;
+	/**
+	 * @internal
+	 */
+	toKeybinding(): SimpleKeybinding;
+	equals(keybinding: number): boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -194,18 +193,20 @@ const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
-	public browserEvent: KeyboardEvent;
-	public target: HTMLElement;
+	public readonly browserEvent: KeyboardEvent;
+	public readonly target: HTMLElement;
 
-	public ctrlKey: boolean;
-	public shiftKey: boolean;
-	public altKey: boolean;
-	public metaKey: boolean;
-	public keyCode: KeyCode;
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
+	public readonly code: string;
 
 	private _asKeybinding: number;
+	private _asRuntimeKeybinding: SimpleKeybinding;
 
-	constructor(source:KeyboardEvent) {
+	constructor(source: KeyboardEvent) {
 		let e = <KeyboardEvent>source;
 
 		this.browserEvent = e;
@@ -216,6 +217,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.altKey = e.altKey;
 		this.metaKey = e.metaKey;
 		this.keyCode = extractKeyCode(e);
+		this.code = e.code;
 
 		// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
@@ -225,6 +227,9 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		this.metaKey = this.metaKey || this.keyCode === KeyCode.Meta;
 
 		this._asKeybinding = this._computeKeybinding();
+		this._asRuntimeKeybinding = this._computeRuntimeKeybinding();
+
+		// console.log(`code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`);
 	}
 
 	public preventDefault(): void {
@@ -239,12 +244,12 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		}
 	}
 
-	public asKeybinding(): number {
-		return this._asKeybinding;
+	public toKeybinding(): SimpleKeybinding {
+		return this._asRuntimeKeybinding;
 	}
 
-	public equals(other:number): boolean {
-		return (this._asKeybinding === other);
+	public equals(other: number): boolean {
+		return this._asKeybinding === other;
 	}
 
 	private _computeKeybinding(): number {
@@ -269,5 +274,13 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 		result |= key;
 
 		return result;
+	}
+
+	private _computeRuntimeKeybinding(): SimpleKeybinding {
+		let key = KeyCode.Unknown;
+		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+			key = this.keyCode;
+		}
+		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
 	}
 }

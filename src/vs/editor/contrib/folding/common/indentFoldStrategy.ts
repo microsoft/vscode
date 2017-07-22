@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {IModel} from 'vs/editor/common/editorCommon';
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingModel';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
 
 export function computeRanges(model: IModel): IFoldingRange[] {
 	// we get here a clone of the model's indent ranges
@@ -21,7 +21,7 @@ export function limitByIndent(ranges: IFoldingRange[], maxEntries: number): IFol
 		return ranges;
 	}
 
-	let indentOccurrences = [];
+	let indentOccurrences: number[] = [];
 	ranges.forEach(r => {
 		if (r.indent < 1000) {
 			indentOccurrences[r.indent] = (indentOccurrences[r.indent] || 0) + 1;

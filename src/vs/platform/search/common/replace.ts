@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import {IPatternInfo} from 'vs/platform/search/common/search';
-import {CharCode} from 'vs/base/common/charCode';
+import { IPatternInfo } from 'vs/platform/search/common/search';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class ReplacePattern {
 
@@ -148,7 +148,7 @@ export class ReplacePattern {
 							this._hasParameters = true;
 							break;
 						}
-						let charCode= replaceString.charCodeAt(++i);
+						let charCode = replaceString.charCodeAt(++i);
 						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
@@ -158,7 +158,7 @@ export class ReplacePattern {
 							this._hasParameters = true;
 							break;
 						}
-						charCode= replaceString.charCodeAt(++i);
+						charCode = replaceString.charCodeAt(++i);
 						if (!this.between(charCode, CharCode.Digit0, CharCode.Digit9)) {
 							this._hasParameters = true;
 							--i;
@@ -175,11 +175,11 @@ export class ReplacePattern {
 		}
 
 		if (substrFrom === 0) {
-			// no replacement occured
+			// no replacement occurred
 			return;
 		}
 
-		this._replacePattern= result + replaceString.substring(substrFrom);
+		this._replacePattern = result + replaceString.substring(substrFrom);
 	}
 
 	private between(value: number, from: number, to: number): boolean {

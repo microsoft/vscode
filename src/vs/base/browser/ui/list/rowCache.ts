@@ -5,17 +5,12 @@
 
 import { IRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $, addClass, removeClass } from 'vs/base/browser/dom';
+import { $, removeClass } from 'vs/base/browser/dom';
 
 export interface IRow {
 	domNode: HTMLElement;
 	templateId: string;
 	templateData: any;
-}
-
-function getLastScrollTime(element: HTMLElement): number {
-	var value = element.getAttribute('last-scroll-time');
-	return value ? parseInt(value, 10) : 0;
 }
 
 function removeFromParent(element: HTMLElement): void {
@@ -28,12 +23,10 @@ function removeFromParent(element: HTMLElement): void {
 
 export class RowCache<T> implements IDisposable {
 
-	private cache: { [templateId:string]: IRow[]; };
-	private scrollingRow: IRow;
+	private cache: { [templateId: string]: IRow[]; };
 
 	constructor(private renderers: { [templateId: string]: IRenderer<T, any>; }) {
 		this.cache = Object.create(null);
-		this.scrollingRow = null;
 	}
 
 	/**
@@ -54,49 +47,30 @@ export class RowCache<T> implements IDisposable {
 	}
 
 	/**
-	 * Releases the row for eventual reuse. The row's domNode
-	 * will eventually be removed from its parent, given that
-	 * it is not the currently scrolling row (for OS X ballistic
-	 * scrolling).
+	 * Releases the row for eventual reuse.
 	 */
 	release(row: IRow): void {
 		if (!row) {
 			return;
 		}
 
-		var lastScrollTime = getLastScrollTime(row.domNode);
+		this.releaseRow(row);
+	}
 
-		if (!lastScrollTime) {
-			removeFromParent(row.domNode);
-			this.getTemplateCache(row.templateId).push(row);
-			return;
-		}
+	private releaseRow(row: IRow): void {
+		const { domNode, templateId } = row;
+		removeClass(domNode, 'scrolling');
+		removeFromParent(domNode);
 
-		if (this.scrollingRow) {
-			var lastKnownScrollTime = getLastScrollTime(this.scrollingRow.domNode);
-
-			if (lastKnownScrollTime > lastScrollTime) {
-				removeFromParent(row.domNode);
-				this.getTemplateCache(row.templateId).push(row);
-				return;
-			}
-
-			if (this.scrollingRow.domNode.parentElement) {
-				removeFromParent(this.scrollingRow.domNode);
-				removeClass(this.scrollingRow.domNode, 'scrolling');
-				this.getTemplateCache(this.scrollingRow.templateId).push(this.scrollingRow);
-			}
-		}
-
-		this.scrollingRow = row;
-		addClass(this.scrollingRow.domNode, 'scrolling');
+		const cache = this.getTemplateCache(templateId);
+		cache.push(row);
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {
 		return this.cache[templateId] || (this.cache[templateId] = []);
 	}
 
-	garbageCollect(): void {
+	private garbageCollect(): void {
 		if (this.cache) {
 			Object.keys(this.cache).forEach(templateId => {
 				this.cache[templateId].forEach(cachedRow => {
@@ -108,12 +82,6 @@ export class RowCache<T> implements IDisposable {
 
 				delete this.cache[templateId];
 			});
-		}
-
-		if (this.scrollingRow) {
-			const renderer = this.renderers[this.scrollingRow.templateId];
-			renderer.disposeTemplate(this.scrollingRow.templateData);
-			this.scrollingRow = null;
 		}
 	}
 

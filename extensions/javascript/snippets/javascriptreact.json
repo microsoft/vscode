@@ -4,8 +4,8 @@
 		"body": [
 			"define([",
 			"\t'require',",
-			"\t'${dependency}'",
-			"], function(require, ${factory}) {",
+			"\t'${1:dependency}'",
+			"], function(require, ${2:factory}) {",
 			"\t'use strict';",
 			"\t$0",
 			"});"
@@ -15,8 +15,8 @@
 	"For Loop": {
 		"prefix": "for",
 		"body": [
-			"for (var ${index} = 0; ${index} < ${array}.length; ${index}++) {",
-			"\tvar ${element} = ${array}[${index}];",
+			"for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"\tvar ${3:element} = ${2:array}[${1:index}];",
 			"\t$0",
 			"}"
 		],
@@ -25,7 +25,7 @@
 	"For-Each Loop": {
 		"prefix": "foreach",
 		"body": [
-			"${array}.forEach(function(${element}) {",
+			"${1:array}.forEach(function(${2:element}) {",
 			"\t$0",
 			"}, this);"
 		],
@@ -34,9 +34,9 @@
 	"For-In Loop": {
 		"prefix": "forin",
 		"body": [
-			"for (var ${key} in ${object}) {",
-			"\tif (${object}.hasOwnProperty(${key})) {",
-			"\t\tvar ${element} = ${object}[${key}];",
+			"for (var ${1:key} in ${2:object}) {",
+			"\tif (${2:object}.hasOwnProperty(${1:key})) {",
+			"\t\tvar ${3:element} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
@@ -46,7 +46,7 @@
 	"Function Statement": {
 		"prefix": "function",
 		"body": [
-			"function ${name}(${params}) {",
+			"function ${1:name}(${2:params}) {",
 			"\t$0",
 			"}"
 		],
@@ -55,7 +55,7 @@
 	"If Statement": {
 		"prefix": "if",
 		"body": [
-			"if (${condition}) {",
+			"if (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
@@ -64,7 +64,7 @@
 	"If-Else Statement": {
 		"prefix": "ifelse",
 		"body": [
-			"if (${condition}) {",
+			"if (${1:condition}) {",
 			"\t$0",
 			"} else {",
 			"\t",
@@ -75,15 +75,15 @@
 	"New Statement": {
 		"prefix": "new",
 		"body": [
-			"var ${name} = new ${type}(${arguments});$0"
+			"var ${1:name} = new ${2:type}(${3:arguments});$0"
 		],
 		"description": "New Statement"
 	},
 	"Switch Statement": {
 		"prefix": "switch",
 		"body": [
-			"switch (${key}) {",
-			"\tcase ${value}:",
+			"switch (${1:key}) {",
+			"\tcase ${2:value}:",
 			"\t\t$0",
 			"\t\tbreak;",
 			"",
@@ -96,7 +96,7 @@
 	"While Statement": {
 		"prefix": "while",
 		"body": [
-			"while (${condition}) {",
+			"while (${1:condition}) {",
 			"\t$0",
 			"}"
 		],
@@ -107,16 +107,16 @@
 		"body": [
 			"do {",
 			"\t$0",
-			"} while (${condition});"
+			"} while (${1:condition});"
 		],
 		"description": "Do-While Statement"
 	},
-	"Try-Catch Statement":{
+	"Try-Catch Statement": {
 		"prefix": "trycatch",
 		"body": [
 			"try {",
 			"\t$0",
-			"} catch (${error}) {",
+			"} catch (${2:error}) {",
 			"\t",
 			"}"
 		],
@@ -127,7 +127,7 @@
 		"body": [
 			"setTimeout(function() {",
 			"\t$0",
-			"}, ${timeout});"
+			"}, ${1:timeout});"
 		],
 		"description": "Set Timeout Function"
 	},

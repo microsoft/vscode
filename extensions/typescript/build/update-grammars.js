@@ -8,7 +8,7 @@ var updateGrammar = require('../../../build/npm/update-grammar');
 
 function adaptToJavaScript(grammar) {
 	grammar.name = 'JavaScript (with React support)';
-	grammar.fileTypes = ['.js', '.jsx' ];
+	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs' ];
 	grammar.scopeName = 'source.js';
 
 	var fixScopeNames = function(rule) {
@@ -27,11 +27,8 @@ function adaptToJavaScript(grammar) {
 	for (var key in repository) {
 		fixScopeNames(repository[key]);
 	}
-	// disable type parameters
-	if (repository['type-parameters']) {
-		repository['type-parameters']['begin'] = 'DO_NOT_MATCH';
-	}
 }
+
 var tsGrammarRepo = 'Microsoft/TypeScript-TmLanguage';
 updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json');
 updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json');
