@@ -185,7 +185,7 @@
             "verbose"
           ],
           "default": "off",
-          "description": "Traces the communication between VS Code and the HTML language server."
+          "description": "%html.trace.server.desc%"
         }
       }
     }

@@ -57,7 +57,7 @@
           "title": "CSS",
           "allOf": [
             {
-              "title": "Controls CSS validation and problem severities.",
+              "title": "%css.validate.title%",
               "properties": {
                 "css.validate": {
                   "type": "boolean",
@@ -257,7 +257,7 @@
                     "verbose"
                   ],
                   "default": "off",
-                  "description": "Traces the communication between VS Code and the CSS language server."
+                  "description": "%css.trace.server.desc%"
                 }
               }
             }
@@ -269,7 +269,7 @@
           "title": "SCSS (Sass)",
           "allOf": [
             {
-              "title": "Controls SCSS validation and problem severities.",
+              "title": "%scss.validate.title%",
               "properties": {
                 "scss.validate": {
                   "type": "boolean",
@@ -472,7 +472,7 @@
           "title": "LESS",
           "allOf": [
             {
-              "title": "Controls LESS validation and problem severities.",
+              "title": "%less.validate.title%",
               "properties": {
                 "less.validate": {
                   "type": "boolean",
