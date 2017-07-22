@@ -12,7 +12,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, IRootProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -168,6 +168,7 @@ export class EditorLabel extends ResourceLabel {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	root?: uri;
 }
 
 export class FileLabel extends ResourceLabel {
@@ -188,11 +189,14 @@ export class FileLabel extends ResourceLabel {
 
 	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
 		const hidePath = options.hidePath || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-
+		const rootProvider: IRootProvider = options.root ? {
+			getRoot(): uri { return options.root; },
+			getWorkspace(): { roots: uri[]; } { return { roots: [options.root] }; },
+		} : this.contextService;
 		this.setLabel({
 			resource,
 			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
-			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0
+			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : void 0
 		}, options);
 	}
 }

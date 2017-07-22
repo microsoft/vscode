@@ -368,6 +368,7 @@ suite('SearchResult', () => {
 
 	function aSearchResult(): SearchResult {
 		let searchModel = instantiationService.createInstance(SearchModel);
+		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
 		return searchModel.searchResult;
 	}
 
