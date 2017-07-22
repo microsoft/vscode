@@ -72,7 +72,12 @@ export class TerminalLinkHandler {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
+
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
+			this._handleHypertextLink(uri);
+			return;
+		}));
+
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
 		});
@@ -117,9 +122,10 @@ export class TerminalLinkHandler {
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				event.preventDefault();
 				return false;
 			}
 			return handler(uri);
@@ -162,6 +168,12 @@ export class TerminalLinkHandler {
 	private _validateWebLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
 		this._addTooltipEventListeners(element);
 		callback(true);
+	}
+
+	private _handleHypertextLink(url: string) {
+		let uri = Uri.parse(url);
+		this._openerService.open(uri);
+		return;
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
