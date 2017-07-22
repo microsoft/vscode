@@ -362,4 +362,9 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	/**
+	 * Returns the executable of the current shell. This is only implemented for Windows.
+	 */
+	getShellName(): string;
 }

@@ -14,13 +14,18 @@ const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckWindowsShell: Emitter<string>;
+	private _programName: string;
 	private _rootShellExecutable: string;
 	private _rootProcessId: number;
+	private _shellName: string;
 
 	public constructor(rootProcessId: number, rootShellExecutable: string) {
 		this._childProcessIdStack = [];
 		this._rootShellExecutable = rootShellExecutable;
 		this._rootProcessId = rootProcessId;
+
+		this._programName = rootShellExecutable;
+		this._shellName = rootShellExecutable;
 
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
@@ -51,18 +56,18 @@ export class WindowsShellHelper {
 		});
 	}
 
-	private refreshShellProcessTree(pid: number, parent: string): TPromise<string> {
+	private refreshShellProcessTree(pid: number, parent: string): TPromise<{ program: string, shell: string }> {
 		return this.getChildProcessDetails(pid).then(result => {
 			// When we didn't find any child processes of the process
 			if (result.length === 0) {
 				// Case where we found a child process already and are checking further down the pid tree
 				// We have reached the end here so we know that parent is the deepest first child of the tree
 				if (parent) {
-					return TPromise.as(parent);
+					return TPromise.as({ program: parent, shell: parent });
 				}
 				// Case where we haven't found a child and only the root shell is left
 				if (this._childProcessIdStack.length === 1) {
-					return TPromise.as(this._rootShellExecutable);
+					return TPromise.as({ program: this._rootShellExecutable, shell: this._rootShellExecutable });
 				}
 				// Otherwise, we go up the tree to find the next valid deepest child of the root
 				this._childProcessIdStack.pop();
@@ -70,7 +75,7 @@ export class WindowsShellHelper {
 			}
 			// We only go one level deep when checking for children of processes other then shells
 			if (SHELL_EXECUTABLES.indexOf(path.basename(result[0].executable)) === -1) {
-				return TPromise.as(result[0].executable);
+				return TPromise.as({ program: result[0].executable, shell: parent });
 			}
 			// Save the pid in the stack and keep looking for children of that child
 			this._childProcessIdStack.push(result[0].pid);
@@ -79,16 +84,33 @@ export class WindowsShellHelper {
 	}
 
 	/**
-	 * Returns the innermost shell executable running in the terminal
+	 * Updates innermost shell executable and innermost shell running in the terminal
 	 */
-	public getShellName(): TPromise<string> {
+	public updateProgramName(): TPromise<void> {
 		if (this._childProcessIdStack.length === 0) {
 			this._childProcessIdStack.push(this._rootProcessId);
 		}
-		return new TPromise<string>((resolve) => {
-			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null).then(result => {
-				resolve(result);
+		return new TPromise<void>((resolve) => {
+			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], this._shellName !== this._programName ? this._shellName : null).then(result => {
+				this._programName = result.program;
+				this._shellName = result.shell;
+				resolve(null);
 			}, error => { return error; });
 		});
 	}
+
+	/**
+	 * Returns the innermost program executable running in the terminal
+	 */
+	public getProgramName(): string {
+		return this._programName;
+	}
+
+	/**
+	 * Returns the innermost shell executable running in the terminal
+	 */
+	public getShellName(): string {
+		return this._shellName;
+	}
+
 }
