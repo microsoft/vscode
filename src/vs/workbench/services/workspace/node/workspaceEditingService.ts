@@ -50,12 +50,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		if (!this.contextService.hasMultiFolderWorkspace()) {
-			return false; // we need a multi folder workspace to begin with
-		}
-
 		// TODO@Ben multi root
-		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+		return (
+			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
+			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+		);
 	}
 
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
