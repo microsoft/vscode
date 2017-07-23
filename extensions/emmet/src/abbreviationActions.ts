@@ -218,10 +218,11 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
-	if (input.textToWrap) {
-		// Below fixes https://github.com/Microsoft/vscode/issues/29898
-		// With below, Emmet formats inline elements as block elements 
-		// ensuring the wrapped text does not get merged to a single line
+
+	// Below fixes https://github.com/Microsoft/vscode/issues/29898
+	// With this, Emmet formats inline elements as block elements 
+	// ensuring the wrapped multi line text does not get merged to a single line
+	if (input.textToWrap && !input.rangeToReplace.isSingleLine) {
 		expandOptions.profile['inlineBreak'] = 1;
 	}
 
