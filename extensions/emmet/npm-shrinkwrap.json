@@ -117,15 +117,20 @@
       "from": "@emmetio/variable-resolver@>=0.2.1 <0.3.0",
       "resolved": "https://registry.npmjs.org/@emmetio/variable-resolver/-/variable-resolver-0.2.1.tgz"
     },
+    "image-size": {
+      "version": "0.5.5",
+      "from": "image-size@>=0.5.2 <0.6.0",
+      "resolved": "https://registry.npmjs.org/image-size/-/image-size-0.5.5.tgz"
+    },
     "vscode-emmet-helper": {
       "version": "0.0.28",
       "from": "vscode-emmet-helper@0.0.28",
       "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-0.0.28.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.0.3",
+      "version": "3.3.0",
       "from": "vscode-languageserver-types@>=3.0.3 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.3.0.tgz"
     }
   }
 }
