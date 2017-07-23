@@ -177,27 +177,24 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
 	const srcAttr = getAttribute(node, 'src');
 	const widthAttr = getAttribute(node, 'width');
 	const heightAttr = getAttribute(node, 'height');
+	const quote = getAttributeQuote(editor, srcAttr);
+	const endOfAttributes = node.attributes[node.attributes.length - 1].end;
 
 	let edits: [Range, string][] = [];
+	let textToAdd = '';
 
-	// apply changes from right to left, first for height, then for width
-	let point: Position;
-	const quote = getAttributeQuote(editor, widthAttr || heightAttr || srcAttr);
-
+	if (!widthAttr) {
+		textToAdd += ` width=${quote}${width}${quote}`;
+	} else {
+		edits.push([new Range(widthAttr.value.start, widthAttr.value.end), String(width)]);
+	}
 	if (!heightAttr) {
-		// no `height` attribute, add it right after `width` or `src`
-		point = widthAttr ? widthAttr.end : srcAttr.end;
-		edits.push([new Range(point, point), ` height=${quote}${height}${quote}`]);
+		textToAdd += ` height=${quote}${height}${quote}`;
 	} else {
 		edits.push([new Range(heightAttr.value.start, heightAttr.value.end), String(height)]);
 	}
-
-	if (!widthAttr) {
-		// no `width` attribute, add it right before `height` or after `src`
-		point = heightAttr ? heightAttr.start : srcAttr.end;
-		edits.push([new Range(point, point), ` width=${quote}${width}${quote}`]);
-	} else {
-		edits.push([new Range(widthAttr.value.start, widthAttr.value.end), String(width)]);
+	if (textToAdd) {
+		edits.push([new Range(endOfAttributes, endOfAttributes), textToAdd]);
 	}
 
 	return editor.edit(builder => {
@@ -228,27 +225,19 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 		edits.push([new Range(srcProp.end, srcProp.end), ';']);
 	}
 
-	let point: Position;
-	if (!heightProp) {
-		// no `height` property, add it right after `width` or source property
-		point = widthProp ? widthProp.start : srcProp.end;
-		edits.push([new Range(point, point), `${before}height${separator}${height}px;`]);
-	} else {
-		edits.push([new Range(heightProp.valueToken.start, heightProp.valueTokenend), `${height}px`]);
-	}
-
+	let textToAdd = '';
 	if (!widthProp) {
-		// no `width` attribute, add it right after `height` or source property
-		if (heightProp) {
-			point = heightProp.previousSibling
-				? heightProp.previousSibling.end
-				: rule.contentStartToken.end;
-		} else {
-			point = srcProp.end;
-		}
-		edits.push([new Range(point, point), `${before}width${separator}${width}px;`]);
+		textToAdd += `${before}width${separator}${width}px;`;
 	} else {
-		edits.push([new Range(widthProp.valueToken.start, widthProp.valueTokenend), `${width}px`]);
+		edits.push([new Range(widthProp.valueToken.start, widthProp.valueToken.end), `${width}px`]);
+	}
+	if (!heightProp) {
+		textToAdd += `${before}height${separator}${height}px;`;
+	} else {
+		edits.push([new Range(heightProp.valueToken.start, heightProp.valueToken.end), `${height}px`]);
+	}
+	if (textToAdd) {
+		edits.push([new Range(srcProp.end, srcProp.end), textToAdd]);
 	}
 
 	return editor.edit(builder => {
