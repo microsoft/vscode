@@ -75,7 +75,6 @@ export class TerminalLinkHandler {
 
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
 			this._handleHypertextLink(uri);
-			return;
 		}));
 
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
@@ -106,7 +105,6 @@ export class TerminalLinkHandler {
 	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
-			return;
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
@@ -170,10 +168,9 @@ export class TerminalLinkHandler {
 		callback(true);
 	}
 
-	private _handleHypertextLink(url: string) {
+	private _handleHypertextLink(url: string): void {
 		let uri = Uri.parse(url);
 		this._openerService.open(uri);
-		return;
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
