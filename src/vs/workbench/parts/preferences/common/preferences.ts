@@ -73,6 +73,7 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	defaultKeybindingsResource: URI;
 
+	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openSettings(target: ConfigurationTarget | URI): TPromise<IEditor>;

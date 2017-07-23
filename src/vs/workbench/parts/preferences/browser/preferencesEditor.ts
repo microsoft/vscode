@@ -422,13 +422,13 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.defaultPreferencesEditorContainer = DOM.append(parentElement, DOM.$('.default-preferences-editor-container'));
 		this.defaultPreferencesEditorContainer.style.position = 'absolute';
-		this.defaultPreferencesEditor = this.instantiationService.createInstance(DefaultPreferencesEditor);
+		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
 		this.defaultPreferencesEditor.setVisible(true);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
-		this.editablePreferencesEditor = this.instantiationService.createInstance(EditableSettingsEditor);
+		this.editablePreferencesEditor = this._register(this.instantiationService.createInstance(EditableSettingsEditor));
 		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
 		this.editablePreferencesEditor.setVisible(true);
 
@@ -582,14 +582,22 @@ export class EditableSettingsEditor extends BaseTextEditor {
 				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
 	}
 
+	clearInput(): void {
+		this.modelDisposables = dispose(this.modelDisposables);
+		super.clearInput();
+	}
+
 	private onDidModelChange(): void {
 		this.modelDisposables = dispose(this.modelDisposables);
 		const model = getCodeEditor(this).getModel();
-		this.modelDisposables.push(model.onDidChangeContent(() => this.save(model.uri)));
-	}
-
-	private save(resource: URI): void {
-		this.textFileService.save(resource);
+		if (model) {
+			this.preferencesService.createPreferencesEditorModel(model.uri)
+				.then(preferencesEditorModel => {
+					const settingsEditorModel = <SettingsEditorModel>preferencesEditorModel;
+					this.modelDisposables.push(settingsEditorModel);
+					this.modelDisposables.push(model.onDidChangeContent(() => settingsEditorModel.save()));
+				});
+		}
 	}
 }
 
