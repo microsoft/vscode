@@ -14,6 +14,8 @@ import { isStyleSheet } from 'vscode-emmet-helper';
 import { parse, getNode, iterateCSSToken } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetNode';
 import { locateFile } from './locateFile';
+import parseStylesheet from '@emmetio/css-parser';
+import { DocumentStreamReader } from './bufferStream';
 
 /**
  * Updates size of context image in given editor
@@ -28,7 +30,7 @@ export function updateImageSize() {
 	if (!isStyleSheet(editor.document.languageId)) {
 		return updateImageSizeHTML(editor);
 	} else {
-		return updateImageSizeCSS(editor);
+		return updateImageSizeCSSFile(editor);
 	}
 }
 
@@ -39,7 +41,7 @@ function updateImageSizeHTML(editor: TextEditor) {
 	const src = getImageSrcHTML(getImageHTMLNode(editor));
 
 	if (!src) {
-		return Promise.reject(new Error('No valid image source'));
+		return updateImageSizeStyleTag(editor);
 	}
 
 	locateFile(path.dirname(editor.document.fileName), src)
@@ -55,12 +57,33 @@ function updateImageSizeHTML(editor: TextEditor) {
 		.catch(err => console.warn('Error while updating image size:', err));
 }
 
+function updateImageSizeStyleTag(editor: TextEditor) {
+	let getPropertyInsiderStyleTag = (editor) => {
+		const rootNode = parse(editor.document);
+		const currentNode = <HtmlNode>getNode(rootNode, editor.selection.active);
+		if (currentNode && currentNode.name === 'style'
+			&& currentNode.open.end.isBefore(editor.selection.active)
+			&& currentNode.close.start.isAfter(editor.selection.active)) {
+			let buffer = new DocumentStreamReader(editor.document, currentNode.start, new Range(currentNode.start, currentNode.end));
+			let rootNode = parseStylesheet(buffer);
+			const node = getNode(rootNode, editor.selection.active);
+			return (node && node.type === 'property') ? <Property>node : null;
+		}
+	};
+
+	return updateImageSizeCSS(editor, getPropertyInsiderStyleTag);
+}
+
+function updateImageSizeCSSFile(editor: TextEditor) {
+	return updateImageSizeCSS(editor, getImageCSSNode);
+}
+
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor) {
+function updateImageSizeCSS(editor: TextEditor, fetchNode: (editor) => Property) {
 
-	const src = getImageSrcCSS(getImageCSSNode(editor), editor.selection.active);
+	const src = getImageSrcCSS(fetchNode(editor), editor.selection.active);
 
 	if (!src) {
 		return Promise.reject(new Error('No valid image source'));
@@ -71,7 +94,7 @@ function updateImageSizeCSS(editor: TextEditor) {
 		.then((size: any) => {
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
-			const prop = getImageCSSNode(editor);
+			const prop = fetchNode(editor);
 			if (getImageSrcCSS(prop, editor.selection.active) === src) {
 				updateCSSNode(editor, prop, size.width, size.height);
 			}
@@ -126,6 +149,9 @@ function getImageSrcHTML(node: HtmlNode): string {
  * @return {string}
  */
 function getImageSrcCSS(node: Property, position: Position): string {
+	if (!node) {
+		return;
+	}
 	const urlToken = findUrlToken(node, position);
 	if (!urlToken) {
 		return;
