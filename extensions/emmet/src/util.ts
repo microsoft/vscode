@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode } from 'EmmetNode';
+import { Node, HtmlNode, CssToken } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -261,4 +261,18 @@ export function getEmmetConfiguration() {
 		syntaxProfiles: emmetConfig['syntaxProfiles'],
 		variables: emmetConfig['variables']
 	};
+}
+
+/**
+ * Itereates by each child, as well as nested child’ children, in their order
+ * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
+ * @param  {Token}    token
+ * @param  {Function} fn
+ */
+export function iterateCSSToken(token: CssToken, fn) {
+	for (let i = 0, il = token.size; i < il; i++) {
+		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
+			return false;
+		}
+	}
 }

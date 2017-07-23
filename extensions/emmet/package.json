@@ -75,6 +75,7 @@
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
         "vscode-emmet-helper":"0.0.28",
-        "vscode-languageserver-types": "^3.0.3"
+        "vscode-languageserver-types": "^3.0.3",
+        "image-size": "^0.5.2"
     }
 }
