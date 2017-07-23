@@ -17,6 +17,7 @@
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
 	padding-left: 20px; /*Don't use right padding in case xterm.js misbehaves*/
+	padding-bottom: 2px;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -27,9 +28,8 @@
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
 	position: absolute;
-	bottom: 0;
+	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
-	padding-bottom: 2px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
