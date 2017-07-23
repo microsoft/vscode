@@ -40,11 +40,11 @@ export function wrapWithAbbreviation(args) {
 			}
 			const firstLine = editor.document.lineAt(rangeToReplace.start).text;
 			const firstLineTillSelection = firstLine.substr(0, rangeToReplace.start.character);
-			const noTextBeforeSelection = /^\s*$/.test(firstLineTillSelection);
+			const whitespaceBeforeSelection = /^\s*$/.test(firstLineTillSelection);
 			let textToWrap = '';
 			let preceedingWhiteSpace = '';
 
-			if (noTextBeforeSelection) {
+			if (whitespaceBeforeSelection && !rangeToReplace.isSingleLine) {
 				const matches = firstLine.match(/^(\s*)/);
 				if (matches) {
 					preceedingWhiteSpace = matches[1];
@@ -231,7 +231,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	}
 
 	// If no text to wrap, then return the expanded text
-	if (!input.textToWrap) {
+	if (!input.textToWrap || !input.preceedingWhiteSpace) {
 		return expandedText;
 	}
 
