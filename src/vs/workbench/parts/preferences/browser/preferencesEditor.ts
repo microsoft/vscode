@@ -553,6 +553,7 @@ export class EditableSettingsEditor extends BaseTextEditor {
 	public static ID: string = 'workbench.editor.settingsEditor';
 
 	private modelDisposables: IDisposable[] = [];
+	private saveDelayer: Delayer<void>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -569,6 +570,7 @@ export class EditableSettingsEditor extends BaseTextEditor {
 	) {
 		super(EditableSettingsEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 		this._register({ dispose: () => dispose(this.modelDisposables) });
+		this.saveDelayer = new Delayer<void>(200);
 	}
 
 	protected createEditor(parent: Builder): void {
@@ -614,7 +616,7 @@ export class EditableSettingsEditor extends BaseTextEditor {
 				.then(preferencesEditorModel => {
 					const settingsEditorModel = <SettingsEditorModel>preferencesEditorModel;
 					this.modelDisposables.push(settingsEditorModel);
-					this.modelDisposables.push(model.onDidChangeContent(() => settingsEditorModel.save()));
+					this.modelDisposables.push(model.onDidChangeContent(() => this.saveDelayer.trigger(() => settingsEditorModel.save())));
 				});
 		}
 	}
