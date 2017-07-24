@@ -384,11 +384,14 @@ export class SearchWidget extends Widget {
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
 
-	private _onDidChange = this._register(new Emitter<string>());
+	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
-	private _onNavigate = this._register(new Emitter<boolean>());
+	private _onNavigate: Emitter<boolean> = this._register(new Emitter<boolean>());
 	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
+
+	private _onFocus: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onFocus: Event<void> = this._onFocus.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -418,8 +421,10 @@ export class SearchWidget extends Widget {
 		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 
+		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
+		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
+
 		if (this.options.focusKey) {
-			const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 			this._register(focusTracker.addFocusListener(() => this.options.focusKey.set(true)));
 			this._register(focusTracker.addBlurListener(() => this.options.focusKey.set(false)));
 		}
