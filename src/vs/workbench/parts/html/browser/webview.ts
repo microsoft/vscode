@@ -122,6 +122,7 @@ export default class Webview {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
 						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -133,6 +134,7 @@ export default class Webview {
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
 						if (uri && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -195,7 +197,6 @@ export default class Webview {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
-
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
@@ -257,6 +258,12 @@ export default class Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
+	}
+
+	private onDidBlockSvg() {
+		this.sendMessage({
+			name: 'vscode-did-block-svg'
+		});
 	}
 
 	style(theme: ITheme): void {

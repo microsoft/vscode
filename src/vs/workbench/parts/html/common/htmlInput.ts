@@ -14,6 +14,10 @@ export interface HtmlInputOptions {
 	allowSvgs?: boolean;
 }
 
+export function areHtmlInputOptionsEqual(left: HtmlInputOptions, right: HtmlInputOptions) {
+	return left.allowScripts === right.allowScripts && left.allowSvgs === right.allowSvgs;
+}
+
 export class HtmlInput extends ResourceEditorInput {
 	constructor(
 		name: string,
@@ -23,5 +27,13 @@ export class HtmlInput extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(name, description, resource, textModelResolverService);
+	}
+
+	public matches(otherInput: any): boolean {
+		if (!super.matches(otherInput)) {
+			return false;
+		}
+
+		return otherInput instanceof HtmlInput && areHtmlInputOptionsEqual(this.options, otherInput.options);
 	}
 }
