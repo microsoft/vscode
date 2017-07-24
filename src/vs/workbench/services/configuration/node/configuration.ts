@@ -256,8 +256,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.lookup<C>(key, overrides);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this._configuration.keys();
+	public keys(overrides?: IConfigurationOverrides): IConfigurationKeys {
+		return this._configuration.keys(overrides);
 	}
 
 	public values<V>(): IConfigurationValues {
