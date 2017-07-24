@@ -594,6 +594,10 @@ export class CommandCenter {
 		await this.model.clean(...this.model.workingTreeGroup.resources);
 	}
 
+	public async commitStagedWithMessage(commitMessage? : string): Promise<void> {
+		await this.smartCommit(async () => commitMessage, { all: false });
+	}
+
 	private async smartCommit(
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions

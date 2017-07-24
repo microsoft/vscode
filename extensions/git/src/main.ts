@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
-import { Model } from './model';
+import { Model, Resource } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
 import { StatusBarCommands } from './statusbar';
@@ -19,7 +19,8 @@ import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-async function init(context: ExtensionContext, disposables: Disposable[]): Promise<void> {
+let commandCenter : CommandCenter;
+async function init(context: ExtensionContext, disposables: Disposable[]): Promise<Model | undefined> {
 	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
 	const telemetryReporter: TelemetryReporter = new TelemetryReporter(name, version, aiKey);
 	disposables.push(telemetryReporter);
@@ -38,7 +39,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 
 	if (!workspaceRootPath || !enabled) {
-		const commandCenter = new CommandCenter(git, undefined, outputChannel, telemetryReporter);
+		commandCenter = new CommandCenter(git, undefined, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
 	}
@@ -51,7 +52,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
+	commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	const statusBarCommands = new StatusBarCommands(model);
 	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
 	const contentProvider = new GitContentProvider(model);
@@ -66,14 +67,32 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	);
 
 	await checkGitVersion(info);
+	return model;
 }
 
 export function activate(context: ExtensionContext): any {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+	let api = {
+		getResources() : Resource[] | undefined {
+			return undefined;
+		},
+		commitStaged(commitMessage? : string) {
+			commandCenter.commitStagedWithMessage(commitMessage);
+		},
+		push() {
+			commandCenter.push();
+		}
+	};
 
 	init(context, disposables)
+		.then((model) => {
+			api.getResources = function() {
+				return model ? model.indexGroup.resources : undefined;
+			}
+		})
 		.catch(err => console.error(err));
+	return api;
 }
 
 async function checkGitVersion(info: IGit): Promise<void> {
