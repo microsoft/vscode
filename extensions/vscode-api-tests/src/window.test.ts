@@ -24,15 +24,6 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, opened via fileName', () => {
-		const fileName = join(workspace.rootPath || '', './far.js');
-		return window.showTextDocument(fileName).then((editor) => {
-			const active = window.activeTextEditor;
-			assert.ok(active);
-			assert.ok(pathEquals(active!.document.uri.fsPath, fileName));
-		});
-	});
-
 	test('editor, opened via resource', () => {
 		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
 		return window.showTextDocument(uri).then((editor) => {
