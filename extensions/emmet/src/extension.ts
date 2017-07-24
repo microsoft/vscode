@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.removeTag', () => {
-		removeTag();
+		return removeTag();
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', (inputTag) => {
@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.splitJoinTag', () => {
-		splitJoinTag();
+		return splitJoinTag();
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.mergeLines', () => {
