@@ -4063,14 +4063,40 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
-		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
-		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 * Show the given document in a text editor. [Options](#TextDocumentShowOptions) can be provided
+		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
 		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
+		 * A short-hand for `openTextDocument(fileName).then(document => showTextDocument(document))` to show the given file in a text
+		 * editor (see [openTextDocument](#openTextDocument)).
+		 *
+		 * [Options](#TextDocumentShowOptions) can be provided to control options of the editor is being shown.
+		 * Might change the [active editor](#window.activeTextEditor).
+		 *
+		 * @param uri A resource identifier.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(fileName: string, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
+		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document))` to show the given resource in a text
+		 * editor (see [openTextDocument](#openTextDocument)).
+		 *
+		 * [Options](#TextDocumentShowOptions) can be provided to control options of the editor is being shown.
+		 * Might change the [active editor](#window.activeTextEditor).
+		 *
+		 * @param uri A resource identifier.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
