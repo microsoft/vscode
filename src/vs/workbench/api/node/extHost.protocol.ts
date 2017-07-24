@@ -203,7 +203,7 @@ export abstract class MainThreadEditorsShape {
 
 export abstract class MainThreadTreeViewsShape {
 	$registerView(treeViewId: string): void { throw ni(); }
-	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
+	$refresh(treeViewId: string, treeItemHandles: number[]): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {

@@ -9,26 +9,23 @@ import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
+import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, Delayer } from 'vs/base/common/async';
 
 type TreeItemHandle = number;
 
 export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
-	private _proxy: MainThreadTreeViewsShape;
 
 	constructor(
-		threadService: IThreadService,
+		private _proxy: MainThreadTreeViewsShape,
 		private commands: ExtHostCommands
 	) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadTreeViews);
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
 				if (arg && arg.$treeViewId && arg.$treeItemHandle) {
@@ -80,7 +77,10 @@ class ExtHostTreeView<T> extends Disposable {
 	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
 	private extChildrenElementsMap: Map<T, T[]> = new Map<T, T[]>();
 
-	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, ) {
+	private refreshDelayer: Delayer<void> = new Delayer<void>(200);
+	private itemsToRefresh: TreeItemHandle[] = [];
+
+	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
 		this.proxy.$registerView(viewId);
 		if (dataProvider.onDidChangeTreeData) {
@@ -114,14 +114,24 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private _refresh(element: T): void {
-		if (element) {
+		if (this.itemsToRefresh && element) {
 			const itemHandle = this.itemHandlesMap.get(element);
 			if (itemHandle) {
-				this.proxy.$refresh(this.viewId, itemHandle);
+				if (this.itemsToRefresh.indexOf(itemHandle) === -1) {
+					this.itemsToRefresh.push(itemHandle);
+					this.refreshDelayer.trigger(() => this._doRefresh());
+				}
 			}
 		} else {
-			this.proxy.$refresh(this.viewId);
+			// Indicates that root has to be refreshed
+			this.itemsToRefresh = null;
+			this.refreshDelayer.trigger(() => this._doRefresh());
 		}
+	}
+
+	private _doRefresh(): void {
+		this.proxy.$refresh(this.viewId, this.itemsToRefresh || []);
+		this.itemsToRefresh = [];
 	}
 
 	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
