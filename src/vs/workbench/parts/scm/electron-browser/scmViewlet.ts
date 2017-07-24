@@ -13,7 +13,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import { ComposedViewsViewlet, CollapsibleView, ICollapsibleViewOptions, IViewletViewOptions, IView } from 'vs/workbench/parts/views/browser/views';
+import { ComposedViewsViewlet, CollapsibleView, ICollapsibleViewOptions, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -257,7 +257,7 @@ class SourceControlView extends CollapsibleView {
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super({...options, sizing: ViewSizing.Flexible}, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, provider);
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
@@ -370,7 +370,7 @@ class SourceControlView extends CollapsibleView {
 
 class InstallAdditionalSCMProvidersAction extends Action {
 
-	constructor(@IViewletService private viewletService: IViewletService) {
+	constructor( @IViewletService private viewletService: IViewletService) {
 		super('scm.installAdditionalSCMProviders', localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."), '', true);
 	}
 
