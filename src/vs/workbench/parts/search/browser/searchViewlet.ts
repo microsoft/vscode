@@ -1178,7 +1178,17 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private buildResultCountMessage(resultCount: number, fileCount: number, folderCount: number): string {
-		if (folderCount === 1) {
+		if (!this.contextService.hasMultiFolderWorkspace()) {
+			if (resultCount === 1 && fileCount === 1) {
+				return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
+			} else if (resultCount === 1) {
+				return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
+			} else if (fileCount === 1) {
+				return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
+			} else {
+				return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
+			}
+		} else if (folderCount === 1) {
 			if (resultCount === 1 && fileCount === 1) {
 				return nls.localize('search.folder.file.result', "{0} result in {1} file in {2} folder", resultCount, fileCount, folderCount);
 			} else if (resultCount === 1) {
