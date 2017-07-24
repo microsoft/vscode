@@ -32,7 +32,7 @@ export class LinkDetector {
 			')' +
 			':line\ ' +	// ends with :line literal
 			'(\d+)$', // Line number
-			'g')
+			'mg')
 	];
 
 	constructor(
