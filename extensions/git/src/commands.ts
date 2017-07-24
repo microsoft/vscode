@@ -8,6 +8,7 @@
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
+import { ModelRegistry } from './modelRegistry';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
@@ -119,46 +120,52 @@ function command(commandId: string, skipModelCheck = false, requiresDiffInformat
 	};
 }
 
+function globalCommand(commandId: string): Function {
+	return command(commandId, true, false);
+}
+
+function modelCommand(commandId: string): Function {
+	return command(commandId);
+}
+
+function diffCommand(commandId: string): Function {
+	return command(commandId, false, true);
+}
+
 export class CommandCenter {
 
-	private model: Model;
 	private disposables: Disposable[];
 
 	constructor(
 		private git: Git,
-		model: Model | undefined,
+		private modelRegistry: ModelRegistry,
 		private outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
-		if (model) {
-			this.model = model;
-		}
+		this.disposables = Commands.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
+			const command = this.createCommand(commandId, key, method, skipModelCheck);
 
-		this.disposables = Commands
-			.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
-				const command = this.createCommand(commandId, key, method, skipModelCheck);
-
-				if (requiresDiffInformation) {
-					return commands.registerDiffInformationCommand(commandId, command);
-				} else {
-					return commands.registerCommand(commandId, command);
-				}
-			});
+			if (requiresDiffInformation) {
+				return commands.registerDiffInformationCommand(commandId, command);
+			} else {
+				return commands.registerCommand(commandId, command);
+			}
+		});
 	}
 
-	@command('git.refresh')
-	async refresh(): Promise<void> {
-		await this.model.status();
+	@modelCommand('git.refresh')
+	async refresh(model: Model): Promise<void> {
+		await model.status();
 	}
 
-	@command('git.openResource')
-	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource);
+	@modelCommand('git.openResource')
+	async openResource(model: Model, resource: Resource): Promise<void> {
+		await this._openResource(model, resource);
 	}
 
-	private async _openResource(resource: Resource): Promise<void> {
+	private async _openResource(model: Model, resource: Resource): Promise<void> {
 		const left = this.getLeftResource(resource);
-		const right = this.getRightResource(resource);
+		const right = this.getRightResource(model, resource);
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -197,7 +204,7 @@ export class CommandCenter {
 		}
 	}
 
-	private getRightResource(resource: Resource): Uri | undefined {
+	private getRightResource(model: Model, resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -213,7 +220,7 @@ export class CommandCenter {
 			case Status.UNTRACKED:
 			case Status.IGNORED:
 				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString);
+				const [indexStatus] = model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.renameResourceUri) {
 					return indexStatus.renameResourceUri;
@@ -241,7 +248,7 @@ export class CommandCenter {
 		return '';
 	}
 
-	@command('git.clone', true)
+	@globalCommand('git.clone')
 	async clone(): Promise<void> {
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
@@ -291,13 +298,14 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.init')
+	@globalCommand('git.init')
 	async init(): Promise<void> {
-		await this.model.init();
+		// TODO@joao
+		// await model.init();
 	}
 
-	@command('git.openFile')
-	async openFile(arg?: Resource | Uri): Promise<void> {
+	@modelCommand('git.openFile')
+	async openFile(model: Model, arg?: Resource | Uri): Promise<void> {
 		let uri: Uri | undefined;
 
 		if (arg instanceof Uri) {
@@ -311,7 +319,7 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				resource = this.getSCMResource();
+				resource = this.getSCMResource(model);
 			}
 
 			if (resource) {
@@ -335,16 +343,16 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openHEADFile')
-	async openHEADFile(arg?: Resource | Uri): Promise<void> {
+	@modelCommand('git.openHEADFile')
+	async openHEADFile(model: Model, arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
 			resource = arg;
 		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(arg);
+			resource = this.getSCMResource(model, arg);
 		} else {
-			resource = this.getSCMResource();
+			resource = this.getSCMResource(model);
 		}
 
 		if (!resource) {
@@ -361,29 +369,29 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD);
 	}
 
-	@command('git.openChange')
-	async openChange(arg?: Resource | Uri): Promise<void> {
+	@modelCommand('git.openChange')
+	async openChange(model: Model, arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
 			resource = arg;
 		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(arg);
+			resource = this.getSCMResource(model, arg);
 		} else {
-			resource = this.getSCMResource();
+			resource = this.getSCMResource(model);
 		}
 
 		if (!resource) {
 			return;
 		}
 
-		return await this._openResource(resource);
+		return await this._openResource(model, resource);
 	}
 
-	@command('git.stage')
-	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@modelCommand('git.stage')
+	async stage(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource();
+			const resource = this.getSCMResource(model);
 
 			if (!resource) {
 				return;
@@ -399,16 +407,16 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.add(...resources);
+		return await model.add(...resources);
 	}
 
-	@command('git.stageAll')
-	async stageAll(): Promise<void> {
-		return await this.model.add();
+	@modelCommand('git.stageAll')
+	async stageAll(model: Model): Promise<void> {
+		return await model.add();
 	}
 
-	@command('git.stageSelectedRanges', false, true)
-	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	@diffCommand('git.stageSelectedRanges')
+	async stageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -435,11 +443,11 @@ export class CommandCenter {
 
 		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 
-		await this.model.stage(modifiedUri, result);
+		await model.stage(modifiedUri, result);
 	}
 
-	@command('git.revertSelectedRanges', false, true)
-	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
+	@diffCommand('git.revertSelectedRanges')
+	async revertSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -483,10 +491,10 @@ export class CommandCenter {
 		workspace.applyEdit(edit);
 	}
 
-	@command('git.unstage')
-	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@modelCommand('git.unstage')
+	async unstage(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource();
+			const resource = this.getSCMResource(model);
 
 			if (!resource) {
 				return;
@@ -502,16 +510,16 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.model.revertFiles(...resources);
+		return await model.revertFiles(...resources);
 	}
 
-	@command('git.unstageAll')
-	async unstageAll(): Promise<void> {
-		return await this.model.revertFiles();
+	@modelCommand('git.unstageAll')
+	async unstageAll(model: Model): Promise<void> {
+		return await model.revertFiles();
 	}
 
-	@command('git.unstageSelectedRanges', false, true)
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	@diffCommand('git.unstageSelectedRanges')
+	async unstageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -545,13 +553,13 @@ export class CommandCenter {
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		await this.model.stage(modifiedUri, result);
+		await model.stage(modifiedUri, result);
 	}
 
-	@command('git.clean')
-	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@modelCommand('git.clean')
+	async clean(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource();
+			const resource = this.getSCMResource(model);
 
 			if (!resource) {
 				return;
@@ -578,11 +586,11 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.clean(...resources);
+		await model.clean(...resources);
 	}
 
-	@command('git.cleanAll')
-	async cleanAll(): Promise<void> {
+	@modelCommand('git.cleanAll')
+	async cleanAll(model: Model): Promise<void> {
 		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
 		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
@@ -591,17 +599,18 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.clean(...this.model.workingTreeGroup.resources);
+		await model.clean(...model.workingTreeGroup.resources);
 	}
 
 	private async smartCommit(
+		model: Model,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const noStagedChanges = this.model.indexGroup.resources.length === 0;
-		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
+		const noStagedChanges = model.indexGroup.resources.length === 0;
+		const noUnstagedChanges = model.workingTreeGroup.resources.length === 0;
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
@@ -640,12 +649,12 @@ export class CommandCenter {
 			return false;
 		}
 
-		await this.model.commit(message, opts);
+		await model.commit(message, opts);
 
 		return true;
 	}
 
-	private async commitWithAnyInput(opts?: CommitOptions): Promise<void> {
+	private async commitWithAnyInput(model: Model, opts?: CommitOptions): Promise<void> {
 		const message = scm.inputBox.value;
 		const getCommitMessage = async () => {
 			if (message) {
@@ -659,68 +668,68 @@ export class CommandCenter {
 			});
 		};
 
-		const didCommit = await this.smartCommit(getCommitMessage, opts);
+		const didCommit = await this.smartCommit(model, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			scm.inputBox.value = await this.model.getCommitTemplate();
+			scm.inputBox.value = await model.getCommitTemplate();
 		}
 	}
 
-	@command('git.commit')
-	async commit(): Promise<void> {
-		await this.commitWithAnyInput();
+	@modelCommand('git.commit')
+	async commit(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model);
 	}
 
-	@command('git.commitWithInput')
-	async commitWithInput(): Promise<void> {
+	@modelCommand('git.commitWithInput')
+	async commitWithInput(model: Model): Promise<void> {
 		if (!scm.inputBox.value) {
 			return;
 		}
 
-		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
+		const didCommit = await this.smartCommit(model, async () => scm.inputBox.value);
 
 		if (didCommit) {
-			scm.inputBox.value = await this.model.getCommitTemplate();
+			scm.inputBox.value = await model.getCommitTemplate();
 		}
 	}
 
-	@command('git.commitStaged')
-	async commitStaged(): Promise<void> {
-		await this.commitWithAnyInput({ all: false });
+	@modelCommand('git.commitStaged')
+	async commitStaged(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: false });
 	}
 
-	@command('git.commitStagedSigned')
-	async commitStagedSigned(): Promise<void> {
-		await this.commitWithAnyInput({ all: false, signoff: true });
+	@modelCommand('git.commitStagedSigned')
+	async commitStagedSigned(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: false, signoff: true });
 	}
 
-	@command('git.commitAll')
-	async commitAll(): Promise<void> {
-		await this.commitWithAnyInput({ all: true });
+	@modelCommand('git.commitAll')
+	async commitAll(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: true });
 	}
 
-	@command('git.commitAllSigned')
-	async commitAllSigned(): Promise<void> {
-		await this.commitWithAnyInput({ all: true, signoff: true });
+	@modelCommand('git.commitAllSigned')
+	async commitAllSigned(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: true, signoff: true });
 	}
 
-	@command('git.undoCommit')
-	async undoCommit(): Promise<void> {
-		const HEAD = this.model.HEAD;
+	@modelCommand('git.undoCommit')
+	async undoCommit(model: Model): Promise<void> {
+		const HEAD = model.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
 			return;
 		}
 
-		const commit = await this.model.getCommit('HEAD');
-		await this.model.reset('HEAD~');
+		const commit = await model.getCommit('HEAD');
+		await model.reset('HEAD~');
 		scm.inputBox.value = commit.message;
 	}
 
-	@command('git.checkout')
-	async checkout(treeish: string): Promise<void> {
+	@modelCommand('git.checkout')
+	async checkout(model: Model, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
-			return await this.model.checkout(treeish);
+			return await model.checkout(treeish);
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -730,13 +739,13 @@ export class CommandCenter {
 
 		const createBranch = new CreateBranchItem();
 
-		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+		const heads = model.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
 
-		const tags = (includeTags ? this.model.refs.filter(ref => ref.type === RefType.Tag) : [])
+		const tags = (includeTags ? model.refs.filter(ref => ref.type === RefType.Tag) : [])
 			.map(ref => new CheckoutTagItem(ref));
 
-		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+		const remoteHeads = (includeRemotes ? model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
@@ -747,11 +756,11 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(this.model);
+		await choice.run(model);
 	}
 
-	@command('git.branch')
-	async branch(): Promise<void> {
+	@modelCommand('git.branch')
+	async branch(model: Model): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
@@ -763,17 +772,17 @@ export class CommandCenter {
 		}
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await this.model.branch(name);
+		await model.branch(name);
 	}
 
-	@command('git.deleteBranch')
-	async deleteBranch(name: string, force?: boolean): Promise<void> {
+	@modelCommand('git.deleteBranch')
+	async deleteBranch(model: Model, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => this.model.deleteBranch(name, force);
+			run = force => model.deleteBranch(name, force);
 		} else {
-			const currentHead = this.model.HEAD && this.model.HEAD.name;
-			const heads = this.model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+			const currentHead = model.HEAD && model.HEAD.name;
+			const heads = model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
 				.map(ref => new BranchDeleteItem(ref));
 
 			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
@@ -783,7 +792,7 @@ export class CommandCenter {
 				return;
 			}
 			name = choice.branchName;
-			run = force => choice.run(this.model, force);
+			run = force => choice.run(model, force);
 		}
 
 		try {
@@ -803,17 +812,17 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.merge')
-	async merge(): Promise<void> {
+	@modelCommand('git.merge')
+	async merge(model: Model): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+		const heads = model.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name || ref.commit)
 			.map(ref => new MergeItem(ref as Branch));
 
-		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+		const remoteHeads = (includeRemotes ? model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.filter(ref => ref.name || ref.commit)
 			.map(ref => new MergeItem(ref as Branch));
 
@@ -826,7 +835,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await choice.run(this.model);
+			await choice.run(model);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
 				throw err;
@@ -837,9 +846,9 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.pullFrom')
-	async pullFrom(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.pullFrom')
+	async pullFrom(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
@@ -864,60 +873,60 @@ export class CommandCenter {
 			return;
 		}
 
-		this.model.pull(false, pick.label, branchName);
+		model.pull(false, pick.label, branchName);
 	}
 
-	@command('git.pull')
-	async pull(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.pull')
+	async pull(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
 			return;
 		}
 
-		await this.model.pull();
+		await model.pull();
 	}
 
-	@command('git.pullRebase')
-	async pullRebase(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.pullRebase')
+	async pullRebase(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
 			return;
 		}
 
-		await this.model.pullWithRebase();
+		await model.pullWithRebase();
 	}
 
-	@command('git.push')
-	async push(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.push')
+	async push(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		await this.model.push();
+		await model.push();
 	}
 
-	@command('git.pushTo')
-	async pushTo(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.pushTo')
+	async pushTo(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		if (!this.model.HEAD || !this.model.HEAD.name) {
+		if (!model.HEAD || !model.HEAD.name) {
 			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
 			return;
 		}
 
-		const branchName = this.model.HEAD.name;
+		const branchName = model.HEAD.name;
 		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const pick = await window.showQuickPick(picks, { placeHolder });
@@ -926,12 +935,12 @@ export class CommandCenter {
 			return;
 		}
 
-		this.model.pushTo(pick.label, branchName);
+		model.pushTo(pick.label, branchName);
 	}
 
-	@command('git.sync')
-	async sync(): Promise<void> {
-		const HEAD = this.model.HEAD;
+	@modelCommand('git.sync')
+	async sync(model: Model): Promise<void> {
+		const HEAD = model.HEAD;
 
 		if (!HEAD || !HEAD.upstream) {
 			return;
@@ -953,20 +962,20 @@ export class CommandCenter {
 			}
 		}
 
-		await this.model.sync();
+		await model.sync();
 	}
 
-	@command('git.publish')
-	async publish(): Promise<void> {
-		const remotes = this.model.remotes;
+	@modelCommand('git.publish')
+	async publish(model: Model): Promise<void> {
+		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 			return;
 		}
 
-		const branchName = this.model.HEAD && this.model.HEAD.name || '';
-		const picks = this.model.remotes.map(r => r.name);
+		const branchName = model.HEAD && model.HEAD.name || '';
+		const picks = model.remotes.map(r => r.name);
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
@@ -974,16 +983,16 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.pushTo(choice, branchName, true);
+		await model.pushTo(choice, branchName, true);
 	}
 
-	@command('git.showOutput')
+	@globalCommand('git.showOutput')
 	showOutput(): void {
 		this.outputChannel.show();
 	}
 
-	@command('git.ignore')
-	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@modelCommand('git.ignore')
+	async ignore(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
 
@@ -991,7 +1000,7 @@ export class CommandCenter {
 				return;
 			}
 
-			return await this.model.ignore([uri]);
+			return await model.ignore([uri]);
 		}
 
 		const uris = resourceStates
@@ -1002,19 +1011,31 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.ignore(uris);
+		await model.ignore(uris);
 	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
 		const result = (...args) => {
-			if (!skipModelCheck && !this.model) {
-				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
-				return;
+			// if (!skipModelCheck && !this.model) {
+			// 	window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
+			// 	return;
+			// }
+
+			let result: Promise<any>;
+
+			if (skipModelCheck) {
+				result = Promise.resolve(method.apply(this, args));
+			} else {
+				result = this.modelRegistry.pickModel().then(model => {
+					if (!model) {
+						return Promise.reject(localize('modelnotfound', "Git model not found"));
+					}
+
+					return Promise.resolve(method.apply(this, [model, ...args]));
+				});
 			}
 
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
-
-			const result = Promise.resolve(method.apply(this, args));
 
 			return result.catch(async err => {
 				let message: string;
@@ -1062,7 +1083,7 @@ export class CommandCenter {
 		return result;
 	}
 
-	private getSCMResource(uri?: Uri): Resource | undefined {
+	private getSCMResource(model: Model, uri?: Uri): Resource | undefined {
 		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
@@ -1077,8 +1098,8 @@ export class CommandCenter {
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
 
-			return this.model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
+			return model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 	}
 
