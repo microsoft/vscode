@@ -286,3 +286,29 @@ export function iterateCSSToken(token: CssToken, fn) {
 export function getCssProperty(rule, name): Property {
 	return rule.children.find(node => node.type === 'property' && node.name === name);
 }
+
+/**
+ * Returns css property under caret in given editor or `null` if such node cannot
+ * be found
+ * @param  {TextEditor}  editor
+ * @return {Property}
+ */
+export function getCssPropertyNode(editor: vscode.TextEditor, position: vscode.Position): Property {
+	const rootNode = this.parse(editor.document);
+	const node = getNode(rootNode, position);
+
+	if (isStyleSheet(editor.document.languageId)) {
+		return node && node.type === 'property' ? <Property>node : null;
+	}
+
+	let htmlNode = <HtmlNode>node;
+	if (htmlNode
+		&& htmlNode.name === 'style'
+		&& htmlNode.open.end.isBefore(position)
+		&& htmlNode.close.start.isAfter(position)) {
+		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
+		let rootNode = parseStylesheet(buffer);
+		const node = getNode(rootNode, position);
+		return (node && node.type === 'property') ? <Property>node : null;
+	}
+}

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range, window, TextEditor } from 'vscode';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { parse, getNode, getCssProperty } from './util';
+import { getCssProperty, getCssPropertyNode } from './util';
 import { Property, Rule } from 'EmmetNode';
 
 const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
@@ -17,18 +16,12 @@ export function reflectCssValue() {
 		return;
 	}
 
-	if (!isStyleSheet(editor.document.languageId)) {
+	let node = getCssPropertyNode(editor, editor.selection.active);
+	if (!node) {
 		return;
 	}
 
-	const rootNode = parse(editor.document);
-	const node = getNode(rootNode, editor.selection.active, true);
-	if (!node || node.type !== 'property') {
-		return;
-	}
-
-	return updateCSSNode(editor, <Property>node);
-
+	return updateCSSNode(editor, node);
 }
 
 function updateCSSNode(editor: TextEditor, property: Property) {
