@@ -12,6 +12,10 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 @commonEditorContribution
 export class SnippetController2 {
@@ -31,6 +35,7 @@ export class SnippetController2 {
 	private _session: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
 	private _modelVersionId: number;
+	private _currentChoice: Choice;
 
 	constructor(
 		private readonly _editor: ICommonCodeEditor,
@@ -110,6 +115,41 @@ export class SnippetController2 {
 		this._inSnippet.set(true);
 		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
 		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
+
+		this._handleChoice();
+	}
+
+	private _handleChoice(): void {
+		const { choice } = this._session;
+		if (!choice) {
+			this._currentChoice = undefined;
+			return;
+		}
+		if (this._currentChoice !== choice) {
+			this._currentChoice = choice;
+
+			this._editor.setSelections(this._editor.getSelections()
+				.map(s => Selection.fromPositions(s.getStartPosition()))
+			);
+
+			const [first] = choice.options;
+
+			showSimpleSuggestions(this._editor, choice.options.map((option, i) => {
+
+				// let before = choice.options.slice(0, i);
+				// let after = choice.options.slice(i);
+
+				return <ISuggestion>{
+					type: 'value',
+					label: option.value,
+					insertText: option.value,
+					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
+					// snippetType: 'textmate',
+					sortText: String(i),
+					overwriteAfter: first.value.length
+				};
+			}));
+		}
 	}
 
 	finish(): void {

@@ -47,12 +47,11 @@ export class PreferencesContentProvider implements IWorkbenchContribution {
 						return TPromise.as(this.modelService.createModel(modelContent, mode, uri));
 					}
 				}
-				return this.preferencesService.createPreferencesEditorModel(uri)
-					.then(preferencesModel => {
-						if (preferencesModel) {
+				return this.preferencesService.resolveContent(uri)
+					.then(content => {
+						if (content !== null && content !== void 0) {
 							let mode = this.modeService.getOrCreateMode('json');
-							const model = this.modelService.createModel(preferencesModel.content, mode, uri);
-							preferencesModel.dispose();
+							const model = this.modelService.createModel(content, mode, uri);
 							return TPromise.as(model);
 						}
 						return null;

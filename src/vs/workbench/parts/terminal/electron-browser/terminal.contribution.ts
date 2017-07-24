@@ -30,6 +30,20 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
 import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from "vs/workbench/electron-browser/actions";
 import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+
+export const TERMINAL_PICKER_PREFIX = 'term ';
+const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
+
+quickOpenRegistry.registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/terminal/browser/terminalQuickOpen',
+		'TerminalPickerHandler',
+		TERMINAL_PICKER_PREFIX,
+		null,
+		nls.localize('quickOpen.terminal', "Show All Opened Terminals")
+	)
+);
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -197,6 +211,21 @@ configurationRegistry.registerConfiguration({
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID
 			].sort()
+		},
+		'terminal.integrated.env.osx': {
+			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
+			'type': 'object',
+			'default': {}
+		},
+		'terminal.integrated.env.linux': {
+			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
+			'type': 'object',
+			'default': {}
+		},
+		'terminal.integrated.env.windows': {
+			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
+			'type': 'object',
+			'default': {}
 		}
 	}
 });
@@ -302,3 +331,4 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word After Cursor', category);
 registerColors();
+

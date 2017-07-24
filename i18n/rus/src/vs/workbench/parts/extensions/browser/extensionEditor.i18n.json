@@ -24,6 +24,7 @@
 	"default": "По умолчанию",
 	"debuggers": "Отладчики ({0})",
 	"debugger name": "Имя",
+	"debugger type": "Тип",
 	"views": "Представления ({0})",
 	"view id": "Идентификатор",
 	"view name": "Имя",

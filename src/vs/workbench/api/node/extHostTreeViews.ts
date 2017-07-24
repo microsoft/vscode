@@ -7,10 +7,11 @@
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { distinct } from 'vs/base/common/arrays';
+import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
+import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
@@ -21,14 +22,12 @@ type TreeItemHandle = number;
 export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
-	private _proxy: MainThreadTreeViewsShape;
 
 	constructor(
-		threadService: IThreadService,
+		private _proxy: MainThreadTreeViewsShape,
 		private commands: ExtHostCommands
 	) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadTreeViews);
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
 				if (arg && arg.$treeViewId && arg.$treeItemHandle) {
@@ -80,11 +79,11 @@ class ExtHostTreeView<T> extends Disposable {
 	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
 	private extChildrenElementsMap: Map<T, T[]> = new Map<T, T[]>();
 
-	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter, ) {
+	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
 		this.proxy.$registerView(viewId);
 		if (dataProvider.onDidChangeTreeData) {
-			this._register(dataProvider.onDidChangeTreeData(element => this._refresh(element)));
+			this._register(debounceEvent<T, T[]>(dataProvider.onDidChangeTreeData, (last, current) => last ? [...last, current] : [current], 200)(elements => this._refresh(elements)));
 		}
 	}
 
@@ -113,14 +112,16 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.extElementsMap.get(treeItemHandle);
 	}
 
-	private _refresh(element: T): void {
-		if (element) {
-			const itemHandle = this.itemHandlesMap.get(element);
-			if (itemHandle) {
-				this.proxy.$refresh(this.viewId, itemHandle);
-			}
+	private _refresh(elements: T[]): void {
+		const hasRoot = elements.some(element => !element);
+		if (hasRoot) {
+			this.proxy.$refresh(this.viewId, []);
 		} else {
-			this.proxy.$refresh(this.viewId);
+			const itemHandles = distinct(elements.map(element => this.itemHandlesMap.get(element))
+				.filter(itemHandle => !!itemHandle));
+			if (itemHandles.length) {
+				this.proxy.$refresh(this.viewId, itemHandles);
+			}
 		}
 	}
 

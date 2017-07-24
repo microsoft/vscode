@@ -34,9 +34,9 @@ import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/c
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
+	jsonPath: json.JSONPath;
 	resource: URI;
 	isWorkspaceStandalone?: boolean;
-	overrideIdentifier?: string;
 }
 
 interface IValidationResult {
@@ -187,10 +187,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		const { key, value, overrideIdentifier } = edit;
+		const { value, jsonPath } = edit;
 
-		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
-		if (!key) {
+		// Without jsonPath, the entire configuration file is being replaced, so we just use JSON.stringify
+		if (!jsonPath.length) {
 			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
 			return [{
 				content,
@@ -199,7 +199,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			}];
 		}
 
-		return setProperty(model.getValue(), overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
+		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol });
 	}
 
 	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
@@ -253,49 +253,59 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
 					return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 				}
-				return reference;
+				return TPromise.wrap(reference);
 			});
 	}
 
 	private getConfigurationEditOperation(target: ConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationOverrides): IConfigurationEditOperation {
+
+		const workspace = this.contextService.getWorkspace();
 
 		// Check for standalone workspace configurations
 		if (config.key) {
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const resource = this.contextService.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key]); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29456)
+				const resource = this.getConfigurationFileResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
 
 				// Check for prefix
 				if (config.key === key) {
-					return { key: '', value: config.value, resource, isWorkspaceStandalone: true };
+					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key] : [];
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					return { key: config.key.substr(keyPrefix.length), value: config.value, resource, isWorkspaceStandalone: true };
+					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
+					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 			}
 		}
 
+		let key = config.key;
+		let jsonPath = overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier), key] : [key];
 		if (target === ConfigurationTarget.USER) {
-			return { key: config.key, value: config.value, overrideIdentifier: overrides.overrideIdentifier, resource: URI.file(this.environmentService.appSettingsPath) };
+			return { key, jsonPath, value: config.value, resource: URI.file(this.environmentService.appSettingsPath) };
 		}
 
-		return { key: config.key, value: config.value, overrideIdentifier: overrides.overrideIdentifier, resource: this.getConfigurationFileResource(overrides.resource) };
+		const resource = this.getConfigurationFileResource(WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
+		if (workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
+			jsonPath = ['settings', ...jsonPath];
+		}
+		return { key, jsonPath, value: config.value, resource };
 	}
 
-	private getConfigurationFileResource(resource: URI): URI {
+	private getConfigurationFileResource(relativePath: string, resource: URI): URI {
 		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
 			if (resource) {
 				const root = this.contextService.getRoot(resource);
 				if (root) {
-					return this.toResource(WORKSPACE_CONFIG_DEFAULT_PATH, root);
+					return this.toResource(relativePath, root);
 				}
 			}
-			return this.toResource(WORKSPACE_CONFIG_DEFAULT_PATH, workspace.roots[0]);
+			return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);
 		}
 		return null;
 	}

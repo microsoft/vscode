@@ -48,7 +48,7 @@ export interface IViewOptions {
 
 export interface IViewConstructorSignature {
 
-	new (options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
+	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
 
 }
 
@@ -638,7 +638,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
-				label: nls.localize('removeView', "Remove from {0}", this.getTitle()),
+				label: nls.localize('removeView', "Remove from Side Bar"),
 				enabled: true,
 				run: () => this.toggleViewVisibility(view.id)
 			}]),

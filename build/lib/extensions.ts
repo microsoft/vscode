@@ -28,6 +28,7 @@ export function fromLocal(extensionPath: string): Stream {
 				.map(fileName => path.join(extensionPath, fileName))
 				.map(filePath => new File({
 					path: filePath,
+					stat: fs.statSync(filePath),
 					base: extensionPath,
 					contents: fs.createReadStream(filePath) as any
 				}));

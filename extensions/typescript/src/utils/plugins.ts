@@ -21,7 +21,7 @@ export function getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[
 				plugins.push({
 					name: plugin.name,
 					path: extension.extensionPath,
-					languages: Array.isArray(plugin.languages) ? plugin.languages : []
+					languages: Array.isArray(plugin.languages) ? plugin.languages : [],
 				});
 			}
 		}

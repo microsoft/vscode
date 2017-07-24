@@ -6,11 +6,13 @@
 {
 	"tag at": "Etiqueta em {0}",
 	"remote branch at": "Ramo remoto em {0}",
+	"create branch": "$(plus) criar nova ramificação",
 	"repourl": "URL do repositório",
 	"parent": "Diretório pai",
 	"cloning": "Clonando repositório do Git...",
 	"openrepo": "Abrir Repositório",
 	"proposeopen": "Gostaria de abrir o repositório clonado?",
+	"HEAD not available": "Versão HEAD de '{0}' não está disponível.",
 	"confirm revert": "Tem certeza que deseja reverter as alterações selecionadas em {0}?",
 	"revert": "Reverter as alterações",
 	"confirm discard": "Tem certeza que deseja descartar as alterações em {0}?",

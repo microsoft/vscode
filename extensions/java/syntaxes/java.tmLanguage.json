@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-java/commit/0e0ec7966059e3e363868311b3d855014bca95dd",
 	"scopeName": "source.java",
 	"name": "Java",
 	"fileTypes": [

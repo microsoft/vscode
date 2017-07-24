@@ -10,13 +10,13 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-interface IConfiguration extends IWindowConfiguration {
+interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 }
@@ -30,6 +30,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private rootCount: number;
+	private workspaceId: string;
+	private firstRootPath: string;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -40,7 +42,15 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this.rootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
+		const workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			this.rootCount = workspace.roots.length;
+			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+			this.workspaceId = workspace.id;
+		} else {
+			this.rootCount = 0;
+		}
+
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
 		this.registerListeners();
@@ -90,7 +100,11 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
+		const workspace = this.contextService.getWorkspace();
+
+		const newRootCount = workspace ? workspace.roots.length : 0;
+		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		const newWorkspaceId = workspace ? workspace.id : void 0;
 
 		let reload = false;
 		if (this.rootCount === 0 && newRootCount > 0) {
@@ -99,12 +113,22 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			reload = true; // transition: from 1+ folders to 0
 		}
 
+		if (this.firstRootPath !== newFirstRootPath) {
+			reload = true; // first root folder changed
+		}
+
+		if (this.workspaceId !== newWorkspaceId) {
+			reload = true; // workspace id changed
+		}
+
 		this.rootCount = newRootCount;
+		this.firstRootPath = newFirstRootPath;
+		this.workspaceId = newWorkspaceId;
 
 		if (reload) {
 			this.doConfirm(
-				localize('relaunchWorkspaceMessage', "A workspace folder was added or removed and that requires a reload to take effect."),
-				localize('relaunchWorkspaceDetail', "Press the restart button to reload the window and enable the changes to the workspace.", this.envService.appNameLong),
+				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
+				void 0,
 				localize('reload', "Reload"),
 				() => this.windowService.reloadWindow()
 			);

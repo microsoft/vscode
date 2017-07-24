@@ -17,7 +17,7 @@ suite('Telemetry - common properties', function () {
 	let storageService;
 
 	setup(() => {
-		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace);
+		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	test('default', function () {

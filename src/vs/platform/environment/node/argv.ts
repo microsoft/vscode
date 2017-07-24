@@ -20,6 +20,7 @@ const options: minimist.Opts = {
 		'install-extension',
 		'uninstall-extension',
 		'debugBrkPluginHost',
+		'debugId',
 		'debugPluginHost',
 		'open-url',
 		'enable-proposed-api'

@@ -7,7 +7,5 @@
 	"relaunchSettingMessage": "Yürürlüğe girmesi için yeniden başlatma gerektiren bir ayar değişti.",
 	"relaunchSettingDetail": "{0} uygulamasını yeniden başlatmak ve bu ayarı etkinleştirmek için lütfen yeniden başlat butonuna basın.",
 	"restart": "Yeniden Başlat",
-	"relaunchWorkspaceMessage": "Yürürlüğe girmesi için yeniden başlatma gerektiren bir çalışma alanı klasörü eklendi veya kaldırıldı.",
-	"relaunchWorkspaceDetail": "Pencereyi yeniden yüklemek ve değişiklikleri etkinleştirmek için yeniden başlat butonuna basın.",
 	"reload": "Yeniden Yükle"
 }

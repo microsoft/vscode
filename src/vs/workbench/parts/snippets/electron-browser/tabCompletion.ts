@@ -9,13 +9,14 @@ import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService, getNonWhitespacePrefix, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { ISnippetsService, getNonWhitespacePrefix, ISnippet, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
@@ -29,20 +30,23 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 
-	private _snippetController: SnippetController2;
-	private _cursorChangeSubscription: IDisposable;
-	private _currentSnippets: ISnippet[] = [];
+	private readonly _editor: editorCommon.ICommonCodeEditor;
+	private readonly _snippetController: SnippetController2;
+	private readonly _dispoables: IDisposable[] = [];
+	private readonly _snippets: ISnippet[] = [];
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISnippetsService snippetService: ISnippetsService
 	) {
+		this._editor = editor;
 		this._snippetController = SnippetController2.get(editor);
-		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
-		this._cursorChangeSubscription = editor.onDidChangeCursorSelection(e => {
 
-			this._currentSnippets.length = 0;
+		const hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
+		this._dispoables.push(editor.onDidChangeCursorSelection(e => {
+
+			this._snippets.length = 0;
 			let selectFn: (snippet: ISnippet) => boolean;
 
 			if (e.selection.isEmpty()) {
@@ -59,31 +63,34 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			if (selectFn) {
 				snippetService.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
 					if (selectFn(s)) {
-						this._currentSnippets.push(s);
+						this._snippets.push(s);
 					}
 					return true;
 				});
 			}
-
-			hasSnippets.set(this._currentSnippets.length === 1); //todo@joh make it work with N
-		});
-	}
-
-	dispose(): void {
-		this._cursorChangeSubscription.dispose();
-	}
-
-	performSnippetCompletions(): void {
-		if (this._currentSnippets.length === 1) {
-			const snippet = this._currentSnippets[0];
-			this._snippetController.insert(snippet.codeSnippet, snippet.prefix.length, 0);
-			// } else {
-			// todo@joh - show suggest widget with proposals
-		}
+			hasSnippets.set(this._snippets.length > 0);
+		}));
 	}
 
 	getId(): string {
 		return TabCompletionController.ID;
+	}
+
+	dispose(): void {
+		dispose(this._dispoables);
+	}
+
+	performSnippetCompletions(): void {
+
+		if (this._snippets.length === 1) {
+			// one -> just insert
+			const [snippet] = this._snippets;
+			this._snippetController.insert(snippet.codeSnippet, snippet.prefix.length, 0);
+
+		} else if (this._snippets.length > 1) {
+			// two or more -> show IntelliSense box
+			showSimpleSuggestions(this._editor, this._snippets.map(snippet => new SnippetSuggestion(snippet, snippet.prefix.length)));
+		}
 	}
 }
 

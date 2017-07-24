@@ -30,5 +30,8 @@
 	"workbench.action.terminal.clear": "Cancella",
 	"workbench.action.terminal.allowWorkspaceShell": "Consente la configurazione della Shell dell'area di lavoro",
 	"workbench.action.terminal.disallowWorkspaceShell": "Non consente la configurazione della Shell dell'area di lavoro",
-	"workbench.action.terminal.rename": "Rinomina"
+	"workbench.action.terminal.rename": "Rinomina",
+	"workbench.action.terminal.rename.prompt": "Immettere il nome del terminale",
+	"workbench.action.terminal.focusFindWidget": "Stato attivo su widget Trova",
+	"workbench.action.terminal.hideFindWidget": "Nascondi widget Trova"
 }

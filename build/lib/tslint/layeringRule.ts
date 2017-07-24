@@ -61,6 +61,16 @@ class LayeringRule extends Lint.RuleWalker {
 		this._validateImport(node.moduleSpecifier.getText(), node);
 	}
 
+	protected visitCallExpression(node: ts.CallExpression): void {
+		super.visitCallExpression(node);
+
+		// import('foo') statements inside the code
+		if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+			const [path] = node.arguments;
+			this._validateImport(path.getText(), node);
+		}
+	}
+
 	private _validateImport(path: string, node: ts.Node): void {
 		// remove quotes
 		path = path.slice(1, -1);

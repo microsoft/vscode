@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/ba95d7b742caef130911d878f42f66bdd80181e4",
 	"fileTypes": [
 		"sh",
 		"bash",

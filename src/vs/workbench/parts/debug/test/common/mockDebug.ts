@@ -19,6 +19,10 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
 	public get onDidEndProcess(): Event<debug.IProcess> {
 		return null;
 	}
@@ -79,12 +83,16 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(configName?: string, noDebug?: boolean): TPromise<any> {
+	public startDebugging(configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
 	public createProcess(config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
+	}
+
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		return null;
 	}
 
 	public restartProcess(): TPromise<any> {

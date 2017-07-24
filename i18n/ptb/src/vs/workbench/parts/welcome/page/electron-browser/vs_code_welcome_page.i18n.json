@@ -36,10 +36,5 @@
 	"welcomePage.interfaceOverview": "Visão geral da interface",
 	"welcomePage.interfaceOverviewDescription": "Obter uma sobreposição visual, destacando os principais componentes da interface do usuário",
 	"welcomePage.interactivePlayground": "Playground interativo",
-	"welcomePage.interactivePlaygroundDescription": "Experimente as características essenciais do editor em um curto passo-a-passo",
-	"welcomePage.quickLinks": "Links rápidos",
-	"welcomePage.keybindingsReference": "Referência de atalhos de teclado",
-	"welcomePage.keybindingsReferenceDescription": "Um PDF para impressão com os atalhos de teclado mais comuns",
-	"welcomePage.configureSettings": "Configurar definições",
-	"welcomePage.configureSettingsDescription": "Desbloquear o poder completo do VS Coda ajustando as configurações"
+	"welcomePage.interactivePlaygroundDescription": "Experimente as características essenciais do editor em um curto passo-a-passo"
 }

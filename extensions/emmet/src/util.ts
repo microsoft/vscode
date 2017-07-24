@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode } from 'EmmetNode';
+import { Node, HtmlNode, CssToken } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -61,7 +61,7 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
  * Parses the given document using emmet parsing modules
- * @param document 
+ * @param document
  */
 export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
@@ -252,4 +252,27 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
 
+export function getEmmetConfiguration() {
+	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	return {
+		useNewEmmet: emmetConfig['useNewEmmet'],
+		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
+		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
+		syntaxProfiles: emmetConfig['syntaxProfiles'],
+		variables: emmetConfig['variables']
+	};
+}
 
+/**
+ * Itereates by each child, as well as nested child’ children, in their order
+ * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
+ * @param  {Token}    token
+ * @param  {Function} fn
+ */
+export function iterateCSSToken(token: CssToken, fn) {
+	for (let i = 0, il = token.size; i < il; i++) {
+		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
+			return false;
+		}
+	}
+}

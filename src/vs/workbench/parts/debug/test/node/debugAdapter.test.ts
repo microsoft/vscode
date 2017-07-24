@@ -110,7 +110,7 @@ suite('Debug - Adapter', () => {
 	});
 
 	test('initial config file content', () => {
-		adapter.getInitialConfigurationContent().then(content => {
+		adapter.getInitialConfigurationContent(null).then(content => {
 			const expected = ['{',
 				'	"version": "0.2.0",',
 				'	"configurations": [',

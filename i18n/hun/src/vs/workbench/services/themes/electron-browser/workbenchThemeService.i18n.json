@@ -28,5 +28,6 @@
 	"iconThemeError": "A fájlikontéma ismeretlen vagy nincs telepítve.",
 	"workbenchColors": "Felülírja az aktuális színtémában definiált színeket.",
 	"workbenchColors.deprecated": "A beállítás már nem kísérleti, és át lett nevezve 'workbench.colorCustomizations'-re.",
-	"workbenchColors.deprecatedDescription": "Használja a 'workbench.colorCustomizations' tulajdonságot helyette."
+	"workbenchColors.deprecatedDescription": "Használja a 'workbench.colorCustomizations' tulajdonságot helyette.",
+	"editorColors": "Felülírja az aktuális színtémában definiált, szerkesztőablakhoz kapcsolódó színeket és betűstílusokat."
 }

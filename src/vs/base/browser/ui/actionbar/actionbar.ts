@@ -735,8 +735,8 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.selectBox.onDidSelect(selected => {
-			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
 		}));
 	}
 

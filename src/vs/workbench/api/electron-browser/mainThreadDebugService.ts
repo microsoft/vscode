@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, IProcess, IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID } from '../node/extHost.protocol';
@@ -23,6 +24,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
+		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
 		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
 			if (proc) {
@@ -33,7 +35,8 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event.body && event.body.sessionId) {
-				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, event);
+				const process = this.debugService.findProcessByUUID(event.body.sessionId);	// TODO
+				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, process.configuration.type, process.configuration.name, event);
 			}
 		}));
 	}
@@ -42,7 +45,15 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $createDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
+			return true;
+		}, err => {
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
+		});
+	}
+
+	public $startDebugSession(folderUri: URI | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
@@ -52,12 +63,12 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			}
 			return TPromise.wrapError(new Error('cannot create debug session'));
 		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot create debug session');
+			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this._findProcessByUUID(sessionId);
+		const process = this.debugService.findProcessByUUID(sessionId);
 		if (process) {
 			return process.session.custom(request, args).then(response => {
 				if (response.success) {
@@ -68,14 +79,5 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			});
 		}
 		return TPromise.wrapError(new Error('debug session not found'));
-	}
-
-	private _findProcessByUUID(processId: DebugSessionUUID): IProcess | null {
-		const processes = this.debugService.getModel().getProcesses();
-		const result = processes.filter(process => process.getId() === processId);
-		if (result.length > 0) {
-			return result[0];	// there can only be one
-		}
-		return null;
 	}
 }
