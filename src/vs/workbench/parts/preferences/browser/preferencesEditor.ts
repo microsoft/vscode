@@ -570,7 +570,7 @@ export class EditableSettingsEditor extends BaseTextEditor {
 	) {
 		super(EditableSettingsEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 		this._register({ dispose: () => dispose(this.modelDisposables) });
-		this.saveDelayer = new Delayer<void>(200);
+		this.saveDelayer = new Delayer<void>(1000);
 	}
 
 	protected createEditor(parent: Builder): void {
