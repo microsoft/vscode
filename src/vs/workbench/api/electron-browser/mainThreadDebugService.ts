@@ -45,7 +45,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $startDebugging(folder: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
 		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
@@ -53,7 +53,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		});
 	}
 
-	public $startDebugSession(configuration: IConfig): TPromise<DebugSessionUUID> {
+	public $startDebugSession(folderUri: URI | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}

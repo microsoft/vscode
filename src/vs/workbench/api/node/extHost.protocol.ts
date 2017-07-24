@@ -347,8 +347,8 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
-	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
-	$startDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
+	$startDebugging(folderUri: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
+	$startDebugSession(folderUri: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
 }
 
