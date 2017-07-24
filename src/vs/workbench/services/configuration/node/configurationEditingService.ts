@@ -18,6 +18,7 @@ import { Edit } from 'vs/base/common/jsonFormatter';
 import { IReference } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -29,7 +30,7 @@ import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } fr
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, ConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -84,7 +85,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
-		return this.resolveAndValidate(target, operation, checkDirtyConfiguration)
+		return this.resolveAndValidate(target, operation, checkDirtyConfiguration, options.scopes || {})
 			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration));
 	}
 
@@ -163,10 +164,11 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 			// API constraints
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to the configuration file (Unknown Key)");
+			case ConfigurationEditingErrorCode.ERROR_INVALID_KEY: return nls.localize('errorInvalidKey', "Unable to write to the configuration file (Invalid Key)");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_TARGET: return nls.localize('errorInvalidTarget', "Unable to write to the configuration file (Invalid Target)");
 
 			// User issues
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write into settings because no folder is opened. Please open a folder first and try again.");
+			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write into settings because no workspace is opened. Please open a workspace first and try again.");
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
 				if (target === ConfigurationTarget.USER) {
 					return nls.localize('errorInvalidConfiguration', "Unable to write into settings. Please open **User Settings** to correct errors/warnings in the file and try again.");
@@ -221,7 +223,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): TPromise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
@@ -236,9 +238,20 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_TARGET, target);
 		}
 
-		// Target cannot be workspace if no workspace opened
-		if (target === ConfigurationTarget.WORKSPACE && !this.contextService.hasWorkspace()) {
+		// Target cannot be workspace or folder if no workspace opened
+		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && !this.contextService.hasWorkspace()) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target);
+		}
+
+		if (target === ConfigurationTarget.FOLDER) {
+			if (!operation.resource) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_TARGET, target);
+			}
+
+			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+			if (configurationProperties[operation.key].scope !== ConfigurationScope.RESOURCE) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_KEY, target);
+			}
 		}
 
 		return this.resolveModelReference(operation.resource)
@@ -266,7 +279,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const standaloneConfigurationKeys = Object.keys(WORKSPACE_STANDALONE_CONFIGURATIONS);
 			for (let i = 0; i < standaloneConfigurationKeys.length; i++) {
 				const key = standaloneConfigurationKeys[i];
-				const resource = this.getConfigurationFileResource(WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
+				const resource = this.getConfigurationFileResource(target, WORKSPACE_STANDALONE_CONFIGURATIONS[key], overrides.resource);
 
 				// Check for prefix
 				if (config.key === key) {
@@ -289,23 +302,34 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return { key, jsonPath, value: config.value, resource: URI.file(this.environmentService.appSettingsPath) };
 		}
 
-		const resource = this.getConfigurationFileResource(WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
 		if (workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
 			jsonPath = ['settings', ...jsonPath];
 		}
 		return { key, jsonPath, value: config.value, resource };
 	}
 
-	private getConfigurationFileResource(relativePath: string, resource: URI): URI {
+	private getConfigurationFileResource(target: ConfigurationTarget, relativePath: string, resource: URI): URI {
+		if (target === ConfigurationTarget.USER) {
+			return URI.file(this.environmentService.appSettingsPath);
+		}
+
 		const workspace = this.contextService.getWorkspace();
+
 		if (workspace) {
-			if (resource) {
-				const root = this.contextService.getRoot(resource);
-				if (root) {
-					return this.toResource(relativePath, root);
+
+			if (target === ConfigurationTarget.WORKSPACE) {
+				return this.contextService.hasMultiFolderWorkspace() ? workspace.configuration : this.toResource(relativePath, workspace.roots[0]);
+			}
+
+			if (target === ConfigurationTarget.FOLDER) {
+				if (resource) {
+					const root = this.contextService.getRoot(resource);
+					if (root) {
+						return this.toResource(relativePath, root);
+					}
 				}
 			}
-			return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);
 		}
 		return null;
 	}

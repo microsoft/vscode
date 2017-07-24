@@ -13,7 +13,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
@@ -94,7 +94,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public updatePreference(key: string, value: any, source: ISetting): void {
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value }, { donotSave: this.textFileService.isDirty(this.preferencesModel.uri), donotNotifyError: true, scopes: { overrideIdentifier } })
+		const resource = this.preferencesModel.uri;
+		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value }, { donotSave: this.textFileService.isDirty(resource), donotNotifyError: true, scopes: { overrideIdentifier, resource } })
 			.then(() => this.onSettingUpdated(source), error => {
 				this.messageService.show(Severity.Error, this.toErrorMessage(error, this.preferencesModel.configurationTarget));
 			});
@@ -180,6 +181,28 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	public render(): void {
 		super.render();
 		this.untrustedSettingRenderer.render();
+	}
+}
+
+export class FolderSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
+
+	private unsupportedWorkbenchSettingsRenderer: UnsupportedWorkbenchSettingsRenderer;
+
+	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ITextFileService textFileService: ITextFileService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
+		@IMessageService messageService: IMessageService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationEditingService, messageService, instantiationService);
+		this.unsupportedWorkbenchSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedWorkbenchSettingsRenderer, editor, preferencesModel));
+	}
+
+	public render(): void {
+		super.render();
+		this.unsupportedWorkbenchSettingsRenderer.render();
 	}
 }
 
@@ -927,6 +950,64 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 
 	public dispose(): void {
 		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
+		super.dispose();
+	}
+}
+
+class UnsupportedWorkbenchSettingsRenderer extends Disposable {
+
+	private decorationIds: string[] = [];
+
+	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IMarkerService private markerService: IMarkerService
+	) {
+		super();
+		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
+	}
+
+	public render(): void {
+		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const folderKeys = this.configurationService.keys({ resource: this.workspaceSettingsEditorModel.uri }).folder;
+		const workbenchKeys = folderKeys.filter(key => configurationRegistry[key] && configurationRegistry[key].scope === ConfigurationScope.WORKBENCH);
+		if (workbenchKeys.length) {
+			const ranges: IRange[] = [];
+			for (const unsupportedKey of workbenchKeys) {
+				const setting = this.workspaceSettingsEditorModel.getPreference(unsupportedKey);
+				if (setting) {
+					ranges.push({
+						startLineNumber: setting.keyRange.startLineNumber,
+						startColumn: setting.keyRange.startColumn - 1,
+						endLineNumber: setting.valueRange.endLineNumber,
+						endColumn: setting.valueRange.endColumn
+					});
+				}
+			}
+			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+		}
+	}
+
+	private static _INVALID_SETTING_ = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'invalidSetting',
+		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting is a workbench setting and cannot be applied for resources under folder")
+	});
+
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+		return {
+			range,
+			options: UnsupportedWorkbenchSettingsRenderer._INVALID_SETTING_
+		};
+	}
+
+	public dispose(): void {
+		if (this.decorationIds) {
+			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
+				return changeAccessor.deltaDecorations(this.decorationIds, []);
+			});
+		}
 		super.dispose();
 	}
 }

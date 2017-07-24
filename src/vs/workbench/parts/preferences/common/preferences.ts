@@ -76,10 +76,10 @@ export interface IPreferencesService {
 	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openSettings(target: ConfigurationTarget | URI): TPromise<IEditor>;
-	switchSettings(target: URI | ConfigurationTarget): TPromise<void>;
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;
+	openFolderSettings(folder: URI): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 
 	configureSettingsForLanguage(language: string): void;
@@ -99,16 +99,15 @@ export interface IKeybindingsEditor extends IEditor {
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
-export function getSettingsTargetName(target: ConfigurationTarget | URI, workspaceContextService: IWorkspaceContextService): string {
-	if (target instanceof URI) {
-		const root = workspaceContextService.getRoot(target);
-		return root ? paths.basename(root.fsPath) : '';
-	}
+export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
 	switch (target) {
 		case ConfigurationTarget.USER:
 			return localize('userSettingsTarget', "User Settings");
 		case ConfigurationTarget.WORKSPACE:
 			return localize('workspaceSettingsTarget', "Workspace Settings");
+		case ConfigurationTarget.FOLDER:
+			const root = workspaceContextService.getRoot(resource);
+			return root ? paths.basename(root.fsPath) : '';
 	}
 }
 

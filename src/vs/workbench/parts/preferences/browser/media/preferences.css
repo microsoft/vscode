@@ -213,6 +213,10 @@
 	background: url('edit_inverse.svg') center center no-repeat;
 }
 
+.monaco-editor .invalidSetting {
+	color: #b1b1b1;
+}
+
 .monaco-editor .floating-click-widget {
 	padding: 10px;
 	border-radius: 5px;

@@ -257,12 +257,12 @@ export class SettingsTargetsWidget extends Widget {
 	private targetLabel: HTMLSelectElement;
 	private targetDetails: HTMLSelectElement;
 
-	private _onDidTargetChange: Emitter<ConfigurationTarget | URI> = new Emitter<ConfigurationTarget | URI>();
-	public readonly onDidTargetChange: Event<ConfigurationTarget | URI> = this._onDidTargetChange.event;
+	private _onDidTargetChange: Emitter<URI> = new Emitter<URI>();
+	public readonly onDidTargetChange: Event<URI> = this._onDidTargetChange.event;
 
 	private borderColor: Color;
 
-	constructor(parent: HTMLElement, private target: ConfigurationTarget | URI,
+	constructor(parent: HTMLElement, private uri: URI, private target: ConfigurationTarget,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -276,7 +276,8 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 	}
 
-	public setTarget(target: ConfigurationTarget | URI): void {
+	public setTarget(uri: URI, target: ConfigurationTarget): void {
+		this.uri = uri;
 		this.target = target;
 		this.updateLabel();
 	}
@@ -290,7 +291,7 @@ export class SettingsTargetsWidget extends Widget {
 		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
 		this.updateLabel();
 
-		this.onclick(this.settingsTargetsContainer, e => this.showContextMennu(e));
+		this.onclick(this.settingsTargetsContainer, e => this.showContextMenu(e));
 
 		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
 
@@ -298,13 +299,13 @@ export class SettingsTargetsWidget extends Widget {
 	}
 
 	private updateLabel(): void {
-		this.targetLabel.textContent = getSettingsTargetName(this.target, this.workspaceContextService);
-		const details = this.target instanceof URI ? localize('folderSettingsDetails', "Folder Settings") : '';
+		this.targetLabel.textContent = getSettingsTargetName(this.target, this.uri, this.workspaceContextService);
+		const details = ConfigurationTarget.FOLDER === this.target ? localize('folderSettingsDetails', "Folder Settings") : '';
 		this.targetDetails.textContent = details;
 		DOM.toggleClass(this.targetDetails, 'empty', !details);
 	}
 
-	private showContextMennu(event: IMouseEvent): void {
+	private showContextMenu(event: IMouseEvent): void {
 		const actions = this.getSettingsTargetsActions();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.settingsTargetsContainer,
@@ -316,21 +317,23 @@ export class SettingsTargetsWidget extends Widget {
 
 	private getSettingsTargetsActions(): IAction[] {
 		const actions: IAction[] = [];
+		const userSettingsResource = this.preferencesService.userSettingsResource;
 		actions.push(<IAction>{
 			id: 'userSettingsTarget',
-			label: getSettingsTargetName(ConfigurationTarget.USER, this.workspaceContextService),
-			checked: this.target === ConfigurationTarget.USER,
+			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
+			checked: this.uri.fsPath === userSettingsResource.fsPath,
 			enabled: true,
-			run: () => this.onTargetClicked(ConfigurationTarget.USER)
+			run: () => this.onTargetClicked(userSettingsResource)
 		});
 
 		if (this.workspaceContextService.hasWorkspace()) {
+			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
-				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, this.workspaceContextService),
-				checked: this.target === ConfigurationTarget.WORKSPACE,
+				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
+				checked: this.uri.fsPath === workspaceSettingsResource.fsPath,
 				enabled: true,
-				run: () => this.onTargetClicked(ConfigurationTarget.WORKSPACE)
+				run: () => this.onTargetClicked(workspaceSettingsResource)
 			});
 		}
 
@@ -339,8 +342,8 @@ export class SettingsTargetsWidget extends Widget {
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(root, this.workspaceContextService),
-					checked: this.target instanceof URI && this.target.fsPath === root.fsPath,
+					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
+					checked: this.uri instanceof URI && this.uri.fsPath === root.fsPath,
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};
@@ -350,11 +353,8 @@ export class SettingsTargetsWidget extends Widget {
 		return actions;
 	}
 
-	private onTargetClicked(target: ConfigurationTarget | URI): void {
-		if (this.target instanceof URI && target instanceof URI && this.target.fsPath === target.fsPath) {
-			return;
-		}
-		if (this.target === target) {
+	private onTargetClicked(target: URI): void {
+		if (this.uri.fsPath === target.fsPath) {
 			return;
 		}
 		this._onDidTargetChange.fire(target);

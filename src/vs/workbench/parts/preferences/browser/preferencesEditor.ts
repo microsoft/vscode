@@ -43,7 +43,7 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
+import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
@@ -147,7 +147,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, this.headerContainer, this.preferencesService.userSettingsResource));
+		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, this.headerContainer, this.preferencesService.userSettingsResource, ConfigurationTarget.USER));
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.switchSettings(target)));
 
 		const editorsContainer = DOM.append(parentElement, DOM.$('.preferences-editors-container'));
@@ -211,7 +211,8 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		this.settingsTargetsWidget.setTarget(this.getSettingsConfigurationTarget(newInput));
+		const resource = toResource(newInput.master);
+		this.settingsTargetsWidget.setTarget(resource, this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
@@ -220,24 +221,26 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private getSettingsConfigurationTarget(preferencesEditorInput: PreferencesEditorInput): ConfigurationTarget | URI {
-		const resource = toResource(preferencesEditorInput.master);
+	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
 		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
 			return ConfigurationTarget.USER;
 		}
 		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
 			return ConfigurationTarget.WORKSPACE;
 		}
-		return this.workspaceContextService.getRoot(resource);
+		if (this.workspaceContextService.getRoot(resource)) {
+			return ConfigurationTarget.FOLDER;
+		}
+		return null;
 	}
 
-	private switchSettings(target: ConfigurationTarget | URI): void {
+	private switchSettings(resource: URI): void {
 		// Focus the editor if this editor is not active editor
 		if (this.editorService.getActiveEditor() !== this) {
 			this.focus();
 		}
 		const promise = this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => this.preferencesService.switchSettings(target));
+		promise.done(value => this.preferencesService.switchSettings(this.getSettingsConfigurationTarget(resource), resource));
 	}
 
 	private filterPreferences(filter: string) {
@@ -811,10 +814,14 @@ class SettingsEditorContribution extends Disposable implements ISettingsEditorCo
 		this.preferencesRenderer = TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
 			.then(([defaultSettingsModel, settingsModel]) => {
 				if (settingsModel instanceof SettingsEditorModel) {
-					if (ConfigurationTarget.USER === settingsModel.configurationTarget) {
-						return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+					switch (settingsModel.configurationTarget) {
+						case ConfigurationTarget.USER:
+							return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+						case ConfigurationTarget.WORKSPACE:
+							return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+						case ConfigurationTarget.FOLDER:
+							return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
 					}
-					return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
 				}
 				return null;
 			})
