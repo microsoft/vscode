@@ -303,6 +303,7 @@ class SourceControlView extends CollapsibleView {
 		this.disposables.push(this.list);
 
 		this.provider.onDidChange(this.updateList, this, this.disposables);
+		this.updateList();
 	}
 
 	layoutBody(size: number): void {
