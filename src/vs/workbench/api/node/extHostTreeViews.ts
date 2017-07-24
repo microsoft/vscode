@@ -7,13 +7,15 @@
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { distinct } from 'vs/base/common/arrays';
+import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
 import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { asWinJsPromise, Delayer } from 'vs/base/common/async';
+import { asWinJsPromise } from 'vs/base/common/async';
 
 type TreeItemHandle = number;
 
@@ -77,14 +79,11 @@ class ExtHostTreeView<T> extends Disposable {
 	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
 	private extChildrenElementsMap: Map<T, T[]> = new Map<T, T[]>();
 
-	private refreshDelayer: Delayer<void> = new Delayer<void>(200);
-	private itemsToRefresh: TreeItemHandle[] = [];
-
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
 		this.proxy.$registerView(viewId);
 		if (dataProvider.onDidChangeTreeData) {
-			this._register(dataProvider.onDidChangeTreeData(element => this._refresh(element)));
+			this._register(debounceEvent<T, T[]>(dataProvider.onDidChangeTreeData, (last, current) => last ? [...last, current] : [current], 200)(elements => this._refresh(elements)));
 		}
 	}
 
@@ -113,25 +112,17 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.extElementsMap.get(treeItemHandle);
 	}
 
-	private _refresh(element: T): void {
-		if (this.itemsToRefresh && element) {
-			const itemHandle = this.itemHandlesMap.get(element);
-			if (itemHandle) {
-				if (this.itemsToRefresh.indexOf(itemHandle) === -1) {
-					this.itemsToRefresh.push(itemHandle);
-					this.refreshDelayer.trigger(() => this._doRefresh());
-				}
-			}
+	private _refresh(elements: T[]): void {
+		const hasRoot = elements.some(element => !element);
+		if (hasRoot) {
+			this.proxy.$refresh(this.viewId, []);
 		} else {
-			// Indicates that root has to be refreshed
-			this.itemsToRefresh = null;
-			this.refreshDelayer.trigger(() => this._doRefresh());
+			const itemHandles = distinct(elements.map(element => this.itemHandlesMap.get(element))
+				.filter(itemHandle => !!itemHandle));
+			if (itemHandles.length) {
+				this.proxy.$refresh(this.viewId, itemHandles);
+			}
 		}
-	}
-
-	private _doRefresh(): void {
-		this.proxy.$refresh(this.viewId, this.itemsToRefresh || []);
-		this.itemsToRefresh = [];
 	}
 
 	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {

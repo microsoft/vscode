@@ -77,6 +77,30 @@ suite('ExtHostConfiguration', function () {
 		onDidChangeTreeData.fire('a');
 	});
 
+	test('refresh calls are throttled on unknown elements', function (done) {
+		target.onRefresh.event(actuals => {
+			assert.deepEqual([1, 2], actuals);
+			done();
+		});
+
+		onDidChangeTreeData.fire('a');
+		onDidChangeTreeData.fire('b');
+		onDidChangeTreeData.fire('g');
+		onDidChangeTreeData.fire('a');
+	});
+
+	test('refresh calls are throttled on unknown elements and root', function (done) {
+		target.onRefresh.event(actuals => {
+			assert.equal(0, actuals.length);
+			done();
+		});
+
+		onDidChangeTreeData.fire('a');
+		onDidChangeTreeData.fire('b');
+		onDidChangeTreeData.fire('g');
+		onDidChangeTreeData.fire('');
+	});
+
 	test('refresh calls are throttled on elements and root', function (done) {
 		target.onRefresh.event(actuals => {
 			assert.equal(0, actuals.length);
