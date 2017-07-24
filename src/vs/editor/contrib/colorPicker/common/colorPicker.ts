@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from "vs/base/common/winjs.base";
-import { ColorProviderRegistry, IColorInfo } from "vs/editor/common/modes";
+import { ColorProviderRegistry, IColorInfo, ColorProvider } from "vs/editor/common/modes";
 import { asWinJsPromise } from "vs/base/common/async";
 import { onUnexpectedExternalError } from "vs/base/common/errors";
 import { IReadOnlyModel } from "vs/editor/common/editorCommon";
@@ -24,4 +24,8 @@ export function getColors(model: IReadOnlyModel): TPromise<IColorInfo[]> {
 	return TPromise.join(promises).then(() => {
 		return colors;
 	});
+}
+
+export function changeMode(provider: ColorProvider, colorInfo: IColorInfo): TPromise<string> {
+	throw new Error('not implemented');
 }

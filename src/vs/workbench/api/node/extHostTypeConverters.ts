@@ -374,6 +374,7 @@ export namespace DocumentColor {
 	export function from(colorInfo: vscode.ColorInfo): IColorInfo {
 		return {
 			color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
+			mode: <number>colorInfo.mode,
 			range: fromRange(colorInfo.range)
 		};
 	}

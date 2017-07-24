@@ -1043,20 +1043,32 @@ export class Color {
 	}
 }
 
+export enum ColorMode {
+	RGBA = 0,
+	Hex = 1,
+	HSLA = 2
+}
+
 export class ColorInfo {
 	range: Range;
 
 	color: Color;
 
-	constructor(color: Color, range: Range) {
+	mode: ColorMode;
+
+	constructor(range: Range, color: Color, mode: ColorMode) {
 		if (color && !(color instanceof Color)) {
-			throw illegalArgument('target');
+			throw illegalArgument('color');
+		}
+		if (mode && !(mode in ColorMode)) {
+			throw illegalArgument('mode');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {
 			throw illegalArgument('range');
 		}
 		this.range = range;
 		this.color = color;
+		this.mode = mode;
 	}
 }
 

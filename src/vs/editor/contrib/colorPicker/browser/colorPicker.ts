@@ -112,7 +112,10 @@ export class ColorPicker implements IEditorContribution {
 						endColumn: c.range.endColumn
 					},
 					options: {
-						color: c.color
+						colorInfo: {
+							color: c.color,
+							mode: c.mode
+						}
 					}
 				});
 			}

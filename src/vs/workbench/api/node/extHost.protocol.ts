@@ -35,7 +35,7 @@ import { IConfigurationData } from 'vs/platform/configuration/common/configurati
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { EndOfLine, TextEditorLineNumbersStyle, ColorMode } from 'vs/workbench/api/node/extHostTypes';
 
 
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
@@ -456,6 +456,7 @@ export abstract class ExtHostHeapServiceShape {
 
 export interface IColorInfo {
 	color: [number, number, number, number | undefined];
+	mode: ColorMode;
 	range: IRange;
 }
 

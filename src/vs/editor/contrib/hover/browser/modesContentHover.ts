@@ -22,9 +22,9 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { Color } from 'vs/base/common/color';
-import { ColorPickerModel, ColorModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
+import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
+import { IColorInfo } from 'vs/editor/common/editorCommon';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -67,7 +67,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[] | Color) => {
+		const hasHoverContent = (contents: MarkedString | MarkedString[] | IColorInfo) => {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
@@ -78,7 +78,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || (!hasHoverContent(d.options.hoverMessage) && !hasHoverContent(d.options.color))) {
+			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || (!hasHoverContent(d.options.hoverMessage) && !hasHoverContent(d.options.colorInfo))) {
 				return null;
 			}
 
@@ -93,9 +93,14 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 				}
 			}
 
-			const color = d.options.color;
-			if (color) {
-				return { color, range };
+			const colorInfo = d.options.colorInfo;
+
+			if (colorInfo) {
+				return {
+					color: colorInfo.color,
+					mode: colorInfo.mode,
+					range: range
+				};
 			}
 
 			return { contents, range };
@@ -289,7 +294,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 				model.originalColor = msg.color.toRGBA().toString();
-				model.colorModel = ColorModel.RGBA;
+				model.colorModel = msg.mode;
 				model.color = msg.color;
 
 				this._colorPicker = widget;

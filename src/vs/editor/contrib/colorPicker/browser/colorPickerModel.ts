@@ -5,6 +5,7 @@
 
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Color, RGBA } from "vs/base/common/color";
+import { ColorMode } from "vs/editor/common/modes";
 
 export class ColorPickerModel {
 
@@ -17,7 +18,7 @@ export class ColorPickerModel {
 	private _opacity: number;
 	private _hue: Color;
 
-	private _colorModel: ColorModel;
+	private _colorModel: ColorMode;
 	private _colorModelIndex: number;
 
 	constructor() {
@@ -32,9 +33,9 @@ export class ColorPickerModel {
 			this._hue = color;
 		}
 
-		if (this._colorModel === ColorModel.RGBA) {
+		if (this._colorModel === ColorMode.RGBA) {
 			this.selectedColorString = color.toRGBA().toString();
-		} else if (this._colorModel === ColorModel.Hex) {
+		} else if (this._colorModel === ColorMode.Hex) {
 			this.selectedColorString = color.toRGBHex();
 		} else {
 			this.selectedColorString = color.toHSLA().toString();
@@ -73,8 +74,8 @@ export class ColorPickerModel {
 	public set opacity(opacity: number) {
 		this._opacity = opacity;
 
-		if (this._colorModel === ColorModel.Hex) {
-			this.colorModel = ColorModel.RGBA;
+		if (this._colorModel === ColorMode.Hex) {
+			this.colorModel = ColorMode.RGBA;
 		}
 
 		const rgba = this._color.toRGBA();
@@ -89,7 +90,7 @@ export class ColorPickerModel {
 		return this._opacity;
 	}
 
-	public set colorModel(model: ColorModel) {
+	public set colorModel(model: ColorMode) {
 		this._colorModel = model;
 		this._colorModelIndex = model;
 
@@ -98,7 +99,7 @@ export class ColorPickerModel {
 		}
 	}
 
-	public get colorModel(): ColorModel {
+	public get colorModel(): ColorMode {
 		return this._colorModel;
 	}
 
@@ -110,7 +111,7 @@ export class ColorPickerModel {
 		}
 
 		// Skip hex model if opacity is set
-		if (this._colorModelIndex === ColorModel.Hex && this._opacity !== 1) {
+		if (this._colorModelIndex === ColorMode.Hex && this._opacity !== 1) {
 			this.nextColorModel();
 			return;
 		}
@@ -122,10 +123,4 @@ export class ColorPickerModel {
 export class ISaturationState {
 	public x: number;
 	public y: number;
-}
-
-export enum ColorModel {
-	RGBA,
-	Hex,
-	HSL
 }

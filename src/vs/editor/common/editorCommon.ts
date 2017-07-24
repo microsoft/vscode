@@ -9,7 +9,7 @@ import { MarkedString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier, ColorMode } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -62,6 +62,10 @@ export interface IModelDecorationOverviewRulerOptions {
 	position: OverviewRulerLane;
 }
 
+export interface IColorInfo {
+	color: Color;
+	mode: ColorMode;
+}
 /**
  * Options for a model decoration.
  */
@@ -84,9 +88,9 @@ export interface IModelDecorationOptions {
 	 */
 	hoverMessage?: MarkedString | MarkedString[];
 	/**
-	 * Color to render in the color picker.
+	 * Color with mode to render in the color picker.
 	 */
-	color?: Color;
+	colorInfo?: IColorInfo;
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */

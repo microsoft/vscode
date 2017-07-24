@@ -492,6 +492,7 @@ export function createApiFactory(
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorInfo: extHostTypes.ColorInfo,
+			ColorMode: extHostTypes.ColorMode,
 			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,

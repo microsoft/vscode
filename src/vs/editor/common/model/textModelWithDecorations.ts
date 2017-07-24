@@ -17,7 +17,6 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { Color } from "vs/base/common/color";
 
 export const ClassName = {
 	EditorWarningDecoration: 'greensquiggly',
@@ -896,7 +895,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	readonly stickiness: editorCommon.TrackedRangeStickiness;
 	readonly className: string;
 	readonly hoverMessage: MarkedString | MarkedString[];
-	readonly color: Color;
+	readonly colorInfo: editorCommon.IColorInfo;
 	readonly glyphMarginHoverMessage: MarkedString | MarkedString[];
 	readonly isWholeLine: boolean;
 	readonly showIfCollapsed: boolean;
@@ -913,7 +912,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
-		this.color = options.color || undefined;
+		this.colorInfo = options.colorInfo || undefined;
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;

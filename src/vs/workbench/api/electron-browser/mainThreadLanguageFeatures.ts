@@ -272,10 +272,11 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorProvider>{
 			provideColors: (model, token) => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentColors(handle, model.uri))
-					.then((colors) => {
-						return colors.map(c => {
+					.then((colorInfos) => {
+						return colorInfos.map(c => {
 							return {
 								color: Color.fromRGBA(new RGBA(c.color[0], c.color[1], c.color[2], c.color[3] * 255)),
+								mode: c.mode,
 								range: c.range
 							};
 						});
