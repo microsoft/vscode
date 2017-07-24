@@ -646,6 +646,14 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public startDebugging(configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
+
+		// temporary workaround: the folderUri should be an argument to startDebugging
+		let folderUri: uri = undefined;
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && workspace.roots.length > 0) {
+			folderUri = workspace.roots[0];
+		}
+
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
 			this.extensionService.onReady().then(() => {
@@ -684,7 +692,7 @@ export class DebugService implements debug.IDebugService {
 					}
 					if (commandAndType && commandAndType.command) {
 						const defaultConfig = noDebug ? { noDebug: true } : {};
-						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
+						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig, folderUri).then((result: StartSessionResult) => {
 							if (this.contextService.hasWorkspace()) {
 								if (result && result.status === 'initialConfiguration') {
 									return manager.openConfigFile(false, commandAndType.type);
