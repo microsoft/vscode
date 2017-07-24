@@ -4073,24 +4073,9 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
 
 		/**
-		 * A short-hand for `openTextDocument(fileName).then(document => showTextDocument(document))` to show the given file in a text
-		 * editor (see [openTextDocument](#openTextDocument)).
+		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
 		 *
-		 * [Options](#TextDocumentShowOptions) can be provided to control options of the editor is being shown.
-		 * Might change the [active editor](#window.activeTextEditor).
-		 *
-		 * @param uri A resource identifier.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
-		 * @return A promise that resolves to an [editor](#TextEditor).
-		 */
-		export function showTextDocument(fileName: string, options?: TextDocumentShowOptions): Thenable<TextEditor>;
-
-		/**
-		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document))` to show the given resource in a text
-		 * editor (see [openTextDocument](#openTextDocument)).
-		 *
-		 * [Options](#TextDocumentShowOptions) can be provided to control options of the editor is being shown.
-		 * Might change the [active editor](#window.activeTextEditor).
+		 * @see [openTextDocument](#openTextDocument)
 		 *
 		 * @param uri A resource identifier.
 		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).

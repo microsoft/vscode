@@ -284,17 +284,13 @@ export function createApiFactory(
 			get visibleTextEditors() {
 				return extHostEditors.getVisibleTextEditors();
 			},
-			showTextDocument(documentOrUriOrFilename: vscode.TextDocument | vscode.Uri | string, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
-
-				if (typeof documentOrUriOrFilename === 'string') {
-					documentPromise = workspace.openTextDocument(documentOrUriOrFilename) as TPromise<vscode.TextDocument>;
-				} else if (URI.isUri(documentOrUriOrFilename)) {
-					documentPromise = workspace.openTextDocument(documentOrUriOrFilename) as TPromise<vscode.TextDocument>;
+				if (URI.isUri(documentOrUri)) {
+					documentPromise = TPromise.wrap(workspace.openTextDocument(documentOrUri));
 				} else {
-					documentPromise = TPromise.as(documentOrUriOrFilename as vscode.TextDocument);
+					documentPromise = TPromise.wrap(<vscode.TextDocument>documentOrUri);
 				}
-
 				return documentPromise.then(document => {
 					return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
 				});
