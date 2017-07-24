@@ -198,7 +198,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 		}
 
 		if (process.arch === 'ia32' && this.arch === 'x64') {
-			const updatePackageContents = `@echo off\r\n"${Win32UninstallPath}" /silent\r\nstart /b "" "${this.updatePackagePath}" /silent /mergetasks=runcode,!desktopicon,!quicklaunchicon\r\n`;
+			const updatePackageContents = `@echo off\r\n"${Win32UninstallPath}" /silent\r\nstart /b "" "${this.updatePackagePath}"\r\n`;
 			const updatePackagePath = path.join(tmpdir(), 'vscode-update-32-to-64.bat');
 			fs.writeFileSync(updatePackagePath, updatePackageContents);
 
