@@ -349,8 +349,15 @@ export class ConfigurationManager implements IConfigurationManager {
 		const resource = this.configFileUri;
 		let configFileCreated = false;
 
+		// temporary workaround: the folderUri should be an argument to openConfigFile
+		let folderUri: uri = undefined;
+		const workspace = this.contextService.getWorkspace();
+		if (workspace && workspace.roots.length > 0) {
+			folderUri = workspace.roots[0];
+		}
+
 		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent() : undefined)
+			this.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(folderUri) : undefined)
 				.then(content => {
 					if (!content) {
 						return false;
