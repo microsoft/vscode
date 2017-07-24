@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { expand } from '@emmetio/expand-abbreviation';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, validate } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
 
 interface ExpandAbbreviationInput {
@@ -88,7 +88,7 @@ export function expandAbbreviation(args) {
 
 	const editor = vscode.window.activeTextEditor;
 
-	let rootNode = parse(editor.document);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

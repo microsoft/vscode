@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parse } from './util';
+import { getNodesInBetween, getNode, parseDocument } from './util';
 import { Node, Stylesheet } from 'EmmetNode';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -34,7 +34,7 @@ export function toggleComment() {
 		endComment = endCommentHTML;
 	}
 
-	let rootNode = parse(editor.document);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

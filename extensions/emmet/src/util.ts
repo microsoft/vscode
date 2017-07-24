@@ -63,7 +63,7 @@ export function getMappingForIncludedLanguages(): any {
  * Parses the given document using emmet parsing modules
  * @param document
  */
-export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
 	let rootNode: Node;
 	try {
@@ -283,7 +283,7 @@ export function iterateCSSToken(token: CssToken, fn) {
  * @param  {String} name
  * @return {Property}
  */
-export function getCssProperty(rule, name): Property {
+export function getCssPropertyFromRule(rule, name): Property {
 	return rule.children.find(node => node.type === 'property' && node.name === name);
 }
 
@@ -293,8 +293,8 @@ export function getCssProperty(rule, name): Property {
  * @param  {TextEditor}  editor
  * @return {Property}
  */
-export function getCssPropertyNode(editor: vscode.TextEditor, position: vscode.Position): Property {
-	const rootNode = this.parse(editor.document);
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property {
+	const rootNode = parseDocument(editor.document);
 	const node = getNode(rootNode, position);
 
 	if (isStyleSheet(editor.document.languageId)) {

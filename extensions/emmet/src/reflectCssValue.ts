@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range, window, TextEditor } from 'vscode';
-import { getCssProperty, getCssPropertyNode } from './util';
+import { getCssPropertyFromRule, getCssPropertyFromDocument } from './util';
 import { Property, Rule } from 'EmmetNode';
 
 const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
@@ -16,7 +16,7 @@ export function reflectCssValue() {
 		return;
 	}
 
-	let node = getCssPropertyNode(editor, editor.selection.active);
+	let node = getCssPropertyFromDocument(editor, editor.selection.active);
 	if (!node) {
 		return;
 	}
@@ -45,7 +45,7 @@ function updateCSSNode(editor: TextEditor, property: Property) {
 			if (prefix === currentPrefix) {
 				return;
 			}
-			let vendorProperty = getCssProperty(rule, prefix + propertyName);
+			let vendorProperty = getCssPropertyFromRule(rule, prefix + propertyName);
 			if (vendorProperty) {
 				builder.replace(new Range(vendorProperty.valueToken.start, vendorProperty.valueToken.end), propertyValue);
 			}

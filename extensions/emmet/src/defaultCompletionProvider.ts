@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { doComplete, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, getEmmetConfiguration } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -61,7 +61,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		if (!syntax) {
 			return syntax;
 		}
-		let rootNode = parse(document, false);
+		let rootNode = parseDocument(document, false);
 		if (!rootNode) {
 			return;
 		}
