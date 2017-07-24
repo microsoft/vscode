@@ -75,7 +75,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
-			this.hitCountContext = e === 'Hit Count';
+			this.hitCountContext = e.selected === 'Hit Count';
 			if (this.hitCountContext) {
 				this.conditionInput = this.inputBox.value;
 			} else {
