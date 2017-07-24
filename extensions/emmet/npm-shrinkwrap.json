@@ -88,9 +88,9 @@
       "resolved": "https://registry.npmjs.org/@emmetio/output-renderer/-/output-renderer-0.1.1.tgz"
     },
     "@emmetio/snippets": {
-      "version": "0.2.3",
+      "version": "0.2.4",
       "from": "@emmetio/snippets@>=0.2.3 <0.3.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/snippets/-/snippets-0.2.3.tgz"
+      "resolved": "https://registry.npmjs.org/@emmetio/snippets/-/snippets-0.2.4.tgz"
     },
     "@emmetio/snippets-registry": {
       "version": "0.3.1",
