@@ -871,6 +871,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}.focused .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
 		}
 
 		if (styles.listFocusForeground) {
@@ -879,6 +880,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (styles.listActiveSelectionBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}.focused:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
@@ -895,7 +897,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (styles.listInactiveFocusBackground) {
-			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
