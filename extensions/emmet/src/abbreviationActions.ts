@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { expand } from '@emmetio/expand-abbreviation';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, validate } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
 import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
 
 interface ExpandAbbreviationInput {
@@ -40,11 +40,11 @@ export function wrapWithAbbreviation(args) {
 			}
 			const firstLine = editor.document.lineAt(rangeToReplace.start).text;
 			const firstLineTillSelection = firstLine.substr(0, rangeToReplace.start.character);
-			const noTextBeforeSelection = /^\s*$/.test(firstLineTillSelection);
+			const whitespaceBeforeSelection = /^\s*$/.test(firstLineTillSelection);
 			let textToWrap = '';
 			let preceedingWhiteSpace = '';
 
-			if (noTextBeforeSelection) {
+			if (whitespaceBeforeSelection) {
 				const matches = firstLine.match(/^(\s*)/);
 				if (matches) {
 					preceedingWhiteSpace = matches[1];
@@ -88,7 +88,7 @@ export function expandAbbreviation(args) {
 
 	const editor = vscode.window.activeTextEditor;
 
-	let rootNode = parse(editor.document);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
@@ -218,6 +218,14 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
+
+	// Below fixes https://github.com/Microsoft/vscode/issues/29898
+	// With this, Emmet formats inline elements as block elements 
+	// ensuring the wrapped multi line text does not get merged to a single line
+	if (input.textToWrap && !input.rangeToReplace.isSingleLine) {
+		expandOptions.profile['inlineBreak'] = 1;
+	}
+
 	// Expand the abbreviation
 	let expandedText;
 	try {
@@ -231,7 +239,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	}
 
 	// If no text to wrap, then return the expanded text
-	if (!input.textToWrap) {
+	if (!input.textToWrap || !input.preceedingWhiteSpace) {
 		return expandedText;
 	}
 

@@ -18,6 +18,11 @@ export enum ConfigurationEditingErrorCode {
 	ERROR_UNKNOWN_KEY,
 
 	/**
+	 * Error when trying to write a configuration key that is not supported for provided target.
+	 */
+	ERROR_INVALID_KEY,
+
+	/**
 	 * Error when trying to write to user target but not supported for provided key.
 	 */
 	ERROR_INVALID_TARGET,
@@ -54,7 +59,12 @@ export enum ConfigurationTarget {
 	/**
 	 * Targets the workspace configuration file for writing. This only works if a workspace is opened.
 	 */
-	WORKSPACE
+	WORKSPACE,
+
+	/**
+	 * Targets the folder configuration file for writing. This only works if a workspace is opened.
+	 */
+	FOLDER
 }
 
 export interface IConfigurationValue {

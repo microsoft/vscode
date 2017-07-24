@@ -27,10 +27,6 @@
 	text-overflow: ellipsis;
 }
 
-.scm-viewlet .monaco-list-row > .resource-group:not(:hover) > .actions {
-	display: none;
-}
-
 .scm-viewlet .monaco-list-row > .resource {
 	display: flex;
 	height: 100%;
@@ -63,12 +59,16 @@
 	background-position: 50% 50%;
 }
 
+
+.scm-viewlet .monaco-list .monaco-list-row > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row > .resource > .actions {
 	display: none;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource-group > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.focused > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
 	display: block;
 }

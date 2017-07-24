@@ -6,6 +6,7 @@
 import fs = require('fs');
 import path = require('path');
 import * as nls from 'vs/nls';
+import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
@@ -139,12 +140,12 @@ export class Adapter {
 		return !!this.rawAdapter.initialConfigurations;
 	}
 
-	public getInitialConfigurationContent(): TPromise<string> {
+	public getInitialConfigurationContent(folderUri: uri): TPromise<string> {
 		const editorConfig = this.configurationService.getConfiguration<any>();
 		if (typeof this.rawAdapter.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
 			// Debug adapter will dynamically provide the full launch.json
-			return this.commandService.executeCommand<string>(<string>this.rawAdapter.initialConfigurations).then(content => {
+			return this.commandService.executeCommand<string>(<string>this.rawAdapter.initialConfigurations, folderUri).then(content => {
 				// Debug adapter returned the full content of the launch.json - return it after format
 				if (editorConfig.editor.insertSpaces) {
 					content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node } from 'EmmetNode';
-import { getNode, parse, validate } from './util';
+import { getNode, parseDocument, validate } from './util';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;
@@ -13,7 +13,7 @@ export function mergeLines() {
 		return;
 	}
 
-	let rootNode = parse(editor.document);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

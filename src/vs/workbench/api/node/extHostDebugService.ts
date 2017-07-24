@@ -11,6 +11,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as vscode from 'vscode';
+import URI from 'vs/base/common/uri';
 
 
 export class ExtHostDebugService extends ExtHostDebugServiceShape {
@@ -45,14 +46,14 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 		this._debugServiceProxy = threadService.get(MainContext.MainThreadDebugService);
 	}
 
-	public startDebugging(nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
+	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
 
-		return this._debugServiceProxy.$startDebugging(nameOrConfig);
+		return this._debugServiceProxy.$startDebugging(folder ? <URI>folder.uri : undefined, nameOrConfig);
 	}
 
-	public startDebugSession(config: vscode.DebugConfiguration): TPromise<vscode.DebugSession> {
+	public startDebugSession(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration): TPromise<vscode.DebugSession> {
 
-		return this._debugServiceProxy.$startDebugSession(config).then((id: DebugSessionUUID) => {
+		return this._debugServiceProxy.$startDebugSession(folder ? <URI>folder.uri : undefined, config).then((id: DebugSessionUUID) => {
 			const debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, config.type, config.name);
 			this._debugSessions.set(id, debugSession);
 			return debugSession;

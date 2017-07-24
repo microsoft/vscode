@@ -88,6 +88,7 @@ export interface IOpenConfiguration {
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
 	initialStartup?: boolean;
 }
 

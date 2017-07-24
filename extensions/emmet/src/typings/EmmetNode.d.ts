@@ -24,6 +24,16 @@ declare module 'EmmetNode' {
         toString(): string
     }
 
+    export interface CssToken extends Token {
+        size: number
+        item(number): any
+        type: string
+    }
+
+    export interface HtmlToken extends Token {
+        value: string
+    }
+
     export interface Attribute extends Token {
         name: string
         value: Token
@@ -42,6 +52,7 @@ declare module 'EmmetNode' {
     }
 
     export interface CssNode extends Node {
+        name: string
         parent: CssNode
         firstChild: CssNode
         nextSibling: CssNode
@@ -51,10 +62,16 @@ declare module 'EmmetNode' {
 
     export interface Rule extends CssNode {
         selectorToken: Token
+        contentStartToken: Token
+        contentEndToken: Token
     }
 
     export interface Property extends CssNode {
         valueToken: Token
+        separator: Token
+        parent: Rule
+        terminatorToken: Token
+        value: string
     }
 
     export interface Stylesheet extends Node {

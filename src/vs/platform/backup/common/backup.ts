@@ -17,6 +17,8 @@ export const IBackupMainService = createDecorator<IBackupMainService>('backupMai
 export interface IBackupMainService {
 	_serviceBrand: any;
 
+	isHotExitEnabled(): boolean;
+
 	getWorkspaceBackups(): IWorkspaceIdentifier[];
 	getFolderBackupPaths(): string[];
 	getEmptyWindowBackupPaths(): string[];

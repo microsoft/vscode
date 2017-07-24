@@ -12,7 +12,7 @@ suite('Debug - View Model', () => {
 	let model: ViewModel;
 
 	setup(() => {
-		model = new ViewModel('mockconfiguration');
+		model = new ViewModel();
 	});
 
 	teardown(() => {
@@ -46,14 +46,5 @@ suite('Debug - View Model', () => {
 		assert.equal(model.isMultiProcessView(), false);
 		model.setMultiProcessView(true);
 		assert.equal(model.isMultiProcessView(), true);
-	});
-
-	test('selected configuration name', () => {
-		model.onDidSelectConfiguration(name => {
-			assert.equal(name, 'configName');
-		});
-		assert.equal(model.selectedConfigurationName, 'mockconfiguration');
-		model.setSelectedConfigurationName('configName');
-		assert.equal(model.selectedConfigurationName, 'configName');
 	});
 });

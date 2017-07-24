@@ -3857,10 +3857,14 @@ declare module 'vscode' {
 		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
 
 		/**
-		 * Resolves a task the has no execution set.
+		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
+		 * often created from information found in the `task.json`-file. Such tasks miss
+		 * the information on how to execute them and a task provider must fill in
+		 * the missing information in the `resolveTask`-method.
+		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
-		 * @return the resolved task
+		 * @return The resolved task
 		 */
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
@@ -4059,14 +4063,25 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
-		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
-		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 * Show the given document in a text editor. [Options](#TextDocumentShowOptions) can be provided
+		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
 		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
+		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
+		 *
+		 * @see [openTextDocument](#openTextDocument)
+		 *
+		 * @param uri A resource identifier.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
@@ -5465,12 +5480,14 @@ declare module 'vscode' {
 
 		/**
 		 * Start a debug session based on the given configuration.
-		 * The configuration's type is used to select the debug adapter and then is directly passed to the adapter without modification.
+		 * The configuration's type is used to select the debug adapter and then the configuration is directly passed to this adapter.
 		 * This function should only be called in the context of a 'startSession' command, e.g. after verifying or massaging the configuration.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceRoot}') are resolved against the given folder.
+		 * @param folder The workspace folder for resolving variables used in the configuration or undefined.
 		 * @param configuration The debug configuration that is directly passed to the debug adapter.
 		 * @return A thenable that resolves when the debug session could be successfully started.
 		 */
-		export function startDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
+		export function startDebugSession(folder: WorkspaceFolder | undefined, configuration: DebugConfiguration): Thenable<DebugSession>;
 
 		/**
 		 * The currently active debug session or `undefined`. The active debug session is the one

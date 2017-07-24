@@ -28,12 +28,11 @@ export function registerCommands(): void {
 		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string) {
 			const debugService = accessor.get(IDebugService);
 			if (!configurationOrName) {
-				configurationOrName = debugService.getViewModel().selectedConfigurationName;
+				configurationOrName = debugService.getConfigurationManager().selectedName;
 			}
 
 			if (typeof configurationOrName === 'string') {
-				debugService.getViewModel().setSelectedConfigurationName(configurationOrName);
-				debugService.startDebugging();
+				debugService.startDebugging(configurationOrName);
 			} else {
 				debugService.createProcess(configurationOrName);
 			}
@@ -204,7 +203,7 @@ export function registerCommands(): void {
 				return TPromise.as(null);
 			}
 
-			return manager.openConfigFile(false).done(editor => {
+			return manager.selectedLaunch.openConfigFile(false).done(editor => {
 				if (editor) {
 					const codeEditor = <ICommonCodeEditor>editor.getControl();
 					if (codeEditor) {

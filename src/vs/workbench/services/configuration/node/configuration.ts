@@ -76,6 +76,11 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 						properties: {
 							isExecutable: {
 								type: 'boolean'
+							},
+							scope: {
+								type: 'string',
+								enum: ['workbench', 'resource'],
+								default: 'workbench'
 							}
 						}
 					}
@@ -147,6 +152,8 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 		}
 		for (let key in properties) {
 			const message = validateProperty(key);
+			const propertyConfiguration = configuration.properties[key];
+			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH;
 			if (message) {
 				collector.warn(message);
 				delete properties[key];
@@ -249,8 +256,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.lookup<C>(key, overrides);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this._configuration.keys();
+	public keys(overrides?: IConfigurationOverrides): IConfigurationKeys {
+		return this._configuration.keys(overrides);
 	}
 
 	public values<V>(): IConfigurationValues {
@@ -485,8 +492,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
-			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.FOLDER : ConfigurationScope.WORKSPACE)));
-			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.FOLDER), false);
+			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH)));
+			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.RESOURCE), false);
 		}
 	}
 
@@ -835,7 +842,7 @@ export class Configuration<T> extends BaseConfiguration<T> {
 	}
 
 	deleteFolderConfiguration(folder: URI): boolean {
-		if (this._workspace && this._workspace.roots[0].fsPath === folder.fsPath) {
+		if (this._workspace && this._workspace.roots.length > 0 && this._workspace.roots[0].fsPath === folder.fsPath) {
 			// Do not remove workspace configuration
 			return false;
 		}

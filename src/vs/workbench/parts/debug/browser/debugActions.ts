@@ -81,12 +81,12 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfiguration(configurationName => this.updateClass()));
+		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
 		this.updateClass();
 	}
 
 	public get tooltip(): string {
-		if (this.debugService.getViewModel().selectedConfigurationName) {
+		if (this.debugService.getConfigurationManager().selectedName) {
 			return ConfigureAction.LABEL;
 		}
 
@@ -94,7 +94,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
+		this.class = this.debugService.getConfigurationManager().selectedName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -104,7 +104,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.getConfigurationManager().openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().selectedLaunch.openConfigFile(sideBySide);
 	}
 }
 
@@ -118,7 +118,7 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getViewModel().onDidSelectConfiguration(() => {
+		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
 			this.updateEnablement();
 		});
 	}
@@ -134,8 +134,11 @@ export class StartAction extends AbstractDebugAction {
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const processes = this.debugService.getModel().getProcesses();
-		const compound = this.debugService.getConfigurationManager().getCompound(this.debugService.getViewModel().selectedConfigurationName);
-		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
+		const selectedName = this.debugService.getConfigurationManager().selectedName;
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		const compound = launch && launch.getCompound(selectedName);
+
+		return state !== State.Initializing && processes.every(p => p.name !== selectedName) &&
 			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
 			(!this.contextService || this.contextService.hasWorkspace() || processes.length === 0);
 	}

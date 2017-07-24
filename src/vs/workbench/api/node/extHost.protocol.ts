@@ -203,7 +203,7 @@ export abstract class MainThreadEditorsShape {
 
 export abstract class MainThreadTreeViewsShape {
 	$registerView(treeViewId: string): void { throw ni(); }
-	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
+	$refresh(treeViewId: string, treeItemHandles: number[]): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -294,6 +294,8 @@ export abstract class MainThreadWorkspaceShape {
 	$cancelSearch(requestId: number): Thenable<boolean> { throw ni(); }
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> { throw ni(); }
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
+	$registerFileSystemProvider(handle: number, authority: string): void { throw ni(); }
+	$onFileSystemChange(handle: number, resource: URI): void { throw ni(); }
 }
 
 export abstract class MainThreadTaskShape {
@@ -345,8 +347,8 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
-	$startDebugging(nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
-	$startDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
+	$startDebugging(folderUri: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
+	$startDebugSession(folderUri: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
 }
 
@@ -426,6 +428,8 @@ export abstract class ExtHostTreeViewsShape {
 
 export abstract class ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void { throw ni(); }
+	$resolveFile(handle: number, resource: URI): TPromise<string> { throw ni(); }
+	$storeFile(handle: number, resource: URI, content: string): TPromise<any> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {

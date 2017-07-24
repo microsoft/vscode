@@ -12,6 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
 
 export class OpenGlobalSettingsAction extends Action {
 
@@ -106,7 +107,7 @@ export class OpenFolderSettingsAction extends Action {
 	public run(): TPromise<any> {
 		const picks: IPickOpenEntry[] = this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 			return <IPickOpenEntry>{
-				label: getSettingsTargetName(root, this.workspaceContextService),
+				label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
 				id: `${index}`
 			};
 		});
@@ -114,7 +115,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickFolder', "Select Folder") })
 			.then(pick => {
 				if (pick) {
-					return this.preferencesService.openSettings(this.workspaceContextService.getWorkspace().roots[parseInt(pick.id)]);
+					return this.preferencesService.openFolderSettings(this.workspaceContextService.getWorkspace().roots[parseInt(pick.id)]);
 				}
 				return undefined;
 			});

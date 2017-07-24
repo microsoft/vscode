@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//tslint:disable
 'use strict';
 
 import * as path from 'path';
@@ -12,8 +13,7 @@ type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
 export function activate(_context: vscode.ExtensionContext): void {
-	let workspaceRoot = vscode.workspace.rootPath;
-	if (!workspaceRoot) {
+	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
 
@@ -100,9 +100,10 @@ async function provideNpmScripts(): Promise<vscode.Task[]> {
 		return emptyTasks;
 	}
 
-	const singleRoot = allTasks.length === 1;
-	for (const folder of folders) {
-		let tasks = await provideNpmScriptsForFolder(folder, singleRoot);
+	const isSingleRoot = folders.length === 1;
+
+	for (let i = 0; i < folders.length; i++) {
+		let tasks = await provideNpmScriptsForFolder(folders[i], isSingleRoot);
 		allTasks.push(...tasks);
 	}
 	return allTasks;
@@ -126,7 +127,7 @@ async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder, single
 
 		const result: vscode.Task[] = [];
 		Object.keys(json.scripts).filter(isNotPreOrPostScript).forEach(each => {
-			const task = createTask(each, `run ${each}`, rootPath, singleRoot);
+			const task = createTask(each, `run ${each}`, rootPath, folder.name, singleRoot);
 			const lowerCaseTaskName = each.toLowerCase();
 			if (isBuildTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Build;
@@ -136,20 +137,20 @@ async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder, single
 			result.push(task);
 		});
 		// always add npm install (without a problem matcher)
-		result.push(createTask('install', 'install', rootPath, singleRoot, []));
+		result.push(createTask('install', 'install', rootPath, folder.name, singleRoot, []));
 		return result;
 	} catch (e) {
 		return emptyTasks;
 	}
 }
 
-function createTask(script: string, cmd: string, rootPath: string, singleRoot: boolean, matcher?: any): vscode.Task {
+function createTask(script: string, cmd: string, rootPath: string, shortPath: string, singleRoot: boolean, matcher?: any): vscode.Task {
 
-	function getTaskName(script: string, rootPath: string, singleRoot: boolean) {
+	function getTaskName(script: string, shortPath: string, singleRoot: boolean) {
 		if (singleRoot) {
 			return script;
 		}
-		return `${script} - ${rootPath}`;
+		return `${script} - ${shortPath}`;
 	}
 
 	function getNpmCommandLine(cmd: string): string {
@@ -161,10 +162,9 @@ function createTask(script: string, cmd: string, rootPath: string, singleRoot: b
 
 	let kind: NpmTaskDefinition = {
 		type: 'npm',
-		script: script,
-		path: rootPath
+		script: script
 	};
-	let taskName = getTaskName(script, rootPath, singleRoot);
+	let taskName = getTaskName(script, shortPath, singleRoot);
 
 	return new vscode.Task(kind, taskName, 'npm', new vscode.ShellExecution(getNpmCommandLine(cmd), { cwd: rootPath }), matcher);
 }

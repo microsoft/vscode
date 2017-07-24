@@ -24,6 +24,15 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('editor, opened via resource', () => {
+		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
+		return window.showTextDocument(uri).then((editor) => {
+			const active = window.activeTextEditor;
+			assert.ok(active);
+			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
+		});
+	});
+
 	// test('editor, UN-active text editor', () => {
 	// 	assert.equal(window.visibleTextEditors.length, 0);
 	// 	assert.ok(window.activeTextEditor === undefined);

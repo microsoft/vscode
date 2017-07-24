@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { parse, validate, getNode } from './util';
+import { parseDocument, validate, getNode } from './util';
 import { HtmlNode } from 'EmmetNode';
 
 export function removeTag() {
@@ -13,7 +13,7 @@ export function removeTag() {
 		return;
 	}
 
-	let rootNode = <HtmlNode>parse(editor.document);
+	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

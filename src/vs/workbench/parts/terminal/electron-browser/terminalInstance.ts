@@ -205,11 +205,17 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		const padding = parseInt(getComputedStyle(document.querySelector('.terminal-outer-container')).paddingLeft.split('px')[0], 10);
+		const outerContainer = document.querySelector('.terminal-outer-container');
+		const outerContainerStyle = getComputedStyle(outerContainer);
+		const padding = parseInt(outerContainerStyle.paddingLeft.split('px')[0], 10);
+		const paddingBottom = parseInt(outerContainerStyle.paddingBottom.split('px')[0], 10);
+
 		// Use left padding as right padding, right padding is not defined in CSS just in case
 		// xterm.js causes an unexpected overflow.
 		const innerWidth = width - padding * 2;
-		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, height);
+		const innerHeight = height - paddingBottom;
+
+		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownDimensions;
 	}
 

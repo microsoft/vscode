@@ -156,6 +156,10 @@
 	line-height: 15px;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
+	opacity: 0.9;
+}
+
 .extensions-viewlet > .extensions .extension.disabled > .icon,
 .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
 .extensions-viewlet > .extensions .extension.disabled > .details > .description

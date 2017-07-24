@@ -53,8 +53,8 @@ export interface IConfigurationRegistry {
 }
 
 export enum ConfigurationScope {
-	WORKSPACE = 1,
-	FOLDER
+	WORKBENCH = 1,
+	RESOURCE
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
@@ -154,7 +154,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WORKSPACE, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WORKBENCH, overridable: boolean = false) {
 		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;

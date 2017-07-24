@@ -680,8 +680,16 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public refresh(input: IModel<any>, autoFocus: IAutoFocus): void {
+	public refresh(input?: IModel<any>, autoFocus?: IAutoFocus): void {
 		if (!this.isVisible()) {
+			return;
+		}
+
+		if (!input) {
+			input = this.tree.getInput();
+		}
+
+		if (!input) {
 			return;
 		}
 
@@ -693,9 +701,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.tree.layout();
 
 			// Handle auto focus
-			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-			if (doAutoFocus) {
-				this.autoFocus(input, autoFocus);
+			if (autoFocus) {
+				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
+				if (doAutoFocus) {
+					this.autoFocus(input, autoFocus);
+				}
 			}
 		}, errors.onUnexpectedError);
 	}

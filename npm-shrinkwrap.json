@@ -419,7 +419,7 @@
     "v8-profiler": {
       "version": "5.6.5",
       "from": "v8-profiler@5.6.5",
-      "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
+      "resolved": "git://github.com/jrieken/v8-profiler.git#5e4a336693e1d5b079c7aecd286a1abcfbc10421"
     },
     "vscode-debugprotocol": {
       "version": "1.21.0",
@@ -454,7 +454,7 @@
     "xterm": {
       "version": "2.8.0",
       "from": "Tyriar/xterm.js#vscode-release/1.15",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#90df2bcb7caa712e0a12591798c3e535a9d607cd"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#9d95fc1eef596c3d7e8d873a7782e0bcdbfa5503"
     },
     "yauzl": {
       "version": "2.3.1",
