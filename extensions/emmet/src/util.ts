@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -275,4 +275,14 @@ export function iterateCSSToken(token: CssToken, fn) {
 			return false;
 		}
 	}
+}
+
+/**
+ * Returns `name` CSS property from given `rule`
+ * @param  {Node} rule
+ * @param  {String} name
+ * @return {Property}
+ */
+export function getCssProperty(rule, name): Property {
+	return rule.children.find(node => node.type === 'property' && node.name === name);
 }

@@ -20,6 +20,8 @@ import { incrementDecrement } from './incrementDecrement';
 import { LANGUAGE_MODES, getMappingForIncludedLanguages } from './util';
 import { updateExtensionsPath } from 'vscode-emmet-helper';
 import { updateImageSize } from './updateImageSize';
+import { reflectCssValue } from './reflectCssValue';
+
 import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -116,6 +118,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateImageSize', () => {
 		return updateImageSize();
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.reflectCssValue', () => {
+		return reflectCssValue();
 	}));
 
 	let currentExtensionsPath = undefined;

@@ -11,7 +11,7 @@ import { TextEditor, Range, Position, window } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
 import { isStyleSheet } from 'vscode-emmet-helper';
-import { parse, getNode, iterateCSSToken } from './util';
+import { parse, getNode, iterateCSSToken, getCssProperty } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetNode';
 import { locateFile } from './locateFile';
 import parseStylesheet from '@emmetio/css-parser';
@@ -213,12 +213,12 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
  */
 function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number) {
 	const rule = srcProp.parent;
-	const widthProp = getProperty(rule, 'width');
-	const heightProp = getProperty(rule, 'height');
+	const widthProp = getCssProperty(rule, 'width');
+	const heightProp = getCssProperty(rule, 'height');
 
 	// Detect formatting
 	const separator = srcProp.separator || ': ';
-	const before = getBefore(editor, srcProp);
+	const before = getPropertyDelimitor(editor, srcProp);
 
 	let edits: [Range, string][] = [];
 	if (!srcProp.terminatorToken) {
@@ -292,22 +292,12 @@ function findUrlToken(node, pos: Position) {
 }
 
 /**
- * Returns `name` CSS property from given `rule`
- * @param  {Node} rule
- * @param  {String} name
- * @return {Node}
- */
-function getProperty(rule, name) {
-	return rule.children.find(node => node.type === 'property' && node.name === name);
-}
-
-/**
  * Returns a string that is used to delimit properties in current node’s rule
  * @param  {TextEditor} editor
- * @param  {Node}       node
+ * @param  {Property}       node
  * @return {String}
  */
-function getBefore(editor: TextEditor, node: Property) {
+function getPropertyDelimitor(editor: TextEditor, node: Property) {
 	let anchor;
 	if (anchor = (node.previousSibling || node.parent.contentStartToken)) {
 		return editor.document.getText(new Range(anchor.end, node.start));
@@ -317,3 +307,4 @@ function getBefore(editor: TextEditor, node: Property) {
 
 	return '';
 }
+

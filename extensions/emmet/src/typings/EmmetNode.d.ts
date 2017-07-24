@@ -52,6 +52,7 @@ declare module 'EmmetNode' {
     }
 
     export interface CssNode extends Node {
+        name: string
         parent: CssNode
         firstChild: CssNode
         nextSibling: CssNode
@@ -70,6 +71,7 @@ declare module 'EmmetNode' {
         separator: Token
         parent: Rule
         terminatorToken: Token
+        value: string
     }
 
     export interface Stylesheet extends Node {
