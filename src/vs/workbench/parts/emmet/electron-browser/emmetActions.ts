@@ -258,7 +258,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.decrementNumberByOneTenth': 'emmet.decrementNumberByOneTenth',
 		'editor.emmet.action.decrementNumberByOne': 'emmet.decrementNumberByOne',
 		'editor.emmet.action.decrementNumberByTen': 'emmet.decrementNumberByTen',
-		'editor.emmet.action.updateImageSize': 'emmet.updateImageSize'
+		'editor.emmet.action.updateImageSize': 'emmet.updateImageSize',
+		'editor.emmet.action.reflectCssValue': 'emmet.reflectCssValue'
 	};
 
 	protected emmetActionName: string;
