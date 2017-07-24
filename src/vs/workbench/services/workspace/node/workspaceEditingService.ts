@@ -29,7 +29,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public addRoots(rootsToAdd: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -39,7 +39,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -49,13 +49,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
-	private supported(): boolean {
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			return false; // we need a multi folder workspace to begin with
-		}
-
+	private isSupported(): boolean {
 		// TODO@Ben multi root
-		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+		return (
+			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
+			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+		);
 	}
 
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
