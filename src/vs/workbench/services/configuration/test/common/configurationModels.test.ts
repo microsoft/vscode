@@ -15,7 +15,7 @@ suite('ConfigurationService - Model', () => {
 			awesome: true
 		}));
 
-		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WORKSPACE);
+		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WORKBENCH);
 
 		assert.equal(testObject.getContentsFor('task'), undefined);
 	});
@@ -36,7 +36,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig], ConfigurationScope.WORKBENCH).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch)', () => {
@@ -55,7 +55,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig], ConfigurationScope.WORKBENCH).contents, expected);
 	});
 
 	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
@@ -91,7 +91,7 @@ suite('ConfigurationService - Model', () => {
 			}
 		};
 
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WORKSPACE).contents, expected);
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WORKSPACE).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WORKBENCH).contents, expected);
+		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WORKBENCH).contents, expected);
 	});
 });

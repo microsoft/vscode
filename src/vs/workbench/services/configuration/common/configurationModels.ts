@@ -129,11 +129,11 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 	}
 
 	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.WORKSPACE);
+		return this.createScopedConfigurationModel(ConfigurationScope.WORKBENCH);
 	}
 
 	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.FOLDER);
+		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
 	}
 
 	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
@@ -151,7 +151,7 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WORKSPACE;
+		return propertySchema ? propertySchema.scope : ConfigurationScope.WORKBENCH;
 	}
 }
 
@@ -166,7 +166,7 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 		this._contents = <T>{};
 		this._overrides = [];
 
-		this.doMerge(this, ConfigurationScope.WORKSPACE === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
+		this.doMerge(this, ConfigurationScope.WORKBENCH === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
 		for (const configModel of this.scopedConfigs) {
 			this.doMerge(this, configModel);
 		}
