@@ -620,11 +620,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	private _onDOMFocus = new Emitter<void>();
-	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
-
-	private _onDOMBlur = new Emitter<void>();
-	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
+	readonly onDOMFocus: Event<void>;
+	readonly onDOMBlur: Event<void>;
 
 	private _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -660,9 +657,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
 
-		const tracker = DOM.trackFocus(this.view.domNode);
-		this.disposables.push(tracker.addFocusListener(() => this._onDOMFocus.fire()));
-		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
+		this.onDOMFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
+		this.onDOMBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view);
