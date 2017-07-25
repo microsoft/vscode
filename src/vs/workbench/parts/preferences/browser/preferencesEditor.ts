@@ -811,7 +811,7 @@ class SettingsEditorContribution extends Disposable implements ISettingsEditorCo
 
 	createPreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
 		this.disposePreferencesRenderer();
-		this.preferencesRenderer = TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
+		this.preferencesRenderer = TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(associatedPreferencesModelUri), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
 			.then(([defaultSettingsModel, settingsModel]) => {
 				if (settingsModel instanceof SettingsEditorModel) {
 					switch (settingsModel.configurationTarget) {
