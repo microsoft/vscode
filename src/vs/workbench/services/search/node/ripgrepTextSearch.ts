@@ -422,7 +422,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 			key = getAbsoluteGlob(folder, key);
 
 			if (typeof value === 'boolean' && value) {
-				globArgs.push(key);
+				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {
 				if (!siblingClauses) {
 					siblingClauses = {};
@@ -442,14 +442,16 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolutePathKey = paths.isAbsolute(key) ?
+	return paths.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
+}
 
-	const root = paths.getRoot(folder);
+export function fixDriveC(path: string): string {
+	const root = paths.getRoot(path);
 	return root.toLowerCase() === 'c:/' ?
-		absolutePathKey.replace(/^c:[/\\]/i, '/') :
-		absolutePathKey;
+		path.replace(/^c:[/\\]/i, '/') :
+		path;
 }
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {
@@ -471,7 +473,9 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	args.push(...globsToGlobArgs(globalExcludeResult.globArgs.map(globToNotGlob)));
 
 	// includePattern can't have siblingClauses
-	const siblingClauses = excludeResult.siblingClauses;
+	const siblingClauses = (excludeResult.siblingClauses || globalExcludeResult.siblingClauses) ?
+		objects.assign({}, excludeResult.siblingClauses || {}, globalExcludeResult.siblingClauses || {}) :
+		null;
 
 	if (config.maxFilesize) {
 		args.push('--max-filesize', config.maxFilesize + '');

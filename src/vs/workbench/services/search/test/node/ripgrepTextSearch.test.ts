@@ -11,7 +11,7 @@ import assert = require('assert');
 import * as arrays from 'vs/base/common/arrays';
 import platform = require('vs/base/common/platform');
 
-import { RipgrepParser, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { RipgrepParser, getAbsoluteGlob, fixDriveC } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 
 
@@ -177,7 +177,7 @@ suite('RipgrepParser', () => {
 suite('RipgrepParser - etc', () => {
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
-		assert.equal(getAbsoluteGlob(folder, glob), expectedResult, JSON.stringify(params));
+		assert.equal(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
 	}
 
 	test('getAbsoluteGlob_win', () => {
