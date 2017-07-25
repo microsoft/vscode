@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -34,11 +35,11 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true });
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
+		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true, scopes: { resource } });
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined }, { donotNotifyError: true });
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void> {
+		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined }, { donotNotifyError: true, scopes: { resource } });
 	}
 }

@@ -445,12 +445,9 @@ export function createApiFactory(
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
-			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section);
+			getConfiguration: (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
+				return extHostConfiguration.getConfiguration(section, <URI>resource);
 			},
-			getConfiguration2: proposedApiFunction(extension, (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration2(section, <URI>resource);
-			}),
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
@@ -578,7 +575,8 @@ export function createApiFactory(
 			TaskGroup: extHostTypes.TaskGroup,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ShellExecution: extHostTypes.ShellExecution,
-			Task: extHostTypes.Task
+			Task: extHostTypes.Task,
+			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
 	};
 }

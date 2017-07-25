@@ -2951,24 +2951,52 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the workspace configuration.
+	 * The configuration target
+	 */
+	export enum ConfigurationTarget {
+		/**
+		 * Global configuration
+		*/
+		Global = 1,
+
+		/**
+		 * Workspace configuration
+		 */
+		Workspace = 2,
+
+		/**
+		 * Workspace folder configuration
+		 */
+		WorkspaceFolder = 3
+	}
+
+	/**
+	 * Represents the configuration. It is a merged view of
 	 *
-	 * The workspace configuration is a merged view: Configurations of the current [workspace](#workspace.rootPath)
-	 * (if available), files like `launch.json`, and the installation-wide configuration. Workspace specific values
-	 * shadow installation-wide values.
+	 * - Default configuration
+	 * - Global configuration
+	 * - Workspace configuration (if available)
+	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Note:* The merged configuration of the current [workspace](#workspace.rootPath)
-	 * also contains settings from files like `launch.json` and `tasks.json`. Their basename will be
+	 * **Global configuration** comes from User Settings and shadows Defaults.
+	 *
+	 * **Workspace configuration** comes from Workspace Settings and shadows Global configuration.
+	 *
+	 * **Workspace Folder configuration** comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 *
+	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
 	 * from `launch.json`:
 	 *
 	 * ```ts
 	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch');
+	 * const config = workspace.getConfiguration(workspace.workspaceFolders[1], 'launch');
 	 *
 	 * // retrieve values
 	 * const values = config.get('configurations');
 	 * ```
+	 *
+	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 	 */
 	export interface WorkspaceConfiguration {
 
@@ -2999,107 +3027,6 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieve all information about a configuration setting. A configuration value
-		 * often consists of a *default* value, a global or installation-wide value, and
-		 * a workspace-specific value. The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
-		 * for more information.
-		 *
-		 * *Note:* The configuration name must denote a leaf in the configuration tree
-		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return Information about a configuration setting or `undefined`.
-		 */
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } | undefined;
-
-		/**
-		 * Update the global value of the configuration
-		 *
-		 * *Note 1:* Setting a global value in the presence of a more specific workspace value
-		 * has no observable effect in that workspace, but in others. Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
-		 * for more information.
-		 *
-		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.updateFolderValue('somekey', undefined)`
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 */
-		updateGlobalValue(section: string, value: any): Thenable<void>;
-
-		/**
-		 * Update the workspace value of the configuration
-		 *
-		 * *Note 1:* Setting a workspace value in the presence of a more specific folder value
-		 * has no observable effect for the resources under respective [folder](#workspace.workspaceFolders),
-		 * but in others. Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
-		 * for more information.
-		 *
-		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.updateFolderValue('somekey', undefined)`
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 */
-		updateWorkspaceValue(section: string, value: any): Thenable<void>;
-
-		/**
-		 * Update a configuration value. A value can be changed for the current
-		 * [workspace](#workspace.rootPath) only, or globally for all instances of the
-		 * editor. The updated configuration values are persisted.
-		 *
-		 * *Note 1:* Setting an installation-wide value (`global: true`) in the presence of
-		 * a more specific workspace value has no observable effect in that workspace, but
-		 * in others.
-		 *
-		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
-		 *
-		 * @deprecated Use [`updateGlobalValue`](#WorkspaceConfiguration.updateGlobalValue) or [`updateWorkspaceValue`](#WorkspaceConfiguration.updateWorkspaceValue) instead.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 * @param global When `true` changes the configuration value for all instances of the editor.
-		 */
-		update(section: string, value: any, global?: boolean): Thenable<void>;
-
-		/**
-		 * Readable dictionary that backs this configuration.
-		 */
-		readonly [key: string]: any;
-	}
-
-	/**
-	 * Represents the configuration of a resource
-	 *
-	 * The resource configuration is a merged view of
-	 *
-	 * - Default configuration
-	 * - Global configuration
-	 * - Workspace configuration (if available)
-	 * - Folder configuration of the resource (if available)
-	 *
-	 * **Global configuration** comes from User Settings and shadows Defaults.
-	 *
-	 * **Workspace configuration** comes from Workspace Settings and shadows Global configuration.
-	 *
-	 * **Folder configurations** comes from `.vscode` folder under [workspace folders](#workspace.workspaceFolders). Each [workspace folder](#workspace.workspaceFolders)
-	 * has a configuration and the requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
-	 *
-	 * *Note:* Workspace and Folder configurations contains settings from `launch.json` and `tasks.json` files. Their basename will be
-	 * part of the section identifier. The following snippets shows how to retrieve all configurations
-	 * from `launch.json`:
-	 *
-	 * ```ts
-	 * // launch.json configuration
-	 * const config = workspace.getConfiguration(workspace.workspaceFolders[1], 'launch');
-	 *
-	 * // retrieve values
-	 * const values = config.get('configurations');
-	 * ```
-	 */
-	export interface ResourceConfiguration extends WorkspaceConfiguration {
-
-		/**
-		 * Retrieve all information about a configuration setting. A configuration value
 		 * often consists of a *default* value, a global or installation-wide value,
 		 * a workspace-specific value and a folder-specific value.
 		 *
@@ -3118,14 +3045,35 @@ declare module 'vscode' {
 		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
 
 		/**
-		 * Update the folder value of the configuration
+		 * Update a configuration value. The updated configuration values are persisted.
 		 *
-		 * *Note:* To remove a configuration value use `undefined`, like so: `config.updateFolderValue('somekey', undefined)`
+		 * A value can be changed in
+		 *
+		 * - [Global configuration](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace configuration](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder configuration](#ConfigurationTarget.WorkspaceFolder): Changes the value for the
+		 * [Workspace folder](#workspace.workspaceFolders) to which the current [configuration](#WorkspaceConfiguration) is scoped to.
+		 *
+		 * *Note 1:* Setting a global value in the presence of a more specific workspace value
+		 * has no observable effect in that workspace, but in others. Setting a workspace value
+		 * in the presence of a more specific folder value has no observable effect for the resources
+		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
+		 * [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+		 *
+		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget)
+		 * @param global When `true` changes the global configuration value otherwise workspace configuration value
 		 */
-		updateFolderValue(section: string, value: any): Thenable<void>;
+		update(section: string, value: any, configurationTarget: ConfigurationTarget): Thenable<void>;
+		update(section: string, value: any, global?: boolean): Thenable<void>;
+
+		/**
+		 * Readable dictionary that backs this configuration.
+		 */
+		readonly [key: string]: any;
 	}
 
 	/**
@@ -4947,23 +4895,13 @@ declare module 'vscode' {
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
 		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
-		 * @param section A dot-separated identifier.
-		 * @return The full configuration or a subset.
-		 */
-		export function getConfiguration(section?: string): WorkspaceConfiguration;
-
-		/**
-		 * Get a resource configuration object.
-		 *
-		 * When a section-identifier is provided only that part of the configuration
-		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 * When a resource is provided, configuration scoped to that resource is returned.
 		 *
 		 * @param section A dot-separated identifier.
-		 * @param resource A resource for which configuration is asked for
+		 * @param resource A resource for which the configuration is asked for
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(resource: Uri, section?: string): ResourceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
