@@ -232,7 +232,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	let expandedText;
 	try {
 		expandedText = expand(input.abbreviation, expandOptions);
-		if (input.textToWrap !== selectedTextToWrap) {
+		if (input.textToWrap && input.textToWrap !== selectedTextToWrap) {
 			expandedText = expandedText.replace(/\$/g, '\\$');
 		}
 	} catch (e) {
