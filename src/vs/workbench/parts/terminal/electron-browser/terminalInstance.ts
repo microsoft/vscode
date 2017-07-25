@@ -145,8 +145,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processReady.then(() => {
 				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
 				this._onCheckWindowsShell = new Emitter<TPromise<string>>();
-				debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
-					this.checkWindowShell();
+				debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 200, true)(() => {
+					setTimeout(() => {
+						this.checkWindowShell();
+					}, 50);
 				});
 				this._xterm.on('lineFeed', () => this._onCheckWindowsShell.fire());
 			});
