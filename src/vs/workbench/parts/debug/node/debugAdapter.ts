@@ -85,7 +85,7 @@ export class Adapter {
 	private getRuntime(root: uri): string {
 		let runtime = this.getAttributeBasedOnPlatform('runtime');
 		if (runtime && runtime.indexOf('./') === 0) {
-			runtime = this.configurationResolverService ? this.configurationResolverService.resolve(root, runtime) : runtime;
+			runtime = root ? this.configurationResolverService.resolve(root, runtime) : runtime;
 			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
 		}
 		return runtime;
@@ -94,7 +94,7 @@ export class Adapter {
 	private getProgram(root: uri): string {
 		let program = this.getAttributeBasedOnPlatform('program');
 		if (program) {
-			program = this.configurationResolverService ? this.configurationResolverService.resolve(root, program) : program;
+			program = root ? this.configurationResolverService.resolve(root, program) : program;
 			program = paths.join(this.extensionDescription.extensionFolderPath, program);
 		}
 		return program;
