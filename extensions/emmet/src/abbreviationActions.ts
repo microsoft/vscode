@@ -156,7 +156,7 @@ export function expandAbbreviation(args) {
  */
 export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
 	if (!currentNode) {
-		return true;
+		return !isStyleSheet(syntax);
 	}
 
 	if (isStyleSheet(syntax)) {
@@ -164,6 +164,16 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 			return true;
 		}
 		const currentCssNode = <Rule>currentNode;
+
+		// Workaround for https://github.com/Microsoft/vscode/30188
+		if (currentCssNode.parent
+			&& currentCssNode.parent.type === 'rule'
+			&& currentCssNode.selectorToken
+			&& currentCssNode.selectorToken.start.line !== currentCssNode.selectorToken.end.line) {
+			return true;
+		}
+
+		// Position is valid if it occurs after the `{` that marks beginning of rule contents
 		return currentCssNode.selectorToken && position.isAfter(currentCssNode.selectorToken.end);
 	}
 
