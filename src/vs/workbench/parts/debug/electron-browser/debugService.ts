@@ -658,6 +658,9 @@ export class DebugService implements debug.IDebugService {
 				} else if (typeof configOrName !== 'string') {
 					config = configOrName;
 				}
+				if (launch) {
+					manager.selectConfiguration(launch, typeof configOrName === 'string' ? configOrName : undefined);
+				}
 
 				if (compound) {
 					if (!compound.configurations) {
