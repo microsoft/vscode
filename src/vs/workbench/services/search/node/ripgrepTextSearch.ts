@@ -442,9 +442,14 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	return paths.isAbsolute(key) ?
+	let absolute = paths.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
+
+	absolute = strings.rtrim(absolute, '\\');
+	absolute = strings.rtrim(absolute, '/');
+
+	return absolute;
 }
 
 export function fixDriveC(path: string): string {
