@@ -123,8 +123,8 @@ export abstract class MainThreadCommandsShape {
 }
 
 export abstract class MainThreadConfigurationShape {
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> { throw ni(); }
-	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> { throw ni(); }
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> { throw ni(); }
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void> { throw ni(); }
 }
 
 export abstract class MainThreadDiagnosticsShape {
