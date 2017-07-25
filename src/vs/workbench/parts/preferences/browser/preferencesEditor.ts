@@ -12,8 +12,8 @@ import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { toResource, SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -58,6 +58,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 import Event, { Emitter } from "vs/base/common/event";
+import { Registry } from "vs/platform/registry/common/platform";
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -68,10 +69,6 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 
 	public getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
-	}
-
-	public isDirty(): boolean {
-		return false;
 	}
 }
 
@@ -416,7 +413,7 @@ class SideBySidePreferencesWidget extends Widget {
 	private dimension: Dimension;
 
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
-	private editablePreferencesEditor: EditableSettingsEditor;
+	private editablePreferencesEditor: BaseEditor;
 	private defaultPreferencesEditorContainer: HTMLElement;
 	private editablePreferencesEditorContainer: HTMLElement;
 
@@ -445,10 +442,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
-		this.editablePreferencesEditor = this._register(this.instantiationService.createInstance(EditableSettingsEditor));
-		this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
-		this.editablePreferencesEditor.setVisible(true);
-		(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
@@ -466,10 +459,13 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
-		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
-		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
-			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
+		return this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput)
+			.then(() => {
+				this.dolayout(this.sash.getVerticalSashLeft());
+				return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, toResource(editablePreferencesEditorInput), options),
+				this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+					.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
+			});
 	}
 
 	public layout(dimension: Dimension): void {
@@ -503,6 +499,21 @@ class SideBySidePreferencesWidget extends Widget {
 		if (this.editablePreferencesEditor) {
 			this.editablePreferencesEditor.changePosition(position);
 		}
+	}
+
+	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): TPromise<BaseEditor> {
+		if (this.editablePreferencesEditor) {
+			return TPromise.as(this.editablePreferencesEditor);
+		}
+		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
+		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
+			.then((editor: BaseEditor) => {
+				this.editablePreferencesEditor = editor;
+				this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
+				this.editablePreferencesEditor.setVisible(true);
+				(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+				return editor;
+			});
 	}
 
 	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {

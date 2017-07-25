@@ -317,7 +317,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
 				}
 				if (this.contextService.hasMultiFolderWorkspace()) {
-					return this.workspaceConfigSettingsResource;
+					return workspace.configuration;
 				}
 				return null;
 			case ConfigurationTarget.FOLDER:
@@ -333,7 +333,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
-			return TPromise.as(null);
+			if (!this.configurationService.keys().workspace.length) {
+				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
+			}
 		}
 		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
