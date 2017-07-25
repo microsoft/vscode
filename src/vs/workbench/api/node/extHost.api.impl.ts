@@ -477,11 +477,8 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
-			startDebugging: proposedApiFunction(extension, (folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) => {
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
-			}),
-			startDebugSession(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugSession(folder, config);
 			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);

@@ -5522,15 +5522,16 @@ declare module 'vscode' {
 	export namespace debug {
 
 		/**
-		 * Start a debug session based on the given configuration.
-		 * The configuration's type is used to select the debug adapter and then the configuration is directly passed to this adapter.
-		 * This function should only be called in the context of a 'startSession' command, e.g. after verifying or massaging the configuration.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceRoot}') are resolved against the given folder.
-		 * @param folder The workspace folder for resolving variables used in the configuration or undefined.
-		 * @param configuration The debug configuration that is directly passed to the debug adapter.
-		 * @return A thenable that resolves when the debug session could be successfully started.
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a DebugConfiguration.
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. 'workspaceRoot') are resolved against the given folder.
+		 * @param folder The workspace folder for looking up named configurations and resolving variables or undefined.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
+		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export function startDebugSession(folder: WorkspaceFolder | undefined, configuration: DebugConfiguration): Thenable<DebugSession>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
 
 		/**
 		 * The currently active debug session or `undefined`. The active debug session is the one
