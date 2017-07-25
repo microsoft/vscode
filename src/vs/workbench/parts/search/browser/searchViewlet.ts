@@ -169,8 +169,6 @@ export class SearchViewlet extends Viewlet {
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
 		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
 		const patternExclusionsHistory = this.viewletSettings['query.folderExclusionsHistory'] || [];
-		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
-		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
 		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
@@ -223,17 +221,17 @@ export class SearchViewlet extends Viewlet {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
-        this.inputPatternExcludes.setValue(patternExclusions);
+				this.inputPatternExcludes.setValue(patternExclusions);
 				this.inputPatternExcludes.setUseIgnoreFiles(useIgnoreFiles);
 				this.inputPatternExcludes.setUseExcludeSettings(useExcludeSettings);
 				this.inputPatternExcludes.setHistory(patternExclusionsHistory);
-        
+
 				this.inputPatternExcludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
 
-        this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
 				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocussed);
 			});
 		}).getHTMLElement();
@@ -269,7 +267,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public get searchExcludePattern(): PatternInputWidget {
-		return this.inputPatternExclusions;
+		return this.inputPatternExcludes;
 	}
 
 	private createSearchWidget(builder: Builder): void {

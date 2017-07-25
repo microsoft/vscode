@@ -165,42 +165,6 @@ export class PatternInputWidget extends Widget {
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
-		this.pattern = new Checkbox({
-			actionClassName: 'pattern',
-			title: nls.localize('patternDescription', "Use Glob Patterns"),
-			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-
-				if (this.isGlobPattern()) {
-					this.showGlobHelp();
-				} else {
-					this.inputBox.hideMessage();
-				}
-			}
-		});
-		this._register(attachCheckboxStyler(this.pattern, this.themeService));
-
-		this._register(this.onSubmit(() => {
-			let value = this.getValue();
-			if (value.length > 0) {
-				this.history.add(this.getValue());
-			}
-		}));
-
-		$(this.pattern.domNode).on('mouseover', () => {
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			}
-		});
-
-		$(this.pattern.domNode).on(['mouseleave', 'mouseout'], () => {
-			this.inputBox.hideMessage();
-		});
-
 		let controls = document.createElement('div');
 		controls.className = 'controls';
 		this.renderSubcontrols(controls);
