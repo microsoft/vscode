@@ -172,7 +172,7 @@ suite('Search-integration', function () {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			excludePattern: { '**/examples': true }
+			excludePattern: makeExpression('**/examples')
 		};
 
 		doSearchTest(config, 394, done);
@@ -182,7 +182,7 @@ suite('Search-integration', function () {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true }
+			includePattern: makeExpression('**/examples/**'),
 		};
 
 		doSearchTest(config, 382, done);
@@ -192,11 +192,22 @@ suite('Search-integration', function () {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true },
-			excludePattern: { '**/examples/small.js': true }
+			includePattern: makeExpression('**/examples/**'),
+			excludePattern: makeExpression('**/examples/small.js')
 		};
 
 		doSearchTest(config, 361, done);
+	});
+
+	test('Text: e (include/exclude precedence)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: makeExpression('**/examples/**'),
+			excludePattern: makeExpression('**/examples/**')
+		};
+
+		doSearchTest(config, 0, done);
 	});
 
 	test('Text: a (capped)', function (done: () => void) {
@@ -272,6 +283,20 @@ suite('Search-integration', function () {
 
 		doSearchTest(config, 286, done);
 	});
+
+	// Pending non-ripgrep precedence
+	// test('Multiroot: e with folder exclude precedence', function (done: () => void) {
+	// 	const config: IRawSearch = {
+	// 		folderQueries: [
+	// 			{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
+	// 			{ folder: MORE_FIXTURES }
+	// 		],
+	// 		contentPattern: { pattern: 'e' },
+	// 		includePattern: makeExpression('**/*.js')
+	// 	};
+
+	// 	doSearchTest(config, 382, done);
+	// });
 });
 
 function makeExpression(...patterns: string[]): glob.IExpression {

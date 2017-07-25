@@ -402,7 +402,7 @@ function foldersToRgGlobs(folderQueries: IFolderSearch[], patternProvider: (fs: 
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const pattern = patternProvider(folderQuery);
+		const pattern = patternProvider(folderQuery) || {};
 		const result = globExprsToRgGlobs(pattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
