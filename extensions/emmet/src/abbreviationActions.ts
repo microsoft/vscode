@@ -233,7 +233,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	try {
 		expandedText = expand(input.abbreviation, expandOptions);
 		if (input.textToWrap && input.textToWrap !== selectedTextToWrap) {
-			expandedText = expandedText.replace(/\$/g, '\\$');
+			expandedText = expandedText.replace(/(\$[^\{])/g, '\\$&');
 		}
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
