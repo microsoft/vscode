@@ -274,14 +274,14 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
+		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
 		assert.equal(actual2.workspaceFolderValue, undefined);
 
 		actual2 = testObject.getConfiguration('editor', thirdRoot).inspect('wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
+		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
 		assert.equal(actual2.workspaceFolderValue, undefined);
 	});
 
