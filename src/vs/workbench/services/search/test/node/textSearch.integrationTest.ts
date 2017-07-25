@@ -284,19 +284,18 @@ suite('Search-integration', function () {
 		doSearchTest(config, 286, done);
 	});
 
-	// Pending non-ripgrep precedence
-	// test('Multiroot: e with folder exclude precedence', function (done: () => void) {
-	// 	const config: IRawSearch = {
-	// 		folderQueries: [
-	// 			{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
-	// 			{ folder: MORE_FIXTURES }
-	// 		],
-	// 		contentPattern: { pattern: 'e' },
-	// 		includePattern: makeExpression('**/*.js')
-	// 	};
+	test('Multiroot: e with folder exclude precedence', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: [
+				{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
+				{ folder: MORE_FIXTURES }
+			],
+			contentPattern: { pattern: 'e' },
+			includePattern: makeExpression('**/*.js')
+		};
 
-	// 	doSearchTest(config, 382, done);
-	// });
+		doSearchTest(config, 382, done);
+	});
 });
 
 function makeExpression(...patterns: string[]): glob.IExpression {
