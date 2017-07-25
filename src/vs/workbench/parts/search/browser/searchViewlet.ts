@@ -78,6 +78,8 @@ export class SearchViewlet extends Viewlet {
 
 	private viewletVisible: IContextKey<boolean>;
 	private inputBoxFocussed: IContextKey<boolean>;
+	private inputPatternIncludesFocussed: IContextKey<boolean>;
+	private inputPatternExclusionsFocussed: IContextKey<boolean>;
 	private firstMatchFocussed: IContextKey<boolean>;
 	private fileMatchOrMatchFocussed: IContextKey<boolean>;
 	private fileMatchFocussed: IContextKey<boolean>;
@@ -127,6 +129,8 @@ export class SearchViewlet extends Viewlet {
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocussed = Constants.InputBoxFocussedKey.bindTo(this.contextKeyService);
+		this.inputPatternIncludesFocussed = Constants.PatternIncludesFocussedKey.bindTo(this.contextKeyService);
+		this.inputPatternExclusionsFocussed = Constants.PatternExcludesFocussedKey.bindTo(this.contextKeyService);
 		this.firstMatchFocussed = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocussed = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocussed = Constants.FileFocusKey.bindTo(contextKeyService);
@@ -164,7 +168,11 @@ export class SearchViewlet extends Viewlet {
 
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
 		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory = this.viewletSettings['query.folderExclusionsHistory'] || [];
+		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
+		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const patternIncludesHistory = this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
@@ -195,6 +203,7 @@ export class SearchViewlet extends Viewlet {
 				});
 
 				this.inputPatternIncludes.setValue(patternIncludes);
+				this.inputPatternIncludes.setHistory(patternIncludesHistory);
 
 				this.inputPatternIncludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
@@ -202,7 +211,7 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
-				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker);
+				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocussed);
 			});
 
 			//pattern exclusion list
@@ -214,17 +223,18 @@ export class SearchViewlet extends Viewlet {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
-				this.inputPatternExcludes.setValue(patternExclusions);
+        this.inputPatternExcludes.setValue(patternExclusions);
 				this.inputPatternExcludes.setUseIgnoreFiles(useIgnoreFiles);
 				this.inputPatternExcludes.setUseExcludeSettings(useExcludeSettings);
-
+				this.inputPatternExcludes.setHistory(patternExclusionsHistory);
+        
 				this.inputPatternExcludes
 					.on(FindInput.OPTION_CHANGE, (e) => {
 						this.onQueryChanged(false);
 					});
 
-				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
-				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker);
+        this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocussed);
 			});
 		}).getHTMLElement();
 
@@ -254,17 +264,27 @@ export class SearchViewlet extends Viewlet {
 		return this.searchWidget;
 	}
 
+	public get searchIncludePattern(): PatternInputWidget {
+		return this.inputPatternIncludes;
+	}
+
+	public get searchExcludePattern(): PatternInputWidget {
+		return this.inputPatternExclusions;
+	}
+
 	private createSearchWidget(builder: Builder): void {
 		let contentPattern = this.viewletSettings['query.contentPattern'] || '';
 		let isRegex = this.viewletSettings['query.regex'] === true;
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
+		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWholeWords: isWholeWords
+			isWholeWords: isWholeWords,
+			history: searchHistory
 		});
 
 		if (this.storageService.getBoolean(SearchViewlet.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
@@ -292,15 +312,21 @@ export class SearchViewlet extends Viewlet {
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
 	}
 
-	private trackInputBox(inputFocusTracker: dom.IFocusTracker): void {
+	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
 		this.toUnbind.push(inputFocusTracker.addFocusListener(() => {
 			this.inputBoxFocussed.set(true);
+			if (contextKey) {
+				contextKey.set(true);
+			}
 		}));
 		this.toUnbind.push(inputFocusTracker.addBlurListener(() => {
 			this.inputBoxFocussed.set(this.searchWidget.searchInputHasFocus()
 				|| this.searchWidget.replaceInputHasFocus()
 				|| this.inputPatternIncludes.inputHasFocus()
 				|| this.inputPatternExcludes.inputHasFocus());
+			if (contextKey) {
+				contextKey.set(false);
+			}
 		}));
 	}
 
@@ -1352,16 +1378,21 @@ export class SearchViewlet extends Viewlet {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useIgnoreFiles = this.inputPatternExcludes.useIgnoreFiles();
+		const searchHistory = this.searchWidget.getHistory();
+		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
+		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
+		this.viewletSettings['query.searchHistory'] = searchHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
 		this.viewletSettings['query.folderExclusions'] = patternExcludes;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
+		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
+		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
-		this.viewletSettings['query.contentPattern'] = contentPattern;
 
 		super.shutdown();
 	}

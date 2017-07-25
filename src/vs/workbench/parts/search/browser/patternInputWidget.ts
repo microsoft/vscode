@@ -16,6 +16,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
 	placeholder?: string;
@@ -39,11 +40,14 @@ export class PatternInputWidget extends Widget {
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
+	private history: HistoryNavigator<string>;
+
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
+		this.history = new HistoryNavigator<string>();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
@@ -116,6 +120,34 @@ export class PatternInputWidget extends Widget {
 		return 0;
 	}
 
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public setHistory(history: string[]) {
+		this.history = new HistoryNavigator<string>(history);
+	}
+
+	public showNextTerm() {
+		let next = this.history.next();
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousTerm() {
+		let previous;
+		if (this.getValue().length === 0) {
+			previous = this.history.current();
+		} else {
+			this.history.addIfNotPresent(this.getValue());
+			previous = this.history.previous();
+		}
+		if (previous) {
+			this.setValue(previous);
+		}
+	}
+
 	private render(): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
@@ -132,6 +164,42 @@ export class PatternInputWidget extends Widget {
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
+
+		this.pattern = new Checkbox({
+			actionClassName: 'pattern',
+			title: nls.localize('patternDescription', "Use Glob Patterns"),
+			isChecked: false,
+			onChange: (viaKeyboard) => {
+				this.onOptionChange(null);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
+
+				if (this.isGlobPattern()) {
+					this.showGlobHelp();
+				} else {
+					this.inputBox.hideMessage();
+				}
+			}
+		});
+		this._register(attachCheckboxStyler(this.pattern, this.themeService));
+
+		this._register(this.onSubmit(() => {
+			let value = this.getValue();
+			if (value.length > 0) {
+				this.history.add(this.getValue());
+			}
+		}));
+
+		$(this.pattern.domNode).on('mouseover', () => {
+			if (this.isGlobPattern()) {
+				this.showGlobHelp();
+			}
+		});
+
+		$(this.pattern.domNode).on(['mouseleave', 'mouseout'], () => {
+			this.inputBox.hideMessage();
+		});
 
 		let controls = document.createElement('div');
 		controls.className = 'controls';

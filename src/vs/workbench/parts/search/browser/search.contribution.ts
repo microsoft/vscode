@@ -145,6 +145,46 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowNextSearchIncludeAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocussedKey),
+	primary: ShowNextFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowNextSearchIncludeAction, searchActions.ShowNextSearchIncludeAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowPreviousSearchIncludeAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocussedKey),
+	primary: ShowPreviousFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowPreviousSearchIncludeAction, searchActions.ShowPreviousSearchIncludeAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowNextSearchExcludeAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocussedKey),
+	primary: ShowNextFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowNextSearchExcludeAction, searchActions.ShowNextSearchExcludeAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowPreviousSearchExcludeAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocussedKey),
+	primary: ShowPreviousFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowPreviousSearchExcludeAction, searchActions.ShowPreviousSearchExcludeAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: searchActions.ShowNextSearchTermAction.ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey),
