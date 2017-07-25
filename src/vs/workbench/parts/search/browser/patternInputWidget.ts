@@ -109,7 +109,7 @@ export class PatternInputWidget extends Widget {
 	}
 
 	private setInputWidth(): void {
-		this.inputBox.width = this.width;
+		this.inputBox.width = this.width - this.getSubcontrolsWidth() - 2; // 2 for input box border
 	}
 
 	protected getSubcontrolsWidth(): number {

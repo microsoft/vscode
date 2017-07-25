@@ -694,7 +694,7 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		this.searchWidget.setWidth(this.size.width - 25 /* container margin */);
+		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
 
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
