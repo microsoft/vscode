@@ -148,10 +148,9 @@ export class TerminalInstance implements ITerminalInstance {
 				debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
 					this.checkWindowShell();
 				});
-				this.onData(() => this._onCheckWindowsShell.fire());
+				this._xterm.on('lineFeed', () => this._onCheckWindowsShell.fire());
 			});
 		}
-
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
 			this.attachToElement(_container);
@@ -160,7 +159,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	/* ONLY IMPLEMENTED FOR WINDOWS */
 	private checkWindowShell(): void {
-		if (platform.isWindows) {
+		if (platform.isWindows && this._messageTitleListener) {
 			this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
 		}
 	}
@@ -284,12 +283,6 @@ export class TerminalInstance implements ITerminalInstance {
 			// If tab focus mode is on, tab is not passed to the terminal
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
-			}
-
-			// Windows does not get a process title event from terminalProcess so we check the name on enter
-			// messageTitleListener is falsy when the API/user renames the terminal so we don't override it
-			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
-				this._onCheckWindowsShell.fire();
 			}
 
 			return undefined;
