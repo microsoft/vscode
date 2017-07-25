@@ -27,79 +27,92 @@ export function updateImageSize() {
 		return;
 	}
 
-	if (!isStyleSheet(editor.document.languageId)) {
-		return updateImageSizeHTML(editor);
-	} else {
-		return updateImageSizeCSSFile(editor);
-	}
+	let allUpdatesPromise = editor.selections.reverse().map(selection => {
+		let position = selection.isReversed ? selection.active : selection.anchor;
+		if (!isStyleSheet(editor.document.languageId)) {
+			return updateImageSizeHTML(editor, position);
+		} else {
+			return updateImageSizeCSSFile(editor, position);
+		}
+	});
+
+	return Promise.all(allUpdatesPromise).then((updates) => {
+		return editor.edit(builder => {
+			updates.forEach(update => {
+				update.forEach(([rangeToReplace, textToReplace]) => {
+					builder.replace(rangeToReplace, textToReplace);
+				});
+			});
+		});
+	});
 }
 
 /**
  * Updates image size of context tag of HTML model
  */
-function updateImageSizeHTML(editor: TextEditor) {
-	const src = getImageSrcHTML(getImageHTMLNode(editor));
+function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<[Range, string][]> {
+	const src = getImageSrcHTML(getImageHTMLNode(editor, position));
 
 	if (!src) {
-		return updateImageSizeStyleTag(editor);
+		return updateImageSizeStyleTag(editor, position);
 	}
 
-	locateFile(path.dirname(editor.document.fileName), src)
+	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
 		.then((size: any) => {
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
-			const img = getImageHTMLNode(editor);
+			const img = getImageHTMLNode(editor, position);
 			if (getImageSrcHTML(img) === src) {
-				updateHTMLTag(editor, img, size.width, size.height);
+				return updateHTMLTag(editor, img, size.width, size.height);
 			}
 		})
-		.catch(err => console.warn('Error while updating image size:', err));
+		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
 
-function updateImageSizeStyleTag(editor: TextEditor) {
+function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<[Range, string][]> {
 	let getPropertyInsiderStyleTag = (editor) => {
 		const rootNode = parseDocument(editor.document);
-		const currentNode = <HtmlNode>getNode(rootNode, editor.selection.active);
+		const currentNode = <HtmlNode>getNode(rootNode, position);
 		if (currentNode && currentNode.name === 'style'
-			&& currentNode.open.end.isBefore(editor.selection.active)
-			&& currentNode.close.start.isAfter(editor.selection.active)) {
+			&& currentNode.open.end.isBefore(position)
+			&& currentNode.close.start.isAfter(position)) {
 			let buffer = new DocumentStreamReader(editor.document, currentNode.start, new Range(currentNode.start, currentNode.end));
 			let rootNode = parseStylesheet(buffer);
-			const node = getNode(rootNode, editor.selection.active);
+			const node = getNode(rootNode, position);
 			return (node && node.type === 'property') ? <Property>node : null;
 		}
 	};
 
-	return updateImageSizeCSS(editor, getPropertyInsiderStyleTag);
+	return updateImageSizeCSS(editor, position, getPropertyInsiderStyleTag);
 }
 
-function updateImageSizeCSSFile(editor: TextEditor) {
-	return updateImageSizeCSS(editor, getImageCSSNode);
+function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise<[Range, string][]> {
+	return updateImageSizeCSS(editor, position, getImageCSSNode);
 }
 
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor, fetchNode: (editor) => Property) {
+function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor, position) => Property): Promise<[Range, string][]> {
 
-	const src = getImageSrcCSS(fetchNode(editor), editor.selection.active);
+	const src = getImageSrcCSS(fetchNode(editor, position), position);
 
 	if (!src) {
 		return Promise.reject(new Error('No valid image source'));
 	}
 
-	locateFile(path.dirname(editor.document.fileName), src)
+	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
 		.then((size: any) => {
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
-			const prop = fetchNode(editor);
-			if (getImageSrcCSS(prop, editor.selection.active) === src) {
-				updateCSSNode(editor, prop, size.width, size.height);
+			const prop = fetchNode(editor, position);
+			if (getImageSrcCSS(prop, position) === src) {
+				return updateCSSNode(editor, prop, size.width, size.height);
 			}
 		})
-		.catch(err => console.warn('Error while updating image size:', err));
+		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
 
 /**
@@ -108,9 +121,9 @@ function updateImageSizeCSS(editor: TextEditor, fetchNode: (editor) => Property)
  * @param  {TextEditor}  editor
  * @return {HtmlNode}
  */
-function getImageHTMLNode(editor: TextEditor): HtmlNode {
+function getImageHTMLNode(editor: TextEditor, position: Position): HtmlNode {
 	const rootNode = parseDocument(editor.document);
-	const node = <HtmlNode>getNode(rootNode, editor.selection.active, true);
+	const node = <HtmlNode>getNode(rootNode, position, true);
 
 	return node && node.name.toLowerCase() === 'img' ? node : null;
 }
@@ -121,9 +134,9 @@ function getImageHTMLNode(editor: TextEditor): HtmlNode {
  * @param  {TextEditor}  editor
  * @return {Property}
  */
-function getImageCSSNode(editor: TextEditor): Property {
+function getImageCSSNode(editor: TextEditor, position: Position): Property {
 	const rootNode = parseDocument(editor.document);
-	const node = getNode(rootNode, editor.selection.active, true);
+	const node = getNode(rootNode, position, true);
 	return node && node.type === 'property' ? <Property>node : null;
 }
 
@@ -135,7 +148,6 @@ function getImageCSSNode(editor: TextEditor): Property {
 function getImageSrcHTML(node: HtmlNode): string {
 	const srcAttr = getAttribute(node, 'src');
 	if (!srcAttr) {
-		console.warn('No "src" attribute in', node && node.open);
 		return;
 	}
 
@@ -173,7 +185,7 @@ function getImageSrcCSS(node: Property, position: Position): string {
  * @param  {number}     width
  * @param  {number}     height
  */
-function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height: number) {
+function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height: number): [Range, string][] {
 	const srcAttr = getAttribute(node, 'src');
 	const widthAttr = getAttribute(node, 'width');
 	const heightAttr = getAttribute(node, 'height');
@@ -197,11 +209,7 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
 		edits.push([new Range(endOfAttributes, endOfAttributes), textToAdd]);
 	}
 
-	return editor.edit(builder => {
-		edits.forEach(([rangeToReplace, textToReplace]) => {
-			builder.replace(rangeToReplace, textToReplace);
-		});
-	});
+	return edits;
 }
 
 /**
@@ -211,7 +219,7 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
  * @param  {number}     width
  * @param  {number}     height
  */
-function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number) {
+function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number): [Range, string][] {
 	const rule = srcProp.parent;
 	const widthProp = getCssPropertyFromRule(rule, 'width');
 	const heightProp = getCssPropertyFromRule(rule, 'height');
@@ -240,11 +248,7 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 		edits.push([new Range(srcProp.end, srcProp.end), textToAdd]);
 	}
 
-	return editor.edit(builder => {
-		edits.forEach(([rangeToReplace, textToReplace]) => {
-			builder.replace(rangeToReplace, textToReplace);
-		});
-	});
+	return edits;
 }
 
 /**
