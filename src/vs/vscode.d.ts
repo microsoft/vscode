@@ -2978,11 +2978,11 @@ declare module 'vscode' {
 	 * - Workspace configuration (if available)
 	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * **Global configuration** comes from User Settings and shadows Defaults.
+	 * *Global configuration* comes from User Settings and shadows Defaults.
 	 *
-	 * **Workspace configuration** comes from Workspace Settings and shadows Global configuration.
+	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
 	 *
-	 * **Workspace Folder configuration** comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
 	 *
 	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
@@ -2990,7 +2990,7 @@ declare module 'vscode' {
 	 *
 	 * ```ts
 	 * // launch.json configuration
-	 * const config = workspace.getConfiguration(workspace.workspaceFolders[1], 'launch');
+	 * const config = workspace.getConfiguration('launch', vscode.window.activeTextEditor.document.uri);
 	 *
 	 * // retrieve values
 	 * const values = config.get('configurations');
@@ -3032,7 +3032,7 @@ declare module 'vscode' {
 		 *
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `folderValue`.
+		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
 		 * Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
@@ -3042,7 +3042,7 @@ declare module 'vscode' {
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return Information about a configuration setting or `undefined`.
 		 */
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined;
 
 		/**
 		 * Update a configuration value. The updated configuration values are persisted.
@@ -3064,11 +3064,11 @@ declare module 'vscode' {
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
-		 * @param configurationTarget The [configuration target](#ConfigurationTarget)
-		 * @param global When `true` changes the global configuration value otherwise workspace configuration value
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
+		 *	If `undefined` or `null` or `false` configuration target is `ConfigurationTarget.Workspace`.
+		 *	If `true` configuration target is `ConfigurationTarget.Global`.
 		 */
-		update(section: string, value: any, configurationTarget: ConfigurationTarget): Thenable<void>;
-		update(section: string, value: any, global?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.

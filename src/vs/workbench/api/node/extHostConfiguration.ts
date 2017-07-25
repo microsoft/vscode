@@ -30,7 +30,7 @@ type ConfigurationInspect<T> = {
 	defaultValue?: T;
 	globalValue?: T;
 	workspaceValue?: T;
-	folderValue?: T;
+	workspaceFolderValue?: T;
 };
 
 export class ExtHostConfiguration extends ExtHostConfigurationShape {
@@ -87,7 +87,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				}
 				return result;
 			},
-			update: (key: string, value: any, arg: boolean | ExtHostConfigurationTarget) => {
+			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
 				key = section ? `${section}.${key}` : key;
 				const target = parseConfigurationTarget(arg);
 				if (value !== void 0) {
@@ -105,7 +105,7 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 						defaultValue: config.default,
 						globalValue: config.user,
 						workspaceValue: config.workspace,
-						folderValue: config.folder
+						workspaceFolderValue: config.folder
 					};
 				}
 				return undefined;
