@@ -281,6 +281,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
+			this.initLaunches();
 		}));
 
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
@@ -313,12 +314,16 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	public selectConfiguration(launch: ILaunch, name?: string): void {
 		this._selectedLaunch = launch;
-		if (name) {
+		const names = launch ? launch.getConfigurationNames() : [];
+		if (name && names.indexOf(name) >= 0) {
 			this._selectedName = name;
+		}
+		if (names.indexOf(this.selectedName) === -1) {
+			this._selectedName = names.length ? names[0] : undefined;
 		}
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (launch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, this.contextService.getRoot(launch.uri).toString(), StorageScope.WORKSPACE);
+			this.storageService.store(DEBUG_SELECTED_ROOT, launch.workspaceUri.toString(), StorageScope.WORKSPACE);
 		}
 		this._onDidSelectConfigurationName.fire();
 	}
