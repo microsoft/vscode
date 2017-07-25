@@ -229,7 +229,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService
 	) {
 		this.adapters = [];
-		this.launches = [];
 		this.toDispose = [];
 		this.registerListeners();
 		this.initLaunches();
@@ -292,7 +291,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private initLaunches(): void {
-		this.launches = this.contextService.getWorkspace().roots.map(root => this.instantiationService.createInstance(Launch, this, root));
+		const workspace = this.contextService.getWorkspace();
+		this.launches = workspace ? workspace.roots.map(root => this.instantiationService.createInstance(Launch, this, root)) : [];
 	}
 
 	public getLaunches(): ILaunch[] {
