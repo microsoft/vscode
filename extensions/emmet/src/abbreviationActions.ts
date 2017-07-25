@@ -17,6 +17,8 @@ interface ExpandAbbreviationInput {
 	preceedingWhiteSpace?: string;
 }
 
+const selectedTextToWrap = '\n\$TM_SELECTED_TEXT\n';
+
 export function wrapWithAbbreviation(args) {
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax || !validate()) {
@@ -72,7 +74,7 @@ export function wrapWithAbbreviation(args) {
 
 		if (!allTextToReplaceSame) {
 			expandAbbrList.forEach(input => {
-				input.textToWrap = '\n\$TM_SELECTED_TEXT\n';
+				input.textToWrap = selectedTextToWrap;
 			});
 		}
 
@@ -230,6 +232,9 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	let expandedText;
 	try {
 		expandedText = expand(input.abbreviation, expandOptions);
+		if (input.textToWrap !== selectedTextToWrap) {
+			expandedText = expandedText.replace(/\$/g, '\\$');
+		}
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
