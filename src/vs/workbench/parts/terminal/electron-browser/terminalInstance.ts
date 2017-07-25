@@ -140,6 +140,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
+		this.setTitle(path.basename(this._shellLaunchConfig.executable), true);
 
 		if (platform.isWindows) {
 			this._processReady.then(() => {
