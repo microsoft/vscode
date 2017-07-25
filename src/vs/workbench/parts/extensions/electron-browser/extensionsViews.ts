@@ -420,6 +420,10 @@ export class ExtensionsListView extends CollapsibleView {
 		return /@disabled/i.test(query);
 	}
 
+	static isEnabledExtensionsQuery(query: string): boolean {
+		return /@enabled/i.test(query);
+	}
+
 	static isRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended/i.test(query);
 	}
@@ -438,7 +442,8 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	public static isInsalledExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isInstalledExtensionsQuery(query)
 			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
-			|| ExtensionsListView.isDisabledExtensionsQuery(query);
+			|| ExtensionsListView.isDisabledExtensionsQuery(query)
+			|| ExtensionsListView.isEnabledExtensionsQuery(query);
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
