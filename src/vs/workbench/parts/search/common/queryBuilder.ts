@@ -141,7 +141,7 @@ export class QueryBuilder {
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
-					searchPath: uri.parse(searchPath),
+					searchPath: uri.file(searchPath),
 					pattern: globPortion
 				};
 			});
@@ -198,8 +198,14 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 		const globCharIdx = globCharMatch.index;
 		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
 		if (lastSlashMatch) {
+			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
+			if (!pathPortion.match(/[/\\]/)) {
+				// If the last slash was the only slash, then we now have '' or 'C:'. Append a slash.
+				pathPortion += '/';
+			}
+
 			return {
-				pathPortion: searchPath.substr(0, lastSlashMatch.index) || '/',
+				pathPortion,
 				globPortion: searchPath.substr(lastSlashMatch.index + 1)
 			};
 		}

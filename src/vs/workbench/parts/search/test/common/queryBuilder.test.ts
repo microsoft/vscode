@@ -17,10 +17,10 @@ import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 import { ISearchQuery, QueryType, IPatternInfo } from 'vs/platform/search/common/search';
 
-suite.only('SearchQuery', () => {
+suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
-	const ROOT_1_URI = uri.parse(ROOT_1);
+	const ROOT_1_URI = getUri(ROOT_1);
 
 	let instantiationService: TestInstantiationService;
 	let queryBuilder: QueryBuilder;
@@ -102,56 +102,56 @@ suite.only('SearchQuery', () => {
 		test('absolute includes', () => {
 			[
 				[
-					'/foo/bar',
+					fixPath('/foo/bar'),
 					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: uri.parse('/foo/bar') }]
+						searchPaths: [{ searchPath: getUri('/foo/bar') }]
 					}
 				],
 				[
-					'/foo/bar,a',
+					fixPath('/foo/bar') + ',' + 'a',
 					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: uri.parse('/foo/bar') }],
+						searchPaths: [{ searchPath: getUri('/foo/bar') }],
 						includePattern: patternsToIExpression(globalGlob('a'))
 					}
 				],
 				[
-					'/foo/bar, /1/2',
+					fixPath('/foo/bar') + ',' + fixPath('/1/2'),
 					<ISearchPathsResult>{
-						searchPaths: [{ searchPath: uri.parse('/foo/bar') }, { searchPath: uri.parse('/1/2') }]
+						searchPaths: [{ searchPath: getUri('/foo/bar') }, { searchPath: getUri('/1/2') }]
 					}
 				],
 				[
-					'/foo/bar/**/*.ts',
+					fixPath('/foo/bar/**/*.ts'),
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse('/foo/bar'),
+							searchPath: getUri('/foo/bar'),
 							pattern: '**/*.ts'
 						}]
 					}
 				],
 				[
-					'/foo/bar/*a/b/c',
+					fixPath('/foo/bar/*a/b/c'),
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse('/foo/bar'),
+							searchPath: getUri('/foo/bar'),
 							pattern: '*a/b/c'
 						}]
 					}
 				],
 				[
-					'/*a/b/c',
+					fixPath('/*a/b/c'),
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse('/'),
+							searchPath: getUri('/'),
 							pattern: '*a/b/c'
 						}]
 					}
 				],
 				[
-					'/foo/{b,c}ar',
+					fixPath('/foo/{b,c}ar'),
 					<ISearchPathsResult>{
 						searchPaths: [{
-							searchPath: uri.parse('/foo'),
+							searchPath: getUri('/foo'),
 							pattern: '{b,c}ar'
 						}]
 					}
@@ -179,7 +179,7 @@ suite.only('SearchQuery', () => {
 					}
 				],
 				[
-					'./a/*b/c, /project/foo',
+					'./a/*b/c, ' + fixPath('/project/foo'),
 					<ISearchPathsResult>{
 						searchPaths: [
 							{
@@ -329,11 +329,11 @@ function patternsToIExpression(...patterns: string[]): IExpression {
 }
 
 function getUri(slashPath: string): uri {
-	return uri.parse(fixPath(slashPath));
+	return uri.file(fixPath(slashPath));
 }
 
 function fixPath(slashPath: string): string {
 	return process.platform === 'win32' ?
-		paths.join('c:', ...slashPath.split('/')) :
+		(slashPath.match(/^c:/) ? slashPath : paths.join('c:', ...slashPath.split('/'))) :
 		slashPath;
 }
