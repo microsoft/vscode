@@ -55,7 +55,7 @@ suite('Debug - Adapter', () => {
 		assert.equal(adapter.type, rawAdapter.type);
 		assert.equal(adapter.label, rawAdapter.label);
 
-		return adapter.getAdapterExecutable(false).then(details => {
+		return adapter.getAdapterExecutable(undefined, false).then(details => {
 			assert.equal(details.command, paths.join(extensionFolderPath, rawAdapter.program));
 			assert.deepEqual(details.args, rawAdapter.args);
 		});
@@ -103,7 +103,7 @@ suite('Debug - Adapter', () => {
 			engines: null
 		});
 
-		return adapter.getAdapterExecutable(false).then(details => {
+		return adapter.getAdapterExecutable(undefined, false).then(details => {
 			assert.equal(details.command, platform.isLinux ? da.linux.runtime : platform.isMacintosh ? da.osx.runtime : da.win.runtime);
 			assert.deepEqual(details.args, da.runtimeArgs.concat(['a/b/c/d/mockprogram'].concat(da.args)));
 		});

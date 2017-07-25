@@ -124,7 +124,7 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.startDebugging(undefined, this.isNoDebug());
+		return this.debugService.startDebugging(undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {

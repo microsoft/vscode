@@ -173,8 +173,9 @@ export class ProcessRunnerDetector {
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
 			let options: CommandOptions = this.taskConfiguration.options ? this.resolveCommandOptions(this.taskConfiguration.options) : { cwd: this._cwd };
 			let isShellCommand = !!this.taskConfiguration.isShellCommand;
+			// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
 			return this.runDetection(
-				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(args), isShellCommand, options),
+				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, args), isShellCommand, options),
 				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
 			if (detectSpecific) {
@@ -215,12 +216,13 @@ export class ProcessRunnerDetector {
 	}
 
 	private resolveCommandOptions(options: CommandOptions): CommandOptions {
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
 		let result = Objects.clone(options);
 		if (result.cwd) {
-			result.cwd = this.configurationResolverService.resolve(result.cwd);
+			result.cwd = this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, result.cwd);
 		}
 		if (result.env) {
-			result.env = this.configurationResolverService.resolve(result.env);
+			result.env = this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, result.env);
 		}
 		return result;
 	}

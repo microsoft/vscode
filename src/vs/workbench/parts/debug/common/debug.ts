@@ -87,6 +87,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface ISession {
+	root: uri;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -385,7 +386,7 @@ export interface IConfigurationManager {
 
 	selectedName: string;
 
-	selectConfiguration(launch: ILaunch, name: string): void;
+	selectConfiguration(launch: ILaunch, name?: string): void;
 
 	getLaunches(): ILaunch[];
 
@@ -564,12 +565,12 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(root?: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<IProcess>;
+	createProcess(root: uri, config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Find process by ID.

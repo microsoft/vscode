@@ -311,9 +311,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	public selectConfiguration(launch: ILaunch, name: string): void {
+	public selectConfiguration(launch: ILaunch, name?: string): void {
 		this._selectedLaunch = launch;
-		this._selectedName = name;
+		if (name) {
+			this._selectedName = name;
+		}
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (launch) {
 			this.storageService.store(DEBUG_SELECTED_ROOT, this.contextService.getRoot(launch.uri).toString(), StorageScope.WORKSPACE);
@@ -449,7 +451,7 @@ class Launch implements ILaunch {
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(result[key]);
+			result[key] = this.configurationResolverService.resolveAny(this.workspaceUri, result[key]);
 		});
 
 		const adapter = this.configurationManager.getAdapter(result.type);

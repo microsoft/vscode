@@ -32,9 +32,9 @@ export function registerCommands(): void {
 			}
 
 			if (typeof configurationOrName === 'string') {
-				debugService.startDebugging(configurationOrName);
+				debugService.startDebugging(undefined, configurationOrName);
 			} else {
-				debugService.createProcess(configurationOrName);
+				debugService.createProcess(undefined, configurationOrName);
 			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,

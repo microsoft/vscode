@@ -175,7 +175,7 @@ export class DebugService implements debug.IDebugService {
 			this.configurationManager.selectedLaunch.resolveConfiguration(config).done(resolvedConfig => {
 				resolvedConfig.request = 'attach';
 				resolvedConfig.port = broadcast.payload.port;
-				this.doCreateProcess(resolvedConfig, broadcast.payload.debugId);
+				this.doCreateProcess(this.configurationManager.selectedLaunch.workspaceUri, resolvedConfig, broadcast.payload.debugId);
 			}, errors.onUnexpectedError);
 
 			return;
@@ -636,14 +636,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
-
-		// temporary workaround: the folderUri should be an argument to startDebugging
-		let folderUri: uri = undefined;
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && workspace.roots.length > 0) {
-			folderUri = workspace.roots[0];
-		}
+	public startDebugging(root?: uri, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
@@ -653,14 +646,15 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				let config: debug.IConfig, compound: debug.ICompound;
+				const launch = !root ? manager.selectedLaunch : manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop();
 
+				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
 					configOrName = this.configurationManager.selectedName;
 				}
-				if (typeof configOrName === 'string' && manager.selectedLaunch) {
-					config = manager.selectedLaunch.getConfiguration(configOrName);
-					compound = manager.selectedLaunch.getCompound(configOrName);
+				if (typeof configOrName === 'string' && launch) {
+					config = launch.getConfiguration(configOrName);
+					compound = launch.getCompound(configOrName);
 				} else if (typeof configOrName !== 'string') {
 					config = configOrName;
 				}
@@ -671,7 +665,7 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name) : TPromise.as(null)));
 				}
 				if (configOrName && !config) {
 					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
@@ -681,17 +675,16 @@ export class DebugService implements debug.IDebugService {
 					if (noDebug && config) {
 						config.noDebug = true;
 					}
-					const selectedLaunch = manager.selectedLaunch;
 					if (commandAndType && commandAndType.command) {
 						const defaultConfig = noDebug ? { noDebug: true } : {};
-						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig, selectedLaunch.workspaceUri).then((result: StartSessionResult) => {
-							if (selectedLaunch) {
+						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
+							if (launch) {
 								if (result && result.status === 'initialConfiguration') {
-									return selectedLaunch.openConfigFile(false, commandAndType.type);
+									return launch.openConfigFile(false, commandAndType.type);
 								}
 
 								if (result && result.status === 'saveConfiguration') {
-									return this.fileService.updateContent(selectedLaunch.uri, result.content).then(() => selectedLaunch.openConfigFile(false));
+									return this.fileService.updateContent(launch.uri, result.content).then(() => launch.openConfigFile(false));
 								}
 							}
 							return undefined;
@@ -699,10 +692,10 @@ export class DebugService implements debug.IDebugService {
 					}
 
 					if (config) {
-						return this.createProcess(config);
+						return this.createProcess(root, config);
 					}
-					if (selectedLaunch && commandAndType) {
-						return selectedLaunch.openConfigFile(false, commandAndType.type);
+					if (launch && commandAndType) {
+						return launch.openConfigFile(false, commandAndType.type);
 					}
 
 					return undefined;
@@ -720,7 +713,7 @@ export class DebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<debug.IProcess> {
+	public createProcess(root: uri, config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -739,7 +732,7 @@ export class DebugService implements debug.IDebugService {
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateProcess(resolvedConfig);
+						return this.doCreateProcess(root, resolvedConfig);
 					}
 
 					this.messageService.show(severity.Error, {
@@ -749,7 +742,7 @@ export class DebugService implements debug.IDebugService {
 						actions: [
 							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 								this.messageService.hideAll();
-								return this.doCreateProcess(resolvedConfig);
+								return this.doCreateProcess(root, resolvedConfig);
 							}),
 							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 							CloseAction
@@ -780,7 +773,7 @@ export class DebugService implements debug.IDebugService {
 		);
 	}
 
-	private doCreateProcess(configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
+	private doCreateProcess(root: uri, configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
 		this.allSessionIds.add(sessionId);
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
@@ -818,7 +811,7 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
 
 			this.toDisposeOnSessionEnd.set(session.getId(), []);
@@ -961,7 +954,7 @@ export class DebugService implements debug.IDebugService {
 						config.noDebug = process.configuration.noDebug;
 					}
 					config.__restart = restartData;
-					this.createProcess(config).then(() => c(null), err => e(err));
+					this.createProcess(process.session.root, config).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		).then(() => {
