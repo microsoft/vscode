@@ -193,7 +193,7 @@ function _rewriteBogousVariables(snippet: ISnippet): boolean {
 			} else if (marker.children.length > 0) {
 				return `\${${marker.name}:${marker.children.map(fixBogousVariables).join('')}}`;
 			} else {
-				return `\$${marker.name}`;
+				return `\${${marker.name}}`;
 			}
 		} else {
 			throw new Error('unexpected marker: ' + marker);
