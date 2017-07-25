@@ -30,6 +30,7 @@
 	"command.push": "Push",
 	"command.pushTo": "Push to...",
 	"command.sync": "Sync",
+	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add File to .gitignore",

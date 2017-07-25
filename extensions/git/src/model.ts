@@ -522,6 +522,19 @@ export class Model implements Disposable {
 		});
 	}
 
+	@throttle
+	async syncRebase(): Promise<void> {
+		await this.run(Operation.Sync, async () => {
+			await this.repository.pull(true);
+
+			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
+
+			if (shouldPush) {
+				await this.repository.push();
+			}
+		});
+	}
+
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
