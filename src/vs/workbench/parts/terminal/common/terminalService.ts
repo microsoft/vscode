@@ -204,6 +204,8 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+	public abstract nextMatchFindWidget(): void;
+	public abstract previousMatchFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

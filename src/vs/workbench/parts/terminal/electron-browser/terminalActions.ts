@@ -661,3 +661,37 @@ export class HideTerminalFindWidgetAction extends Action {
 		return TPromise.as(this.terminalService.hideFindWidget());
 	}
 }
+
+export class NextMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.nextMatchFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.nextMatchFindWidget', "Find Widget: Next Match");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.nextMatchFindWidget());
+	}
+}
+
+export class PreviousMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.previousMatchFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.previousMatchFindWidget', "Find Widget: previous Match");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.previousMatchFindWidget());
+	}
+}
