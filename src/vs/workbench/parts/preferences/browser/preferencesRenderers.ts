@@ -1010,7 +1010,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 	private static _INVALID_SETTING_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
-		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "Setting is dimmed because it cannot be configured for folder resources.")
+		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be configured for folder resources.")
 	});
 
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
