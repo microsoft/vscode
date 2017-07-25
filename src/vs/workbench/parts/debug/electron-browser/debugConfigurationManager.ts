@@ -232,8 +232,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose = [];
 		this.registerListeners();
 		this.initLaunches();
-		// TODO@isidor select the appropriate Launch
-		this.selectConfiguration(this.launches.length ? this.launches[0] : undefined, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
+		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
+		this.selectConfiguration(this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot).pop(), this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 	}
 
 	private registerListeners(): void {
@@ -285,8 +285,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			if (event.sourceConfig) {
-				// TODO@Isidor react on user changing the launch.json
+			if (event.sourceConfig.launch) {
+				this.selectConfiguration(this.selectedLaunch);
 			}
 		}));
 	}
