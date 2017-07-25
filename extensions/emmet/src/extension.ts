@@ -120,7 +120,7 @@ export function activate(context: vscode.ExtensionContext) {
 		return updateImageSize();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.reflectCssValue', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('emmet.reflectCSSValue', () => {
 		return reflectCssValue();
 	}));
 
