@@ -23,6 +23,17 @@ suite('Tests for Next/Previous Select/Edit point actions', () => {
 }
 `;
 
+	const scssContents = `
+.boo {
+	margin: 20px 10px;
+	background-image: url('tryme.png');
+
+	.boo .hoo {
+		margin: 10px;
+	}
+}
+`;
+
 	const htmlContents = `
 <!DOCTYPE html>
 <html lang="en">
@@ -122,6 +133,37 @@ suite('Tests for Next/Previous Select/Edit point actions', () => {
 			});
 
 			editor.selections = [new Selection(9, 0, 9, 0)];
+			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
+				fetchSelectItem('prev');
+				testSelection(editor.selection, line, colstart, colend);
+			});
+
+			return Promise.resolve();
+		});
+	});
+
+	test('Emmet Select Next/Prev Item in scss file with nested rules', function (): any {
+		return withRandomFileEditor(scssContents, '.scss', (editor, doc) => {
+			editor.selections = [new Selection(0, 0, 0, 0)];
+
+			let expectedNextItemPoints: [number, number, number][] = [
+				[1, 0, 4],   // .boo
+				[2, 1, 19],  // margin: 20px 10px;
+				[2, 9, 18],   // 20px 10px
+				[2, 9, 13],   // 20px
+				[2, 14, 18], // 10px
+				[3, 1, 36],   // background-image: url('tryme.png');
+				[3, 19, 35], // url('tryme.png')
+				[5, 1, 10], // .boo .hoo
+				[6, 2, 15], // margin: 10px;
+				[6, 10, 14], // 10px
+			];
+			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
+				fetchSelectItem('next');
+				testSelection(editor.selection, line, colstart, colend);
+			});
+
+			editor.selections = [new Selection(8, 0, 8, 0)];
 			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
 				fetchSelectItem('prev');
 				testSelection(editor.selection, line, colstart, colend);
