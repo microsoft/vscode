@@ -46,7 +46,7 @@ export class ColorPickerBody extends Disposable {
 		const g = c.g;
 		const b = c.b;
 
-		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0.83) 17%, rgba(${r}, ${g}, ${b}, 0.67) 33%, rgba(${r}, ${g}, ${b}, 0.5) 50%, rgba(${r}, ${g}, ${b}, 0.33) 67%, rgba(${r}, ${g}, ${b}, 0.17) 83%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
+		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
 	}
 
 	private registerListeners(): void {
@@ -105,7 +105,7 @@ export class ColorPickerBody extends Disposable {
 		}
 		const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
 		const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
-		const initialColorModel = this.model.colorModel;
+		const initialColorModel = this.model.formatter;
 
 		// Update slider position if clicked on a strip itself
 		if (e.target === this.hueStrip || e.target === this.opacityStrip) {
@@ -143,8 +143,8 @@ export class ColorPickerBody extends Disposable {
 			updateModel();
 
 			// Change back from RGBA to HEX if opacity touched
-			if (this.model.colorModel !== initialColorModel && this.model.opacity === 1) {
-				this.model.colorModel = initialColorModel;
+			if (this.model.formatter !== initialColorModel && this.model.opacity === 1) {
+				this.model.formatter = initialColorModel;
 			}
 		}, () => {
 			strip.style.cursor = '-webkit-grab';

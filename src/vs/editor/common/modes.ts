@@ -173,7 +173,8 @@ export interface MarkedStringHover {
 // TODO@michel documentation
 export interface ColorHover {
 	color: Color;
-	mode: ColorMode;
+	format: IColorFormat;
+	availableFormats: IColorFormat[];
 	/**
 	 * The range to which this hover applies. When missing, the
 	 * editor will use the range at the current position or the
@@ -676,15 +677,12 @@ export interface LinkProvider {
 /**
  * A color inside the editor.
  */
+export type IColorFormat = string | { opaque: string, transparent: string };
 export interface IColorInfo {
 	color: Color;
-	mode: ColorMode;
+	format: IColorFormat;
+	availableFormats: IColorFormat[];
 	range: IRange;
-}
-export enum ColorMode {
-	RGBA = 0,
-	Hex = 1,
-	HSLA = 2
 }
 /**
  * A provider of colors.

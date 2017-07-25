@@ -33,12 +33,12 @@ export class ColorPickerHeader extends Disposable {
 
 	public updatePickedColor() {
 		this.pickedColorNode.textContent = this.model.selectedColorString;
-		this.pickedColorNode.style.backgroundColor = this.model.selectedColorString;
+		this.pickedColorNode.style.backgroundColor = this.model.color.toString();
 	}
 
 	private drawPickedColorBox() {
 		this.pickedColorNode = $('.picked-color');
-		this.pickedColorNode.style.backgroundColor = this.model.selectedColorString;
+		this.pickedColorNode.style.backgroundColor = this.model.color.toString();
 		this.pickedColorNode.textContent = this.model.selectedColorString;
 		dom.append(this.domNode, this.pickedColorNode);
 	}

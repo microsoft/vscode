@@ -269,15 +269,37 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	// --- colors
 
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		const proxy = this._proxy;
 		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorProvider>{
-			provideColors: (model, token) => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentColors(handle, model.uri))
+			provideColors: function (model, token) {
+				const provider = this;
+				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then((colorInfos) => {
 						return colorInfos.map(c => {
+							let format: modes.IColorFormat;
+							if (typeof c.format === 'string') {
+								format = c.format;
+							} else {
+								format = { opaque: c.format[0], transparent: c.format[1] };
+							}
+							let availableFormats: modes.IColorFormat[] = [];
+							c.availableFormats.forEach(format => {
+								if (typeof format === 'string') {
+									availableFormats.push(format);
+								} else {
+									availableFormats.push({
+										opaque: format[0],
+										transparent: format[1]
+									});
+								}
+							});
+
 							return {
 								color: Color.fromRGBA(new RGBA(c.color[0], c.color[1], c.color[2], c.color[3] * 255)),
-								mode: c.mode,
-								range: c.range
+								format: format,
+								availableFormats: availableFormats,
+								range: c.range,
+								provider: provider
 							};
 						});
 					});

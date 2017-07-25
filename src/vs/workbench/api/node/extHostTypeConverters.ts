@@ -372,9 +372,26 @@ export namespace DocumentLink {
 
 export namespace DocumentColor {
 	export function from(colorInfo: vscode.ColorInfo): IColorInfo {
+		let format: string | [string, string];
+		if (typeof colorInfo.format === 'string') {
+			format = colorInfo.format;
+		} else {
+			format = [colorInfo.format.opaque, colorInfo.format.transparent];
+		}
+
+		let availableFormats: (string | [string, string])[] = [];
+		colorInfo.availableFormats.forEach(format => {
+			if (typeof format === 'string') {
+				availableFormats.push(format);
+			} else {
+				availableFormats.push([format.opaque, format.transparent]);
+			}
+		});
+
 		return {
 			color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
-			mode: <number>colorInfo.mode,
+			format: format,
+			availableFormats: availableFormats,
 			range: fromRange(colorInfo.range)
 		};
 	}

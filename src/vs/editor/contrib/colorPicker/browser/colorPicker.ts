@@ -14,6 +14,7 @@ import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/co
 import { ColorProviderRegistry, IColorInfo } from "vs/editor/common/modes";
 import { TPromise } from "vs/base/common/winjs.base";
 import { getColors } from "vs/editor/contrib/colorPicker/common/colorPicker";
+import { IRange } from "vs/editor/common/core/range";
 
 @editorContribution
 export class ColorPicker implements IEditorContribution {
@@ -83,8 +84,8 @@ export class ColorPicker implements IEditorContribution {
 			return;
 		}
 
-		this.computePromise = getColors(this.editor.getModel()).then(colors => {
-			this.updateDecorations(colors);
+		this.computePromise = getColors(this.editor.getModel()).then(colorInfos => {
+			this.updateDecorations(colorInfos);
 			this.computePromise = null;
 		});
 	}
@@ -100,24 +101,30 @@ export class ColorPicker implements IEditorContribution {
 		}
 	}
 
-	private updateDecorations(colors: IColorInfo[]): void {
+	private updateDecorations(colorInfos: IColorInfo[]): void {
 		this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			let newDecorations: IModelDeltaDecoration[] = [];
-			for (let c of colors) {
-				newDecorations.push({
-					range: {
-						startLineNumber: c.range.startLineNumber,
-						startColumn: c.range.startColumn,
-						endLineNumber: c.range.endLineNumber,
-						endColumn: c.range.endColumn
-					},
+
+			for (let c of colorInfos) {
+				const range: IRange = {
+					startLineNumber: c.range.startLineNumber,
+					startColumn: c.range.startColumn,
+					endLineNumber: c.range.endLineNumber,
+					endColumn: c.range.endColumn
+				};
+
+				const decoration = {
+					range: range,
 					options: {
 						colorInfo: {
 							color: c.color,
-							mode: c.mode
+							format: c.format,
+							availableFormats: c.availableFormats
 						}
 					}
-				});
+				};
+
+				newDecorations.push(decoration);
 			}
 
 			this.currentDecorations = changeAccessor.deltaDecorations(this.currentDecorations, newDecorations);

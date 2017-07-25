@@ -265,12 +265,7 @@ declare module 'vscode' {
 		static fromHex(hex: string): Color;
 	}
 
-	export enum ColorMode {
-		RGBA = 0,
-		Hex = 1, // should we account for 4-byte hex?
-		HSLA = 2
-	}
-
+	export type IColorFormat = string | { opaque: string, transparent: string };
 	// TODO@Michel
 	export class ColorInfo {
 		/**
@@ -280,14 +275,15 @@ declare module 'vscode' {
 
 		color: Color;
 
-		mode: ColorMode;
+		format: IColorFormat;
 
-		constructor(range: Range, color: Color, mode: ColorMode);
+		availableFormats: IColorFormat[];
+
+		constructor(range: Range, color: Color, format: IColorFormat, availableFormats: IColorFormat[]);
 	}
 
 	export interface DocumentColorProvider {
 		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
-		provideColorFormat(colorInfo: ColorInfo): ProviderResult<string>;
 	}
 
 	export namespace languages {

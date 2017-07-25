@@ -5,20 +5,20 @@
 
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Color, RGBA } from "vs/base/common/color";
-import { ColorMode } from "vs/editor/common/modes";
+import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
 
 export class ColorPickerModel {
+	public widget: ColorPickerWidget;
 
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
 
-	public widget: ColorPickerWidget;
 	private _color: Color;
 	private _selectedColor: string;
 	private _opacity: number;
 	private _hue: Color;
 
-	private _colorModel: ColorMode;
+	private _formatter: ColorFormatter;
 	private _colorModelIndex: number;
 
 	constructor() {
@@ -33,13 +33,7 @@ export class ColorPickerModel {
 			this._hue = color;
 		}
 
-		if (this._colorModel === ColorMode.RGBA) {
-			this.selectedColorString = color.toRGBA().toString();
-		} else if (this._colorModel === ColorMode.Hex) {
-			this.selectedColorString = color.toRGBHex();
-		} else {
-			this.selectedColorString = color.toHSLA().toString();
-		}
+		this.selectedColorString = this._formatter.toString(this._color);
 	}
 
 	public get color(): Color {
@@ -74,10 +68,6 @@ export class ColorPickerModel {
 	public set opacity(opacity: number) {
 		this._opacity = opacity;
 
-		if (this._colorModel === ColorMode.Hex) {
-			this.colorModel = ColorMode.RGBA;
-		}
-
 		const rgba = this._color.toRGBA();
 		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 
@@ -90,33 +80,20 @@ export class ColorPickerModel {
 		return this._opacity;
 	}
 
-	public set colorModel(model: ColorMode) {
-		this._colorModel = model;
-		this._colorModelIndex = model;
+	public set formatter(formatter: ColorFormatter) {
+		this._formatter = formatter;
 
 		if (this._selectedColor) {
 			this.color = this._color; // Refresh selected colour string state
 		}
 	}
 
-	public get colorModel(): ColorMode {
-		return this._colorModel;
+	public get formatter(): ColorFormatter {
+		return this._formatter;
 	}
 
 	public nextColorModel() { // should go to the controller perhaps
-		this._colorModelIndex++;
-
-		if (this._colorModelIndex > 2) {
-			this._colorModelIndex = 0;
-		}
-
-		// Skip hex model if opacity is set
-		if (this._colorModelIndex === ColorMode.Hex && this._opacity !== 1) {
-			this.nextColorModel();
-			return;
-		}
-
-		this.colorModel = this._colorModelIndex;
+		throw new Error('not implemented');
 	}
 }
 

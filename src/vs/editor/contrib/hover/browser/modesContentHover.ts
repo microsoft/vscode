@@ -25,6 +25,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { IColorInfo } from 'vs/editor/common/editorCommon';
+import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -98,8 +99,9 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			if (colorInfo) {
 				return {
 					color: colorInfo.color,
-					mode: colorInfo.mode,
-					range: range
+					format: colorInfo.format,
+					availableFormats: colorInfo.availableFormats,
+					range: range,
 				};
 			}
 
@@ -294,11 +296,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 				model.originalColor = msg.color.toRGBA().toString();
-				model.colorModel = msg.mode;
+				if (typeof msg.format !== 'string') { // TODO: take into account opaque and transparent
+					msg.format = msg.format.opaque;
+				}
+
+				model.formatter = new ColorFormatter(msg.format);
 				model.color = msg.color;
 
 				this._colorPicker = widget;
 				fragment.appendChild(widget.getDomNode());
+				console.log(this._editor.getModel());
 			}
 		});
 
