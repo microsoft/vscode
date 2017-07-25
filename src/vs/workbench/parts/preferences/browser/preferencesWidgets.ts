@@ -66,8 +66,13 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		this._domNode = DOM.$('.settings-header-widget');
 
 		this.titleContainer = DOM.append(this._domNode, DOM.$('.title-container'));
-		DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		if (this.title) {
+			DOM.append(this.titleContainer, DOM.$('.title')).textContent = this.title;
+		}
 		this.messageElement = DOM.append(this.titleContainer, DOM.$('.message'));
+		if (this.title) {
+			this.messageElement.style.paddingLeft = '12px';
+		}
 
 		this.editor.changeViewZones(accessor => {
 			this.id = accessor.addZone(this);
@@ -82,6 +87,9 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 	private layout(): void {
 		const configuration = this.editor.getConfiguration();
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
+		if (!configuration.contribInfo.folding) {
+			this.titleContainer.style.paddingLeft = '12px';
+		}
 	}
 
 	public dispose() {

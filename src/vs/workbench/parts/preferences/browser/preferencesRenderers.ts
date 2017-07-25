@@ -82,6 +82,12 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
 		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
+
+		this.createHeader();
+	}
+
+	protected createHeader(): void {
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to overwrite the Default Settings."));
 	}
 
 	public render(): void {
@@ -178,6 +184,10 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
 	}
 
+	protected createHeader(): void {
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to overwrite the User Settings."));
+	}
+
 	public render(): void {
 		super.render();
 		this.untrustedSettingRenderer.render();
@@ -200,6 +210,10 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		this.unsupportedWorkbenchSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedWorkbenchSettingsRenderer, editor, preferencesModel));
 	}
 
+	protected createHeader(): void {
+		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to overwrite those from the Workspace Settings."));
+	}
+
 	public render(): void {
 		super.render();
 		this.unsupportedWorkbenchSettingsRenderer.render();
@@ -210,7 +224,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
-	private settingsHeaderRenderer: SettingsHeaderRenderer;
+	private settingsHeaderRenderer: DefaultSettingsHeaderRenderer;
 	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
@@ -234,7 +248,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	) {
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
-		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(SettingsHeaderRenderer, editor));
+		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(DefaultSettingsHeaderRenderer, editor, preferencesModel.configurationScope));
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
@@ -369,18 +383,19 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 
 }
 
-class SettingsHeaderRenderer extends Disposable {
+class DefaultSettingsHeaderRenderer extends Disposable {
 
 	private settingsHeaderWidget: SettingsHeaderWidget;
 
-	constructor(private editor: ICodeEditor) {
+	constructor(private editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
-		this.settingsHeaderWidget = this._register(new SettingsHeaderWidget(editor, nls.localize('defaultSettingsTitle', "Default Settings")));
+		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
+		this.settingsHeaderWidget = this._register(new SettingsHeaderWidget(editor, title));
 	}
 
 	public render(settingsGroups: ISettingsGroup[]) {
 		if (settingsGroups.length) {
-			this.settingsHeaderWidget.setMessage(nls.localize('defaultSettingsMessage', "Place your settings in the file to the right to overwrite."));
+			this.settingsHeaderWidget.setMessage('');
 		} else {
 			this.settingsHeaderWidget.setMessage(nls.localize('noSettingsFound', "No Settings Found."));
 		}

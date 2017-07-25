@@ -51,6 +51,8 @@ interface IWorkbenchSettingsConfiguration {
 	};
 }
 
+const emptyEditableSettingsContent = '{\n}';
+
 export class PreferencesService extends Disposable implements IPreferencesService {
 
 	_serviceBrand: any;
@@ -299,22 +301,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const model = reference.object.textEditorModel;
 					const settingsContent = WorkspaceConfigModel.getSettingsContentFromConfigContent(model.getValue());
 					reference.dispose();
-					return TPromise.as(settingsContent ? settingsContent : this.getEmptyEditableSettingsContent(ConfigurationTarget.WORKSPACE));
+					return TPromise.as(settingsContent ? settingsContent : emptyEditableSettingsContent);
 				});
 		}
 		return TPromise.as(null);
-	}
-
-	private getEmptyEditableSettingsContent(target: ConfigurationTarget): string {
-		if (target === ConfigurationTarget.USER) {
-			const emptySettingsHeader = nls.localize('emptySettingsHeader', "Place your settings in this file to overwrite the default settings");
-			return '// ' + emptySettingsHeader + '\n{\n}';
-		}
-		return [
-			'// ' + nls.localize('emptySettingsHeader1', "Place your settings in this file to overwrite default and user settings."),
-			'{',
-			'}'
-		].join('\n');
 	}
 
 	private getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): URI {
@@ -345,8 +335,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
 			return TPromise.as(null);
 		}
-		const editableSettingsEmptyContent = this.getEmptyEditableSettingsContent(target);
-		return this.createIfNotExists(resource, editableSettingsEmptyContent).then(() => { });
+		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
 
 	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
