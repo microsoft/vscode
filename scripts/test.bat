@@ -26,4 +26,7 @@ if not "%INSTALLEDVERSION%" == "%DESIREDVERSION%" node .\node_modules\gulp\bin\g
 popd
 
 endlocal
+
+if %errorlevel% == 255 set errorlevel=0
+
 exit /b %errorlevel%
