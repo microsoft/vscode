@@ -31,6 +31,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -171,6 +172,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
 	private untrustedSettingRenderer: UnsupportedWorkspaceSettingsRenderer;
+	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel, associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -182,6 +184,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	) {
 		super(editor, preferencesModel, associatedPreferencesModel, preferencesService, telemetryService, textFileService, configurationEditingService, messageService, instantiationService);
 		this.untrustedSettingRenderer = this._register(instantiationService.createInstance(UnsupportedWorkspaceSettingsRenderer, editor, preferencesModel));
+		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
 	protected createHeader(): void {
@@ -191,6 +194,7 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	public render(): void {
 		super.render();
 		this.untrustedSettingRenderer.render();
+		this.workspaceConfigurationRenderer.render();
 	}
 }
 
@@ -975,7 +979,6 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 
 	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
 		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
@@ -1006,7 +1009,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 
 	private static _INVALID_SETTING_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'invalidSetting',
+		inlineClassName: 'dim-configuration',
 		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "Setting is dimmed because it cannot be configured for folder resources.")
 	});
 
@@ -1014,6 +1017,63 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		return {
 			range,
 			options: UnsupportedWorkbenchSettingsRenderer._INVALID_SETTING_
+		};
+	}
+
+	public dispose(): void {
+		if (this.decorationIds) {
+			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
+				return changeAccessor.deltaDecorations(this.decorationIds, []);
+			});
+		}
+		super.dispose();
+	}
+}
+
+class WorkspaceConfigurationRenderer extends Disposable {
+
+	private decorationIds: string[] = [];
+	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+
+	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+	) {
+		super();
+		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+	}
+
+	public render(): void {
+		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
+
+			const ranges: IRange[] = [];
+			for (const settingsGroup of this.workspaceSettingsEditorModel.settingsGroups) {
+				for (const section of settingsGroup.sections) {
+					for (const setting of section.settings) {
+						if (setting.key !== 'settings') {
+							ranges.push({
+								startLineNumber: setting.keyRange.startLineNumber,
+								startColumn: setting.keyRange.startColumn - 1,
+								endLineNumber: setting.valueRange.endLineNumber,
+								endColumn: setting.valueRange.endColumn
+							});
+						}
+					}
+				}
+			}
+			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
+		}
+	}
+
+	private static _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'dim-configuration'
+	});
+
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+		return {
+			range,
+			options: WorkspaceConfigurationRenderer._DIM_CONFIGURATION_
 		};
 	}
 
