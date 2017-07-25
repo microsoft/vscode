@@ -665,7 +665,7 @@ export class HideTerminalFindWidgetAction extends Action {
 export class NextMatchTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.nextMatchFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.nextMatchFindWidget', "Find Widget: Next Match");
+	public static LABEL = nls.localize('workbench.action.terminal.nextMatchFindWidget', "Terminal: Find Next Match");
 
 	constructor(
 		id: string, label: string,
@@ -682,7 +682,7 @@ export class NextMatchTerminalFindWidgetAction extends Action {
 export class PreviousMatchTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.previousMatchFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.previousMatchFindWidget', "Find Widget: previous Match");
+	public static LABEL = nls.localize('workbench.action.terminal.previousMatchFindWidget', "Terminal: Find Previous Match");
 
 	constructor(
 		id: string, label: string,

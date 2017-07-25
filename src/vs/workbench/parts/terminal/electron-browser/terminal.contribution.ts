@@ -325,12 +325,10 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFind
 	secondary: [KeyCode.Shift | KeyCode.Escape]
 }, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Focus Find Widget', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NextMatchTerminalFindWidgetAction, NextMatchTerminalFindWidgetAction.ID, NextMatchTerminalFindWidgetAction.LABEL, {
-	primary: KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.F3 }
+	primary: KeyCode.F3
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find Next', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PreviousMatchTerminalFindWidgetAction, PreviousMatchTerminalFindWidgetAction.ID, PreviousMatchTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.Shift | KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3 }
+	primary: KeyMod.Shift | KeyCode.F3
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find Previous', category);
 
 
