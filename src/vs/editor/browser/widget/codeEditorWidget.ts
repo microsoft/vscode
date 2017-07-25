@@ -32,7 +32,7 @@ import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { IMouseEvent } from "vs/base/browser/mouseEvent";
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 

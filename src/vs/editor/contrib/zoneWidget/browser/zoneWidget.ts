@@ -17,7 +17,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { IdGenerator } from "vs/base/common/idGenerator";
+import { IdGenerator } from 'vs/base/common/idGenerator';
 
 export interface IOptions {
 	showFrame?: boolean;

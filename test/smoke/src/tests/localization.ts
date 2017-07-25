@@ -34,6 +34,7 @@ export function testLocalization() {
 			assert.equal(text.toLowerCase(), 'suchen');
 
 			await locale.openViewlet(ViewletType.SCM);
+			await app.wait(); // wait until git extension is loaded
 			text = await locale.getOpenedViewletTitle();
 			assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
 

@@ -672,7 +672,7 @@ export class CloseAllEditorsAction extends Action {
 		// Otherwise ask for combined confirmation
 		const confirm = this.textFileService.confirmSave();
 		if (confirm === ConfirmResult.CANCEL) {
-			return undefined;
+			return void 0;
 		}
 
 		let saveOrRevertPromise: TPromise<boolean>;
@@ -686,7 +686,8 @@ export class CloseAllEditorsAction extends Action {
 			if (success) {
 				return this.editorService.closeAllEditors();
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 }
@@ -1138,7 +1139,7 @@ export class ReopenClosedEditorAction extends Action {
 export class ClearRecentFilesAction extends Action {
 
 	public static ID = 'workbench.action.clearRecentFiles';
-	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent Files");
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recently Opened");
 
 	constructor(
 		id: string,
@@ -1149,7 +1150,7 @@ export class ClearRecentFilesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.windowsService.clearRecentPathsList();
+		this.windowsService.clearRecentlyOpened();
 
 		return TPromise.as(false);
 	}

@@ -32,8 +32,8 @@ export class CommonActions {
 		} catch (e) {
 			return Promise.reject('Failed to select settings editor to add a setting.');
 		}
-		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
 		await this.spectron.wait();
+		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
 		await this.spectron.wait();
 		return this.saveOpenedFile();
@@ -149,16 +149,31 @@ export class CommonActions {
 	}
 
 	public async getEditorFirstLinePlainText(): Promise<any> {
-		try {
-			const span = await this.spectron.client.getText('.view-lines span span');
-			if (Array.isArray(span)) {
-				return span[0];
-			}
+		const trials = 3;
+		let retry = 0;
+		let error;
 
-			return span;
-		} catch (e) {
-			return undefined;
+		while (retry < trials) {
+			try {
+				const span = await this.spectron.client.getText('.view-lines span span');
+				if (Array.isArray(span)) {
+					return span[0];
+				}
+
+				return span;
+			} catch (e) {
+				error = e;
+				retry++;
+
+				if (retry < trials) {
+					await this.spectron.wait();
+				} else {
+					error = e;
+				}
+			}
 		}
+
+		return Promise.reject('Could not obtain text on the first line of an editor: ' + error);
 	}
 
 	public removeFile(filePath: string): void {

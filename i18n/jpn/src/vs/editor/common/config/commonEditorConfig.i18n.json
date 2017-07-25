@@ -21,7 +21,7 @@
 	"roundedSelection": "選択範囲の角を丸くするかどうかを制御します",
 	"scrollBeyondLastLine": "エディターで最後の行を越えてスクロールするかどうかを制御します",
 	"minimap.enabled": "ミニマップを表示するかどうかを制御します",
-	"minimap.showSlider": "ミニマップを自動的に非表示にするかどうかを制御します 。",
+	"minimap.showSlider": "ミニマップのスライダーを自動的に非表示にするかどうかを制御します。",
 	"minimap.renderCharacters": "行に (カラー ブロックではなく) 実際の文字を表示します",
 	"minimap.maxColumn": "表示するミニマップの最大幅を特定の桁数に制限します",
 	"find.seedSearchStringFromSelection": "エディターの選択から検索ウィジェット内の検索文字列を与えるかどうかを制御します",

@@ -20,6 +20,5 @@
 	"debugAnyway": "Eseguire comunque il debug",
 	"noFolderWorkspaceDebugError": "Non è possibile eseguire il debug del file attivo. Assicurarsi che sia salvato su disco e che sia installata un'estensione di debug per tale tipo di file.",
 	"NewLaunchConfig": "Impostare il file di configurazione di avvio per l'applicazione. {0}",
-	"DebugTaskNotFound": "L'attività di preavvio '{0}' non è stata trovata.",
-	"differentTaskRunning": "È in esecuzione un'attività {0}. Non è possibile eseguire l'attività di preavvio {1}."
+	"DebugTaskNotFound": "L'attività di preavvio '{0}' non è stata trovata."
 }

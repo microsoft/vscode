@@ -155,6 +155,11 @@ class MinimapLayout {
 	 */
 	public readonly scrollTop: number;
 
+	/**
+	* The given editor scrollHeight (input).
+	*/
+	public readonly scrollHeight: number;
+
 	private readonly _computedSliderRatio: number;
 
 	/**
@@ -177,6 +182,7 @@ class MinimapLayout {
 
 	constructor(
 		scrollTop: number,
+		scrollHeight: number,
 		computedSliderRatio: number,
 		sliderTop: number,
 		sliderHeight: number,
@@ -184,6 +190,7 @@ class MinimapLayout {
 		endLineNumber: number
 	) {
 		this.scrollTop = scrollTop;
+		this.scrollHeight = scrollHeight;
 		this._computedSliderRatio = computedSliderRatio;
 		this.sliderTop = sliderTop;
 		this.sliderHeight = sliderHeight;
@@ -207,7 +214,8 @@ class MinimapLayout {
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
 		scrollTop: number,
-		scrollHeight: number
+		scrollHeight: number,
+		previousLayout: MinimapLayout
 	): MinimapLayout {
 		const pixelRatio = options.pixelRatio;
 		const minimapLineHeight = getMinimapLineHeight(options.renderMinimap);
@@ -256,12 +264,26 @@ class MinimapLayout {
 			const startLineNumber = 1;
 			const endLineNumber = lineCount;
 
-			return new MinimapLayout(scrollTop, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
 		} else {
-			const startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+
+			// Avoid flickering caused by a partial viewport start line
+			// by being consistent w.r.t. the previous layout decision
+			if (previousLayout && previousLayout.scrollHeight === scrollHeight) {
+				if (previousLayout.scrollTop > scrollTop) {
+					// Scrolling up => never increase `startLineNumber`
+					startLineNumber = Math.min(startLineNumber, previousLayout.startLineNumber);
+				}
+				if (previousLayout.scrollTop < scrollTop) {
+					// Scrolling down => never decrease `startLineNumber`
+					startLineNumber = Math.max(startLineNumber, previousLayout.startLineNumber);
+				}
+			}
+
 			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
 
-			return new MinimapLayout(scrollTop, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
 		}
 	}
 }
@@ -651,7 +673,8 @@ export class Minimap extends ViewPart {
 			(renderingCtx.viewportData.whitespaceViewportData.length > 0),
 			this._context.model.getLineCount(),
 			renderingCtx.scrollTop,
-			renderingCtx.scrollHeight
+			renderingCtx.scrollHeight,
+			this._lastRenderData ? this._lastRenderData.renderedLayout : null
 		);
 		this._slider.setTop(layout.sliderTop);
 		this._slider.setHeight(layout.sliderHeight);

@@ -29,7 +29,7 @@ export function testDataLoss() {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const textToType = 'Hello, Code!', fileName = 'readme.md', untitled = 'Untitled-1';
+			const textToType = 'Hello, Code', fileName = 'readme.md', untitled = 'Untitled-1';
 			await common.newUntitledFile();
 			await common.type(textToType);
 			await dl.openExplorerViewlet();
@@ -50,7 +50,7 @@ export function testDataLoss() {
 		it(`verifies that contents of the dirty files are restored after 'hot exit'`, async function () {
 			// make one dirty file,
 			// create one untitled file
-			const textToType = 'Hello, Code!';
+			const textToType = 'Hello, Code';
 
 			// create one untitled file
 			await common.newUntitledFile();
@@ -65,7 +65,7 @@ export function testDataLoss() {
 
 			// check their contents
 			let fileDirt = await common.getEditorFirstLinePlainText();
-			assert.equal(fileDirt, 'Hello, Code', 'Active file contents are different after restore.'); // ignore '!' as it is a separate <span/>, first part is enough
+			assert.equal(fileDirt, textToType, 'Active file contents are different after restore.');
 			await common.selectTab('Untitled-1');
 			fileDirt = await common.getEditorFirstLinePlainText();
 			assert.equal(fileDirt, textToType, 'Untitled file edit are different after restore.');

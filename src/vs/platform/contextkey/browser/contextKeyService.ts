@@ -126,7 +126,7 @@ class ContextKey<T> implements IContextKey<T> {
 	}
 }
 
-export abstract class AbstractContextKeyService {
+export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
@@ -137,6 +137,8 @@ export abstract class AbstractContextKeyService {
 		this._myContextId = myContextId;
 		this._onDidChangeContextKey = new Emitter<string>();
 	}
+
+	abstract dispose(): void;
 
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		return new ContextKey(this, key, defaultValue);

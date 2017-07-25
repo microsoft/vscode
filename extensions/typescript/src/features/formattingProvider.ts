@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace as Workspace, DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration } from 'vscode';
+import { workspace as Workspace, DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration, Disposable, languages, workspace } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -21,6 +21,7 @@ interface Configuration {
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
+	insertSpaceAfterTypeAssertion: boolean;
 	insertSpaceBeforeFunctionParenthesis: boolean;
 	placeOpenBraceOnNewLineForFunctions: boolean;
 	placeOpenBraceOnNewLineForControlBlocks: boolean;
@@ -39,6 +40,7 @@ namespace Configuration {
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
+	export const insertSpaceAfterTypeAssertion = 'insertSpaceAfterTypeAssertion';
 	export const placeOpenBraceOnNewLineForFunctions = 'placeOpenBraceOnNewLineForFunctions';
 	export const placeOpenBraceOnNewLineForControlBlocks = 'placeOpenBraceOnNewLineForControlBlocks';
 
@@ -68,13 +70,14 @@ namespace Configuration {
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = true;
 		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
+		result.insertSpaceAfterTypeAssertion = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
 		result.placeOpenBraceOnNewLineForControlBlocks = false;
 		return result;
 	}
 }
 
-export default class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
+export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
 	private config: Configuration;
 	private formatOptions: { [key: string]: Proto.FormatCodeSettings | undefined; };
 
@@ -225,9 +228,39 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
+			insertSpaceAfterTypeAssertion: this.config.insertSpaceAfterTypeAssertion,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks,
 
 		};
+	}
+}
+
+export class FormattingProviderManager {
+	private formattingProviderRegistration: Disposable | undefined;
+
+	constructor(
+		private readonly modeId: string,
+		private readonly formattingProvider: TypeScriptFormattingProvider,
+		private readonly selector: string[]
+	) { }
+
+	public dispose() {
+		if (this.formattingProviderRegistration) {
+			this.formattingProviderRegistration.dispose();
+			this.formattingProviderRegistration = undefined;
+		}
+	}
+
+	public updateConfiguration(): void {
+		const config = workspace.getConfiguration(this.modeId);
+		this.formattingProvider.updateConfiguration(config);
+
+		if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
+			this.formattingProviderRegistration.dispose();
+			this.formattingProviderRegistration = undefined;
+		} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
+			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.selector, this.formattingProvider);
+		}
 	}
 }

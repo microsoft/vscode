@@ -678,8 +678,8 @@ suite('TelemetryService', () => {
 				_serviceBrand: undefined,
 				getConfiguration() {
 					return {
-						enableTelemetry
-					};
+						enableTelemetry: enableTelemetry
+					} as any;
 				},
 				getConfigurationData(): any {
 					return null;
@@ -696,7 +696,7 @@ suite('TelemetryService', () => {
 						folder: null
 					};
 				},
-				keys() { return { default: [], user: [], workspace: [] }; },
+				keys() { return { default: [], user: [], workspace: [], folder: [] }; },
 				values() { return {}; },
 				onDidUpdateConfiguration: emitter.event
 			});

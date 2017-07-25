@@ -13,8 +13,8 @@ import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -93,7 +93,7 @@ export class FileWatcher {
 			return;
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 		this.service.setRoots(roots.map(root => {
 			// Fetch the root's watcherExclude setting and return it
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
@@ -115,7 +115,7 @@ export class FileWatcher {
 			return;
 		}
 
-		// Emit through broadcast service
+		// Emit through event emitter
 		if (events.length > 0) {
 			this.onFileChanges(toFileChangesEvent(events));
 		}

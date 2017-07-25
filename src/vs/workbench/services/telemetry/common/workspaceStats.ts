@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
@@ -12,9 +13,11 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IOptions } from 'vs/workbench/common/options';
+import { IWindowConfiguration } from "vs/platform/windows/common/windows";
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
+const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
+const AuthorityMatcher = /^([^@]+@)?([^:]+)(:\d+)?$/;
 const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
 const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
 const AnyButDot = /[^.]/g;
@@ -80,6 +83,54 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
 }
 
+function stripPort(authority: string): string {
+	const match = authority.match(AuthorityMatcher);
+	return match ? match[2] : null;
+}
+
+function normalizeRemote(host: string, path: string): string {
+	if (host && path) {
+		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;
+	}
+	return null;
+}
+
+function extractRemote(url: string): string {
+	if (url.indexOf('://') === -1) {
+		const match = url.match(SshUrlMatcher);
+		if (match) {
+			return normalizeRemote(match[2], match[3]);
+		}
+	}
+	try {
+		const uri = URI.parse(url);
+		if (uri.authority) {
+			return normalizeRemote(stripPort(uri.authority), uri.path);
+		}
+	} catch (e) {
+		// ignore invalid URIs
+	}
+	return null;
+}
+
+export function getRemotes(text: string): string[] {
+	const remotes: string[] = [];
+	let match: RegExpExecArray;
+	while (match = RemoteMatcher.exec(text)) {
+		const remote = extractRemote(match[1]);
+		if (remote) {
+			remotes.push(remote);
+		}
+	}
+	return remotes;
+}
+
+export function getHashedRemotes(text: string): string[] {
+	return getRemotes(text).map(r => {
+		return crypto.createHash('sha1').update(r).digest('hex');
+	});
+}
+
 export class WorkspaceStats {
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -93,22 +144,22 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
-	private getWorkspaceTags(workbenchOptions: IOptions): TPromise<Tags> {
+	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
-		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
+		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
 		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
 		tags['workspace.empty'] = !workspace;
 
-		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(workbenchOptions);
+		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
-			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(statses => {
-				const names = (<IFileStat[]>[]).concat(...statses.map(stats => stats.children || [])).map(c => c.name);
+			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 
 				tags['workspace.language.cs'] = this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.language.js'] = this.searchArray(names, /^.+\.js$/i);
@@ -178,18 +229,18 @@ export class WorkspaceStats {
 		}
 	}
 
-	private findFolders(options: IOptions): URI[] {
-		const folder = this.findFolder(options);
+	private findFolders(configuration: IWindowConfiguration): URI[] {
+		const folder = this.findFolder(configuration);
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IOptions): URI {
+	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
 		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(filesToOpen[0].resource);
+			return this.parentURI(URI.file(filesToOpen[0].filePath));
 		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(filesToCreate[0].resource);
+			return this.parentURI(URI.file(filesToCreate[0].filePath));
 		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(filesToDiff[0].resource);
+			return this.parentURI(URI.file(filesToDiff[0].filePath));
 		}
 		return undefined;
 	}
@@ -200,8 +251,8 @@ export class WorkspaceStats {
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
 	}
 
-	public reportWorkspaceTags(workbenchOptions: IOptions): void {
-		this.getWorkspaceTags(workbenchOptions).then((tags) => {
+	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
+		this.getWorkspaceTags(configuration).then((tags) => {
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => onUnexpectedError(error));
 	}
@@ -222,6 +273,17 @@ export class WorkspaceStats {
 		}, onUnexpectedError);
 	}
 
+	private reportRemotes(workspaceUris: URI[]): void {
+		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
+			let path = workspaceUri.path;
+			let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+			return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+				content => getHashedRemotes(content.value),
+				err => [] // ignore missing or binary file
+			);
+		})).then(hashedRemotes => this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes }), onUnexpectedError);
+	}
+
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
@@ -229,8 +291,8 @@ export class WorkspaceStats {
 			return workspaceUri.with({ path: `${path !== '/' ? path : ''}/node_modules` });
 		});
 		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
-			statses => {
-				const names = (<IFileStat[]>[]).concat(...statses.map(stats => stats.children || [])).map(c => c.name);
+			results => {
+				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 				const referencesAzure = this.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;
@@ -270,11 +332,12 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 		const uris = workspace && workspace.roots;
 		if (uris && uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
+			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
-	}
+	};
 }

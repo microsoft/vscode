@@ -20,8 +20,8 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { Workspace } from "vs/platform/workspace/common/workspace";
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class TestEnvironmentService extends EnvironmentService {
 

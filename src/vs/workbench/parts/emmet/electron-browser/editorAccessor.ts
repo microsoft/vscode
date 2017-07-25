@@ -12,7 +12,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
-import { SnippetParser, walk, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 import emmet = require('emmet');
 
@@ -114,11 +114,11 @@ export class EditorAccessor implements emmet.Editor {
 		// string to string conversion that tries to fix the
 		// snippet in-place
 
-		let marker = new SnippetParser().parse(template);
+		let snippet = new SnippetParser().parse(template);
 		let maxIndex = -Number.MIN_VALUE;
 
 		// find highest placeholder index
-		walk(marker, candidate => {
+		snippet.walk(candidate => {
 			if (candidate instanceof Placeholder) {
 				let index = candidate.index;
 				if (index > maxIndex) {
@@ -129,7 +129,7 @@ export class EditorAccessor implements emmet.Editor {
 		});
 
 		// rewrite final tabstops
-		walk(marker, candidate => {
+		snippet.walk(candidate => {
 			if (candidate instanceof Placeholder) {
 				if (candidate.isFinalTabstop) {
 					candidate.index = ++maxIndex;
@@ -141,10 +141,12 @@ export class EditorAccessor implements emmet.Editor {
 		// write back as string
 		function toSnippetString(marker: Marker): string {
 			if (marker instanceof Text) {
-				return SnippetParser.escape(marker.string);
+				return SnippetParser.escape(marker.value);
 
 			} else if (marker instanceof Placeholder) {
-				if (marker.children.length > 0) {
+				if (marker.choice) {
+					return `\${${marker.index}|${marker.choice.options.map(toSnippetString).join(',')}|}`;
+				} else if (marker.children.length > 0) {
 					return `\${${marker.index}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
 					return `\$${marker.index}`;
@@ -153,13 +155,13 @@ export class EditorAccessor implements emmet.Editor {
 				if (marker.children.length > 0) {
 					return `\${${marker.name}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
-					return `\$${marker.name}`;
+					return `\${${marker.name}}`;
 				}
 			} else {
 				throw new Error('unexpected marker: ' + marker);
 			}
 		}
-		return marker.map(toSnippetString).join('');
+		return snippet.children.map(toSnippetString).join('');
 	}
 
 	public getRangeToReplace(value: string, start: number, end: number): Range {
@@ -264,6 +266,19 @@ export class EditorAccessor implements emmet.Editor {
 		syntax = this.checkParentMode(syntax);
 
 		return syntax;
+	}
+
+	public getLanguage() {
+		let position = this._editor.getSelection().getStartPosition();
+		this._editor.getModel().forceTokenization(position.lineNumber);
+		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
+		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
+		let syntax = language.split('.').pop();
+
+		return {
+			language: syntax,
+			parentMode: this.checkParentMode(syntax)
+		};
 	}
 
 	private getSyntaxProfile(syntax: string): string {

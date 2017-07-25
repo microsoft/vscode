@@ -88,14 +88,15 @@ export default class CommandHandler implements vscode.Disposable {
 			}
 		}
 
+		const scheme = editor.document.uri.scheme;
 		let range = conflict.current.content;
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
-			query: JSON.stringify(range)
+			query: JSON.stringify({ scheme, range })
 		});
 
 		range = conflict.incoming.content;
-		const rightUri = leftUri.with({ query: JSON.stringify(range) });
+		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, range }) });
 
 		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
 		vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);

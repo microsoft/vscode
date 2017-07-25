@@ -6,7 +6,7 @@
 'use strict';
 
 import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
-import { Model, State } from './model';
+import { Model, State, Status } from './model';
 import { StatusBarCommands } from './statusbar';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
@@ -37,14 +37,14 @@ export class GitSCMProvider {
 
 	get count(): number {
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
+		const total = this.model.mergeGroup.resources.length
+			+ this.model.indexGroup.resources.length
+			+ this.model.workingTreeGroup.resources.length;
 
 		switch (countBadge) {
 			case 'off': return 0;
-			case 'tracked': return this.model.indexGroup.resources.length;
-			default:
-				return this.model.mergeGroup.resources.length
-					+ this.model.indexGroup.resources.length
-					+ this.model.workingTreeGroup.resources.length;
+			case 'tracked': return total - this.model.workingTreeGroup.resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length;
+			default: return total;
 		}
 	}
 

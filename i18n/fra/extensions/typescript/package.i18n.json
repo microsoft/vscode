@@ -17,6 +17,7 @@
 	"typescript.format.enable": "Activez/désactivez le formateur TypeScript par défaut.",
 	"javascript.format.enable": "Activez/désactivez le formateur JavaScript par défaut.",
 	"format.insertSpaceAfterCommaDelimiter": "Définit le traitement des espaces après une virgule de délimitation.",
+	"format.insertSpaceAfterConstructor": "Définit le traitement des espaces après le mot clé constructor. Nécessite TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterSemicolonInForStatements": " Définit le traitement des espaces après un point-virgule dans une instruction for.",
 	"format.insertSpaceBeforeAndAfterBinaryOperators": "Définit le traitement des espaces après un opérateur binaire.",
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Définit la gestion des espaces après les mots clés dans une instruction de flux de contrôle.",
@@ -27,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Définit la gestion de l'espace après l'ouverture et avant la fermeture des accolades non vides. Nécessite TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Définit la gestion de l'espace après l'ouverture et avant la fermeture des accolades de la chaîne de modèle. Nécessite TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Définit la gestion de l'espace après l'ouverture et avant la fermeture des accolades de l'expression JSX. Nécessite TypeScript >= 2.0.6.",
+	"format.insertSpaceAfterTypeAssertion": "Définit le traitement des espaces après les assertions de type dans TypeScript. Nécessite TypeScript >= 2.4.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Définit si une accolade ouvrante dans une fonction est placée ou non sur une nouvelle ligne.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Définit si une accolade ouvrante dans un bloc de contrôle est placée ou non sur une nouvelle ligne.",
 	"javascript.validate.enable": "Activez/désactivez la validation JavaScript.",
@@ -43,5 +45,7 @@
 	"typescript.npm": "Spécifie le chemin de l'exécutable NPM utilisé pour l'acquisition de type automatique. Nécessite TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Vérifie si NPM est installé pour l'acquisition de type automatique.",
 	"javascript.nameSuggestions": "Activez/désactivez l'inclusion de noms uniques à partir du fichier dans les listes de suggestions JavaScript.",
-	"typescript.tsc.autoDetect": "Contrôle si la détection automatique des tâches tsc est activée ou désactivée."
+	"typescript.tsc.autoDetect": "Contrôle si la détection automatique des tâches tsc est activée ou désactivée.",
+	"typescript.problemMatchers.tsc.label": "Problèmes liés à TypeScript",
+	"typescript.problemMatchers.tscWatch.label": "Problèmes liés à TypeScript (mode espion)"
 }

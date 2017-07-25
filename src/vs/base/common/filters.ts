@@ -381,7 +381,7 @@ function initTable() {
 	for (let i = 1; i <= 100; i++) {
 		row.push(-i);
 	}
-	for (let i = 0; i < 100; i++) {
+	for (let i = 0; i <= 100; i++) {
 		let thisRow = row.slice(0);
 		thisRow[0] = -i;
 		table.push(thisRow);
@@ -431,7 +431,7 @@ _ws['\t'] = true;
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
-export function fuzzyScore(pattern: string, word: string): [number, number[]] {
+export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
@@ -441,15 +441,17 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	// like `pattern = pattern.rtrim()` but doesn't create
 	// a new string
 	let patternStartPos = 0;
-	for (const ch of pattern) {
-		if (_ws[ch]) {
+	if (patternMaxWhitespaceIgnore === undefined) {
+		patternMaxWhitespaceIgnore = patternLen;
+	}
+	while (patternStartPos < patternMaxWhitespaceIgnore) {
+		if (_ws[pattern[patternStartPos]]) {
 			patternStartPos += 1;
 		} else {
 			break;
 		}
 	}
-
-	if (patternLen === patternStartPos) {
+	if (patternStartPos === patternLen) {
 		return [-100, []];
 	}
 

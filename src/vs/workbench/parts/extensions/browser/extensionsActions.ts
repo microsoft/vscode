@@ -892,6 +892,30 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 	static LABEL = localize('installExtensions', "Install Extensions");
 }
 
+export class ShowEnabledExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showEnabledExtensions';
+	static LABEL = localize('showEnabledExtensions', 'Show Enabled Extensions');
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'clear-extensions', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@enabled');
+				viewlet.focus();
+			});
+	}
+}
+
 export class ShowInstalledExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showInstalledExtensions';
@@ -1132,7 +1156,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs @category:languages ');
+				viewlet.search('@sort:installs category:languages ');
 				viewlet.focus();
 			});
 	}
@@ -1224,7 +1248,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 	}
 
 	private getOrCreateExtensionsFile(): TPromise<{ created: boolean, extensionsFileResource: URI }> {
-		const extensionsFileResource = URI.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
+		const extensionsFileResource = URI.file(paths.join(this.contextService.getLegacyWorkspace().resource.fsPath, '.vscode', 'extensions.json')); // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
 			return { created: false, extensionsFileResource };

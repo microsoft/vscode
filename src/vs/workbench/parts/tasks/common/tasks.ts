@@ -203,16 +203,16 @@ export namespace TaskGroup {
 
 	export const Build: 'build' = 'build';
 
-	export const RebuildAll: 'rebuildAll' = 'rebuildAll';
+	export const Rebuild: 'rebuild' = 'rebuild';
 
 	export const Test: 'test' = 'test';
 
 	export function is(value: string): value is string {
-		return value === Clean || value === Build || value === RebuildAll || value === Test;
+		return value === Clean || value === Build || value === Rebuild || value === Test;
 	}
 }
 
-export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
+export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 export enum TaskSourceKind {
 	Workspace = 1,
@@ -224,6 +224,10 @@ export interface TaskSource {
 	kind: TaskSourceKind;
 	label: string;
 	detail?: string;
+	config?: {
+		index: number;
+		element: any;
+	};
 }
 
 export interface TaskIdentifier {
@@ -251,7 +255,7 @@ export interface ConfigurationProperties {
 	/**
 	 * Whether this task is a primary task in the task group.
 	 */
-	isPrimaryGroupEntry?: boolean;
+	isDefaultGroupEntry?: boolean;
 
 	/**
 	 * The presentation options
@@ -336,6 +340,8 @@ export interface ContributedTask extends CommonTask, ConfigurationProperties {
 
 	defines: TaskIdentifier;
 
+	hasDefinedMatchers: boolean;
+
 	/**
 	 * The command configuration
 	 */
@@ -381,7 +387,7 @@ export interface TaskSet {
 	extension?: IExtensionDescription;
 }
 
-export interface TaskTypeDescription {
+export interface TaskDefinition {
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;

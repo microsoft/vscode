@@ -11,8 +11,11 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
+import platform = require('vs/base/common/platform');
 import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
@@ -54,25 +57,25 @@ export class RipgrepEngine {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
 		}
 
+		const cwd = platform.isWindows ? 'c:/' : '/';
 		process.nextTick(() => {
 			const escapedArgs = rgArgs.globArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
 			// Allow caller to register progress callback
-			const rgCmd = `rg ${escapedArgs}\n - cwd: /\n`;
+			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
 			onMessage({ message: rgCmd });
 			if (rgArgs.siblingClauses) {
 				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
 			}
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd: '/' });
+		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, '/');
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
-				const relativePath = path.relative('/', match.path);
-				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
@@ -137,18 +140,21 @@ export class RipgrepEngine {
 	 */
 	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
-		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
-			// Not really a useful message to show in the UI
-			return undefined;
-		}
 
 		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
 		// Only show it if it's from a search path.
-		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
+		const reg = /^\.\/(.*): No such file or directory \(os error 2\)/;
 		const noSuchFileMatch = firstLine.match(reg);
 		if (noSuchFileMatch) {
 			const errorPath = noSuchFileMatch[1];
-			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
+			const matchingPathSegmentReg = new RegExp('[\\/]' + errorPath);
+			const matchesFolderQuery = this.config.folderQueries
+				.map(q => q.folder)
+				.some(folder => !!folder.match(matchingPathSegmentReg));
+
+			return matchesFolderQuery ?
+				firstLine :
+				undefined;
 		}
 
 		if (strings.startsWith(firstLine, 'Error parsing regex')) {
@@ -377,15 +383,27 @@ export class LineMatch implements ILineMatch {
 
 interface IRgGlobResult {
 	globArgs: string[];
-	siblingClauses: glob.IExpression;
+	siblingClauses?: glob.IExpression;
 }
 
-function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
+function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[]): IRgGlobResult {
+	return foldersToRgGlobs(folderQueries, fq => fq.excludePattern);
+}
+
+function foldersToRgIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): IRgGlobResult {
+	return foldersToRgGlobs(folderQueries, fq => objects.assign({}, fq.includePattern || {}, globalInclude || {}));
+}
+
+function foldersToRgGlobalExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
+	return foldersToRgGlobs(folderQueries, () => globalExclude);
+}
+
+function foldersToRgGlobs(folderQueries: IFolderSearch[], patternProvider: (fs: IFolderSearch) => glob.IExpression): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
-		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
+		const pattern = patternProvider(folderQuery) || {};
+		const result = globExprsToRgGlobs(pattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
 			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
@@ -395,23 +413,13 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	return { globArgs, siblingClauses };
 }
 
-function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs: string[] = [];
-	folderQueries.forEach(folderQuery => {
-		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
-		globArgs.push(...result.globArgs);
-	});
-
-	return globArgs;
-}
-
 function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
 		.forEach(key => {
 			const value = patterns[key];
-			key = path.join(folder, key);
+			key = getAbsoluteGlob(folder, key);
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(key);
@@ -427,22 +435,43 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 	return { globArgs, siblingClauses };
 }
 
+/**
+ * Resolves a glob like "node_modules/**" in "/foo/bar" to "/foo/bar/node_modules/**".
+ * Special cases C:/foo paths to write the glob like /foo instead - see https://github.com/BurntSushi/ripgrep/issues/530.
+ *
+ * Exported for testing
+ */
+export function getAbsoluteGlob(folder: string, key: string): string {
+	const absolutePathKey = paths.isAbsolute(key) ?
+		key :
+		path.join(folder, key);
+
+	const root = paths.getRoot(folder);
+	return root.toLowerCase() === 'c:/' ?
+		absolutePathKey.replace(/^c:[/\\]/i, '/') :
+		absolutePathKey;
+}
+
 function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	if (config.includePattern) {
-		// I don't think includePattern can have siblingClauses
-		foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
-			args.push('-g', globArg);
-		});
-	}
+	const globsToGlobArgs = (globArgs: string[]) => arrays.flatten(globArgs.map(arg => ['-g', arg]));
+	const globToNotGlob = (glob: string) => '!' + glob;
 
-	let siblingClauses: glob.IExpression;
-	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);
-	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
-	siblingClauses = rgGlobs.siblingClauses;
+	// Include/exclude precedence:
+	// settings exclude < global include < global exclude
+	const excludeResult = foldersToRgExcludeGlobs(config.folderQueries);
+	args.push(...globsToGlobArgs(excludeResult.globArgs.map(globToNotGlob)));
+
+	const includeResult = foldersToRgIncludeGlobs(config.folderQueries, config.includePattern);
+	args.push(...globsToGlobArgs(includeResult.globArgs));
+
+	const globalExcludeResult = foldersToRgGlobalExcludeGlobs(config.folderQueries, config.excludePattern);
+	args.push(...globsToGlobArgs(globalExcludeResult.globArgs.map(globToNotGlob)));
+
+	// includePattern can't have siblingClauses
+	const siblingClauses = excludeResult.siblingClauses;
 
 	if (config.maxFilesize) {
 		args.push('--max-filesize', config.maxFilesize + '');
@@ -488,12 +517,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	if (config.searchPaths && config.searchPaths.length) {
-		args.push(...config.searchPaths);
-	} else {
-		args.push(...config.folderQueries.map(q => q.folder));
-	}
-
+	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
 	return { globArgs: args, siblingClauses };

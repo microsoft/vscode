@@ -16,7 +16,7 @@ import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textMod
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ThemeColor } from "vs/platform/theme/common/themeService";
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export const ClassName = {
 	EditorWarningDecoration: 'greensquiggly',

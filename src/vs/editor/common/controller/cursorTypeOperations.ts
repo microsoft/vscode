@@ -144,34 +144,56 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
+		let action;
+		let indentation;
 		let expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false);
 
 		if (expectedIndentAction) {
-			if (expectedIndentAction.action) {
-				let indentation = expectedIndentAction.indentation;
-
-				if (expectedIndentAction.action === IndentAction.Indent) {
-					indentation = TypeOperations.shiftIndent(config, indentation);
-				}
-
-				if (expectedIndentAction.action === IndentAction.Outdent) {
-					indentation = TypeOperations.unshiftIndent(config, indentation);
-				}
-
-				indentation = config.normalizeIndentation(indentation);
-
-				if (indentation.length === 0) {
-					return '';
-				} else {
-					return indentation;
+			action = expectedIndentAction.action;
+			indentation = expectedIndentAction.indentation;
+		} else if (lineNumber > 1) {
+			let lastLineNumber = lineNumber - 1;
+			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
+				let lineText = model.getLineContent(lastLineNumber);
+				let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
+				if (nonWhitespaceIdx >= 0) {
+					break;
 				}
 			}
-			else {
-				return expectedIndentAction.indentation;
+
+			if (lastLineNumber < 1) {
+				// No previous line with content found
+				return null;
+			}
+
+			let maxColumn = model.getLineMaxColumn(lastLineNumber);
+			let expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
+			if (expectedEnterAction) {
+				indentation = expectedEnterAction.indentation;
+				action = expectedEnterAction.enterAction;
+				if (action) {
+					indentation += action.appendText;
+				}
 			}
 		}
 
-		return null;
+		if (action) {
+			if (action === IndentAction.Indent) {
+				indentation = TypeOperations.shiftIndent(config, indentation);
+			}
+
+			if (action === IndentAction.Outdent) {
+				indentation = TypeOperations.unshiftIndent(config, indentation);
+			}
+
+			indentation = config.normalizeIndentation(indentation);
+		}
+
+		if (!indentation) {
+			return null;
+		}
+
+		return indentation;
 	}
 
 	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
@@ -310,13 +332,38 @@ export class TypeOperations {
 
 		let lineText = model.getLineContent(range.startLineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+
 		if (ir) {
-			if (/^\s+$/.test(lineText) || indentation === config.normalizeIndentation(ir.beforeEnter)) {
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(ir.afterEnter), keepPosition);
+			let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
+			let oldEndColumn = range.endColumn;
+
+			let beforeText = '\n';
+			if (indentation !== config.normalizeIndentation(ir.beforeEnter)) {
+				beforeText = config.normalizeIndentation(ir.beforeEnter) + lineText.substring(indentation.length, range.startColumn - 1) + '\n';
+				range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
 			}
-			let beforeText = config.normalizeIndentation(ir.beforeEnter) + lineText.substring(indentation.length, range.startColumn - 1);
-			range = new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn);
-			return TypeOperations._typeCommand(range, beforeText + '\n' + config.normalizeIndentation(ir.afterEnter), keepPosition);
+
+			let newLineContent = model.getLineContent(range.endLineNumber);
+			let firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
+			if (firstNonWhitespace >= 0) {
+				range = range.setEndPosition(range.endLineNumber, Math.max(range.endColumn, firstNonWhitespace + 1));
+			} else {
+				range = range.setEndPosition(range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
+			}
+
+			if (keepPosition) {
+				return new ReplaceCommandWithoutChangingPosition(range, beforeText + config.normalizeIndentation(ir.afterEnter), true);
+			} else {
+				let offset = 0;
+				if (oldEndColumn <= firstNonWhitespace + 1) {
+					if (!config.insertSpaces) {
+						oldEndViewColumn = Math.ceil(oldEndViewColumn / config.tabSize);
+					}
+					offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
+				}
+				return new ReplaceCommandWithOffsetCursorState(range, beforeText + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
+			}
+
 		} else {
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}

@@ -9,18 +9,23 @@ import { assign } from 'vs/base/common/objects';
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
+import Event from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRange } from 'vs/editor/common/core/range';
+import { ITextFileService, StateChange } from "vs/workbench/services/textfile/common/textfiles";
+import { TPromise } from "vs/base/common/winjs.base";
+import { Queue } from "vs/base/common/async";
+import { IFileService } from 'vs/platform/files/common/files';
 
 class SettingMatches {
 
@@ -233,19 +238,21 @@ export abstract class AbstractSettingsModel extends EditorModel {
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
-	private model: IModel;
+	protected settingsModel: IModel;
+	private queue: Queue<void>;
 
-	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
+	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
-		this.model = reference.object.textEditorModel;
+		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.model.onDidChangeContent(() => {
+		this._register(this.settingsModel.onDidChangeContent(() => {
 			this._settingsGroups = null;
 		}));
+		this.queue = new Queue<void>();
 	}
 
 	public get uri(): URI {
-		return this.model.uri;
+		return this.settingsModel.uri;
 	}
 
 	public get configurationTarget(): ConfigurationTarget {
@@ -260,19 +267,27 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 
 	public get content(): string {
-		return this.model.getValue();
+		return this.settingsModel.getValue();
 	}
 
 	public filterSettings(filter: string): IFilterResult {
 		return this.doFilterSettings(filter, this.settingsGroups);
 	}
 
+	public save(): TPromise<any> {
+		return this.queue.queue(() => this.doSave());
+	}
+
+	protected doSave(): TPromise<any> {
+		return this.textFileService.save(this.uri);
+	}
+
 	protected findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return this.model.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
+		return this.settingsModel.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
 	}
 
 	private parse() {
-		const model = this.model;
+		const model = this.settingsModel;
 		const settings: ISetting[] = [];
 		let overrideSetting: ISetting = null;
 
@@ -439,13 +454,151 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 }
 
+export class WorkspaceConfigModel extends SettingsEditorModel implements ISettingsEditorModel {
+
+	private workspaceConfigModel: IModel;
+	private workspaceConfigEtag: string;
+
+	constructor(
+		reference: IReference<ITextEditorModel>,
+		workspaceConfigModelReference: IReference<ITextEditorModel>,
+		_configurationTarget: ConfigurationTarget,
+		onDispose: Event<void>,
+		@IFileService private fileService: IFileService,
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService
+	) {
+		super(reference, _configurationTarget, textFileService);
+
+		this._register(workspaceConfigModelReference);
+		this.workspaceConfigModel = workspaceConfigModelReference.object.textEditorModel;
+
+		// Only listen to state changes. Content changes without saving are not synced.
+		this._register(this.textFileService.models.get(this.workspaceConfigModel.uri).onDidStateChange(statChange => this._onWorkspaceConfigFileStateChanged(statChange)));
+		this.onDispose(() => super.dispose());
+	}
+
+	protected doSave(): TPromise<any> {
+		if (this.textFileService.isDirty(this.workspaceConfigModel.uri)) {
+			// Throw an error?
+			return TPromise.as(null);
+		}
+
+		const content = this.createWorkspaceConfigContentFromSettingsModel();
+		if (content !== this.workspaceConfigModel.getValue()) {
+			return this.fileService.updateContent(this.workspaceConfigModel.uri, content)
+				.then(stat => this.workspaceConfigEtag = stat.etag);
+		}
+
+		return TPromise.as(null);
+	}
+
+	private createWorkspaceConfigContentFromSettingsModel(): string {
+		const workspaceConfigContent = this.workspaceConfigModel.getValue();
+		const { settingsPropertyEndsAt, nodeAfterSettingStartsAt } = WorkspaceConfigModel.parseWorkspaceConfigContent(workspaceConfigContent);
+		const workspaceConfigEndsAt = workspaceConfigContent.lastIndexOf('}');
+
+		// Settings property exist in Workspace Configuration and has Ending Brace
+		if (settingsPropertyEndsAt !== -1 && workspaceConfigEndsAt > settingsPropertyEndsAt) {
+
+			// Place settings at the end
+			let from = workspaceConfigContent.indexOf(':', settingsPropertyEndsAt) + 1;
+			let to = workspaceConfigEndsAt;
+			let settingsContent = this.settingsModel.getValue();
+
+			// There is a node after settings property
+			// Place settings before that node
+			if (nodeAfterSettingStartsAt !== -1) {
+				settingsContent += ',';
+				to = nodeAfterSettingStartsAt;
+			}
+
+			return workspaceConfigContent.substring(0, from) + settingsContent + workspaceConfigContent.substring(to);
+		}
+
+		// Settings property does not exist. Place it at the end
+		return workspaceConfigContent.substring(0, workspaceConfigEndsAt) + `,\n"settings": ${this.settingsModel.getValue()}\n` + workspaceConfigContent.substring(workspaceConfigEndsAt);
+	}
+
+	private _onWorkspaceConfigFileStateChanged(stateChange: StateChange): void {
+		let hasToUpdate = false;
+		switch (stateChange) {
+			case StateChange.SAVED:
+				hasToUpdate = this.workspaceConfigEtag !== this.textFileService.models.get(this.workspaceConfigModel.uri).getETag();
+				break;
+		}
+		if (hasToUpdate) {
+			this.onWorkspaceConfigFileContentChanged();
+		}
+	}
+
+	private onWorkspaceConfigFileContentChanged(): void {
+		this.workspaceConfigEtag = this.textFileService.models.get(this.workspaceConfigModel.uri).getETag();
+		const settingsValue = WorkspaceConfigModel.getSettingsContentFromConfigContent(this.workspaceConfigModel.getValue());
+		if (settingsValue) {
+			this.settingsModel.setValue(settingsValue);
+		}
+	}
+
+	dispose() {
+		// Not disposable by default
+	}
+
+	static getSettingsContentFromConfigContent(workspaceConfigContent: string): string {
+		const { settingsPropertyEndsAt, nodeAfterSettingStartsAt } = WorkspaceConfigModel.parseWorkspaceConfigContent(workspaceConfigContent);
+
+		const workspaceConfigEndsAt = workspaceConfigContent.lastIndexOf('}');
+
+		if (settingsPropertyEndsAt !== -1) {
+			const from = workspaceConfigContent.indexOf(':', settingsPropertyEndsAt) + 1;
+			const to = nodeAfterSettingStartsAt !== -1 ? nodeAfterSettingStartsAt : workspaceConfigEndsAt;
+			return workspaceConfigContent.substring(from, to);
+		}
+
+		return null;
+	}
+
+	static parseWorkspaceConfigContent(content: string): { settingsPropertyEndsAt: number, nodeAfterSettingStartsAt: number } {
+
+		let settingsPropertyEndsAt = -1;
+		let nodeAfterSettingStartsAt = -1;
+
+		let rootProperties = [];
+		let ancestors = [];
+		let currentProperty = '';
+
+		visit(content, <JSONVisitor>{
+			onObjectProperty: (name: string, offset: number, length: number) => {
+				currentProperty = name;
+				if (ancestors.length === 1) {
+					rootProperties.push(name);
+					if (rootProperties[rootProperties.length - 1] === 'settings') {
+						settingsPropertyEndsAt = offset + length;
+					}
+					if (rootProperties[rootProperties.length - 2] === 'settings') {
+						nodeAfterSettingStartsAt = offset;
+					}
+				}
+			},
+			onObjectBegin: (offset: number, length: number) => {
+				ancestors.push(currentProperty);
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				ancestors.pop();
+			}
+		}, { allowTrailingComma: true });
+
+		return { settingsPropertyEndsAt, nodeAfterSettingStartsAt };
+	}
+}
+
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
-	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
+	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[], readonly configurationScope: ConfigurationScope) {
 		super();
 	}
 
@@ -490,7 +643,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []);
+		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
@@ -568,11 +721,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return result;
 	}
 
+	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
+		const result = [];
+		for (const settingsGroup of settingsGroups) {
+			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
+			if (settingsGroup.sections.length) {
+				result.push(settingsGroup);
+			}
+		}
+		return result;
+	}
+
 	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
 		let result = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage) {
+			if (!prop.deprecationMessage && this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
@@ -584,6 +748,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
 		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+	}
+
+	private matchesScope(property: IConfigurationNode): boolean {
+		if (this.configurationScope === ConfigurationScope.WORKBENCH) {
+			return true;
+		}
+		return property.scope === this.configurationScope;
 	}
 
 	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {

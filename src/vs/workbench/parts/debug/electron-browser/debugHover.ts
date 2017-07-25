@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -62,7 +63,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
 		this.valueContainer.setAttribute('role', 'tooltip');
-		this.scrollbar = new DomScrollableElement(this.valueContainer, {});
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
 		this.domNode.appendChild(this.scrollbar.getDomNode());
 		this.toDispose.push(this.scrollbar);
 
@@ -255,9 +256,9 @@ export class DebugHoverWidget implements IContentWidget {
 				showChanged: false,
 				preserveWhitespace: true
 			});
-			this.scrollbar.scanDomNode();
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.valueContainer.focus();
@@ -274,6 +275,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.tree.DOMFocus();

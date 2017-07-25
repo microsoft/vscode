@@ -9,6 +9,8 @@
 	"workbench.action.terminal.kill.short": "Terminál leállítása",
 	"workbench.action.terminal.copySelection": "Kijelölés másolása",
 	"workbench.action.terminal.selectAll": "Összes kijelölése",
+	"workbench.action.terminal.deleteWordLeft": "Balra lévő szó törlése",
+	"workbench.action.terminal.deleteWordRight": "Jobbra lévő szó törlése",
 	"workbench.action.terminal.new": "Új integrált terminál létrehozása",
 	"workbench.action.terminal.new.short": "Új terminál",
 	"workbench.action.terminal.focus": "Váltás a terminálra",

@@ -13,5 +13,7 @@
 	"appStalled": "窗口不再响应",
 	"appStalledDetail": "可以重新打开或关闭窗，或者保持等待。",
 	"appCrashed": "窗口出现故障",
-	"appCrashedDetail": "我们对此引起的不便表示抱歉! 请重启该窗口从上次停止的位置继续。"
+	"appCrashedDetail": "我们对此引起的不便表示抱歉! 请重启该窗口从上次停止的位置继续。",
+	"openFile": "打开文件",
+	"openFolder": "打开文件夹"
 }

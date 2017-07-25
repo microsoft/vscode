@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Boş olmayan küme parantezleri açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.3.0 gerektirir.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Şablon dizesi ayraçları açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.0.6 gerektirir.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "JSX ifadesi ayraçları açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.0.6 gerektirir.",
+	"format.insertSpaceAfterTypeAssertion": "TypeScript'te tür iddialarından sonra boşluk eklenip eklenmeyeceğini tanımlar. TypeScript >= 2.4 gerektirir.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Fonksiyonlarda bir açılış ayracının yeni satıra koyulup koyulmayacağını tanımlar.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Kontrol bloklarında bir açılış ayracının yeni satıra koyulup koyulmayacağını tanımlar.",
 	"javascript.validate.enable": "JavaScript doğrulamasını etkinleştir veya devre dışı bırak.",
@@ -44,5 +45,7 @@
 	"typescript.npm": "Otomatik Tür Kazanımı için kullanılacak NPM yürütülebilir dosyasının yolunu belirtir. TypeScript >= 2.3.4 gerektirir.",
 	"typescript.check.npmIsInstalled": "Otomatik Tür Kazanımı için NPM'in yüklü olup olmadığını kontrol et.",
 	"javascript.nameSuggestions": "JavaScript öneri listelerindeki dosyadan benzersiz adları eklemeyi etkinleştir veya devre dışı bırak.",
-	"typescript.tsc.autoDetect": "Tsc görevlerinin otomatik olarak algılanıp algılanmayacağını denetler. Varsayılan olarak açıktır."
+	"typescript.tsc.autoDetect": "Tsc görevlerinin otomatik olarak algılanıp algılanmayacağını denetler. Varsayılan olarak açıktır.",
+	"typescript.problemMatchers.tsc.label": "TypeScript sorunları",
+	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)"
 }

@@ -105,7 +105,7 @@
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
-	opacity: 0.6;
+	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
@@ -154,6 +154,10 @@
 	margin-right: 0;
 	margin-left: 0.3em;
 	line-height: 15px;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
+	opacity: 0.9;
 }
 
 .extensions-viewlet > .extensions .extension.disabled > .icon,

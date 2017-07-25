@@ -21,9 +21,9 @@ import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
-import { KeybindingLabel } from "vs/base/browser/ui/keybindingLabel/keybindingLabel";
-import { OS } from "vs/base/common/platform";
-import { ResolvedKeybinding } from "vs/base/common/keyCodes";
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IContext {
 	event: any;
@@ -442,8 +442,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		container.appendChild(entryContainer);
 
 		// Entry
-		const row1 = DOM.$('.row');
-		const row2 = DOM.$('.row');
+		const row1 = DOM.$('.quick-open-row');
+		const row2 = DOM.$('.quick-open-row');
 		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 

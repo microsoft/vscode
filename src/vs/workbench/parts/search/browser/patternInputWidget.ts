@@ -5,15 +5,11 @@
 
 import nls = require('vs/nls');
 import * as dom from 'vs/base/browser/dom';
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
-import collections = require('vs/base/common/collections');
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IExpression, splitGlobAware } from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
@@ -40,8 +36,6 @@ export class PatternInputWidget extends Widget {
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private pattern: Checkbox;
-
 	private domNode: HTMLElement;
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
@@ -59,7 +53,6 @@ export class PatternInputWidget extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.pattern = null;
 		this.domNode = null;
 		this.inputNode = null;
 		this.inputBox = null;
@@ -71,7 +64,6 @@ export class PatternInputWidget extends Widget {
 
 	public dispose(): void {
 		super.dispose();
-		this.pattern.dispose();
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
@@ -107,59 +99,6 @@ export class PatternInputWidget extends Widget {
 		}
 	}
 
-	public getGlob(): { expression?: IExpression, searchPaths?: string[] } {
-		const pattern = this.getValue();
-		const isGlobPattern = this.isGlobPattern();
-
-		if (!pattern) {
-			return {};
-		}
-
-		let exprSegments: string[];
-		let searchPaths: string[];
-		if (isGlobPattern) {
-			const segments = splitGlobAware(pattern, ',')
-				.map(s => strings.ltrim(s.trim(), './'))
-				.filter(s => !!s.length);
-
-			const groups = this.groupByPathsAndExprSegments(segments);
-			searchPaths = groups.searchPaths;
-			exprSegments = groups.exprSegments;
-		} else {
-			const segments = pattern.split(',')
-				.map(s => strings.ltrim(s.trim(), './'))
-				.filter(s => !!s.length);
-
-			const groups = this.groupByPathsAndExprSegments(segments);
-			searchPaths = groups.searchPaths;
-			exprSegments = groups.exprSegments
-				.map(p => {
-					if (p[0] === '.') {
-						p = '*' + p; // convert ".js" to "*.js"
-					}
-
-					return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
-				});
-		}
-
-		const expression = exprSegments.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
-		return { expression, searchPaths };
-	}
-
-	private groupByPathsAndExprSegments(segments: string[]) {
-		const isSearchPath = (segment: string) => {
-			// An segment is a search path if it is an absolute path and doesn't contain any glob characters
-			return paths.isAbsolute(segment) && !segment.match(/[\*\{\}\(\)\[\]\?]/);
-		};
-
-		const groups = collections.groupBy(segments,
-			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
-		groups.searchPaths = groups.searchPaths || [];
-		groups.exprSegments = (groups.exprSegments || [])
-			.map(segment => strings.trim(segment, '/'));
-
-		return groups;
-	}
 
 	public select(): void {
 		this.inputBox.select();
@@ -173,20 +112,12 @@ export class PatternInputWidget extends Widget {
 		return this.inputBox.hasFocus();
 	}
 
-	public isGlobPattern(): boolean {
-		return this.pattern.checked;
-	}
-
-	public setIsGlobPattern(value: boolean): void {
-		this.pattern.checked = value;
-	}
-
 	private setInputWidth(): void {
-		this.inputBox.width = this.width - this.getSubcontrolsWidth();
+		this.inputBox.width = this.width - this.getSubcontrolsWidth() - 2; // 2 for input box border
 	}
 
 	protected getSubcontrolsWidth(): number {
-		return this.pattern.width();
+		return 0;
 	}
 
 	public getHistory(): string[] {
@@ -279,17 +210,6 @@ export class PatternInputWidget extends Widget {
 	}
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		controlsDiv.appendChild(this.pattern.domNode);
-	}
-
-	private showGlobHelp(): void {
-		this.inputBox.showMessage({
-			type: MessageType.INFO,
-			formatContent: true,
-			content: nls.localize('patternHelpInclude',
-				"The pattern to match. e.g. **\\*\\*/*.js** to match all JavaScript files or **myFolder/\\*\\*** to match that folder with all children.\n\n**Reference**:\n**\\*** matches 0 or more characters\n**?** matches 1 character\n**\\*\\*** matches zero or more directories\n**[a-z]** matches a range of characters\n**{a,b}** matches any of the patterns)"
-			)
-		}, true);
 	}
 
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {

@@ -38,7 +38,8 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { IStorageService } from "vs/platform/storage/common/storage";
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
 
 used();
 
@@ -105,16 +106,6 @@ export class WelcomePageAction extends Action {
 		return null;
 	}
 }
-
-const reorderedQuickLinks = [
-	'showInterfaceOverview',
-	'selectTheme',
-	'showRecommendedKeymapExtensions',
-	'showCommands',
-	'keybindingsReference',
-	'openGlobalSettings',
-	'showInteractivePlayground',
-];
 
 interface ExtensionSuggestion {
 	name: string;
@@ -198,7 +189,7 @@ class WelcomePage {
 	}
 
 	private create() {
-		const recentlyOpened = this.windowService.getRecentlyOpen();
+		const recentlyOpened = this.windowService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
@@ -210,7 +201,7 @@ class WelcomePage {
 			.then(null, onUnexpectedError);
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
 		const enabled = isWelcomePageEnabled(this.configurationService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -220,24 +211,45 @@ class WelcomePage {
 			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: configurationKey, value: showOnStartup.checked ? 'welcomePage' : 'newUntitledFile' });
 		});
 
-		recentlyOpened.then(({ folders }) => {
-			if (this.contextService.hasWorkspace()) {
-				const currents = this.contextService.getWorkspace2().roots;
-				folders = folders.filter(folder => !currents.some(current => this.pathEquals(folder, current.fsPath)));
-			}
-			if (!folders.length) {
+		recentlyOpened.then(({ workspaces }) => {
+			const context = this.contextService.getWorkspace();
+			workspaces = workspaces.filter(workspace => {
+				if (this.contextService.hasMultiFolderWorkspace() && typeof workspace !== 'string' && context.id === workspace.id) {
+					return false; // do not show current workspace
+				}
+
+				if (this.contextService.hasFolderWorkspace() && isSingleFolderWorkspaceIdentifier(workspace) && this.pathEquals(context.roots[0].fsPath, workspace)) {
+					return false; // do not show current workspace (single folder case)
+				}
+
+				return true;
+			});
+			if (!workspaces.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;
 				recent.classList.add('emptyRecent');
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
 			const before = ul.firstElementChild;
-			folders.slice(0, 5).forEach(folder => {
+			workspaces.slice(0, 5).forEach(workspace => {
+				let label: string;
+				let parent: string;
+				let wsPath: string;
+				if (isSingleFolderWorkspaceIdentifier(workspace)) {
+					label = path.basename(workspace);
+					parent = path.dirname(workspace);
+					wsPath = workspace;
+				} else {
+					label = getWorkspaceLabel(workspace, this.environmentService);
+					parent = path.dirname(workspace.configPath);
+					wsPath = workspace.configPath;
+				}
+
 				const li = document.createElement('li');
 
 				const a = document.createElement('a');
-				let name = path.basename(folder);
-				let parentFolder = path.dirname(folder);
+				let name = label;
+				let parentFolder = parent;
 				if (!name && parentFolder) {
 					const tmp = name;
 					name = parentFolder;
@@ -246,7 +258,7 @@ class WelcomePage {
 				const tildifiedParentFolder = tildify(parentFolder, this.environmentService.userHome);
 
 				a.innerText = name;
-				a.title = folder;
+				a.title = label;
 				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
@@ -254,7 +266,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowsService.openWindow([folder], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowsService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
@@ -264,30 +276,12 @@ class WelcomePage {
 				span.classList.add('path');
 				span.classList.add('detail');
 				span.innerText = tildifiedParentFolder;
-				span.title = folder;
+				span.title = label;
 				li.appendChild(span);
 
 				ul.insertBefore(li, before);
 			});
 		}).then(null, onUnexpectedError);
-
-		const customize = container.querySelector('.commands .section.customize');
-		const learn = container.querySelector('.commands .section.learn');
-		const quickLinks = container.querySelector('.commands .section.quickLinks');
-		if (this.telemetryService.getExperiments().mergeQuickLinks) {
-			const ul = quickLinks.querySelector('ul');
-			reorderedQuickLinks.forEach(clazz => {
-				const link = container.querySelector(`.commands .${clazz}`);
-				if (link) {
-					ul.appendChild(link);
-				}
-			});
-			customize.remove();
-			learn.remove();
-			container.querySelector('.keybindingsReferenceLink').remove();
-		} else {
-			quickLinks.remove();
-		}
 
 		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
 		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);

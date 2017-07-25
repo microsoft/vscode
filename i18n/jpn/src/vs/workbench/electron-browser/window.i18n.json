@@ -10,6 +10,5 @@
 	"copy": "コピー",
 	"paste": "貼り付け",
 	"selectAll": "すべて選択",
-	"confirmOpen": "{0} 個のフォルダーを開きますか?",
 	"confirmOpenButton": "&&開く"
 }

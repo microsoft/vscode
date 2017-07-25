@@ -21,13 +21,13 @@ export class Menu implements IMenu {
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		private id: MenuId,
+		private _id: MenuId,
 		startupSignal: TPromise<boolean>,
 		@ICommandService private _commandService: ICommandService,
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
-			const menuItems = MenuRegistry.getMenuItems(id);
+			const menuItems = MenuRegistry.getMenuItems(_id);
 			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;
@@ -48,6 +48,9 @@ export class Menu implements IMenu {
 
 			// subscribe to context changes
 			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
+				if (!keys) {
+					throw new Error(`Receiving bad onDidChangeContext-event form MenuId[${this._id.id}]`);
+				}
 				for (let k of keys) {
 					if (keysFilter.has(k)) {
 						this._onDidChange.fire();

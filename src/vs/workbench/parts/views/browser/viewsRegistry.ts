@@ -20,6 +20,14 @@ export class ViewLocation {
 	get id(): string {
 		return this._id;
 	}
+
+	static getContributedViewLocation(value: string): ViewLocation {
+		switch (value) {
+			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
+			case ViewLocation.Debug.id: return ViewLocation.Debug;
+		}
+		return void 0;
+	}
 }
 
 export interface IViewDescriptor {
@@ -37,6 +45,8 @@ export interface IViewDescriptor {
 	readonly order?: number;
 
 	readonly size?: number;
+
+	readonly canToggleVisibility?: boolean;
 }
 
 export interface IViewsRegistry {

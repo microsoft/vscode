@@ -333,8 +333,8 @@ namespace Tasks {
 			detail: extension.id
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let key = (task as types.Task).kindKey;
-		let kind = (task as types.Task).kind;
+		let key = (task as types.Task).definitionKey;
+		let kind = (task as types.Task).definition;
 		let id = `${extension.id}.${key}`;
 		let taskKind: TaskSystem.TaskIdentifier = {
 			_key: key,
@@ -352,7 +352,8 @@ namespace Tasks {
 			group: task.group ? (task.group as types.TaskGroup).id : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice()
+			problemMatchers: task.problemMatchers.slice(),
+			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
 		};
 		return result;
 	}

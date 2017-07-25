@@ -11,10 +11,10 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -35,7 +35,7 @@ replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
-	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
+	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
 ].join('|').replace(/ /g, `[${'\u00A0'} ]`);
 
@@ -64,14 +64,19 @@ export class TerminalLinkHandler {
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
+		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
+
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
+			this._handleHypertextLink(uri);
+		}));
+
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
 		});
@@ -100,7 +105,6 @@ export class TerminalLinkHandler {
 	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
-			return;
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
@@ -116,9 +120,10 @@ export class TerminalLinkHandler {
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
-			// Require ctrl/cmd on click
-			if (this._platform === platform.Platform.Mac ? !event.metaKey : !event.ctrlKey) {
-				event.preventDefault();
+			// Prevent default electron link handling so Alt+Click mode works normally
+			event.preventDefault();
+			// Require correct modifier on click
+			if (!this._isLinkActivationModifierDown(event)) {
 				return false;
 			}
 			return handler(uri);
@@ -163,22 +168,40 @@ export class TerminalLinkHandler {
 		callback(true);
 	}
 
+	private _handleHypertextLink(url: string): void {
+		let uri = Uri.parse(url);
+		this._openerService.open(uri);
+	}
+
+	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
+		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			return !!event.altKey;
+		}
+		return platform.isMacintosh ? event.metaKey : event.ctrlKey;
+	}
+
+	private _getLinkHoverString(): string {
+		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
+		}
+		if (platform.isMacintosh) {
+			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
+		}
+		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
+	}
+
 	private _addTooltipEventListeners(element: HTMLElement): void {
 		let timeout = null;
 		let isMessageShowing = false;
 		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
-			element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+			element.classList.toggle('active', this._isLinkActivationModifierDown(e));
 			this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
-				element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+				element.classList.toggle('active', this._isLinkActivationModifierDown(e));
 			});
 			timeout = setTimeout(() => {
-				let message: string;
-				if (platform.isMacintosh) {
-					message = nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
-				} else {
-					message = nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
-				}
-				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, message);
+				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, this._getLinkHoverString());
 				isMessageShowing = true;
 			}, 500);
 		}));
@@ -205,20 +228,20 @@ export class TerminalLinkHandler {
 
 			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
 			if (!link.match('^' + winDrivePrefix)) {
-				if (!this._contextService.hasWorkspace()) {
+				if (!this._initialCwd) {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+				link = path.join(this._initialCwd, link);
 			}
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._contextService.hasWorkspace()) {
+			if (!this._initialCwd) {
 				// Abort if no workspace is open
 				return null;
 			}
-			link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+			link = path.join(this._initialCwd, link);
 		}
 		return link;
 	}

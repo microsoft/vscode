@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cp from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as pty from 'node-pty';
@@ -51,7 +52,16 @@ var exitCode;
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
 function queueProcessExit() {
+	if (closeTimeout) {
+		clearTimeout(closeTimeout);
+	}
 	closeTimeout = setTimeout(function () {
+		if (process.platform === 'win32') {
+			// Forcefully kill the entire process tree under the shell process
+			// on Windows as ptyProcess.kill can leave some lingering processes.
+			// See https://github.com/Microsoft/vscode/issues/26807
+			cp.execFileSync('taskkill.exe', ['/T', '/F', '/PID', ptyProcess.pid.toString()]);
+		}
 		ptyProcess.kill();
 		process.exit(exitCode);
 	}, 250);
@@ -78,6 +88,8 @@ process.on('message', function (message) {
 		ptyProcess.write(message.data);
 	} else if (message.event === 'resize') {
 		ptyProcess.resize(message.cols, message.rows);
+	} else if (message.event === 'shutdown') {
+		queueProcessExit();
 	}
 });
 

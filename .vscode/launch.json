@@ -129,16 +129,6 @@
 			]
 		},
 		{
-			"name": "Attach to TS Server",
-			"type": "node",
-			"request": "attach",
-			"port": 5859,
-			"protocol": "legacy",
-			"outFiles": [
-				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
-			]
-		},
-		{
 			"type": "node",
 			"request": "launch",
 			"name": "Unit Tests",

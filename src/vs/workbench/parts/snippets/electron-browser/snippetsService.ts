@@ -6,13 +6,14 @@
 
 import { localize } from 'vs/nls';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith } from 'vs/base/common/strings';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -84,9 +85,43 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 }
 
-interface ISnippetSuggestion {
-	suggestion: ISuggestion;
-	snippet: ISnippet;
+export class SnippetSuggestion implements ISuggestion {
+
+	private static _userSnippet = localize('source.snippet', "User Snippet");
+
+	label: string;
+	detail: string;
+	insertText: string;
+	documentation: string;
+	overwriteBefore: number;
+	sortText: string;
+	noAutoAccept: boolean;
+	type: SuggestionType;
+	snippetType: SnippetType;
+
+
+	constructor(
+		readonly snippet: ISnippet,
+		overwriteBefore: number
+	) {
+		this.label = snippet.prefix;
+		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description, snippet.extensionName || SnippetSuggestion._userSnippet);
+		this.insertText = snippet.codeSnippet;
+		this.overwriteBefore = overwriteBefore;
+		this.sortText = `${snippet.prefix}-${snippet.extensionName || ''}`;
+		this.noAutoAccept = true;
+		this.type = 'snippet';
+		this.snippetType = 'textmate';
+	}
+
+	resolve(): this {
+		this.documentation = new SnippetParser().text(this.snippet.codeSnippet);
+		return this;
+	}
+
+	static compareByLabel(a: SnippetSuggestion, b: SnippetSuggestion): number {
+		return compare(a.label, b.label);
+	}
 }
 
 
@@ -103,7 +138,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const snippets = this._snippets.getSnippets(languageId);
-		const items: ISnippetSuggestion[] = [];
+		const suggestions: SnippetSuggestion[] = [];
 
 		const lowWordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 		const lowLineUntil = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
@@ -119,46 +154,33 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 				overwriteBefore = lowWordUntil.length;
 				accetSnippet = true;
 
-			} else if (lowLineUntil.length > 0) {
-				// compute overlap between snippet and line on text
+			} else if (lowLineUntil.length > 0 && lowLineUntil.match(/[^\s]$/)) {
+				// compute overlap between snippet and (none-empty) line on text
 				overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
 				accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
 			}
 
 			if (accetSnippet) {
-
-				items.push({
-					snippet,
-					suggestion: {
-						type: 'snippet',
-						label: snippet.prefix,
-						detail: snippet.extensionName || localize('detail.userSnippet', "User Snippet"),
-						documentation: snippet.description,
-						insertText: snippet.codeSnippet,
-						sortText: `${snippet.prefix}-${snippet.extensionName || ''}`,
-						noAutoAccept: true,
-						snippetType: 'textmate',
-						overwriteBefore
-					}
-				});
+				suggestions.push(new SnippetSuggestion(snippet, overwriteBefore));
 			}
 		}
 
 		// dismbiguate suggestions with same labels
-		const suggestions: ISuggestion[] = [];
-		let lastItem: ISnippetSuggestion;
-		for (const item of items.sort(SnippetSuggestProvider._compareSuggestionsByLabel)) {
-			if (lastItem && lastItem.suggestion.label === item.suggestion.label) {
+		let lastItem: SnippetSuggestion;
+		for (const item of suggestions.sort(SnippetSuggestion.compareByLabel)) {
+			if (lastItem && lastItem.label === item.label) {
 				// use the disambiguateLabel instead of the actual label
-				lastItem.suggestion.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.suggestion.label, lastItem.snippet.name);
-				item.suggestion.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.suggestion.label, item.snippet.name);
+				lastItem.label = localize('snippetSuggest.longLabel', "{0}, {1}", lastItem.label, lastItem.snippet.name);
+				item.label = localize('snippetSuggest.longLabel', "{0}, {1}", item.label, item.snippet.name);
 			}
 			lastItem = item;
-
-			suggestions.push(item.suggestion);
 		}
 
 		return { suggestions };
+	}
+
+	resolveCompletionItem?(model: IModel, position: Position, item: ISuggestion): ISuggestion {
+		return (item instanceof SnippetSuggestion) ? item.resolve() : item;
 	}
 
 	private _getLanguageIdAtPosition(model: IModel, position: Position): LanguageId {
@@ -174,9 +196,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		return languageId;
 	}
 
-	private static _compareSuggestionsByLabel(a: ISnippetSuggestion, b: ISnippetSuggestion): number {
-		return compare(a.suggestion.label, b.suggestion.label);
-	}
+
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

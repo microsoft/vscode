@@ -16,7 +16,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { UntitledEditorInput } from "vs/workbench/common/editor/untitledEditorInput";
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 
 export class TestUntitledEditorService extends UntitledEditorService {
 

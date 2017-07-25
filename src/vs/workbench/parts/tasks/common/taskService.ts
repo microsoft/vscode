@@ -21,10 +21,20 @@ export namespace TaskServiceEvents {
 	export let Inactive: string = 'inactive';
 	export let ConfigChanged: string = 'configChanged';
 	export let Terminated: string = 'terminated';
+	export let Changed: string = 'changed';
 }
 
 export interface ITaskProvider {
 	provideTasks(): TPromise<TaskSet>;
+}
+
+export interface RunOptions {
+	attachProblemMatcher?: boolean;
+}
+
+export interface CustomizationProperties {
+	group?: string | { kind?: string; isDefault?: boolean; };
+	problemMatcher?: string | string[];
 }
 
 export interface ITaskService extends IEventEmitter {
@@ -34,7 +44,7 @@ export interface ITaskService extends IEventEmitter {
 	rebuild(): TPromise<ITaskSummary>;
 	clean(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
-	run(task: string | Task): TPromise<ITaskSummary>;
+	run(task: string | Task, options?: RunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;
 	isActive(): TPromise<boolean>;
 	getActiveTasks(): TPromise<Task[]>;
@@ -50,7 +60,7 @@ export interface ITaskService extends IEventEmitter {
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 
 	canCustomize(): boolean;
-	customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void>;
+	customize(task: Task, properties?: {}, openConfig?: boolean): TPromise<void>;
 
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;

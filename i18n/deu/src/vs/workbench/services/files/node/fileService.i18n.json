@@ -6,9 +6,13 @@
 {
 	"fileInvalidPath": "Ungültige Dateiressource ({0})",
 	"fileIsDirectoryError": "Die Datei ist ein Verzeichnis ({0}).",
+	"fileNotModifiedError": "Datei nicht geändert seit",
+	"fileTooLargeError": "Die Datei ist zu groß, um sie zu öffnen.",
 	"fileBinaryError": "Die Datei scheint eine Binärdatei zu sein und kann nicht als Text geöffnet werden.",
 	"fileNotFoundError": "Die Datei wurde nicht gefunden ({0}).",
+	"fileMoveConflict": "Verschieben/Kopieren kann nicht ausgeführt werden. Die Datei ist am Ziel bereits vorhanden.",
 	"unableToMoveCopyError": "Der Verschiebe-/Kopiervorgang kann nicht ausgeführt werden. Die Datei würde den Ordner ersetzen, in dem sie enthalten ist.",
 	"foldersCopyError": "Ordner können nicht in den Arbeitsbereich kopiert werden. Bitte wählen Sie einzelne Dateien aus, um sie zu kopieren.",
+	"fileModifiedError": "Datei geändert seit",
 	"fileReadOnlyError": "Die Datei ist schreibgeschützt."
 }

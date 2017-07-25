@@ -23,6 +23,7 @@ import * as TPath from 'vs/base/common/paths';
 // import URI from 'vs/base/common/uri';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
 
@@ -43,14 +44,17 @@ class TerminalDecoder {
 	// See https://en.wikipedia.org/wiki/ANSI_escape_code & http://stackoverflow.com/questions/25189651/how-to-remove-ansi-control-chars-vt100-from-a-java-string &
 	// https://www.npmjs.com/package/strip-ansi
 	private static ANSI_CONTROL_SEQUENCE: RegExp = /\x1b[[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+	private static OPERATING_SYSTEM_COMMAND_SEQUENCE: RegExp = /\x1b[\]](?:.*)(?:\x07|\x1b\\)/g;
 
 	private remaining: string;
 
 	public write(data: string): string[] {
 		let result: string[] = [];
+		data = data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+		data = data.replace(TerminalDecoder.OPERATING_SYSTEM_COMMAND_SEQUENCE, '');
 		let value = this.remaining
-			? this.remaining + data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '')
-			: data.replace(TerminalDecoder.ANSI_CONTROL_SEQUENCE, '');
+			? this.remaining + data
+			: data;
 
 		if (value.length < 1) {
 			return result;
@@ -114,6 +118,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private workbenchEditorService: IWorkbenchEditorService,
+		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
 		super();
 
@@ -159,6 +164,17 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
+
+	public revealTask(task: Task): boolean {
+		let terminalData = this.activeTasks[task._id];
+		if (!terminalData) {
+			return false;
+		}
+		this.terminalService.setActiveInstance(terminalData.terminal);
+		this.terminalService.showPanel(task.command.presentation.focus);
+		return true;
+	}
+
 	public isActive(): TPromise<boolean> {
 		return TPromise.as(this.isActiveSync());
 	}
@@ -186,7 +202,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let task = activeTerminal.task;
 				try {
 					onExit.dispose();
-					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+					let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 					this.emit(TaskSystemEvents.Terminated, event);
 				} catch (error) {
 					// Do nothing.
@@ -207,7 +223,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					let task = terminalData.task;
 					try {
 						onExit.dispose();
-						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+						let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 						this.emit(TaskSystemEvents.Terminated, event);
 					} catch (error) {
 						// Do nothing.
@@ -267,7 +283,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				const problemMatchers = this.resolveMatchers(task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group, __task: task };
 				let eventCounter: number = 0;
 				toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 					eventCounter++;
@@ -298,6 +314,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -329,7 +346,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
-				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group, __task: task };
 				this.emit(TaskSystemEvents.Active, event);
 				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task.problemMatchers);
@@ -344,6 +361,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					onData.dispose();
 					onExit.dispose();
 					delete this.activeTasks[task._id];
+					this.emit(TaskSystemEvents.Changed);
 					switch (task.command.presentation.panel) {
 						case PanelKind.Dedicated:
 							this.sameTaskTerminals[task._id] = terminal.id.toString();
@@ -369,6 +387,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
+		this.emit(TaskSystemEvents.Changed);
 		return promise.then((summary) => {
 			try {
 				let telemetryEvent: TelemetryEvent = {
@@ -614,7 +633,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.configurationResolverService.resolve(value);
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
 	}
 
 	private resolveOptions(options: CommandOptions): CommandOptions {

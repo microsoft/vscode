@@ -488,14 +488,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { }
-
 export class WorkspaceEdit {
 
-	private _values: [Uri, TextEdit[]][] = [];
+	private _values: [URI, TextEdit[]][] = [];
 	private _index = new Map<string, number>();
 
-	replace(uri: Uri, range: Range, newText: string): void {
+	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
 		let array = this.get(uri);
 		if (array) {
@@ -505,19 +503,19 @@ export class WorkspaceEdit {
 		}
 	}
 
-	insert(resource: Uri, position: Position, newText: string): void {
+	insert(resource: URI, position: Position, newText: string): void {
 		this.replace(resource, new Range(position, position), newText);
 	}
 
-	delete(resource: Uri, range: Range): void {
+	delete(resource: URI, range: Range): void {
 		this.replace(resource, range, '');
 	}
 
-	has(uri: Uri): boolean {
+	has(uri: URI): boolean {
 		return this._index.has(uri.toString());
 	}
 
-	set(uri: Uri, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[]): void {
 		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
@@ -527,12 +525,12 @@ export class WorkspaceEdit {
 		}
 	}
 
-	get(uri: Uri): TextEdit[] {
+	get(uri: URI): TextEdit[] {
 		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
-	entries(): [Uri, TextEdit[]][] {
+	entries(): [URI, TextEdit[]][] {
 		return this._values;
 	}
 
@@ -1040,9 +1038,9 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Build: TaskGroup = new TaskGroup('build', 'Build');
 
-	public static RebuildAll: TaskGroup = new TaskGroup('rebuildAll', 'RebuildAll');
+	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
-	public static Test: TaskGroup = new TaskGroup('clean', 'Clean');
+	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
 	constructor(id: string, label: string) {
 		if (typeof id !== 'string') {
@@ -1153,55 +1151,54 @@ export class ShellExecution implements vscode.ShellExecution {
 
 export class Task implements vscode.Task {
 
-	private _kind: vscode.TaskKind;
-	private _kindKey: string;
+	private _definition: vscode.TaskDefinition;
+	private _definitionKey: string;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
+	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
-
-	constructor(kind: vscode.TaskKind, name: string, source: string);
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution);
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-
-	constructor(kind: vscode.TaskKind, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
-		this.kind = kind;
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+		this.definition = definition;
 		this.name = name;
 		this.source = source;
 		this.execution = execution;
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
+			this._hasDefinedMatchers = true;
 		} else if (Array.isArray(problemMatchers)) {
 			this._problemMatchers = problemMatchers;
+			this._hasDefinedMatchers = true;
 		} else {
 			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
 		}
 		this._isBackground = false;
 	}
 
-	get kind(): vscode.TaskKind {
-		return this._kind;
+	get definition(): vscode.TaskDefinition {
+		return this._definition;
 	}
 
-	set kind(value: vscode.TaskKind) {
+	set definition(value: vscode.TaskDefinition) {
 		if (value === void 0 || value === null) {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
-		this._kindKey = undefined;
-		this._kind = value;
+		this._definitionKey = undefined;
+		this._definition = value;
 	}
 
-	get kindKey(): string {
-		if (!this._kindKey) {
+	get definitionKey(): string {
+		if (!this._definitionKey) {
 			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._kind));
-			this._kindKey = hash.digest('hex');
+			hash.update(JSON.stringify(this._definition));
+			this._definitionKey = hash.digest('hex');
 		}
-		return this._kindKey;
+		return this._definitionKey;
 	}
 
 	get name(): string {
@@ -1232,9 +1229,16 @@ export class Task implements vscode.Task {
 
 	set problemMatchers(value: string[]) {
 		if (!Array.isArray(value)) {
-			value = [];
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+			return;
 		}
 		this._problemMatchers = value;
+		this._hasDefinedMatchers = true;
+	}
+
+	get hasDefinedMatchers(): boolean {
+		return this._hasDefinedMatchers;
 	}
 
 	get isBackground(): boolean {
@@ -1253,10 +1257,6 @@ export class Task implements vscode.Task {
 	}
 
 	set source(value: string) {
-		if (value === void 0 || value === null) {
-			this._source = undefined;
-			return;
-		}
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
@@ -1295,7 +1295,7 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
-	iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 
@@ -1315,4 +1315,12 @@ export class ThemeColor {
 	constructor(id: string) {
 		this.id = id;
 	}
+}
+
+export enum ConfigurationTarget {
+	Global = 1,
+
+	Workspace = 2,
+
+	WorkspaceFolder = 3
 }

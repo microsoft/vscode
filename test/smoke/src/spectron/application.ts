@@ -12,6 +12,7 @@ var path = require('path');
 export const LATEST_PATH = process.env.VSCODE_LATEST_PATH;
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH;
 export const WORKSPACE_PATH = process.env.SMOKETEST_REPO;
+export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH;
 export const USER_DIR = 'test_data/temp_user_dir';
 export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
 
@@ -52,7 +53,8 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			chromeDriverArgs: chromeDriverArgs
+			chromeDriverArgs: chromeDriverArgs,
+			startTimeout: 10000
 		});
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
 		this.screenshot = new Screenshot(this, testName, testRetry);

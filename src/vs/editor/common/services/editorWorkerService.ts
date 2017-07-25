@@ -17,8 +17,14 @@ export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITO
 export interface IEditorWorkerService {
 	_serviceBrand: any;
 
+	canComputeDiff(original: URI, modified: URI): boolean;
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<ILineChange[]>;
+
+	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<IChange[]>;
+
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[], ranges: IRange[]): TPromise<TextEdit[]>;
+
+	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;
 }

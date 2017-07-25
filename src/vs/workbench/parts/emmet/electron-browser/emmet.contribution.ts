@@ -38,12 +38,12 @@ configurationRegistry.registerConfiguration({
 		'emmet.triggerExpansionOnTab': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('triggerExpansionOnTab', "When enabled, emmet abbreviations are expanded when pressing TAB.")
+			'description': nls.localize('triggerExpansionOnTab', "When enabled, emmet abbreviations are expanded when pressing TAB. Not applicable when emmet.useNewemmet is set to true.")
 		},
 		'emmet.preferences': {
 			'type': 'object',
 			'default': {},
-			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet.")
+			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet. Not applicable when emmet.useNewemmet is set to true.")
 		},
 		'emmet.syntaxProfiles': {
 			'type': 'object',
@@ -58,7 +58,7 @@ configurationRegistry.registerConfiguration({
 		'emmet.extensionsPath': {
 			'type': 'string',
 			'default': null,
-			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences')
+			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences. Only profiles are honored from extensions path when emmet.useNewEmmet is set to true.')
 		},
 		'emmet.useNewEmmet': {
 			'type': 'boolean',

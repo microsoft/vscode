@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,14 +43,12 @@ export abstract class AbstractOutputElement implements IReplElement {
 
 export class OutputElement extends AbstractOutputElement {
 
-	public counter: number;
 
 	constructor(
 		public value: string,
 		public severity: severity,
 	) {
 		super();
-		this.counter = 1;
 	}
 
 	public toString(): string {
@@ -368,7 +366,7 @@ export class StackFrame implements IStackFrame {
 
 			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
 				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
-			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
+			return scopesContainingRange.length ? scopesContainingRange : scopes;
 		});
 	}
 
@@ -397,14 +395,12 @@ export class StackFrame implements IStackFrame {
 }
 
 export class Thread implements IThread {
-	private fetchPromise: TPromise<void>;
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
 	constructor(public process: IProcess, public name: string, public threadId: number) {
-		this.fetchPromise = null;
 		this.stoppedDetails = null;
 		this.callStack = [];
 		this.staleCallStack = [];
@@ -416,7 +412,6 @@ export class Thread implements IThread {
 	}
 
 	public clearCallStack(): void {
-		this.fetchPromise = null;
 		if (this.callStack.length) {
 			this.staleCallStack = this.callStack;
 		}
@@ -443,7 +438,12 @@ export class Thread implements IThread {
 			return TPromise.as(null);
 		}
 
-		return this.getCallStackImpl(this.callStack.length, levels).then(callStack => {
+		const start = this.callStack.length;
+		return this.getCallStackImpl(start, levels).then(callStack => {
+			if (start < this.callStack.length) {
+				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
+				this.callStack.splice(start, this.callStack.length - start);
+			}
 			this.callStack = this.callStack.concat(callStack || []);
 		});
 	}
@@ -543,12 +543,14 @@ export class Thread implements IThread {
 
 export class Process implements IProcess {
 
-	private threads: Map<number, Thread>;
 	public sources: Map<string, Source>;
+	private threads: Map<number, Thread>;
+	private inactive = true;
 
 	constructor(public configuration: IConfig, private _session: ISession & ITreeElement) {
 		this.threads = new Map<number, Thread>();
 		this.sources = new Map<string, Source>();
+		this._session.onDidInitialize(() => this.inactive = false);
 	}
 
 	public get session(): ISession {
@@ -559,8 +561,12 @@ export class Process implements IProcess {
 		return this.configuration.name;
 	}
 
-	public isAttach(): boolean {
-		return this.configuration.type === 'attach';
+	public get state(): ProcessState {
+		if (this.inactive) {
+			return ProcessState.INACTIVE;
+		}
+
+		return this.configuration.type === 'attach' ? ProcessState.ATTACH : ProcessState.LAUNCH;
 	}
 
 	public getThread(threadId: number): Thread {
@@ -896,7 +902,7 @@ export class Model implements IModel {
 	public setEnablement(element: IEnablement, enable: boolean): void {
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
-			var breakpoint = <Breakpoint>element;
+			const breakpoint = <Breakpoint>element;
 			breakpoint.verified = false;
 		}
 
@@ -954,22 +960,16 @@ export class Model implements IModel {
 	public appendToRepl(output: string | IExpression, severity: severity): void {
 		if (typeof output === 'string') {
 			const previousOutput = this.replElements.length && (this.replElements[this.replElements.length - 1] as OutputElement);
-			const lastNonEmpty = previousOutput && previousOutput.value.trim() ? previousOutput : this.replElements.length > 1 ? this.replElements[this.replElements.length - 2] : undefined;
 
-			if (lastNonEmpty instanceof OutputElement && severity === lastNonEmpty.severity && lastNonEmpty.value === output.trim() && output.trim() && output.length > 1) {
-				// we got the same output (but not an empty string when trimmed) so we just increment the counter
-				lastNonEmpty.counter++;
-			} else {
-				const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
-				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
-					previousOutput.value += toAdd.shift().value;
-				}
-				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
-					// remove potential empty lines between different output types
-					this.replElements.pop();
-				}
-				this.addReplElements(toAdd);
+			const toAdd = output.split('\n').map(line => new OutputElement(line, severity));
+			if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
+				previousOutput.value += toAdd.shift().value;
 			}
+			if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
+				// remove potential empty lines between different output types
+				this.replElements.pop();
+			}
+			this.addReplElements(toAdd);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>output).severity = severity;

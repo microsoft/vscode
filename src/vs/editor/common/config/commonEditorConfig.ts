@@ -173,7 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
-	'scope': ConfigurationScope.FOLDER,
+	'scope': ConfigurationScope.RESOURCE,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -405,7 +405,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.autoIndent': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.autoIndent,
-			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indenation when users type, paste or move lines. Indentation Rules of the language must be available. ")
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available. ")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
@@ -426,6 +426,12 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.snippetSuggestions': {
 			'type': 'string',
 			'enum': ['top', 'bottom', 'inline', 'none'],
+			'enumDescriptions': [
+				nls.localize('snippetSuggestions.top', "Show snippet suggestions on top of other suggestions."),
+				nls.localize('snippetSuggestions.bottom', "Show snippet suggestions below other suggestions."),
+				nls.localize('snippetSuggestions.inline', "Show snippets suggestions with other suggestions."),
+				nls.localize('snippetSuggestions.none', "Do not show snippet suggestions."),
+			],
 			'default': EDITOR_DEFAULTS.contribInfo.snippetSuggestions,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},

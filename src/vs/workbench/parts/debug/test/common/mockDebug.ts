@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 
@@ -12,6 +12,14 @@ export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	public get state(): debug.State {
+		return null;
+	}
+
+	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+		return null;
+	}
+
+	public get onDidNewProcess(): Event<debug.IProcess> {
 		return null;
 	}
 
@@ -75,12 +83,16 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(configName?: string, noDebug?: boolean): TPromise<any> {
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<any> {
+	public createProcess(root: uri, config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
+	}
+
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		return null;
 	}
 
 	public restartProcess(): TPromise<any> {
@@ -111,6 +123,8 @@ export class MockSession implements debug.ISession {
 	public getId() {
 		return 'mockrawsession';
 	}
+
+	public root: uri;
 
 	public getLengthInSeconds(): number {
 		return 100;
@@ -160,6 +174,11 @@ export class MockSession implements debug.ISession {
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {
 		return null;
+	}
+
+	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
+		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
+		return emitter.event;;
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {

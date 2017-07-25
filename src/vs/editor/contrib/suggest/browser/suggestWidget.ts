@@ -18,7 +18,6 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -381,7 +380,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService
@@ -392,9 +390,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
-		this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
-		if (this.storageService.get('expandSuggestionDocs', StorageScope.GLOBAL) === undefined) {
-			this.storageServiceAvailable = false;
+
+		if (this.expandDocsSettingFromStorage() === undefined) {
+			this.storageService.store('expandSuggestionDocs', expandSuggestionDocsByDefault, StorageScope.GLOBAL);
+			if (this.expandDocsSettingFromStorage() === undefined) {
+				this.storageServiceAvailable = false;
+			}
 		}
 
 		this.element = $('.editor-widget.suggest-widget');
@@ -406,7 +407,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this, this.editor, triggerKeybindingLabel);
 
-		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
+		let renderer = new Renderer(this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
@@ -1013,7 +1014,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// Monaco Editor does not have a storage service
 	private expandDocsSettingFromStorage(): boolean {
 		if (this.storageServiceAvailable) {
-			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
+			return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL);
 		} else {
 			return this.expandSuggestionDocs;
 		}

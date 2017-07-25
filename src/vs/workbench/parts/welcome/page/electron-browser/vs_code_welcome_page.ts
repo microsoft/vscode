@@ -72,13 +72,6 @@ export default () => `
 						<li class="showInteractivePlayground"><button data-href="command:workbench.action.showInteractivePlayground"><h3 class="caption">${escape(localize('welcomePage.interactivePlayground', "Interactive playground"))}</h3> <span class="detail">${escape(localize('welcomePage.interactivePlaygroundDescription', "Try essential editor features out in a short walkthrough"))}</span></button></li>
 					</ul>
 				</div>
-				<div class="section quickLinks">
-					<h2 class="caption">${escape(localize('welcomePage.quickLinks', "Quick links"))}</h2>
-					<ul>
-						<li class="keybindingsReference"><button data-href="command:workbench.action.keybindingsReference"><h3 class="caption">${escape(localize('welcomePage.keybindingsReference', "Keyboard shortcuts reference"))}</h3> <span class="detail">${escape(localize('welcomePage.keybindingsReferenceDescription', "A printable PDF with the most common keyboard shortcuts"))}</span></button></li>
-						<li class="openGlobalSettings"><button data-href="command:workbench.action.openGlobalSettings"><h3 class="caption">${escape(localize('welcomePage.configureSettings', "Configure settings"))}</h3> <span class="detail">${escape(localize('welcomePage.configureSettingsDescription', "Unlock the full power of VS Code by tweaking the settings"))}</span></button></li>
-					</ul>
-				</div>
 			</div>
 		</div>
 	</div>

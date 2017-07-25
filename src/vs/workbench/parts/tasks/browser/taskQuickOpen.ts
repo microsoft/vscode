@@ -10,7 +10,7 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, TaskGroup } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
@@ -27,12 +27,7 @@ class TaskEntry extends base.TaskEntry {
 			return false;
 		}
 		let task = this._task;
-		if (this.taskService.canCustomize() && task.group === TaskGroup.Build && ((task.problemMatchers === void 0) || task.problemMatchers.length === 0)) {
-			this.attachProblemMatcher(task).then(task => this.doRun(task));
-			return true;
-		} else {
-			return this.doRun(task);
-		}
+		return this.doRun(task, { attachProblemMatcher: true });
 	}
 }
 

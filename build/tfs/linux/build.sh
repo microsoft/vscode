@@ -1,5 +1,6 @@
 #!/bin/bash
 
+. ./build/tfs/common/node.sh
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
@@ -29,8 +30,11 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
+step "Create loader snapshot"
+	node build/lib/snapshotLoader.js --arch=$ARCH
+
 step "Run unit tests" \
-	./scripts/test.sh --xvfb --build --reporter dot
+	./scripts/test.sh --build --reporter dot
 
 step "Publish release" \
 	./build/tfs/linux/release.sh

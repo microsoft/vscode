@@ -8,6 +8,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import * as paths from 'vs/base/common/paths';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -25,13 +26,13 @@ const $ = dom.$;
 
 export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
-	private static ADD_CONFIGURATION = nls.localize('addConfiguration', "Add Configuration...");
 	private static SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
+	private executeOnSelect: (() => void)[];
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(
@@ -58,17 +59,11 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
-			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
-				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
-			} else {
-				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
-			}
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			this.executeOnSelect[e.index]();
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfiguration(configurationName => {
-			const manager = this.debugService.getConfigurationManager();
-			this.selectBox.select(manager.getConfigurationNames().indexOf(configurationName));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this.updateOptions();
 		}));
 	}
 
@@ -149,14 +144,37 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private updateOptions(): void {
-		const options = this.debugService.getConfigurationManager().getConfigurationNames();
+		let selected = 0;
+		this.executeOnSelect = [];
+		const options = [];
+		const launches = this.debugService.getConfigurationManager().getLaunches();
+		launches.forEach(launch => {
+			const launchName = paths.basename(launch.workspaceUri.fsPath);
+			launch.getConfigurationNames().forEach(name => {
+				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
+					selected = this.executeOnSelect.length;
+				}
+				this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(launch, name));
+				options.push(launches.length > 1 ? `${name} (${launchName})` : name);
+			});
+		});
+
 		if (options.length === 0) {
 			options.push(nls.localize('noConfigurations', "No Configurations"));
 		}
-		const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 		options.push(StartDebugActionItem.SEPARATOR);
-		options.push(StartDebugActionItem.ADD_CONFIGURATION);
-		this.selectBox.setOptions(options, selected, options.length - 2);
+		this.executeOnSelect.push(undefined);
+
+		const disabledIdx = options.length - 1;
+		launches.forEach(l => {
+			options.push(launches.length > 1 ? nls.localize("addConfigTo", `Add Config (${paths.basename(l.workspaceUri.fsPath)})...`) : nls.localize('addConfiguration', "Add Configuration..."));
+			this.executeOnSelect.push(() => {
+				this.debugService.getConfigurationManager().selectConfiguration(l);
+				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
+			});
+		});
+
+		this.selectBox.setOptions(options, selected, disabledIdx);
 	}
 }
 

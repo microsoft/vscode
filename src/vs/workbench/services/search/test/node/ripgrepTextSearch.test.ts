@@ -9,8 +9,9 @@ import path = require('path');
 import assert = require('assert');
 
 import * as arrays from 'vs/base/common/arrays';
+import platform = require('vs/base/common/platform');
 
-import { RipgrepParser } from 'vs/workbench/services/search/node/ripgrepTextSearch';
+import { RipgrepParser, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { ISerializedFileMatch } from 'vs/workbench/services/search/node/search';
 
 
@@ -170,5 +171,45 @@ suite('RipgrepParser', () => {
 		assert.equal(results.length, 1);
 		assert.equal(results[0].lineMatches.length, 1);
 		assert.deepEqual(results[0].lineMatches[0].offsetAndLengths, [[7, 5]]);
+	});
+});
+
+suite('RipgrepParser - etc', () => {
+	function testGetAbsGlob(params: string[]): void {
+		const [folder, glob, expectedResult] = params;
+		assert.equal(getAbsoluteGlob(folder, glob), expectedResult, JSON.stringify(params));
+	}
+
+	test('getAbsoluteGlob_win', () => {
+		if (!platform.isWindows) {
+			return;
+		}
+
+		[
+			['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
+			['c:/', 'glob/**', '/glob\\**'],
+			['C:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
+			['c:\\foo\\bar', 'glob\\**', '/foo\\bar\\glob\\**'],
+			['c:\\', 'glob\\**', '/glob\\**'],
+			['\\\\localhost\\c$\\foo\\bar', 'glob/**', '\\\\localhost\\c$\\foo\\bar\\glob\\**'],
+
+			// absolute paths are not resolved further
+			['c:/foo/bar', '/path/something', '/path/something'],
+			['c:/foo/bar', 'c:\\project\\folder', '/project\\folder']
+		].forEach(testGetAbsGlob);
+	});
+
+	test('getAbsoluteGlob_posix', () => {
+		if (platform.isWindows) {
+			return;
+		}
+
+		[
+			['/foo/bar', 'glob/**', '/foo/bar/glob/**'],
+			['/', 'glob/**', '/glob/**'],
+
+			// absolute paths are not resolved further
+			['/', '/project/folder', '/project/folder'],
+		].forEach(testGetAbsGlob);
 	});
 });

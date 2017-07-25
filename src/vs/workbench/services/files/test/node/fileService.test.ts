@@ -19,9 +19,9 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService } from "vs/workbench/test/workbenchTestServices";
-import { Workspace } from "vs/platform/workspace/common/workspace";
-import { TestConfigurationService } from "vs/platform/configuration/test/common/testConfigurationService";
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -513,14 +513,14 @@ suite('FileService', () => {
 			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
 			{ resource: uri.file(path.join(testDir, 'deep')) }
 		]).then(res => {
-			const r1 = res[0];
+			const r1 = res[0].stat;
 
 			assert.equal(r1.children.length, 6);
 
 			let deep = utils.getByName(r1, 'deep');
 			assert.equal(deep.children.length, 4);
 
-			const r2 = res[1];
+			const r2 = res[1].stat;
 			assert.equal(r2.children.length, 4);
 			assert.equal(r2.name, 'deep');
 

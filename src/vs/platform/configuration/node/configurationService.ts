@@ -13,6 +13,7 @@ import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent,
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { onUnexpectedError } from "vs/base/common/errors";
 
 export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
 
@@ -30,7 +31,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		super();
 
 		this.userConfigModelWatcher = new ConfigWatcher(environmentService.appSettingsPath, {
-			changeBufferDelay: 300, defaultConfig: new CustomConfigurationModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
+			changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new CustomConfigurationModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
 				const userConfigModel = new CustomConfigurationModel<T>(content, environmentService.appSettingsPath);
 				parseErrors = [...userConfigModel.errors];
 				return userConfigModel;
@@ -71,12 +72,12 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 		return this.configuration().getValue<C>(section, options);
 	}
 
-	public lookup<C>(key: string, options?: IConfigurationOverrides): IConfigurationValue<C> {
-		return this.configuration().lookup<C>(key, options);
+	public lookup<C>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<C> {
+		return this.configuration().lookup<C>(key, overrides);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this.configuration().keys();
+	public keys(overrides?: IConfigurationOverrides): IConfigurationKeys {
+		return this.configuration().keys(overrides);
 	}
 
 	public values<V>(): IConfigurationValues {

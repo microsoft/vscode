@@ -5,11 +5,76 @@
 'use strict';
 
 import { clone } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { distinct } from 'vs/base/common/arrays';
 import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+
+export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
+
+	private _raw: T;
+	private _folders: URI[];
+	private _worksapaceSettings: ConfigurationModel<T>;
+	private _tasksConfiguration: ConfigurationModel<T>;
+	private _launchConfiguration: ConfigurationModel<T>;
+	private _workspaceConfiguration: ConfigurationModel<T>;
+
+	public update(content: string): void {
+		super.update(content);
+		this._worksapaceSettings = new ConfigurationModel(this._worksapaceSettings.contents, this._worksapaceSettings.keys, this.overrides);
+		this._workspaceConfiguration = this.consolidate();
+	}
+
+	get id(): string {
+		return this._raw['id'];
+	}
+
+	get folders(): URI[] {
+		return this._folders;
+	}
+
+	get workspaceConfiguration(): ConfigurationModel<T> {
+		return this._workspaceConfiguration;
+	}
+
+	protected processRaw(raw: T): void {
+		this._raw = raw;
+
+		this._folders = this.parseFolders();
+		this._worksapaceSettings = this.parseConfigurationModel('settings');
+		this._tasksConfiguration = this.parseConfigurationModel('tasks');
+		this._launchConfiguration = this.parseConfigurationModel('launch');
+
+		super.processRaw(raw);
+	}
+
+	private parseFolders(): URI[] {
+		const folders: string[] = this._raw['folders'] || [];
+		return distinct(folders.map(folder => URI.parse(folder))
+			.filter(r => r.scheme === Schemas.file), folder => folder.toString(true)); // only support files for now
+	}
+
+	private parseConfigurationModel(section: string): ConfigurationModel<T> {
+		const rawSection = this._raw[section] || {};
+		const contents = toValuesTree(rawSection, message => console.error(`Conflict in section '${section}' of workspace configuration file ${message}`));
+		return new ConfigurationModel<T>(contents, Object.keys(rawSection));
+	}
+
+	private consolidate(): ConfigurationModel<T> {
+		const keys: string[] = [...this._worksapaceSettings.keys,
+		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
+		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
+
+		return new ConfigurationModel<T>(<T>{}, keys)
+			.merge(this._worksapaceSettings)
+			.merge(this._tasksConfiguration)
+			.merge(this._launchConfiguration);
+	}
+}
 
 export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -64,11 +129,11 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 	}
 
 	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.WORKSPACE);
+		return this.createScopedConfigurationModel(ConfigurationScope.WORKBENCH);
 	}
 
 	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.FOLDER);
+		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
 	}
 
 	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
@@ -86,7 +151,7 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WORKSPACE;
+		return propertySchema ? propertySchema.scope : ConfigurationScope.WORKBENCH;
 	}
 }
 
@@ -101,7 +166,7 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 		this._contents = <T>{};
 		this._overrides = [];
 
-		this.doMerge(this, ConfigurationScope.WORKSPACE === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
+		this.doMerge(this, ConfigurationScope.WORKBENCH === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
 		for (const configModel of this.scopedConfigs) {
 			this.doMerge(this, configModel);
 		}

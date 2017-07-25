@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
+import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -20,6 +21,7 @@ import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -52,9 +54,10 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
@@ -63,6 +66,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		this.registerViews();
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -90,7 +94,8 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 			location: ViewLocation.Explorer,
 			ctor: OpenEditorsView,
 			order: 0,
-			when: OpenEditorsVisibleCondition
+			when: OpenEditorsVisibleCondition,
+			canToggleVisibility: true
 		};
 	}
 
@@ -100,17 +105,19 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 			name: EmptyView.NAME,
 			location: ViewLocation.Explorer,
 			ctor: EmptyView,
-			order: 1
+			order: 1,
+			canToggleVisibility: true
 		};
 	}
 
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: ExplorerView.ID,
-			name: this.contextService.getWorkspace2().name,
+			name: localize('folders', "Folders"),
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
-			order: 1
+			order: 1,
+			canToggleVisibility: true
 		};
 	}
 

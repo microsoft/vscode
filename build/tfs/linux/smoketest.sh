@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+. ./build/tfs/common/node.sh
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
@@ -27,8 +28,8 @@ step "Build minified" \
 
 function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
-	git config --global user.name "VS Code Agent"
-	git config --global user.email "monacotools@microsoft.com"
+	sudo -i -u testuser git config --global user.name "VS Code Agent"
+	sudo -i -u testuser git config --global user.email "monacotools@microsoft.com"
 	chown -R testuser $AGENT_BUILDDIRECTORY
 }
 

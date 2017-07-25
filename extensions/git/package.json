@@ -684,7 +684,7 @@
   },
   "dependencies": {
     "iconv-lite": "0.4.15",
-    "vscode-extension-telemetry": "0.0.7",
+    "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {

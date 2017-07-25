@@ -30,8 +30,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import URI from "vs/base/common/uri";
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
+import URI from 'vs/base/common/uri';
+import { IPartService } from "vs/workbench/services/part/common/partService";
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -65,7 +66,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IPartService private partService: IPartService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -82,8 +84,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Read initial config
 		this.onConfigurationChanged();
 
-		// Initial window title
-		this.setTitle(this.getWindowTitle());
+		// Initial window title when loading is done
+		this.partService.joinCreation().done(() => this.setTitle(this.getWindowTitle()));
 
 		// Integrity for window title
 		this.integrityService.isPure().then(r => {
@@ -100,6 +102,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.onDidChangeWorkspaceName()));
 	}
 
 	private onBlur(): void {
@@ -113,6 +116,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
+		this.setTitle(this.getWindowTitle());
+	}
+
+	private onDidChangeWorkspaceName(): void {
 		this.setTitle(this.getWindowTitle());
 	}
 
@@ -183,16 +190,16 @@ export class TitlebarPart extends Part implements ITitleService {
 	 */
 	private doGetWindowTitle(): string {
 		const input = this.editorService.getActiveEditorInput();
-		const workspace = this.contextService.getWorkspace2();
+		const workspace = this.contextService.getWorkspace();
 
 		// Compute root resource
 		// Single Root Workspace: always the single root workspace in this case
-		// Multi Root Workspace: not yet defined (TODO@Ben multi root)
+		// Multi Root Workspace: workspace configuration file
 		let root: URI;
-		if (workspace) {
-			if (workspace.roots.length === 1) {
-				root = workspace.roots[0];
-			}
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			root = workspace.configuration;
+		} else if (this.contextService.hasFolderWorkspace()) {
+			root = workspace.roots[0];
 		}
 
 		// Compute folder resource
@@ -269,6 +276,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (container) {
 			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
 			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+
+			const titleBorder = this.getColor(TITLE_BAR_BORDER);
+			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
 		}
 	}
 

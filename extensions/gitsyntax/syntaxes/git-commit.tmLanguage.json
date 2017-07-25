@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/git.tmbundle/commit/93897a78c6e52bef13dadc0d4091d203c5facb40",
 	"fileTypes": [
 		"COMMIT_EDITMSG",
 		"MERGE_MSG"

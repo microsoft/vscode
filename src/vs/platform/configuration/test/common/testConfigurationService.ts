@@ -50,7 +50,8 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return {
 			default: getConfigurationKeys(),
 			user: Object.keys(this.configuration),
-			workspace: []
+			workspace: [],
+			folder: []
 		};
 	}
 

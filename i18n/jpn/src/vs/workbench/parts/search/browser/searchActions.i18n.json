@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",
 	"RemoveAction.label": "削除",
 	"file.replaceAll.label": "すべて置換",
-	"match.replace.label": "置換",
-	"ConfigureGlobalExclusionsAction.label": "設定を開く"
+	"match.replace.label": "置換"
 }

@@ -12,7 +12,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
@@ -26,6 +25,7 @@ import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 import { TerminalPanel } from "vs/workbench/parts/terminal/electron-browser/terminalPanel";
+import { IWindowService } from "vs/platform/windows/common/windows";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -38,7 +38,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWindowIPCService private _windowService: IWindowIPCService,
+		@IWindowService private _windowService: IWindowService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IConfigurationEditingService private _configurationEditingService: IConfigurationEditingService,
 		@IChoiceService private _choiceService: IChoiceService,
@@ -156,17 +156,16 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
-		const windir = process.env['windir'];
+		// Determine the correct System32 path. We want to point to Sysnative
+		// when the 32-bit version of VS Code is running on a 64-bit machine.
+		// The reason for this is because PowerShell's important PSReadline
+		// module doesn't work if this is not the case. See #27915.
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 		const expectedLocations = {
-			'Command Prompt': [
-				`${windir}\\Sysnative\\cmd.exe`,
-				`${windir}\\System32\\cmd.exe`
-			],
-			PowerShell: [
-				`${windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe`,
-				`${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-			],
-			'WSL Bash': [`${windir}\\Sysnative\\bash.exe`],
+			'Command Prompt': [`${system32Path}\\cmd.exe`],
+			PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+			'WSL Bash': [`${system32Path}\\bash.exe`],
 			'Git Bash': [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
@@ -220,7 +219,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			noLink: true,
 			cancelId
 		};
-		return this._windowService.getWindow().showMessageBox(opts) === cancelId;
+		return this._windowService.showMessageBox(opts) === cancelId;
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

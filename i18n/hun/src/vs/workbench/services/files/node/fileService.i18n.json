@@ -6,9 +6,13 @@
 {
 	"fileInvalidPath": "Érvénytelen fájlerőforrás ({0})",
 	"fileIsDirectoryError": "A fájl egy kövtár ({0})",
+	"fileNotModifiedError": "A fájl azóta nem módosult",
+	"fileTooLargeError": "A fájl túl nagy a megnyitáshoz",
 	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként",
 	"fileNotFoundError": "Fájl nem található ({0})",
+	"fileMoveConflict": "Nem lehet áthelyezni vagy másolni. A fájl már létezik a célhelyen.",
 	"unableToMoveCopyError": "Nem lehet áthelyezni vagy másolni. A fájl felülírná a mappát, amiben található.",
 	"foldersCopyError": "A munkaterületre nem másolhatók mappák. Válasszon ki egyedi fájlokat a másoláshoz.",
+	"fileModifiedError": "A fájl azóta módosult",
 	"fileReadOnlyError": "A fájl csak olvasható"
 }

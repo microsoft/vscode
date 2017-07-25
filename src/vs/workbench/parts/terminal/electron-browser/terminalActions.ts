@@ -115,6 +115,50 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
+export class DeleteWordLeftTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.deleteWordLeft';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			// Send ctrl+W
+			terminalInstance.sendText(String.fromCharCode('W'.charCodeAt(0) - 64), false);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class DeleteWordRightTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.deleteWordRight';
+	public static LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			// Send alt+D
+			terminalInstance.sendText('\x1bD', false);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.new';
@@ -578,7 +622,7 @@ export class RenameTerminalAction extends Action {
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
-				terminalInstance.setTitle(name);
+				terminalInstance.setTitle(name, false);
 			}
 		});
 	}

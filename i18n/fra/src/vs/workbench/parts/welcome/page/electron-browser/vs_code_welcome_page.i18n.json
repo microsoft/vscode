@@ -16,6 +16,7 @@
 	"welcomePage.help": "Aide",
 	"welcomePage.keybindingsCheatsheet": "Fiche de révision du clavier imprimable",
 	"welcomePage.introductoryVideos": "Vidéos d'introduction",
+	"welcomePage.tipsAndTricks": "Conseils et astuces",
 	"welcomePage.productDocumentation": "Documentation du produit",
 	"welcomePage.gitHubRepository": "Dépôt GitHub",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -31,13 +32,9 @@
 	"welcomePage.colorThemeDescription": "Personnalisez l'apparence de l'éditeur et de votre code",
 	"welcomePage.learn": "Apprendre",
 	"welcomePage.showCommands": "Rechercher et exécuter toutes les commandes",
+	"welcomePage.showCommandsDescription": "La palette de commandes ({0}) permet d'accéder rapidement aux commandes pour en rechercher une",
 	"welcomePage.interfaceOverview": "Vue d'ensemble de l'interface",
 	"welcomePage.interfaceOverviewDescription": "Obtenez une superposition visuelle mettant en évidence les principaux composants de l'IU",
 	"welcomePage.interactivePlayground": "Terrain de jeu interactif",
-	"welcomePage.interactivePlaygroundDescription": "Essayez les fonctionnalités essentielles de l'éditeur en suivant une brève procédure pas à pas",
-	"welcomePage.quickLinks": "Liens rapides",
-	"welcomePage.keybindingsReference": "Référence des raccourcis clavier",
-	"welcomePage.keybindingsReferenceDescription": "Fichier PDF imprimable avec les raccourcis clavier les plus usuels",
-	"welcomePage.configureSettings": "Configurer les paramètres",
-	"welcomePage.configureSettingsDescription": "Déverrouillez toute la puissance de VS Code en adaptant les paramètres"
+	"welcomePage.interactivePlaygroundDescription": "Essayez les fonctionnalités essentielles de l'éditeur en suivant une brève procédure pas à pas"
 }

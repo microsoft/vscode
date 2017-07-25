@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -36,7 +36,7 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -100,7 +100,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace2().roots.length : 0;
+		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace().roots.length : 0;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -128,7 +128,7 @@ export class FileService implements IFileService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots.length : 0;
+		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
 
 		let restartWorkspaceWatcher = false;
 		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {
@@ -166,7 +166,7 @@ export class FileService implements IFileService {
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace2().roots.length > 1) {
+		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().roots.length > 1) {
 			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 
@@ -196,15 +196,9 @@ export class FileService implements IFileService {
 		return this.resolve(resource, options);
 	}
 
-	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
-		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options).then(undefined, error => ({
-			resource: resourceAndOptions.resource,
-			name: paths.basename(resourceAndOptions.resource.fsPath),
-			mtime: 0,
-			etag: undefined,
-			isDirectory: true,
-			hasChildren: false
-		}))));
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
+			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {

@@ -12,7 +12,7 @@ import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILi
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 
@@ -107,9 +107,10 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 	// --- from extension host process
 
 	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> {
-		const editorOptions: IEditorOptions = {
+		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
-			pinned: options.pinned
+			pinned: options.pinned,
+			selection: options.selection
 		};
 
 		const input = {

@@ -13,5 +13,7 @@
 	"appStalled": "Das Fenster reagiert nicht mehr.",
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"appCrashed": "Das Fenster ist abgestürzt.",
-	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben."
+	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben.",
+	"openFile": "Datei öffnen",
+	"openFolder": "Ordner öffnen"
 }

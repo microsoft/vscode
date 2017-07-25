@@ -5,71 +5,62 @@
 
 'use strict';
 
-import { IWorkspaceEditingService } from "vs/workbench/services/workspace/common/workspaceEditing";
-import URI from "vs/base/common/uri";
-import { equals, distinct } from "vs/base/common/arrays";
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import URI from 'vs/base/common/uri';
+import { equals, distinct } from 'vs/base/common/arrays';
 import { TPromise } from "vs/base/common/winjs.base";
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import { IConfigurationEditingService, ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
-import { IConfigurationService } from "vs/platform/configuration/common/configuration";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-
-interface IWorkspaceConfiguration {
-	[master: string]: {
-		folders: string[];
-	};
-}
-
-const workspaceConfigKey = 'workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public _serviceBrand: any;
 
 	constructor(
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 	}
 
-	private supported(): boolean {
-		if (!this.contextService.hasWorkspace()) {
-			return false; // we need a workspace to begin with
-		}
-
-		// TODO@Ben multi root
-		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
-	}
-
 	public addRoots(rootsToAdd: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 
 		return this.doSetRoots([...roots, ...rootsToAdd]);
 	}
 
 	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace2().roots;
+		const roots = this.contextService.getWorkspace().roots;
 		const rootsToRemoveRaw = rootsToRemove.map(root => root.toString());
 
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
-	private doSetRoots(newRoots: URI[]): TPromise<void> {
-		const workspaceUserConfig = this.configurationService.lookup(workspaceConfigKey).user as IWorkspaceConfiguration || Object.create(null);
-		const master = this.contextService.getWorkspace2().roots[0];
+	private isSupported(): boolean {
+		// TODO@Ben multi root
+		return (
+			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
+			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+		);
+	}
 
-		const currentWorkspaceRoots = this.validateRoots(master, workspaceUserConfig[master.toString()] && workspaceUserConfig[master.toString()].folders);
-		const newWorkspaceRoots = this.validateRoots(master, newRoots);
+	private doSetRoots(newRoots: URI[]): TPromise<void> {
+		const workspace = this.contextService.getWorkspace();
+		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
+		const newWorkspaceRoots = this.validateRoots(newRoots);
 
 		// See if there are any changes
 		if (equals(currentWorkspaceRoots, newWorkspaceRoots)) {
@@ -78,30 +69,21 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			workspaceUserConfig[master.toString()] = {
-				folders: newWorkspaceRoots
-			};
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
 		} else {
-			delete workspaceUserConfig[master.toString()];
+			// TODO: Sandeep - Removing all roots?
 		}
 
-		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: workspaceConfigKey, value: workspaceUserConfig }).then(() => void 0);
+		return TPromise.as(null);
 	}
 
-	private validateRoots(master: URI, roots: URI[]): string[] {
+	private validateRoots(roots: URI[]): string[] {
 		if (!roots) {
 			return [];
 		}
 
 		// Prevent duplicates
-		const validatedRoots = distinct(roots.map(root => root.toString()));
-
-		// Make sure we do not set the master folder as root
-		const masterIndex = validatedRoots.indexOf(master.toString());
-		if (masterIndex >= 0) {
-			validatedRoots.splice(masterIndex, 1);
-		}
-
+		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
 		return validatedRoots;
 	}
 }

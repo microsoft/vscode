@@ -61,16 +61,24 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(disposable);
 	});
 
+	let indentationRules = {
+		increaseIndentPattern: /(^.*\{[^}]*$)/,
+		decreaseIndentPattern: /^\s*\}/
+	};
+
 	languages.setLanguageConfiguration('css', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
+		indentationRules: indentationRules
 	});
 
 	languages.setLanguageConfiguration('less', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
+		indentationRules: indentationRules
 	});
 
 	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
+		indentationRules: indentationRules
 	});
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);

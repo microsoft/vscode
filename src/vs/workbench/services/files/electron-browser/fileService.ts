@@ -12,7 +12,7 @@ import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -41,7 +41,7 @@ export class FileService implements IFileService {
 	private toUnbind: IDisposable[];
 	private activeOutOfWorkspaceWatchers: ResourceMap<uri>;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
+	protected _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor(
@@ -145,7 +145,7 @@ export class FileService implements IFileService {
 		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace2().roots.forEach(root => {
+			this.contextService.getWorkspace().roots.forEach(root => {
 				encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			});
 		}
@@ -196,7 +196,7 @@ export class FileService implements IFileService {
 		return this.raw.resolveFile(resource, options);
 	}
 
-	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IFileStat[]> {
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
 		return this.raw.resolveFiles(toResolve);
 	}
 
