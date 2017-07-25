@@ -202,8 +202,8 @@ export class ExtensionsListView extends CollapsibleView {
 			return new PagedModel(result);
 		}
 
-		if (/(@disabled|@enabled:false)/i.test(value)) {
-			value = value.replace(/(@disabled|@enabled:false)/g, '').trim().toLowerCase();
+		if (/@disabled/i.test(value)) {
+			value = value.replace(/@disabled/g, '').trim().toLowerCase();
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const runningExtensions = await this.extensionService.getExtensions();
@@ -215,8 +215,8 @@ export class ExtensionsListView extends CollapsibleView {
 			return new PagedModel(result);
 		}
 
-		if (/@enabled(:true)?/i.test(value)) {
-			value = value ? value.replace(/@enabled(:true)?/g, '').trim().toLowerCase() : '';
+		if (/@enabled/i.test(value)) {
+			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 
