@@ -83,6 +83,7 @@ export interface IDefaultConfigurationExtension {
 
 export const schemaId = 'vscode://schemas/settings';
 export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
+export const resourceConfigurationSchemaId = 'vscode://schemas/settings/resource';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
@@ -90,6 +91,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private configurationSchema: IJSONSchema;
 	private editorConfigurationSchema: IJSONSchema;
+	private resourceConfigurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
@@ -98,12 +100,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.configurationContributors = [];
 		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
+		this.resourceConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Not a resource configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+		contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 	}
 
 	public get onDidRegisterConfiguration() {
@@ -223,8 +227,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
-			this.update(configuration, this.editorConfigurationSchema);
+			this.update(configuration);
 			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+			contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 		}
 	}
 
@@ -244,18 +249,23 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 
-	private update(configuration: IConfigurationNode, overridePropertiesSchema: IJSONSchema): void {
+	private update(configuration: IConfigurationNode): void {
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
 				if (properties[key].overridable) {
-					overridePropertiesSchema.properties[key] = this.getConfigurationProperties()[key];
+					this.editorConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
+				}
+				switch (properties[key].scope) {
+					case ConfigurationScope.RESOURCE:
+						this.resourceConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
+						break;
 				}
 			}
 		}
 		let subNodes = configuration.allOf;
 		if (subNodes) {
-			subNodes.forEach(subNode => this.update(subNode, overridePropertiesSchema));
+			subNodes.forEach(subNode => this.update(subNode));
 		}
 	}
 
