@@ -183,8 +183,8 @@ export class TreeView extends CollapsibleView {
 		elements = elements ? elements : [this.tree.getInput()];
 		for (const element of elements) {
 			element.children = null;
+			this.tree.refresh(element);
 		}
-		this.tree.refresh(elements);
 	}
 
 	dispose(): void {
