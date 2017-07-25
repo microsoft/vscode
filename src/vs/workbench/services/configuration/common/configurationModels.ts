@@ -55,7 +55,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	private parseFolders(): URI[] {
 		const folders: string[] = this._raw['folders'] || [];
 		return distinct(folders.map(folder => URI.parse(folder))
-			.filter(r => r.scheme === Schemas.file)); // only support files for now	;
+			.filter(r => r.scheme === Schemas.file), folder => folder.toString(true)); // only support files for now
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {
