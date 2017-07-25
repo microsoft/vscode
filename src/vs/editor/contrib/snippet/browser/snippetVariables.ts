@@ -8,8 +8,9 @@
 import { basename, dirname } from 'vs/base/common/paths';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
+import { VariableResolver, Variable } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
-export class EditorSnippetVariableResolver {
+export class EditorSnippetVariableResolver implements VariableResolver {
 
 	static readonly VariableNames = Object.freeze({
 		'SELECTION': true,
@@ -30,7 +31,10 @@ export class EditorSnippetVariableResolver {
 		//
 	}
 
-	resolve(name: string): string {
+	resolve(variable: Variable): string {
+
+		const { name } = variable;
+
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			return this._model.getValueInRange(this._selection) || undefined;
 
