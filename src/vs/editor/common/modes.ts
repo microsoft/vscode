@@ -156,7 +156,7 @@ export interface IState {
  * A hover represents additional information for a symbol or word. Hovers are
  * rendered in a tooltip-like widget.
  */
-export interface MarkedStringHover {
+export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
@@ -169,21 +169,6 @@ export interface MarkedStringHover {
 	 */
 	range: IRange;
 }
-
-// TODO@michel documentation
-export interface ColorHover {
-	color: Color;
-	format: IColorFormat;
-	availableFormats: IColorFormat[];
-	/**
-	 * The range to which this hover applies. When missing, the
-	 * editor will use the range at the current position or the
-	 * current position itself.
-	 */
-	range: IRange;
-}
-
-export type Hover = MarkedStringHover | ColorHover;
 
 /**
  * The hover provider interface defines the contract between extensions and

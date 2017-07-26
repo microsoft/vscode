@@ -10,13 +10,9 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { Hover, HoverProviderRegistry, ColorHover } from 'vs/editor/common/modes';
+import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
-
-export function isColorHover(hover: Hover): hover is ColorHover {
-	return !!(hover as any).color;
-}
 
 export function getHover(model: IReadOnlyModel, position: Position): TPromise<Hover[]> {
 
@@ -29,7 +25,7 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 		}).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
-				let hasHtmlContent = !isColorHover(result) && (typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0);
+				let hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
 				if (hasRange && hasHtmlContent) {
 					values[idx] = result;
 				}

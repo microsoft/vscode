@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommonCodeEditor, IEditorContribution, IModelDecorationsChangeAccessor, IModelDeltaDecoration } from "vs/editor/common/editorCommon";
-import { editorContribution } from "vs/editor/browser/editorBrowserExtensions";
-import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorWidgetBackground, editorWidgetBorder } from "vs/platform/theme/common/colorRegistry";
-import { ColorProviderRegistry, IColorInfo } from "vs/editor/common/modes";
-import { TPromise } from "vs/base/common/winjs.base";
-import { getColors } from "vs/editor/contrib/colorPicker/common/colorPicker";
-import { IRange } from "vs/editor/common/core/range";
+import { ICommonCodeEditor, IEditorContribution, IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/editorCommon';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ColorProviderRegistry, IColorInfo } from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { getColors } from 'vs/editor/contrib/colorPicker/common/colorPicker';
+import { IRange } from 'vs/editor/common/core/range';
+import { IColorDecorationExtraOptions } from '../common/color';
 
 @editorContribution
 export class ColorPicker implements IEditorContribution {
@@ -111,18 +112,16 @@ export class ColorPicker implements IEditorContribution {
 					endColumn: c.range.endColumn
 				};
 
-				const decoration = {
-					range: range,
-					options: {
-						colorInfo: {
-							color: c.color,
-							format: c.format,
-							availableFormats: c.availableFormats
-						}
-					}
+				const extraOptions: IColorDecorationExtraOptions = {
+					color: c.color,
+					format: c.format,
+					availableFormats: c.availableFormats
 				};
 
-				newDecorations.push(decoration);
+				// TODO@Joao
+				const options = { __extraOptions: extraOptions } as any;
+
+				newDecorations.push({ range, options });
 			}
 
 			this.currentDecorations = changeAccessor.deltaDecorations(this.currentDecorations, newDecorations);

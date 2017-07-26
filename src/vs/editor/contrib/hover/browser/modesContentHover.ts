@@ -12,25 +12,38 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
+import { HoverProviderRegistry, Hover, IColorFormat } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getHover, isColorHover } from '../common/hover';
+import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { IColorInfo } from 'vs/editor/common/editorCommon';
-import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
+import { isColorDecorationOptions } from 'vs/editor/contrib/colorPicker/common/color';
+import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { Color } from 'vs/base/common/color';
 
-class ModesContentComputer implements IHoverComputer<Hover[]> {
+class ColorHover {
+
+	constructor(
+		public readonly range: IRange,
+		public readonly color: Color,
+		public readonly format: IColorFormat,
+		public readonly availableFormats: IColorFormat[]
+	) { }
+}
+
+type HoverPart = Hover | ColorHover;
+
+class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 	private _editor: ICodeEditor;
-	private _result: Hover[];
+	private _result: HoverPart[];
 	private _range: Range;
 
 	constructor(editor: ICodeEditor) {
@@ -47,7 +60,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		this._result = [];
 	}
 
-	computeAsync(): TPromise<Hover[]> {
+	computeAsync(): TPromise<HoverPart[]> {
 		const model = this._editor.getModel();
 
 		if (!HoverProviderRegistry.has(model)) {
@@ -60,7 +73,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		));
 	}
 
-	computeSync(): Hover[] {
+	computeSync(): HoverPart[] {
 		const lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -68,7 +81,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[] | IColorInfo) => {
+		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
@@ -79,45 +92,49 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
-			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn || (!hasHoverContent(d.options.hoverMessage) && !hasHoverContent(d.options.colorInfo))) {
+			if (startColumn > this._range.startColumn || this._range.endColumn > endColumn) {
 				return null;
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
-			let contents: MarkedString[];
 
-			if (d.options.hoverMessage) {
-				if (Array.isArray(d.options.hoverMessage)) {
-					contents = [...d.options.hoverMessage];
-				} else {
-					contents = [d.options.hoverMessage];
+			// TOOD@Joao
+			const options = d.options as any;
+			const extraOptions = options && options.extraOptions;
+
+			if (isColorDecorationOptions(extraOptions)) {
+				console.log('found color!');
+				const { color, format, availableFormats } = extraOptions;
+				return new ColorHover(range, color, format, availableFormats);
+			} else {
+				if (!hasHoverContent(d.options.hoverMessage)) {
+					return null;
 				}
+
+				let contents: MarkedString[];
+
+				if (d.options.hoverMessage) {
+					if (Array.isArray(d.options.hoverMessage)) {
+						contents = [...d.options.hoverMessage];
+					} else {
+						contents = [d.options.hoverMessage];
+					}
+				}
+
+				return { contents, range };
 			}
-
-			const colorInfo = d.options.colorInfo;
-
-			if (colorInfo) {
-				return {
-					color: colorInfo.color,
-					format: colorInfo.format,
-					availableFormats: colorInfo.availableFormats,
-					range: range,
-				};
-			}
-
-			return { contents, range };
 		});
 
 		return result.filter(d => !!d);
 	}
 
-	onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
+	onResult(result: HoverPart[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
 			this._result = result.concat(this._result.sort((a, b) => {
-				if (isColorHover(a)) { // sort picker messages at to the top
+				if (a instanceof ColorHover) { // sort picker messages at to the top
 					return -1;
-				} else if (isColorHover(b)) {
+				} else if (b instanceof ColorHover) {
 					return 1;
 				}
 				return 0;
@@ -127,15 +144,15 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		}
 	}
 
-	getResult(): Hover[] {
+	getResult(): HoverPart[] {
 		return this._result.slice(0);
 	}
 
-	getResultWithLoadingMessage(): Hover[] {
+	getResultWithLoadingMessage(): HoverPart[] {
 		return this._result.slice(0).concat([this._getLoadingMessage()]);
 	}
 
-	private _getLoadingMessage(): Hover {
+	private _getLoadingMessage(): HoverPart {
 		return {
 			range: this._range,
 			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
@@ -147,10 +164,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static ID = 'editor.contrib.modesContentHoverWidget';
 
-	private _messages: Hover[];
+	private _messages: HoverPart[];
 	private _lastRange: Range;
 	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation<Hover[]>;
+	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
 	private _openerService: IOpenerService;
@@ -169,9 +186,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result: Hover[]) => this._withResult(result, true),
+			result => this._withResult(result, true),
 			null,
-			(result: any) => this._withResult(result, false)
+			result => this._withResult(result, false)
 		);
 	}
 
@@ -209,7 +226,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: Hover[] = [];
+				var filteredMessages: HoverPart[] = [];
 				for (var i = 0, len = this._messages.length; i < len; i++) {
 					var msg = this._messages[i];
 					var rng = msg.range;
@@ -244,7 +261,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	_withResult(result: Hover[], complete: boolean): void {
+	private _withResult(result: HoverPart[], complete: boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
@@ -254,7 +271,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	private _renderMessages(renderRange: Range, messages: Hover[]): void {
+	private _renderMessages(renderRange: Range, messages: HoverPart[]): void {
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
@@ -269,7 +286,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			if (!isColorHover(msg)) {
+			if (!(msg instanceof ColorHover)) {
 				msg.contents
 					.filter(contents => !!contents)
 					.forEach(contents => {

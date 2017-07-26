@@ -1121,17 +1121,6 @@ declare module monaco.editor {
 		position: OverviewRulerLane;
 	}
 
-	export type IColorFormat = string | {
-		opaque: string;
-		transparent: string;
-	};
-
-	export interface IColorInfo {
-		color: Color;
-		format: IColorFormat;
-		availableFormats: IColorFormat[];
-	}
-
 	/**
 	 * Options for a model decoration.
 	 */
@@ -1153,10 +1142,6 @@ declare module monaco.editor {
 		 * Array of MarkedString to render as the decoration message.
 		 */
 		hoverMessage?: MarkedString | MarkedString[];
-		/**
-		 * Color with mode to render in the color picker.
-		 */
-		colorInfo?: IColorInfo;
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -4437,7 +4422,7 @@ declare module monaco.languages {
 	 * A hover represents additional information for a symbol or word. Hovers are
 	 * rendered in a tooltip-like widget.
 	 */
-	export interface MarkedStringHover {
+	export interface Hover {
 		/**
 		 * The contents of this hover.
 		 */
@@ -4449,20 +4434,6 @@ declare module monaco.languages {
 		 */
 		range: IRange;
 	}
-
-	export interface ColorHover {
-		color: Color;
-		format: IColorFormat;
-		availableFormats: IColorFormat[];
-		/**
-		 * The range to which this hover applies. When missing, the
-		 * editor will use the range at the current position or the
-		 * current position itself.
-		 */
-		range: IRange;
-	}
-
-	export type Hover = MarkedStringHover | ColorHover;
 
 	/**
 	 * The hover provider interface defines the contract between extensions and

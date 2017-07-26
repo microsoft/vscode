@@ -25,7 +25,6 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -62,12 +61,6 @@ export interface IModelDecorationOverviewRulerOptions {
 	position: OverviewRulerLane;
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string };
-export interface IColorInfo {
-	color: Color;
-	format: IColorFormat;
-	availableFormats: IColorFormat[];
-}
 /**
  * Options for a model decoration.
  */
@@ -89,10 +82,6 @@ export interface IModelDecorationOptions {
 	 * Array of MarkedString to render as the decoration message.
 	 */
 	hoverMessage?: MarkedString | MarkedString[];
-	/**
-	 * Color with mode to render in the color picker.
-	 */
-	colorInfo?: IColorInfo;
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */

@@ -16,7 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IColorInfo } from "vs/workbench/api/node/extHost.protocol";
+import { IColorInfo } from 'vs/workbench/api/node/extHost.protocol';
 
 export interface PositionLike {
 	line: number;
@@ -254,14 +254,14 @@ export const location = {
 	}
 };
 
-export function fromHover(hover: vscode.Hover): modes.MarkedStringHover {
-	return <modes.MarkedStringHover>{
+export function fromHover(hover: vscode.Hover): modes.Hover {
+	return <modes.Hover>{
 		range: fromRange(hover.range),
 		contents: hover.contents
 	};
 }
 
-export function toHover(info: modes.MarkedStringHover): types.Hover {
+export function toHover(info: modes.Hover): types.Hover {
 	return new types.Hover(info.contents, toRange(info.range));
 }
 
