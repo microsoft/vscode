@@ -296,16 +296,34 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 				model.originalColor = msg.color.toRGBA().toString();
-				if (typeof msg.format !== 'string') { // TODO: take into account opaque and transparent
-					msg.format = msg.format.opaque;
+				if (typeof msg.format === 'string') {
+					model.opaqueFormatter = new ColorFormatter(msg.format);
+				} else {
+					model.opaqueFormatter = new ColorFormatter(msg.format.opaque);
+					model.transparentFormatter = new ColorFormatter(msg.format.transparent);
 				}
 
-				model.formatter = new ColorFormatter(msg.format);
+				if (msg.availableFormats) {
+					msg.availableFormats.forEach(format => {
+						let opaqueFormat, transparentFormat;
+						if (typeof format === 'string') {
+							opaqueFormat = new ColorFormatter(format);
+							transparentFormat = opaqueFormat;
+						} else {
+							opaqueFormat = new ColorFormatter(format.opaque);
+							transparentFormat = new ColorFormatter(format.transparent);
+						}
+
+						model.colorFormats.push({
+							opaqueFormatter: opaqueFormat,
+							transparentFormatter: transparentFormat
+						});
+					});
+				}
 				model.color = msg.color;
 
 				this._colorPicker = widget;
 				fragment.appendChild(widget.getDomNode());
-				console.log(this._editor.getModel());
 			}
 		});
 

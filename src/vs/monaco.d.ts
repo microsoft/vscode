@@ -1091,6 +1091,17 @@ declare module monaco.editor {
 		position: OverviewRulerLane;
 	}
 
+	export type IColorFormat = string | {
+		opaque: string;
+		transparent: string;
+	};
+
+	export interface IColorInfo {
+		color: Color;
+		format: IColorFormat;
+		availableFormats: IColorFormat[];
+	}
+
 	/**
 	 * Options for a model decoration.
 	 */
@@ -1113,9 +1124,9 @@ declare module monaco.editor {
 		 */
 		hoverMessage?: MarkedString | MarkedString[];
 		/**
-		 * Color to render in the color picker.
+		 * Color with mode to render in the color picker.
 		 */
-		color?: Color;
+		colorInfo?: IColorInfo;
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -4411,6 +4422,8 @@ declare module monaco.languages {
 
 	export interface ColorHover {
 		color: Color;
+		format: IColorFormat;
+		availableFormats: IColorFormat[];
 		/**
 		 * The range to which this hover applies. When missing, the
 		 * editor will use the range at the current position or the
@@ -4784,13 +4797,20 @@ declare module monaco.languages {
 	/**
 	 * A color inside the editor.
 	 */
+	export type IColorFormat = string | {
+		opaque: string;
+		transparent: string;
+	};
+
 	export interface IColorInfo {
 		color: Color;
+		format: IColorFormat;
+		availableFormats: IColorFormat[];
 		range: IRange;
 	}
 
 	/**
-	 * A provider of links.
+	 * A provider of colors.
 	 */
 	export interface ColorProvider {
 		provideColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInfo[] | Thenable<IColorInfo[]>;

@@ -105,7 +105,7 @@ export class ColorPickerBody extends Disposable {
 		}
 		const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
 		const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
-		const initialColorModel = this.model.formatter;
+		const initialColorModel = this.model.opaqueFormatter;
 
 		// Update slider position if clicked on a strip itself
 		if (e.target === this.hueStrip || e.target === this.opacityStrip) {
@@ -143,8 +143,8 @@ export class ColorPickerBody extends Disposable {
 			updateModel();
 
 			// Change back from RGBA to HEX if opacity touched
-			if (this.model.formatter !== initialColorModel && this.model.opacity === 1) {
-				this.model.formatter = initialColorModel;
+			if (this.model.opaqueFormatter !== initialColorModel && this.model.opacity === 1) {
+				this.model.opaqueFormatter = initialColorModel;
 			}
 		}, () => {
 			strip.style.cursor = '-webkit-grab';

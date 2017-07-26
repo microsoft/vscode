@@ -7,21 +7,27 @@ import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPi
 import { Color, RGBA } from "vs/base/common/color";
 import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
 
+export type ColorPickerFormatter = { opaqueFormatter: ColorFormatter; transparentFormatter: ColorFormatter; };
+
 export class ColorPickerModel {
 	public widget: ColorPickerWidget;
 
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
+	public colorFormats: ColorPickerFormatter[];
 
 	private _color: Color;
 	private _selectedColor: string;
 	private _opacity: number;
 	private _hue: Color;
 
-	private _formatter: ColorFormatter;
+	private _opaqueFormatter: ColorFormatter;
+	private _transparentFormatter: ColorFormatter;
+
 	private _colorModelIndex: number;
 
 	constructor() {
+		this.colorFormats = [];
 		this._colorModelIndex = 0;
 		this._opacity = 1;
 	}
@@ -33,7 +39,16 @@ export class ColorPickerModel {
 			this._hue = color;
 		}
 
-		this.selectedColorString = this._formatter.toString(this._color);
+		const alpha = this.color.toRGBA().a;
+		if (alpha !== 255) {
+			this._opacity = alpha / 255;
+		}
+
+		if (this._opacity === 1) {
+			this.selectedColorString = this._opaqueFormatter.toString(this._color);
+		} else {
+			this.selectedColorString = this._transparentFormatter.toString(this._color);
+		}
 	}
 
 	public get color(): Color {
@@ -80,20 +95,43 @@ export class ColorPickerModel {
 		return this._opacity;
 	}
 
-	public set formatter(formatter: ColorFormatter) {
-		this._formatter = formatter;
+	public set opaqueFormatter(formatter: ColorFormatter) {
+		this._opaqueFormatter = formatter;
 
 		if (this._selectedColor) {
 			this.color = this._color; // Refresh selected colour string state
 		}
 	}
 
-	public get formatter(): ColorFormatter {
-		return this._formatter;
+	public get opaqueFormatter(): ColorFormatter {
+		return this._opaqueFormatter;
 	}
 
-	public nextColorModel() { // should go to the controller perhaps
-		throw new Error('not implemented');
+	public set transparentFormatter(formatter: ColorFormatter) {
+		this._transparentFormatter = formatter;
+
+		if (this._selectedColor) {
+			this.color = this._color; // Refresh selected colour string state
+		}
+	}
+
+	public get transparentFormatter(): ColorFormatter {
+		if (this._transparentFormatter) {
+			return this._transparentFormatter;
+		}
+
+		return this._opaqueFormatter;
+	}
+
+	public nextColorModel() {
+		this._colorModelIndex++;
+		if (this._colorModelIndex === this.colorFormats.length) {
+			this._colorModelIndex = 0;
+		}
+
+		const formatter = this.colorFormats[this._colorModelIndex];
+		this.opaqueFormatter = formatter.opaqueFormatter;
+		this.transparentFormatter = formatter.transparentFormatter;
 	}
 }
 
