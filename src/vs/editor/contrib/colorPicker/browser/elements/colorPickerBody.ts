@@ -72,8 +72,8 @@ export class ColorPickerBody extends Disposable {
 		}
 
 		const updateModel = (x: number, y: number) => {
-			this.widget.model.color = this.saturationBox.extractColor(x, y);
-			this.widget.model.opacity = this.widget.model.opacity; // ensure opacity is preserved
+			const saturationRGBA = this.saturationBox.extractColor(x, y).toRGBA();
+			this.widget.model.color = Color.fromRGBA(new RGBA(saturationRGBA.r, saturationRGBA.g, saturationRGBA.b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
 			this.widget.model.saturationSelection = { x: x, y: y };
 			this.saturationBox.focusSaturationSelection(this.widget.model.saturationSelection);
 		};

@@ -6,6 +6,8 @@
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Color, RGBA } from "vs/base/common/color";
 import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
+import { IModel } from "vs/editor/common/editorCommon";
+import { Range, IRange } from "vs/editor/common/core/range";
 
 export type AdvancedColorPickerFormatter = { opaqueFormatter: ColorFormatter; transparentFormatter: ColorFormatter; };
 export type ColorPickerFormatter = ColorFormatter | AdvancedColorPickerFormatter;
@@ -29,21 +31,25 @@ export class ColorPickerModel {
 	private _opaqueFormatter: ColorFormatter;
 	private _transparentFormatter: ColorFormatter;
 
+	private _colorRange: Range;
 	private _colorModelIndex: number;
 
 	constructor(
 		originalColor: string, color: Color,
 		opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter,
-		availableFormatters: ColorFormatter[]
+		availableFormatters: ColorFormatter[],
+		private editorModel: IModel,
+		range: IRange
 	) {
 		this.colorFormatters = [];
 		this._colorModelIndex = 0;
 
 		this.originalColor = originalColor;
-		this.opaqueFormatter = opaqueFormatter;
+		this._opaqueFormatter = opaqueFormatter;
 		this.transparentFormatter = transparentFormatter;
 		this.colorFormatters = availableFormatters;
 		this.color = color;
+		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
 	public set color(color: Color) {
@@ -71,12 +77,24 @@ export class ColorPickerModel {
 		return this._color;
 	}
 
-	public set selectedColorString(color: string) {
-		this._selectedColor = color;
+	public set selectedColorString(colorString: string) {
+		if (this._selectedColor === colorString) {
+			return;
+		}
+		this._selectedColor = colorString;
 
 		if (this.widget && this.widget.header && this.widget.body) {
 			this.widget.header.updatePickedColor();
 			this.widget.body.fillOpacityOverlay(this._color);
+
+			this.editorModel.pushEditOperations([], [{
+				identifier: null,
+				range: this._colorRange,
+				text: colorString,
+				forceMoveMarkers: false
+			}], () => []);
+
+			this._colorRange = this._colorRange.setEndPosition(this._colorRange.endLineNumber, this._colorRange.startColumn + colorString.length);
 		}
 	}
 
@@ -111,24 +129,8 @@ export class ColorPickerModel {
 		return this._opacity;
 	}
 
-	public set opaqueFormatter(formatter: ColorFormatter) {
-		this._opaqueFormatter = formatter;
-
-		if (this._selectedColor) {
-			this.color = this._color; // Refresh selected colour string state
-		}
-	}
-
-	public get opaqueFormatter(): ColorFormatter {
-		return this._opaqueFormatter;
-	}
-
 	public set transparentFormatter(formatter: ColorFormatter) {
 		this._transparentFormatter = formatter;
-
-		if (this._selectedColor) {
-			this.color = this._color; // Refresh selected colour string state
-		}
 	}
 
 	public get transparentFormatter(): ColorFormatter {
@@ -148,10 +150,10 @@ export class ColorPickerModel {
 		const formatter = this.colorFormatters[this._colorModelIndex];
 		if (isAdvancedFormatter(formatter)) {
 			this.transparentFormatter = formatter.transparentFormatter;
-			this.opaqueFormatter = formatter.opaqueFormatter;
+			this._opaqueFormatter = formatter.opaqueFormatter;
 		} else if (this._opacity === 1) {
 			this.transparentFormatter = null;
-			this.opaqueFormatter = formatter;
+			this._opaqueFormatter = formatter;
 		} else {
 			this.nextColorMode();
 		}

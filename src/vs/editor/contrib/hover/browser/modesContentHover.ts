@@ -114,7 +114,14 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
-			this._result = result.concat(this._result);
+			this._result = result.concat(this._result.sort((a, b) => {
+				if (isColorHover(a)) { // sort picker messages at to the top
+					return -1;
+				} else if (isColorHover(b)) {
+					return 1;
+				}
+				return 0;
+			}));
 		} else {
 			this._result = this._result.concat(result);
 		}
@@ -247,7 +254,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	private l = true;
 	private _renderMessages(renderRange: Range, messages: Hover[]): void {
 
 		// update column from which to show
@@ -292,7 +298,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					return;
 				}
 
-				let opaqueFormatter, transparentFormatter;
+				let opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter;
 				if (typeof msg.format === 'string') {
 					opaqueFormatter = new ColorFormatter(msg.format);
 				} else {
@@ -300,7 +306,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					transparentFormatter = new ColorFormatter(msg.format.transparent);
 				}
 
-				let availableFormatters = [];
+				let availableFormatters: ColorFormatter[] = [];
 				if (msg.availableFormats) {
 					msg.availableFormats.forEach(format => {
 						let colorPickerFormatter;
@@ -316,7 +322,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					});
 				}
 
-				const model = new ColorPickerModel(msg.color.toRGBA().toString(), msg.color, opaqueFormatter, transparentFormatter, availableFormatters);
+				const model = new ColorPickerModel(msg.color.toRGBA().toString(), msg.color, opaqueFormatter, transparentFormatter, availableFormatters, this._editor.getModel(), msg.range);
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 
@@ -341,22 +347,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			options: ModesContentHoverWidget._DECORATION_OPTIONS
 		}]);
 		this._isChangingDecorations = false;
-
-		if (this.l) {
-			this.l = false;
-			this._renderMessages(new Range(4, 5, 4, 5), [{
-				contents: [{
-					language: 'css',
-					value: 'asdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasdsdasdasdasdadasd'
-				}],
-				range: {
-					endColumn: 10,
-					endLineNumber: 5,
-					startColumn: 1,
-					startLineNumber: 5
-				}
-			}]);
-		}
 	}
 
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
