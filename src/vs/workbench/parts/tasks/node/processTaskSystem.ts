@@ -314,7 +314,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		error.stderr = errorData.stderr;
 		error.stdout = errorData.stdout;
 		error.terminated = errorData.terminated;
-		return Promise.wrapError(error);
+		return TPromise.wrapError(error);
 	}
 
 	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {

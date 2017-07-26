@@ -134,7 +134,7 @@ suite('Async', () => {
 
 	test('Throttler - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
@@ -306,7 +306,7 @@ suite('Async', () => {
 
 	test('Delayer - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
@@ -331,7 +331,7 @@ suite('Async', () => {
 
 	test('ThrottledDelayer - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
