@@ -159,7 +159,7 @@ export class ExtensionsListView extends CollapsibleView {
 
 		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
@@ -174,6 +174,7 @@ export class ExtensionsListView extends CollapsibleView {
 					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
 					break;
 				case SortBy.AverageRating:
+				case SortBy.WeightedRating:
 					result = result.sort((e1, e2) => e2.rating - e1.rating);
 					break;
 				default:
