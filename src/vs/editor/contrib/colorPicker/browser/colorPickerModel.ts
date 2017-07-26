@@ -19,7 +19,7 @@ export class ColorPickerModel {
 
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
-	public colorFormats: ColorPickerFormatter[];
+	public colorFormatters: ColorPickerFormatter[];
 
 	private _color: Color;
 	private _selectedColor: string;
@@ -31,9 +31,19 @@ export class ColorPickerModel {
 
 	private _colorModelIndex: number;
 
-	constructor() {
-		this.colorFormats = [];
+	constructor(
+		originalColor: string, color: Color,
+		opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter,
+		availableFormatters: ColorFormatter[]
+	) {
+		this.colorFormatters = [];
 		this._colorModelIndex = 0;
+
+		this.originalColor = originalColor;
+		this.opaqueFormatter = opaqueFormatter;
+		this.transparentFormatter = transparentFormatter;
+		this.colorFormatters = availableFormatters;
+		this.color = color;
 	}
 
 	public set color(color: Color) {
@@ -50,8 +60,10 @@ export class ColorPickerModel {
 
 		if (this._opacity === 1) {
 			this.selectedColorString = this._opaqueFormatter.toString(this._color);
-		} else {
+		} else if (this._transparentFormatter) {
 			this.selectedColorString = this._transparentFormatter.toString(this._color);
+		} else { //no transparent formatter defined for this mode. select another
+			this.nextColorMode();
 		}
 	}
 
@@ -62,7 +74,7 @@ export class ColorPickerModel {
 	public set selectedColorString(color: string) {
 		this._selectedColor = color;
 
-		if (this.widget.header && this.widget.body) {
+		if (this.widget && this.widget.header && this.widget.body) {
 			this.widget.header.updatePickedColor();
 			this.widget.body.fillOpacityOverlay(this._color);
 		}
@@ -127,21 +139,21 @@ export class ColorPickerModel {
 		return this._opaqueFormatter;
 	}
 
-	public nextColorModel() {
+	public nextColorMode() {
 		this._colorModelIndex++;
-		if (this._colorModelIndex === this.colorFormats.length) {
+		if (this._colorModelIndex === this.colorFormatters.length) {
 			this._colorModelIndex = 0;
 		}
 
-		const formatter = this.colorFormats[this._colorModelIndex];
+		const formatter = this.colorFormatters[this._colorModelIndex];
 		if (isAdvancedFormatter(formatter)) {
-			this.opaqueFormatter = formatter.opaqueFormatter;
 			this.transparentFormatter = formatter.transparentFormatter;
+			this.opaqueFormatter = formatter.opaqueFormatter;
 		} else if (this._opacity === 1) {
-			this.opaqueFormatter = formatter;
 			this.transparentFormatter = null;
+			this.opaqueFormatter = formatter;
 		} else {
-			this.nextColorModel();
+			this.nextColorMode();
 		}
 	}
 }

@@ -292,17 +292,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					return;
 				}
 
-				const model = new ColorPickerModel();
-				const widget = this._register(new ColorPickerWidget(model, this._editor));
-				model.widget = widget;
-				model.originalColor = msg.color.toRGBA().toString();
+				let opaqueFormatter, transparentFormatter;
 				if (typeof msg.format === 'string') {
-					model.opaqueFormatter = new ColorFormatter(msg.format);
+					opaqueFormatter = new ColorFormatter(msg.format);
 				} else {
-					model.opaqueFormatter = new ColorFormatter(msg.format.opaque);
-					model.transparentFormatter = new ColorFormatter(msg.format.transparent);
+					opaqueFormatter = new ColorFormatter(msg.format.opaque);
+					transparentFormatter = new ColorFormatter(msg.format.transparent);
 				}
 
+				let availableFormatters = [];
 				if (msg.availableFormats) {
 					msg.availableFormats.forEach(format => {
 						let colorPickerFormatter;
@@ -314,10 +312,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 								transparentFormatter: new ColorFormatter(format.transparent)
 							};
 						}
-						model.colorFormats.push(colorPickerFormatter);
+						availableFormatters.push(colorPickerFormatter);
 					});
 				}
-				model.color = msg.color;
+
+				const model = new ColorPickerModel(msg.color.toRGBA().toString(), msg.color, opaqueFormatter, transparentFormatter, availableFormatters);
+				const widget = this._register(new ColorPickerWidget(model, this._editor));
+				model.widget = widget;
 
 				this._colorPicker = widget;
 				fragment.appendChild(widget.getDomNode());
