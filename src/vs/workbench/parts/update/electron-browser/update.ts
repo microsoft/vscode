@@ -350,7 +350,7 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onUpdateAvailable(version: string): void {
-		const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New update available."));
+		const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
 		this.activityBarService.showGlobalActivity(this.id, badge);
 
 		const currentVersion = product.commit;
