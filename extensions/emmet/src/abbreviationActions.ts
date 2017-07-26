@@ -143,7 +143,7 @@ export function expandAbbreviation(args) {
 		abbreviationList.push({ syntax, abbreviation, rangeToReplace });
 	});
 
-	expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame);
+	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame);
 }
 
 
@@ -191,7 +191,7 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
  * @param expandAbbrList
  * @param insertSameSnippet
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean) {
+function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
 		return;
 	}
@@ -200,14 +200,15 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// Snippet to replace at multiple cursors are not the same
 	// `editor.insertSnippet` will have to be called for each instance separately
 	// We will not be able to maintain multiple cursors after snippet insertion
+	let insertPromises = [];
 	if (!insertSameSnippet) {
 		expandAbbrList.forEach((expandAbbrInput: ExpandAbbreviationInput) => {
 			let expandedText = expandAbbr(expandAbbrInput, newLine);
 			if (expandedText) {
-				editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace);
+				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace));
 			}
 		});
-		return;
+		return Promise.all(insertPromises).then(() => Promise.resolve(true));
 	}
 
 	// Snippet to replace at all cursors are the same
@@ -219,7 +220,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
 	});
 	if (expandedText) {
-		editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
 }
 
@@ -232,7 +233,7 @@ function expandAbbr(input: ExpandAbbreviationInput, newLine: string): string {
 	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
 
 	// Below fixes https://github.com/Microsoft/vscode/issues/29898
-	// With this, Emmet formats inline elements as block elements 
+	// With this, Emmet formats inline elements as block elements
 	// ensuring the wrapped multi line text does not get merged to a single line
 	if (input.textToWrap && !input.rangeToReplace.isSingleLine) {
 		expandOptions.profile['inlineBreak'] = 1;
@@ -286,8 +287,8 @@ function getSyntaxFromArgs(args: any): string {
 	}
 
 	const mappedModes = getMappingForIncludedLanguages();
-	let language: string = (typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
-	let parentMode: string = typeof args === 'object' ? args['parentMode'] : undefined;
+	let language: string = (!args || typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
+	let parentMode: string = (args && typeof args === 'object') ? args['parentMode'] : undefined;
 	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] ? vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] : [];
 	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (syntax) {
