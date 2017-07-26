@@ -184,7 +184,7 @@ test('Wrap text with abbreviation with repeaters', () => {
 
 });
 	
-});
+
 
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 
