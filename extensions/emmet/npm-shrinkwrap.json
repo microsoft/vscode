@@ -123,9 +123,9 @@
       "resolved": "https://registry.npmjs.org/image-size/-/image-size-0.5.5.tgz"
     },
     "vscode-emmet-helper": {
-      "version": "0.0.29",
-      "from": "vscode-emmet-helper@0.0.29",
-      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-0.0.29.tgz"
+      "version": "1.0.0",
+      "from": "vscode-emmet-helper@1.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-1.0.0.tgz"
     },
     "vscode-languageserver-types": {
       "version": "3.3.0",

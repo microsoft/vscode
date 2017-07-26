@@ -7,13 +7,14 @@ import * as vscode from 'vscode';
 import { expand } from '@emmetio/expand-abbreviation';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
-import { getExpandOptions, extractAbbreviation, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
+import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
 
 interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
 	rangeToReplace: vscode.Range;
 	textToWrap?: string;
+	filters?: string[];
 }
 
 export function wrapWithAbbreviation(args) {
@@ -65,11 +66,12 @@ export function expandAbbreviation(args) {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string] => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string, string[]] => {
 		let rangeToReplace: vscode.Range = selection;
-		let abbreviation = document.getText(rangeToReplace);
+		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			return [rangeToReplace, abbreviation];
+			let { abbreviation, filters } = extractAbbreviationFromText(abbr);
+			return [rangeToReplace, abbreviation, filters];
 		}
 
 		// Expand cases like <div to <div></div> explicitly
@@ -79,17 +81,18 @@ export function expandAbbreviation(args) {
 			const textTillPosition = currentLine.substr(0, position.character);
 			let matches = textTillPosition.match(/<(\w+)$/);
 			if (matches) {
-				abbreviation = matches[1];
-				rangeToReplace = new vscode.Range(position.translate(0, -(abbreviation.length + 1)), position);
-				return [rangeToReplace, abbreviation];
+				abbr = matches[1];
+				rangeToReplace = new vscode.Range(position.translate(0, -(abbr.length + 1)), position);
+				return [rangeToReplace, abbr, []];
 			}
 		}
-		return extractAbbreviation(editor.document, position);
+		let { abbreviationRange, abbreviation, filters } = extractAbbreviation(editor.document, position);
+		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filters];
 	};
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [rangeToReplace, abbreviation] = getAbbreviation(editor.document, selection, position, syntax === 'html');
+		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax === 'html');
 		if (!isAbbreviationValid(syntax, abbreviation)) {
 			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
@@ -106,7 +109,7 @@ export function expandAbbreviation(args) {
 			allAbbreviationsSame = false;
 		}
 
-		abbreviationList.push({ syntax, abbreviation, rangeToReplace });
+		abbreviationList.push({ syntax, abbreviation, rangeToReplace, filters });
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame);
@@ -194,13 +197,17 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  */
 function expandAbbr(input: ExpandAbbreviationInput): string {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const expandOptions = getExpandOptions(emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.syntax, input.textToWrap);
+	const expandOptions = getExpandOptions(input.syntax, emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.filters);
 
-	// Below fixes https://github.com/Microsoft/vscode/issues/29898
-	// With this, Emmet formats inline elements as block elements
-	// ensuring the wrapped multi line text does not get merged to a single line
-	if (input.textToWrap && !input.rangeToReplace.isSingleLine) {
-		expandOptions.profile['inlineBreak'] = 1;
+	if (input.textToWrap) {
+		expandOptions['text'] = input.textToWrap;
+
+		// Below fixes https://github.com/Microsoft/vscode/issues/29898
+		// With this, Emmet formats inline elements as block elements
+		// ensuring the wrapped multi line text does not get merged to a single line
+		if (!input.rangeToReplace.isSingleLine) {
+			expandOptions.profile['inlineBreak'] = 1;
+		}
 	}
 
 	try {

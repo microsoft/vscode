@@ -21,6 +21,12 @@ const cssContents = `
 }
 `;
 
+const bemFilterExample = 'ul.search-form._wide>li.-querystring+li.-btn_large|bem';
+const expectedBemFilterOutput = `<ul class="search-form search-form_wide">
+		<li class="search-form__querystring"></li>
+		<li class="search-form__btn search-form__btn_large"></li>
+	</ul>`;
+
 const htmlContents = `
 <body class="header">
 	<ul class="nav main">
@@ -37,6 +43,7 @@ const htmlContents = `
 			m10
 		}
 	</style>
+	${bemFilterExample}
 </body>
 `;
 
@@ -145,6 +152,10 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
 			});
 		});
+	});
+
+	test('Expand using bem filter', () => {
+		return testHtmlExpandAbbreviation(new Selection(16, 55, 16, 55), bemFilterExample, expectedBemFilterOutput);
 	});
 
 });
