@@ -305,19 +305,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 				if (msg.availableFormats) {
 					msg.availableFormats.forEach(format => {
-						let opaqueFormat, transparentFormat;
+						let colorPickerFormatter;
 						if (typeof format === 'string') {
-							opaqueFormat = new ColorFormatter(format);
-							transparentFormat = opaqueFormat;
+							colorPickerFormatter = new ColorFormatter(format);
 						} else {
-							opaqueFormat = new ColorFormatter(format.opaque);
-							transparentFormat = new ColorFormatter(format.transparent);
+							colorPickerFormatter = {
+								opaqueFormatter: new ColorFormatter(format.opaque),
+								transparentFormatter: new ColorFormatter(format.transparent)
+							};
 						}
-
-						model.colorFormats.push({
-							opaqueFormatter: opaqueFormat,
-							transparentFormatter: transparentFormat
-						});
+						model.colorFormats.push(colorPickerFormatter);
 					});
 				}
 				model.color = msg.color;

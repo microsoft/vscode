@@ -7,7 +7,12 @@ import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPi
 import { Color, RGBA } from "vs/base/common/color";
 import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
 
-export type ColorPickerFormatter = { opaqueFormatter: ColorFormatter; transparentFormatter: ColorFormatter; };
+export type AdvancedColorPickerFormatter = { opaqueFormatter: ColorFormatter; transparentFormatter: ColorFormatter; };
+export type ColorPickerFormatter = ColorFormatter | AdvancedColorPickerFormatter;
+
+export function isAdvancedFormatter(formatter: ColorPickerFormatter): formatter is AdvancedColorPickerFormatter {
+	return !!(formatter as any).transparentFormatter;
+}
 
 export class ColorPickerModel {
 	public widget: ColorPickerWidget;
@@ -29,7 +34,6 @@ export class ColorPickerModel {
 	constructor() {
 		this.colorFormats = [];
 		this._colorModelIndex = 0;
-		this._opacity = 1;
 	}
 
 	public set color(color: Color) {
@@ -40,7 +44,7 @@ export class ColorPickerModel {
 		}
 
 		const alpha = this.color.toRGBA().a;
-		if (alpha !== 255) {
+		if (!this._opacity && alpha !== 255) {
 			this._opacity = alpha / 255;
 		}
 
@@ -130,8 +134,15 @@ export class ColorPickerModel {
 		}
 
 		const formatter = this.colorFormats[this._colorModelIndex];
-		this.opaqueFormatter = formatter.opaqueFormatter;
-		this.transparentFormatter = formatter.transparentFormatter;
+		if (isAdvancedFormatter(formatter)) {
+			this.opaqueFormatter = formatter.opaqueFormatter;
+			this.transparentFormatter = formatter.transparentFormatter;
+		} else if (this._opacity === 1) {
+			this.opaqueFormatter = formatter;
+			this.transparentFormatter = null;
+		} else {
+			this.nextColorModel();
+		}
 	}
 }
 
