@@ -12,7 +12,7 @@ import spawn = cp.spawn;
 import { PassThrough } from 'stream';
 import { fork } from 'vs/base/node/stdFork';
 import nls = require('vs/nls');
-import { PPromise, Promise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
@@ -168,7 +168,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	public start(): PPromise<SuccessData, TProgressData> {
 		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && !this.options.cwd && TPath.isUNC(process.cwd()))) {
-			return Promise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on an UNC drive.')));
+			return TPromise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on an UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
 			let cc: TValueCallback<SuccessData>;
