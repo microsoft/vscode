@@ -49,7 +49,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 
 		return asWinJsPromise(token => this._quickOpenService.pick(this._contents, options, token)).then(item => {
 			if (item) {
-				return item.handle;
+				return this._proxy.$onItemSelected(item.handle);
 			}
 			return undefined;
 		}, undefined, progress => {

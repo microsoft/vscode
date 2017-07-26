@@ -34,7 +34,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
 
 		const quickPickWidget = this._proxy.$show({
-			autoFocus: { autoFocusFirstEntry: true },
+			autoFocus: options && options.autoFocus || { autoFocusFirstEntry: true },
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
@@ -74,7 +74,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 				// handle selection changes
 				if (options && typeof options.onDidSelectItem === 'function') {
 					this._onDidSelectItem = (handle) => {
-						options.onDidSelectItem(items[handle]);
+						options.onDidSelectItem(items[handle], handle);
 					};
 				}
 
@@ -96,10 +96,12 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		return wireCancellationToken<Item>(token, promise, true);
 	}
 
-	$onItemSelected(handle: number): void {
+	$onItemSelected(handle: number): TPromise<number> {
 		if (this._onDidSelectItem) {
 			this._onDidSelectItem(handle);
 		}
+
+		return TPromise.as(handle);
 	}
 
 	// ---- input
