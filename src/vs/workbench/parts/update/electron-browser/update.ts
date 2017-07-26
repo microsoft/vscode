@@ -238,6 +238,58 @@ export class ProductContribution implements IWorkbenchContribution {
 	}
 }
 
+class NeverShowAgain {
+
+	private readonly key: string;
+
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Never Show Again"), undefined, true, () => {
+		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
+	});
+
+	constructor(key: string, @IStorageService private storageService: IStorageService) {
+		this.key = `neverShowAgain:${key}`;
+	}
+
+	shouldShow(): boolean {
+		return !this.storageService.getBoolean(this.key, StorageScope.GLOBAL, false);
+	}
+}
+
+export class Win3264BitContribution implements IWorkbenchContribution {
+
+	private static KEY = 'update/win32-64bits';
+	private static URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
+	private static INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
+
+	getId() { return 'vs.win32-64bit'; }
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		const url = product.quality === 'insider'
+			? Win3264BitContribution.INSIDER_URL
+			: Win3264BitContribution.URL;
+
+		messageService.show(Severity.Info, {
+			message: nls.localize('64bitisavailable', "{0} for Windows 64 bits is now available!", product.nameShort),
+			actions: [
+				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
+				CloseAction,
+				neverShowAgain.action
+			]
+		});
+	}
+}
+
 class CommandAction extends Action {
 
 	constructor(
