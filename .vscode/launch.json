@@ -66,6 +66,20 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
+			"name": "VS Code Emmet Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/emmet/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/emmet",
+				"--extensionTestsPath=${workspaceRoot}/extensions/emmet/out/test"
+			],
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
 			"name": "VS Code API Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
