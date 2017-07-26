@@ -233,7 +233,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.registerListeners();
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
-		this.selectConfiguration(this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot).pop(), this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
+		const launchToSelect = filtered.length ? filtered[0] : this.launches.length ? this.launches[0] : undefined;
+		this.selectConfiguration(launchToSelect, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 	}
 
 	private registerListeners(): void {
