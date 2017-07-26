@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, CancellationToken, TextDocument, ProviderResult, ColorInfo } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, CancellationToken, TextDocument, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -51,9 +51,8 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Options to control the language client
-	const documentSelector = ['css', 'less', 'scss'];
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: documentSelector,
+		documentSelector: ['css', 'scss', 'less'],
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
 		},
@@ -82,18 +81,6 @@ export function activate(context: ExtensionContext) {
 
 		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
-
-		languages.registerColorProvider(documentSelector, <DocumentColorProvider>{
-			provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]> {
-				const colorInfos: ColorInfo[] = [];
-				colorRequestor(document.uri.toString()).then(ranges => {
-					ranges.forEach(range => {
-						colorInfos.push(new ColorInfo(undefined, undefined, '', []));
-					});
-				});
-				return colorInfos;
-			}
-		});
 	});
 
 	let indentationRules = {
