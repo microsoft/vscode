@@ -1120,6 +1120,56 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 }
 
+@editorAction
+export class ShowNextFindTermAction extends MatchFindAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowNextFindTermAction,
+			label: nls.localize('showNextFindTermAction', "Show Next Find Term"),
+			alias: 'Show Next Find Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				primary: ShowNextFindTermKeybinding.primary,
+				mac: ShowNextFindTermKeybinding.mac,
+				win: ShowNextFindTermKeybinding.win,
+				linux: ShowNextFindTermKeybinding.linux
+			}
+		});
+	}
+
+	protected _run(controller: CommonFindController): boolean {
+		return controller.showNextFindTerm();
+	}
+}
+
+@editorAction
+export class ShpwPreviousFindTermAction extends MatchFindAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowPreviousFindTermAction,
+			label: nls.localize('showPreviousFindTermAction', "Show Previous Find Term"),
+			alias: 'Find Show Previous Find Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				primary: ShowPreviousFindTermKeybinding.primary,
+				mac: ShowPreviousFindTermKeybinding.mac,
+				win: ShowPreviousFindTermKeybinding.win,
+				linux: ShowPreviousFindTermKeybinding.linux
+			}
+		});
+	}
+
+	protected _run(controller: CommonFindController): boolean {
+		return controller.showPreviousFindTerm();
+	}
+}
+
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 
 CommonEditorRegistry.registerEditorCommand(new FindCommand({
@@ -1220,33 +1270,5 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
-	}
-}));
-
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ShowPreviousFindTermAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.showPreviousFindTerm(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
-		primary: ShowPreviousFindTermKeybinding.primary,
-		mac: ShowPreviousFindTermKeybinding.mac,
-		win: ShowPreviousFindTermKeybinding.win,
-		linux: ShowPreviousFindTermKeybinding.linux
-	}
-}));
-
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ShowNextFindTermAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.showNextFindTerm(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
-		primary: ShowNextFindTermKeybinding.primary,
-		mac: ShowNextFindTermKeybinding.mac,
-		win: ShowNextFindTermKeybinding.win,
-		linux: ShowNextFindTermKeybinding.linux
 	}
 }));
