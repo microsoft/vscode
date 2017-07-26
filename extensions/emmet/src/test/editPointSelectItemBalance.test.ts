@@ -10,7 +10,7 @@ import { fetchEditPoint } from '../editPoint';
 import { fetchSelectItem } from '../selectItem';
 import { balanceOut, balanceIn } from '../balance';
 
-suite('Tests for Next/Previous Select/Edit point actions', () => {
+suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	teardown(closeAllEditors);
 
 	const cssContents = `
