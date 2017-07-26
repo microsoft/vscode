@@ -69,10 +69,12 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
 		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
 
-		return new ConfigurationModel<T>(<T>{}, keys)
+		const mergedContents = new ConfigurationModel<T>(<T>{}, keys)
 			.merge(this._worksapaceSettings)
 			.merge(this._tasksConfiguration)
 			.merge(this._launchConfiguration);
+
+		return new ConfigurationModel<T>(mergedContents.contents, keys, mergedContents.overrides);
 	}
 }
 
