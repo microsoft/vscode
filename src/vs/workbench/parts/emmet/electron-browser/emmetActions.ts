@@ -237,29 +237,8 @@ export interface IEmmetActionOptions extends IActionOptions {
 export abstract class EmmetEditorAction extends EditorAction {
 
 	private actionMap = {
-		'editor.emmet.action.removeTag': 'emmet.removeTag',
-		'editor.emmet.action.updateTag': 'emmet.updateTag',
-		'editor.emmet.action.matchingPair': 'emmet.matchTag',
 		'editor.emmet.action.wrapWithAbbreviation': 'emmet.wrapWithAbbreviation',
-		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation',
-		'editor.emmet.action.balanceInward': 'emmet.balanceIn',
-		'editor.emmet.action.balanceOutward': 'emmet.balanceOut',
-		'editor.emmet.action.previousEditPoint': 'emmet.prevEditPoint',
-		'editor.emmet.action.nextEditPoint': 'emmet.nextEditPoint',
-		'editor.emmet.action.mergeLines': 'emmet.mergeLines',
-		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
-		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
-		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
-		'editor.emmet.action.toggleComment': 'emmet.toggleComment',
-		'editor.emmet.action.evaluateMath': 'emmet.evaluateMathExpression',
-		'editor.emmet.action.incrementNumberByOneTenth': 'emmet.incrementNumberByOneTenth',
-		'editor.emmet.action.incrementNumberByOne': 'emmet.incrementNumberByOne',
-		'editor.emmet.action.incrementNumberByTen': 'emmet.incrementNumberByTen',
-		'editor.emmet.action.decrementNumberByOneTenth': 'emmet.decrementNumberByOneTenth',
-		'editor.emmet.action.decrementNumberByOne': 'emmet.decrementNumberByOne',
-		'editor.emmet.action.decrementNumberByTen': 'emmet.decrementNumberByTen',
-		'editor.emmet.action.updateImageSize': 'emmet.updateImageSize',
-		'editor.emmet.action.reflectCSSValue': 'emmet.reflectCSSValue'
+		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation'
 	};
 
 	protected emmetActionName: string;

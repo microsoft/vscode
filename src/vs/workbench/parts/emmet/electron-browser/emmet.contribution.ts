@@ -11,21 +11,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
-import './actions/balance';
-import './actions/matchingPair';
 import './actions/wrapWithAbbreviation';
-import './actions/editPoints';
-import './actions/selectItem';
-import './actions/toggleComment';
-import './actions/splitJoinTag';
-import './actions/removeTag';
-import './actions/mergeLines';
-import './actions/updateImageSize';
-import './actions/evaluateMath';
-import './actions/incrementDecrement';
-import './actions/reflectCssValue';
 // import './actions/base64'; // disabled - we will revisit the implementation
-import './actions/updateTag';
 
 // Configuration: emmet
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

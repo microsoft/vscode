@@ -24,7 +24,9 @@
             "title": "Emmet",
             "properties": {
                 "emmet.showExpandedAbbreviation": {
-                    "type": ["string"],
+                    "type": [
+                        "string"
+                    ],
                     "enum": [
                         "never",
                         "always",
@@ -43,7 +45,7 @@
                     "default": {},
                     "description": "Applicable only when emmet.useNewEmmet is set to true.\nEnable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
                 },
-                "emmet.variables":{
+                "emmet.variables": {
                     "type": "object",
                     "properties": {
                         "lang": {
@@ -55,18 +57,125 @@
                             "default": "UTF-8"
                         }
                     },
-                    "default":{},
+                    "default": {},
                     "description": "Applicable only when emmet.useNewEmmet is set to true.\nVariables to be used in emmet snippets"
                 }
             }
-        }
+        },
+        "commands": [
+            {
+                "command": "editor.emmet.action.removeTag",
+                "title": "%command.removeTag%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.updateTag",
+                "title": "%command.updateTag%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.matchTag",
+                "title": "%command.matchTag%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.balanceIn",
+                "title": "%command.balanceIn%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.balanceOut",
+                "title": "%command.balanceOut%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.prevEditPoint",
+                "title": "%command.prevEditPoint%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.nextEditPoint",
+                "title": "%command.nextEditPoint%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.mergeLines",
+                "title": "%command.mergeLines%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.selectPrevItem",
+                "title": "%command.selectPrevItem%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.selectNextItem",
+                "title": "%command.selectNextItem%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.splitJoinTag",
+                "title": "%command.splitJoinTag%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.toggleComment",
+                "title": "%command.toggleComment%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.evaluateMathExpression",
+                "title": "%command.evaluateMathExpression%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.updateImageSize",
+                "title": "%command.updateImageSize%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.incrementNumberByOneTenth",
+                "title": "%command.incrementNumberByOneTenth%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.incrementNumberByOne",
+                "title": "%command.incrementNumberByOne%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.incrementNumberByTen",
+                "title": "%command.incrementNumberByTen%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.decrementNumberByOneTenth",
+                "title": "%command.decrementNumberByOneTenth%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.decrementNumberByOne",
+                "title": "%command.decrementNumberByOne%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.decrementNumberByTen",
+                "title": "%command.decrementNumberByTen%",
+                "category": "Emmet"
+            },
+            {
+                "command": "editor.emmet.action.reflectCSSValue",
+                "title": "%command.reflectCSSValue%",
+                "category": "Emmet"
+            }
+        ]
     },
     "scripts": {
         "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
         "@types/node": "^7.0.4",
-		"vscode": "1.0.1"
+        "vscode": "1.0.1"
     },
     "dependencies": {
         "@emmetio/expand-abbreviation": "^0.5.8",
@@ -74,8 +183,9 @@
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper":"^1.0.0",
+        "vscode-emmet-helper": "^1.0.0",
         "vscode-languageserver-types": "^3.0.3",
-        "image-size": "^0.5.2"
+        "image-size": "^0.5.2",
+        "vscode-nls": "2.0.2"
     }
 }

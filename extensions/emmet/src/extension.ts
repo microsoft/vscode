@@ -35,11 +35,11 @@ export function activate(context: vscode.ExtensionContext) {
 		expandAbbreviation(args);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.removeTag', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {
 		return removeTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateTag', (inputTag) => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.updateTag', (inputTag) => {
 		if (inputTag && typeof inputTag === 'string') {
 			return updateTag(inputTag);
 		}
@@ -48,79 +48,79 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.matchTag', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.matchTag', () => {
 		matchTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.balanceOut', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.balanceOut', () => {
 		balanceOut();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.balanceIn', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.balanceIn', () => {
 		balanceIn();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.splitJoinTag', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.splitJoinTag', () => {
 		return splitJoinTag();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.mergeLines', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.mergeLines', () => {
 		mergeLines();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.toggleComment', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.toggleComment', () => {
 		toggleComment();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.nextEditPoint', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.nextEditPoint', () => {
 		fetchEditPoint('next');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.prevEditPoint', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.prevEditPoint', () => {
 		fetchEditPoint('prev');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.selectNextItem', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.selectNextItem', () => {
 		fetchSelectItem('next');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.selectPrevItem', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.selectPrevItem', () => {
 		fetchSelectItem('prev');
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.evaluateMathExpression', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.evaluateMathExpression', () => {
 		evaluateMathExpression();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOneTenth', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOneTenth', () => {
 		return incrementDecrement(.1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByOne', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByOne', () => {
 		return incrementDecrement(1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.incrementNumberByTen', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.incrementNumberByTen', () => {
 		return incrementDecrement(10);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOneTenth', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByOneTenth', () => {
 		return incrementDecrement(-0.1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByOne', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByOne', () => {
 		return incrementDecrement(-1);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.decrementNumberByTen', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.decrementNumberByTen', () => {
 		return incrementDecrement(-10);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.updateImageSize', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.updateImageSize', () => {
 		return updateImageSize();
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.reflectCSSValue', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.reflectCSSValue', () => {
 		return reflectCssValue();
 	}));
 
