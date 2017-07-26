@@ -230,7 +230,7 @@ function getSyntaxFromArgs(args: any): string {
 	const mappedModes = getMappingForIncludedLanguages();
 	let language: string = (!args || typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
 	let parentMode: string = (args && typeof args === 'object') ? args['parentMode'] : undefined;
-	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] ? vscode.workspace.getConfiguration('emmet')['exlcudeLanguages'] : [];
+	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
 	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (syntax) {
 		return syntax;
