@@ -310,9 +310,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			if (event.sourceConfig.launch) {
-				this.selectConfiguration(this.selectedLaunch);
-			}
+			this.selectConfiguration(this.selectedLaunch);
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
@@ -344,6 +342,9 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void {
+		const previousLaunch = this._selectedLaunch;
+		const previousName = this._selectedName;
+
 		this._selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
@@ -362,7 +363,9 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}
 
-		this._onDidSelectConfigurationName.fire();
+		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
+			this._onDidSelectConfigurationName.fire();
+		}
 	}
 
 	public canSetBreakpointsIn(model: IModel): boolean {
