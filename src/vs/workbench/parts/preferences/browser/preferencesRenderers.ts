@@ -1007,16 +1007,17 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		}
 	}
 
-	private static _INVALID_SETTING_ = ModelDecorationOptions.register({
+	private static _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
+		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
 		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be configured for folder resources.")
 	});
 
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
-			options: UnsupportedWorkbenchSettingsRenderer._INVALID_SETTING_
+			options: UnsupportedWorkbenchSettingsRenderer._DIM_CONFIGUARATION_
 		};
 	}
 
