@@ -681,7 +681,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): TPromise<void> {
+	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean, ofType?: string } = Object.create(null)): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
 			return TPromise.as<void>(null);
@@ -709,13 +709,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doCloseEditors(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): void {
+	private doCloseEditors(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean, ofType?: string } = Object.create(null)): void {
 
 		// Close all editors if there is no editor to except and
 		// we either are not only closing unmodified editors or
 		// there are no dirty editors.
 		let closeAllEditors = false;
-		if (!filter.except) {
+		if (!filter.except && !filter.ofType) {
 			if (!filter.unmodifiedOnly) {
 				closeAllEditors = true;
 			} else {
@@ -757,6 +757,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			// Update stacks model: close non active editors supporting the direction
 			group.closeEditors(group.activeEditor, filter.direction);
+		}
+
+		// Close only the editors of the specified type
+		else if (filter.ofType) {
+
+			// If the active editor is not of the type we're looking for, we can close everything around it
+			if (group.activeEditor.getTypeId() !== filter.ofType) {
+				group.getEditors().filter(editor => editor.getTypeId() === filter.ofType).forEach(editor => this.doCloseInactiveEditor(group, editor));
+			}
+
+			// Otherwise, we need to make the first editor of any other type active, then close the others
+			else {
+				const firstEditorNotOfType = group.getEditors().filter(editor => editor.getTypeId() !== filter.ofType)[0];
+
+				this.openEditor(firstEditorNotOfType, null, this.stacks.positionOfGroup(group)).done(() => {
+					this.doCloseEditors(group, filter);
+				}, errors.onUnexpectedError);
+			}
 		}
 
 		// Finally: we are asked to close editors around a non-active editor

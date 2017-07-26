@@ -32,7 +32,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction, CloseAllDiffEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -72,6 +72,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected closeUnmodifiedEditorsInGroupAction: CloseUnmodifiedEditorsInGroupAction;
+	protected closeDiffEditorsAction: CloseAllDiffEditorsInGroupAction;
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
 	protected splitEditorAction: SplitEditorAction;
 	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
@@ -228,6 +229,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.closeEditorAction = services.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
 		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
+		this.closeDiffEditorsAction = services.createInstance(CloseAllDiffEditorsInGroupAction, CloseAllDiffEditorsInGroupAction.ID, nls.localize('closeAllDiffEditors', "Close All Diff Editors"));
 		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
 		this.closeUnmodifiedEditorsInGroupAction = services.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified"));
 		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
@@ -358,6 +360,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			secondaryEditorActions.push(this.showEditorsInGroupAction);
 			secondaryEditorActions.push(new Separator());
 			secondaryEditorActions.push(this.closeUnmodifiedEditorsInGroupAction);
+			secondaryEditorActions.push(this.closeDiffEditorsAction);
 			secondaryEditorActions.push(this.closeEditorsInGroupAction);
 		}
 
@@ -444,6 +447,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		}
 
 		actions.push(this.closeUnmodifiedEditorsInGroupAction);
+		actions.push(this.closeDiffEditorsAction);
 		actions.push(this.closeEditorsInGroupAction);
 
 		if (tabOptions.previewEditors) {
@@ -466,6 +470,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.closeEditorAction,
 			this.closeRightEditorsAction,
 			this.closeUnmodifiedEditorsInGroupAction,
+			this.closeDiffEditorsAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,
 			this.pinEditorAction
