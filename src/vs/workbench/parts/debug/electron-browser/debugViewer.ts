@@ -283,7 +283,7 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
 		}, errors.onUnexpectedError);
