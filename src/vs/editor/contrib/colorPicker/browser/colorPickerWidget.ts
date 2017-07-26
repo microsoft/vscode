@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./colorpicker';
+import 'vs/css!./colorPicker';
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { Widget } from "vs/base/browser/ui/widget";
 import * as dom from 'vs/base/browser/dom';
