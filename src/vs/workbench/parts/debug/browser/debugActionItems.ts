@@ -149,22 +149,18 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		this.executeOnSelect = [];
 		const options = [];
 		const launches = this.debugService.getConfigurationManager().getLaunches();
-		this.debugService.getConfigurationManager().mruConfigs.forEach(entry => {
-			if (entry.name === this.debugService.getConfigurationManager().selectedName && entry.launch === this.debugService.getConfigurationManager().selectedLaunch) {
-				selected = this.executeOnSelect.length;
-			}
-			this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(entry.launch, entry.name));
-			options.push(launches.length > 1 ? `${entry.name} (${entry.launch.name})` : entry.name);
-		});
+		this.debugService.getConfigurationManager().getLaunches().forEach(launch =>
+			launch.getConfigurationNames().forEach(name => {
+				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
+					selected = this.executeOnSelect.length;
+				}
+				this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(launch, name));
+				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
+			}));
 
 		if (options.length === 0) {
 			options.push(nls.localize('noConfigurations', "No Configurations"));
-		} else {
-			options.push(nls.localize('showMore', "Show More..."));
 		}
-		this.executeOnSelect.push(() => {
-			this.quickOpenService.show('debug ');
-		});
 		options.push(StartDebugActionItem.SEPARATOR);
 		this.executeOnSelect.push(undefined);
 
