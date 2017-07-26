@@ -72,6 +72,11 @@ namespace schema {
 				description: localize('views.explorer', "Explorer View"),
 				type: 'array',
 				items: viewDescriptor
+			},
+			'debug': {
+				description: localize('views.debug', "Debug View"),
+				type: 'array',
+				items: viewDescriptor
 			}
 		}
 	};
