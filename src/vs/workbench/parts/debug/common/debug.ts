@@ -412,6 +412,8 @@ export interface ILaunch {
 
 	workspaceUri: uri;
 
+	name: string;
+
 	/**
 	 * Returns a configuration with the specified name.
 	 * Returns null if there is no configuration with the specified name.

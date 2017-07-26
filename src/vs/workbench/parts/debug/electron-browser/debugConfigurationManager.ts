@@ -397,6 +397,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 class Launch implements ILaunch {
 
+	public name: string;
+
 	constructor(
 		private configurationManager: ConfigurationManager,
 		public workspaceUri: uri,
@@ -405,6 +407,7 @@ class Launch implements ILaunch {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 	) {
+		this.name = paths.basename(this.workspaceUri.fsPath);
 	}
 
 	public getCompound(name: string): ICompound {

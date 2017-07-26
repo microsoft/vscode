@@ -8,7 +8,6 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as paths from 'vs/base/common/paths';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -149,13 +148,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		const options = [];
 		const launches = this.debugService.getConfigurationManager().getLaunches();
 		launches.forEach(launch => {
-			const launchName = paths.basename(launch.workspaceUri.fsPath);
 			launch.getConfigurationNames().forEach(name => {
 				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
 					selected = this.executeOnSelect.length;
 				}
 				this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(launch, name));
-				options.push(launches.length > 1 ? `${name} (${launchName})` : name);
+				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
 			});
 		});
 
@@ -167,7 +165,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 		const disabledIdx = options.length - 1;
 		launches.forEach(l => {
-			options.push(launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", paths.basename(l.workspaceUri.fsPath)) : nls.localize('addConfiguration', "Add Configuration..."));
+			options.push(launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration..."));
 			this.executeOnSelect.push(() => {
 				this.debugService.getConfigurationManager().selectConfiguration(l);
 				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
