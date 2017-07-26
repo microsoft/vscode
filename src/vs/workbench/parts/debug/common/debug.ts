@@ -565,7 +565,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(root?: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(root: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.

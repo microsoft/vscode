@@ -636,7 +636,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(root?: uri, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
@@ -646,7 +646,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				const launch = !root ? manager.selectedLaunch : manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop();
+				const launch = root ? manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop() : undefined;
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {

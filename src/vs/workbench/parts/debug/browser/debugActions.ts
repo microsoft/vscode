@@ -124,7 +124,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.startDebugging(undefined, undefined, this.isNoDebug());
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {

@@ -33,11 +33,8 @@ export function registerCommands(): void {
 			}
 
 			if (!folderUri) {
-				const contextService = accessor.get(IWorkspaceContextService);
-				const workspace = contextService.getWorkspace();
-				if (workspace && workspace.roots.length > 0) {
-					folderUri = workspace.roots[0];
-				}
+				const selectedLaunch = debugService.getConfigurationManager().selectedLaunch;
+				folderUri = selectedLaunch ? selectedLaunch.workspaceUri : undefined;
 			}
 
 			if (typeof configurationOrName === 'string') {
