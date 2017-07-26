@@ -457,20 +457,22 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				properties: {
 					'id': {
 						type: 'string',
-						description: nls.localize('workspaceConfig.id', "Unique workspace id"),
+						description: nls.localize('workspaceConfig.id.description', "Workspace Identifier. Used for storing internal workspace state, which can be lost on changing."),
 						minLength: 1
 					},
 					'folders': {
 						minItems: 1,
 						uniqueItems: true,
+						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `file:///root/folderA`"),
 						items: {
-							type: 'string'
+							type: 'string',
+							pattern: '^file:///'
 						}
 					},
 					'settings': {
 						type: 'object',
 						default: {},
-						description: nls.localize('workspaceSettings.description', "Configure workspace settings"),
+						description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 						$ref: schemaId
 					}
 				}
