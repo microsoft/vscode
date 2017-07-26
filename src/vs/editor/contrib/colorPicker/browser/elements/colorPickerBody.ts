@@ -105,7 +105,6 @@ export class ColorPickerBody extends Disposable {
 		}
 		const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
 		const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
-		const initialColorModel = this.model.opaqueFormatter;
 
 		// Update slider position if clicked on a strip itself
 		if (e.target === this.hueStrip || e.target === this.opacityStrip) {
@@ -114,7 +113,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = () => {
 			if (slider === this.hueSlider) {
-				this.widget.model.hue = this.calculateHueRGB(slider);
+				this.widget.model.hue = this.calculateHueColor(slider);
 			} else if (slider === this.opacitySlider) {
 				this.widget.model.opacity = this.calculateOpacity(slider);
 			}
@@ -141,11 +140,6 @@ export class ColorPickerBody extends Disposable {
 			const mouseDelta = mouseMoveData.posy - initialMousePosition;
 			slider.top = initialSliderTop + mouseDelta;
 			updateModel();
-
-			// Change back from RGBA to HEX if opacity touched
-			if (this.model.opaqueFormatter !== initialColorModel && this.model.opacity === 1) {
-				this.model.opaqueFormatter = initialColorModel;
-			}
 		}, () => {
 			strip.style.cursor = '-webkit-grab';
 		});
@@ -163,6 +157,7 @@ export class ColorPickerBody extends Disposable {
 		dom.append(this.opacityStrip, this.opacityOverlay);
 
 		this.opacitySlider = new Slider(this.opacityStrip);
+		this.opacitySlider.top = this.model.opacity ? this.opacityStrip.offsetHeight * this.model.opacity : 0;
 		dom.append(this.opacityStrip, this.opacitySlider.domNode);
 	}
 
@@ -171,10 +166,11 @@ export class ColorPickerBody extends Disposable {
 		dom.append(this.domNode, this.hueStrip);
 
 		this.hueSlider = new Slider(this.hueStrip);
+		this.hueSlider.top = this.hueStrip.offsetHeight * (this.calculateHueValue(this.model.color) / 360);
 		dom.append(this.hueStrip, this.hueSlider.domNode);
 	}
 
-	private calculateHueRGB(slider: Slider): Color {
+	private calculateHueColor(slider: Slider): Color {
 		const hueNormalizedHeight = this.hueStrip.offsetHeight - slider.domNode.offsetHeight;
 		const proportion = 1 - ((hueNormalizedHeight - slider.top) / hueNormalizedHeight);
 
@@ -209,6 +205,34 @@ export class ColorPickerBody extends Disposable {
 
 		return Color.fromRGBA(new RGBA(r, g, b));
 	}
+
+	private calculateHueValue(color: Color): number {
+		const c = color.toRGBA();
+		const red = c.r / 255;
+		const green = c.g / 255;
+		const blue = c.b / 255;
+
+		const max = Math.max(red, green, blue);
+		const min = Math.min(red, green, blue);
+		const delta = (max - min);
+
+		let hue;
+		if (red === max) {
+			hue = green - blue / delta;
+		} else if (green === max) {
+			hue = 2.0 + (blue - red) / delta;
+		} else {
+			hue = 4.0 + (red - green) / delta;
+		}
+
+		hue *= 60;
+		if (hue < 0) {
+			hue += 360;
+		}
+
+		return hue;
+	}
+
 
 	private calculateOpacity(slider: Slider): number {
 		const opacityNormalizedHeight = this.opacityStrip.offsetHeight - slider.domNode.offsetHeight;
