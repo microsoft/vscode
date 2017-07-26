@@ -673,6 +673,7 @@
     }
   },
   "dependencies": {
+    "parse-color": "^1.0.0",
     "vscode-languageclient": "^3.2.0",
     "vscode-nls": "^2.0.2"
   },

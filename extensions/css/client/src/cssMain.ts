@@ -5,6 +5,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as parse from 'parse-color';
 
 import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, CancellationToken, TextDocument, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
@@ -24,14 +25,23 @@ class ColorProvider implements DocumentColorProvider {
 	async provideDocumentColors(document: TextDocument, token: CancellationToken): Promise<ColorInfo[]> {
 		const ranges = await this.client.sendRequest(ColorSymbolRequest.type, document.uri.toString());
 
-		return ranges.map(r => {
+		return ranges.reduce((result, r) => {
 			const range = this.client.protocol2CodeConverter.asRange(r);
-			const color = Color.fromHex('#000000');
+			const value = document.getText(range);
+			const parsedColor = parse(value);
+
+			if (!parsedColor || !parsedColor.rgba) {
+				return result;
+			}
+
+			const [red, green, blue, alpha] = parsedColor.rgba;
+			const color = new Color(red, green, blue, alpha);
 			const format = '#{red:X}{green:X}{blue:X}';
 			const availableFormats = [format];
 
-			return new ColorInfo(range, color, format, availableFormats);
-		});
+			result.push(new ColorInfo(range, color, format, availableFormats));
+			return result;
+		}, []);
 	}
 }
 
