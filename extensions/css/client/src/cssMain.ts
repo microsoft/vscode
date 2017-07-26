@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, CancellationToken, TextDocument, ProviderResult, ColorInfo } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, CancellationToken, TextDocument, ProviderResult, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -15,6 +15,24 @@ let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+}
+
+class ColorProvider implements DocumentColorProvider {
+
+	constructor(private client: LanguageClient) { }
+
+	async provideDocumentColors(document: TextDocument, token: CancellationToken): Promise<ColorInfo[]> {
+		const ranges = await this.client.sendRequest(ColorSymbolRequest.type, document.uri.toString());
+
+		return ranges.map(r => {
+			const range = this.client.protocol2CodeConverter.asRange(r);
+			const color = Color.fromHex('#000000');
+			const format = '#{red:X}{green:X}{blue:X}';
+			const availableFormats = [format];
+
+			return new ColorInfo(range, color, format, availableFormats);
+		});
+	}
 }
 
 // this method is called when vs code is activated
@@ -58,6 +76,10 @@ export function activate(context: ExtensionContext) {
 		let isDecoratorEnabled = (languageId: string) => {
 			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
 		};
+
+		const colorProvider = new ColorProvider(client);
+		context.subscriptions.push(languages.registerColorProvider('css', colorProvider));
+
 		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
 
