@@ -107,6 +107,7 @@ const AssetType = {
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
+	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
 };
 
 const PropertyType = {
@@ -195,6 +196,25 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset {
 	const result = version.files.filter(f => f.assetType === type)[0];
 
+	if (type === AssetType.Repository) {
+		const results = version.properties.filter(p => p.key === type);
+		const gitRegExp = new RegExp( '((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+
+		const uri = results.filter(r => gitRegExp.test(r.value))[0];
+		if (!uri) {
+			return {
+				uri: null,
+				fallbackUri: null
+			};
+		}
+
+		return {
+			uri: uri.value,
+			fallbackUri: uri.value,
+		};
+
+	}
+
 	if (!result) {
 		if (type === AssetType.Icon) {
 			const uri = require.toUrl('./media/defaultIcon.png');
@@ -236,7 +256,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		changelog: getVersionAsset(version, AssetType.Changelog),
 		download: getVersionAsset(version, AssetType.VSIX),
 		icon: getVersionAsset(version, AssetType.Icon),
-		license: getVersionAsset(version, AssetType.License)
+		license: getVersionAsset(version, AssetType.License),
+		repository: getVersionAsset(version, AssetType.Repository),
 	};
 
 	return {

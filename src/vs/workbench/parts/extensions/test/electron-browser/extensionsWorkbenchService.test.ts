@@ -996,7 +996,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 		icon: null,
 		license: null,
 		manifest: null,
-		readme: null
+		readme: null,
+		repository: null
 	};
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
