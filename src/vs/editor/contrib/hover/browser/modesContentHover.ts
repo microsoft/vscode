@@ -14,7 +14,7 @@ import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/ope
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColorFormat } from 'vs/editor/common/modes';
+import { HoverProviderRegistry, Hover, IColor, IColorFormat } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
@@ -26,13 +26,13 @@ import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPic
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { isColorDecorationOptions } from 'vs/editor/contrib/colorPicker/common/color';
 import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 
 class ColorHover {
 
 	constructor(
 		public readonly range: IRange,
-		public readonly color: Color,
+		public readonly color: IColor,
 		public readonly format: IColorFormat,
 		public readonly availableFormats: IColorFormat[]
 	) { }
@@ -103,7 +103,6 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			const extraOptions = options && options.extraOptions;
 
 			if (isColorDecorationOptions(extraOptions)) {
-				console.log('found color!');
 				const { color, format, availableFormats } = extraOptions;
 				return new ColorHover(range, color, format, availableFormats);
 			} else {
@@ -339,7 +338,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					});
 				}
 
-				const model = new ColorPickerModel(msg.color.toRGBA().toString(), msg.color, opaqueFormatter, transparentFormatter, availableFormatters, this._editor.getModel(), msg.range);
+				const { red, green, blue, alpha } = msg.color;
+				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
+				const color = Color.fromRGBA(rgba);
+
+				const model = new ColorPickerModel(rgba.toString(), color, opaqueFormatter, transparentFormatter, availableFormatters, this._editor.getModel(), msg.range);
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 

@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorFormat } from 'vs/editor/common/modes';
-import { Color } from 'vs/base/common/color';
+import { IColor, IColorFormat } from 'vs/editor/common/modes';
 
 export interface IColorDecorationExtraOptions {
-	readonly color: Color;
+	readonly color: IColor;
 	readonly format: IColorFormat;
 	readonly availableFormats: IColorFormat[];
 }

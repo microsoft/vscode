@@ -653,21 +653,67 @@ export interface LinkProvider {
 }
 
 /**
- * A color inside the editor.
+ * A color in RGBA format.
  */
-export type IColorFormat = string | { opaque: string, transparent: string };
-export interface IColorInfo {
-	color: Color;
-	format: IColorFormat;
-	availableFormats: IColorFormat[];
-	range: IRange;
-}
-/**
- * A provider of colors.
- */
-export interface ColorProvider {
+export interface IColor {
 
-	provideColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorInfo[] | Thenable<IColorInfo[]>;
+	/**
+	 * The red component in the range [0-1].
+	 */
+	readonly red: number;
+
+	/**
+	 * The green component in the range [0-1].
+	 */
+	readonly green: number;
+
+	/**
+	 * The blue component in the range [0-1].
+	 */
+	readonly blue: number;
+
+	/**
+	 * The alpha component in the range [0-1].
+	 */
+	readonly alpha: number;
+}
+
+// TODO@joao TODO@michel can we use a formatter here?
+export type IColorFormat = string | { opaque: string, transparent: string };
+
+/**
+ * A color range is a range in a text model which represents a color.
+ */
+export interface IColorRange {
+
+	/**
+	 * The range within the model.
+	 */
+	range: IRange;
+
+	/**
+	 * The color represented in this range.
+	 */
+	color: IColor;
+
+	// TODO@joao TODO@michel can we drop this?
+	format: IColorFormat;
+
+	/**
+	 * The available formats for this specific color.
+	 */
+	availableFormats: IColorFormat[];
+}
+
+/**
+ * A provider of colors for editor models.
+ */
+export interface ColorRangeProvider {
+
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
 }
 
 export interface IResourceEdit {
@@ -786,7 +832,7 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
 /**
  * @internal
  */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<ColorProvider>();
+export const ColorProviderRegistry = new LanguageFeatureRegistry<ColorRangeProvider>();
 
 /**
  * @internal

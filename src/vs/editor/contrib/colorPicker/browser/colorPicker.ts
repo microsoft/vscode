@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ColorProviderRegistry, IColorInfo } from 'vs/editor/common/modes';
+import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { getColors } from 'vs/editor/contrib/colorPicker/common/colorPicker';
 import { IRange } from 'vs/editor/common/core/range';
@@ -100,7 +100,7 @@ export class ColorPicker implements IEditorContribution {
 		}
 	}
 
-	private updateDecorations(colorInfos: IColorInfo[]): void {
+	private updateDecorations(colorInfos: IColorRange[]): void {
 		this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			let newDecorations: IModelDeltaDecoration[] = [];
 

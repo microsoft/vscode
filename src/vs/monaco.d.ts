@@ -4788,25 +4788,59 @@ declare module monaco.languages {
 	}
 
 	/**
-	 * A color inside the editor.
+	 * A color in RGBA format.
 	 */
+	export interface IColor {
+		/**
+		 * The red component in the range [0-1].
+		 */
+		readonly red: number;
+		/**
+		 * The green component in the range [0-1].
+		 */
+		readonly green: number;
+		/**
+		 * The blue component in the range [0-1].
+		 */
+		readonly blue: number;
+		/**
+		 * The alpha component in the range [0-1].
+		 */
+		readonly alpha: number;
+	}
+
 	export type IColorFormat = string | {
 		opaque: string;
 		transparent: string;
 	};
 
-	export interface IColorInfo {
-		color: Color;
-		format: IColorFormat;
-		availableFormats: IColorFormat[];
+	/**
+	 * A color range is a range in a text model which represents a color.
+	 */
+	export interface IColorRange {
+		/**
+		 * The range within the model.
+		 */
 		range: IRange;
+		/**
+		 * The color represented in this range.
+		 */
+		color: IColor;
+		format: IColorFormat;
+		/**
+		 * The available formats used in the model to stringify the color.
+		 */
+		availableFormats: IColorFormat[];
 	}
 
 	/**
-	 * A provider of colors.
+	 * A provider of colors for editor models.
 	 */
-	export interface ColorProvider {
-		provideColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInfo[] | Thenable<IColorInfo[]>;
+	export interface ColorRangeProvider {
+		/**
+		 * Provides the color ranges for a specific model.
+		 */
+		provideColorRanges(model: editor.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
 	}
 
 	export interface IResourceEdit {
