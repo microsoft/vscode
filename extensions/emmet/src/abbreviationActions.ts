@@ -28,7 +28,9 @@ export function wrapWithAbbreviation(args) {
 	const editor = vscode.window.activeTextEditor;
 	const newLine = editor.document.eol === vscode.EndOfLine.LF ? '\n' : '\r\n';
 
-	vscode.window.showInputBox({ prompt: 'Enter Abbreviation' }).then(abbreviation => {
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
+
+	return abbreviationPromise.then(abbreviation => {
 		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }
 
 		let expandAbbrList: ExpandAbbreviationInput[] = [];
@@ -78,7 +80,7 @@ export function wrapWithAbbreviation(args) {
 			});
 		}
 
-		expandAbbreviationInRange(editor, expandAbbrList, true);
+		return expandAbbreviationInRange(editor, expandAbbrList, true);
 	});
 }
 

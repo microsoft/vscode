@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandAbbreviation } from '../abbreviationActions';
+import { expandAbbreviation, wrapWithAbbreviation } from '../abbreviationActions';
 
 const cssContents = `
 .boo {
@@ -18,17 +18,6 @@ const cssContents = `
 .boo .hoo {
 	margin: 10px;
 	ind
-}
-`;
-
-const scssContents = `
-.boo {
-	margin: 20px 10px;
-	background-image: url('tryme.png');
-
-	.boo .hoo {
-		margin: 10px;
-	}
 }
 `;
 
@@ -49,6 +38,13 @@ const htmlContents = `
 		}
 	</style>
 </body>
+`;
+
+const htmlContentsForWrapTests = `
+<ul class="nav main">
+	<li class="item1">img</li>
+	<li class="item2">$hithere</li>
+</ul>
 `;
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
@@ -116,6 +112,80 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	});
 });
 
+suite('Tests for Wrap with Abbreviations', () => {
+	teardown(closeAllEditors);
+
+	test('Wrap different text with block element using multi cursor', () => {
+		const expectedContents = `
+<ul class="nav main">
+	<div>
+		<li class="item1">img</li>
+	</div>
+	<div>
+		<li class="item2">$hithere</li>
+	</div>
+</ul>
+`;
+		return testWrapWithAbbreviation([new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6)], 'div', expectedContents);
+	});
+
+	test('Wrap text with inline element', () => {
+		const expectedContents = `
+<ul class="nav main">
+	<span><li class="item1">img</li></span>
+	<li class="item2">$hithere</li>
+</ul>
+`;
+		return testWrapWithAbbreviation([new Selection(2, 6, 2, 6)], 'span', expectedContents);
+
+
+	});
+
+	test('Wrap text with snippet', () => {
+		const expectedContents = `
+<ul class="nav main">
+	<a href=""><li class="item1">img</li></a>
+	<li class="item2">$hithere</li>
+</ul>
+`;
+		return testWrapWithAbbreviation([new Selection(2, 6, 2, 6)], 'a', expectedContents);
+
+	});
+});
+
+test('Wrap text with abbreviation that will expand to multi line', () => {
+	const expectedContents = `
+<ul class="nav main">
+	<ul>
+		<li>
+			<li class="item1">img</li>
+		</li>
+	</ul>
+	<li class="item2">$hithere</li>
+</ul>
+`;
+	return testWrapWithAbbreviation([new Selection(2, 6, 2, 6)], 'ul>li', expectedContents);
+
+});
+
+test('Wrap text with abbreviation with repeaters', () => {
+	const expectedContents = `
+<ul class="nav main">
+	<ul>
+		<li></li>
+		<li>
+			<li class="item1">img</li>
+		</li>
+	</ul>
+	<li class="item2">$hithere</li>
+</ul>
+`;
+	return testWrapWithAbbreviation([new Selection(2, 6, 2, 6)], 'ul>li*2', expectedContents);
+
+});
+	
+});
+
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
@@ -134,3 +204,12 @@ function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, 
 	});
 }
 
+function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string): Thenable<any> {
+	return withRandomFileEditor(htmlContentsForWrapTests, 'html', (editor, doc) => {
+		editor.selections = selections;
+		return wrapWithAbbreviation({ abbreviation: abbreviation }).then(() => {
+			assert.equal(editor.document.getText(), expectedContents);
+			return Promise.resolve();
+		});
+	});
+}
