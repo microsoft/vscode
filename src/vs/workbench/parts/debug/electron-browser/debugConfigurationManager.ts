@@ -16,6 +16,7 @@ import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -229,11 +230,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		this.adapters = [];
 		this.toDispose = [];
-		this.registerListeners();
+		this.registerListeners(lifecycleService);
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
@@ -259,7 +261,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	private registerListeners(): void {
+	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
@@ -312,6 +314,8 @@ export class ConfigurationManager implements IConfigurationManager {
 				this.selectConfiguration(this.selectedLaunch);
 			}
 		}));
+
+		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
 	}
 
 	private initLaunches(): void {
@@ -356,13 +360,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			if (this._mru.length > MRU_SIZE) {
 				this._mru.pop();
 			}
-			this.storageService.store(DEBUG_CONFIG_MRU, JSON.stringify(this._mru.map(entry => ({ name: entry.name, uri: entry.launch.uri }))), StorageScope.WORKSPACE);
 		}
 
-		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
-		if (launch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, launch.workspaceUri.toString(), StorageScope.WORKSPACE);
-		}
 		this._onDidSelectConfigurationName.fire();
 	}
 
@@ -424,6 +423,14 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 			return undefined;
 		});
+	}
+
+	private store(): void {
+		this.storageService.store(DEBUG_CONFIG_MRU, JSON.stringify(this._mru.map(entry => ({ name: entry.name, uri: entry.launch.uri }))), StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
+		if (this._selectedLaunch) {
+			this.storageService.store(DEBUG_SELECTED_ROOT, this._selectedLaunch.workspaceUri.toString(), StorageScope.WORKSPACE);
+		}
 	}
 
 	public dispose(): void {
