@@ -46,7 +46,6 @@ export class ColorPickerModel {
 
 		this.originalColor = originalColor;
 		this._opaqueFormatter = opaqueFormatter;
-		this.transparentFormatter = transparentFormatter;
 		this.colorFormatters = availableFormatters;
 		this.color = color;
 		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
@@ -60,7 +59,7 @@ export class ColorPickerModel {
 		}
 
 		const alpha = this.color.toRGBA().a;
-		if (!this._opacity && alpha !== 255) {
+		if (!this._opacity) {
 			this._opacity = alpha / 255;
 		}
 
@@ -129,18 +128,6 @@ export class ColorPickerModel {
 		return this._opacity;
 	}
 
-	public set transparentFormatter(formatter: ColorFormatter) {
-		this._transparentFormatter = formatter;
-	}
-
-	public get transparentFormatter(): ColorFormatter {
-		if (this._transparentFormatter) {
-			return this._transparentFormatter;
-		}
-
-		return this._opaqueFormatter;
-	}
-
 	public nextColorMode() {
 		this._colorModelIndex++;
 		if (this._colorModelIndex === this.colorFormatters.length) {
@@ -149,10 +136,10 @@ export class ColorPickerModel {
 
 		const formatter = this.colorFormatters[this._colorModelIndex];
 		if (isAdvancedFormatter(formatter)) {
-			this.transparentFormatter = formatter.transparentFormatter;
+			this._transparentFormatter = formatter.transparentFormatter;
 			this._opaqueFormatter = formatter.opaqueFormatter;
-		} else if (this._opacity === 1) {
-			this.transparentFormatter = null;
+		} else if (!this._transparentFormatter || this._opacity === 1) {
+			this._transparentFormatter = null;
 			this._opaqueFormatter = formatter;
 		} else {
 			this.nextColorMode();

@@ -157,7 +157,7 @@ export class ColorPickerBody extends Disposable {
 		dom.append(this.opacityStrip, this.opacityOverlay);
 
 		this.opacitySlider = new Slider(this.opacityStrip);
-		this.opacitySlider.top = this.model.opacity ? this.opacityStrip.offsetHeight * this.model.opacity : 0;
+		this.opacitySlider.top = this.model.opacity === 1 ? 0 : this.opacityStrip.offsetHeight * this.model.opacity;
 		dom.append(this.opacityStrip, this.opacitySlider.domNode);
 	}
 
