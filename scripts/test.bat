@@ -27,6 +27,8 @@ popd
 
 endlocal
 
+echo 'errorlevel'
+echo %errorlevel%
 if %errorlevel% == 255 set errorlevel=0
 
 exit /b %errorlevel%
