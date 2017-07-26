@@ -442,7 +442,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
-		this.lastFocusedEditor = this.editablePreferencesEditor;
 
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
 			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
@@ -512,6 +511,7 @@ class SideBySidePreferencesWidget extends Widget {
 				this.editablePreferencesEditor.create(new Builder(this.editablePreferencesEditorContainer));
 				this.editablePreferencesEditor.setVisible(true);
 				(<CodeEditor>this.editablePreferencesEditor.getControl()).onDidFocusEditor(() => this.lastFocusedEditor = this.editablePreferencesEditor);
+				this.lastFocusedEditor = this.editablePreferencesEditor;
 				return editor;
 			});
 	}
