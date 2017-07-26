@@ -42,7 +42,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 							}
 						}
 					}
-					if (key !== 'foreground' && key !== 'background') {
+					if (key !== 'foreground' && key !== 'background' && key !== 'fontStyle') {
 						delete settings[key];
 					}
 				}
@@ -66,7 +66,7 @@ addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
 addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
-addSettingMapping('caret', editorColorRegistry.editorCursor);
+addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
 addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
 

@@ -286,7 +286,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 									: this._editor.getModel().getLanguageIdentifier().language;
 
 								return this._modeService.getOrCreateMode(modeId).then(_ => {
-									return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+									return tokenizeToString(value, modeId);
 								});
 							}
 						});

@@ -21,5 +21,5 @@
 	"noFolderWorkspaceDebugError": "O arquivo ativo não pode ser depurado. Certifique-se de que ele está salvo no disco e que tem uma extensão de depuração instalada para esse tipo de arquivo.",
 	"NewLaunchConfig": "Por favor, configure o arquivo de configuração de lançamento para seu aplicativo. {0}",
 	"DebugTaskNotFound": "Não foi possível encontrar o preLaunchTask '{0}'.",
-	"differentTaskRunning": "Há uma tarefa {0} sendo executada. Não pode executar a tarefa de pré-lançamento {1}."
+	"differentTaskRunning": "A tarefa '{0}' já está em execução. Não pode executar a tarefa de pré-lançamento '{1}'."
 }

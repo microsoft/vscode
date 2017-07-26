@@ -7,7 +7,7 @@
         api: [],
         css-less-sass: [],
         debug: [ weinand ],
-        editor: [],
+        editor: [ rebornix ],
         editor-brackets: [],
         editor-clipboard: [],
         editor-colors: [],
@@ -30,7 +30,7 @@
         i18n: [],
         install-update: [],
         integrated-terminal: [ Tyriar ],
-        javascript: [],
+        javascript: [ mjbvz ],
         json: [],
         languages basic: [],
         markdown: [],
@@ -39,7 +39,7 @@
         search: [ roblourens ],
         snippets: [ jrieken ],
         tasks: [],
-        typescript: [],
-        workbench: [ bpasero ],
+        typescript: [ mjbvz ],
+        workbench: [],
     }
 }

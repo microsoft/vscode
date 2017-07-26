@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "Önceki Arama Sonucuna Odakla",
 	"RemoveAction.label": "Kaldır",
 	"file.replaceAll.label": "Tümünü Değiştir",
-	"match.replace.label": "Değiştir",
-	"ConfigureGlobalExclusionsAction.label": "Ayarları Aç"
+	"match.replace.label": "Değiştir"
 }

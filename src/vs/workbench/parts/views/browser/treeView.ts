@@ -179,10 +179,12 @@ export class TreeView extends CollapsibleView {
 		}
 	}
 
-	private refresh(element?: ITreeItem): void {
-		element = element ? element : this.tree.getInput();
-		element.children = null;
-		this.tree.refresh(element);
+	private refresh(elements: ITreeItem[]): void {
+		elements = elements ? elements : [this.tree.getInput()];
+		for (const element of elements) {
+			element.children = null;
+		}
+		this.tree.refresh(elements);
 	}
 
 	dispose(): void {
@@ -314,6 +316,9 @@ class TreeController extends DefaultController {
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
+		event.preventDefault();
+		event.stopPropagation();
+
 		tree.setFocus(node);
 		const actions = this.menus.getResourceContextActions(node);
 		if (!actions.length) {

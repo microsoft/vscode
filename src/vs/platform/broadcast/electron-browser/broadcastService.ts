@@ -20,7 +20,7 @@ export interface IBroadcast {
 export interface IBroadcastService {
 	_serviceBrand: any;
 
-	broadcast(b: IBroadcast, target?: string): void;
+	broadcast(b: IBroadcast): void;
 
 	onBroadcast: Event<IBroadcast>;
 }
@@ -46,8 +46,8 @@ export class BroadcastService implements IBroadcastService {
 		return this._onBroadcast.event;
 	}
 
-	public broadcast(b: IBroadcast, target?: string): void {
-		ipc.send('vscode:broadcast', this.windowId, target, {
+	public broadcast(b: IBroadcast): void {
+		ipc.send('vscode:broadcast', this.windowId, {
 			channel: b.channel,
 			payload: b.payload
 		});

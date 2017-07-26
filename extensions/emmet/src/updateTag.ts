@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { getNode, parse, validate } from './util';
 
-export function updateTag(tagName: string) {
+export function updateTag(tagName: string): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!validate(false)) {
 		return;
@@ -22,7 +22,7 @@ export function updateTag(tagName: string) {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
 	});
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		rangesToUpdate.forEach(range => {
 			editBuilder.replace(range, tagName);
 		});

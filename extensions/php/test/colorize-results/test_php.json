@@ -550,7 +550,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -594,7 +605,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -638,7 +660,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -683,7 +716,7 @@
 	},
 	{
 		"c": ",",
-		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -737,7 +770,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -781,7 +825,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -825,7 +880,18 @@
 		}
 	},
 	{
-		"c": ", ",
+		"c": ",",
+		"t": "text.html.php meta.embedded.block.php source.php meta.array.php punctuation.separator.delimiter.php",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "text.html.php meta.embedded.block.php source.php meta.array.php",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

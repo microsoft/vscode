@@ -10,6 +10,5 @@
 	"copy": "복사",
 	"paste": "붙여넣기",
 	"selectAll": "모두 선택",
-	"confirmOpen": "{0}개의 폴더를 여시겠습니까?",
 	"confirmOpenButton": "열기(&&O)"
 }

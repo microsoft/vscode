@@ -62,6 +62,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
 	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
@@ -90,6 +91,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
+		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
 
@@ -123,6 +125,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public get onDidBreakpoint(): Event<DebugProtocol.BreakpointEvent> {
 		return this._onDidBreakpoint.event;
+	}
+
+	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+		return this._onDidCustomEvent.event;
 	}
 
 	public get onDidEvent(): Event<DebugProtocol.Event> {
@@ -209,6 +215,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
 			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
+		} else {
+			this._onDidCustomEvent.fire(event);
 		}
 
 		this._onDidEvent.fire(event);

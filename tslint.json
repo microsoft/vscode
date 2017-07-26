@@ -340,7 +340,7 @@
 					"**/vs/base/**",
 					"**/vs/platform/**",
 					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser}/**",
 					"vs/workbench/parts/files/common/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
@@ -355,7 +355,7 @@
 					"**/vs/base/**",
 					"**/vs/platform/**",
 					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,api,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser}/**",
 					"**/vs/workbench/services/**",
 					"*" // node modules
 				]

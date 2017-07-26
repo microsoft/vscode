@@ -10,10 +10,11 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from "vs/platform/windows/common/windows";
+import { mnemonicButtonLabel } from "vs/base/common/labels";
 
 export class MessageService extends WorkbenchMessageService implements IChoiceService {
 
@@ -84,7 +85,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	}
 
 	private showMessageBox(opts: Electron.ShowMessageBoxOptions): number {
-		opts.buttons = opts.buttons.map(button => this.mnemonicLabel(button));
+		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
 		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
 
 		if (opts.defaultId !== void 0) {
@@ -100,13 +101,5 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 		const result = this.windowService.showMessageBox(opts);
 		return isLinux ? opts.buttons.length - result - 1 : result;
-	}
-
-	private mnemonicLabel(label: string): string {
-		if (!isWindows) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
-		}
-
-		return label.replace(/&&/g, '&');
 	}
 }

@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "一个正则表达式，发出受监视任务开始执行(通过文件监视触发)的信号。",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "此属性已弃用。请改用观看属性。",
 	"LegacyProblemMatcherSchema.watchedEnd": "一个正则表达式，发出受监视任务结束执行的信号。",
-	"ProblemMatcherExtPoint": "提供问题匹配程序"
+	"NamedProblemMatcherSchema.name": "要引用的问题匹配程序的名称。",
+	"NamedProblemMatcherSchema.label": "问题匹配程序的人类可读标签。",
+	"ProblemMatcherExtPoint": "提供问题匹配程序",
+	"msCompile": "微软编译器问题",
+	"lessCompile": "Less 问题",
+	"gulp-tsc": "Gulp TSC 问题",
+	"jshint": "JSHint 问题",
+	"jshint-stylish": "JSHint stylish 问题",
+	"eslint-compact": "ESLint compact 问题",
+	"eslint-stylish": "ESLint stylish 问题",
+	"go": "Go 问题"
 }

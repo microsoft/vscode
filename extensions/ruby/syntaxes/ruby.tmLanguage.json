@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/ruby.tmbundle/commit/4e14bd0a8ffa98a242dc365fb1e26f14e8c5974c",
 	"comment": "\n\tTODO: unresolved issues\n\n\ttext:\n\t\"p <<end\n\tprint me!\n\tend\"\n\tsymptoms:\n\tnot recognized as a heredoc\n\tsolution:\n\tthere is no way to distinguish perfectly between the << operator and the start\n\tof a heredoc. Currently, we require assignment to recognize a heredoc. More\n\trefinement is possible.\n\t• Heredocs with indented terminators (<<-) are always distinguishable, however.\n\t• Nested heredocs are not really supportable at present\n\n\ttext:\n\tprint <<-'THERE' \n\tThis is single quoted. \n\tThe above used #{Time.now} \n\tTHERE \n\tsymtoms:\n\tFrom Programming Ruby p306; should be a non-interpolated heredoc.\n\t\n    text:\n    val?(a):p(b)\n    val?'a':'b'\n    symptoms:\n    ':p' is recognized as a symbol.. its 2 things ':' and 'p'.\n    :'b' has same problem.\n    solution:\n    ternary operator rule, precedence stuff, symbol rule.\n    but also consider 'a.b?(:c)' ??\n",
 	"fileTypes": [
 		"rb",
@@ -19,7 +20,6 @@
 		"ru",
 		"prawn",
 		"Cheffile",
-		"Gemfile",
 		"Guardfile",
 		"Hobofile",
 		"Vagrantfile",
@@ -39,9 +39,10 @@
 		"Matchfile",
 		"Scanfile",
 		"Snapfile",
-		"Gymfile"
+		"Gymfile",
+		"jb"
 	],
-	"firstLineMatch": "^#!/.*\\bruby|^#\\s+-\\*-\\s*ruby\\s*-\\*-",
+	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n(?:ruby[\\.\\d]*|macruby|rake|jruby|rbx|ruby_executable_hooks)\n(?:$|\\s)\n|\n# Modeline\n(?i:\n    # Emacs\n    -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    ruby\n    (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n    # Vim\n    (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)\n    (?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))\n    (?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*\n    [\\s:]\n    (?:filetype|ft|syntax)\\s*=\n    ruby\n    (?=\\s|:|$)\n)",
 	"keyEquivalent": "^~R",
 	"name": "Ruby",
 	"patterns": [
@@ -161,7 +162,7 @@
 			"name": "keyword.other.special-method.ruby"
 		},
 		{
-			"begin": "\\b(?<!\\.|::)(require|require_relative|gem)\\b",
+			"begin": "\\b(?<!\\.|::)(require|require_relative)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.other.special-method.ruby"
@@ -235,7 +236,7 @@
 			"name": "support.function.kernel.ruby"
 		},
 		{
-			"match": "\\b[A-Z]\\w*\\b",
+			"match": "\\b[_A-Z]\\w*\\b",
 			"name": "variable.other.constant.ruby"
 		},
 		{
@@ -610,6 +611,44 @@
 						},
 						{
 							"include": "text.html.basic"
+						},
+						{
+							"include": "#escaped_char"
+						}
+					]
+				}
+			]
+		},
+		{
+			"begin": "(?=(?><<[-~](\"?)((?:[_\\w]+_|)XML)\\b\\1))",
+			"comment": "Heredoc with embedded xml",
+			"end": "(?!\\G)",
+			"name": "meta.embedded.block.xml",
+			"patterns": [
+				{
+					"begin": "(?><<[-~](\"?)((?:[_\\w]+_|)XML)\\b\\1)",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.ruby"
+						}
+					},
+					"contentName": "text.xml",
+					"end": "\\s*\\2$\\n?",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.ruby"
+						}
+					},
+					"name": "string.unquoted.heredoc.ruby",
+					"patterns": [
+						{
+							"include": "#heredoc"
+						},
+						{
+							"include": "#interpolated_ruby"
+						},
+						{
+							"include": "text.xml"
 						},
 						{
 							"include": "#escaped_char"

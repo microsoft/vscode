@@ -16,7 +16,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -321,6 +321,19 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
+		},
+		'explorer.sortOrder': {
+			'type': 'string',
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
+			'default': SortOrderConfiguration.DEFAULT,
+			'enumDescriptions': [
+				nls.localize('sortOrder.default', 'Files and directories are sorted by their names, in alphabetical order. Directories are displayed before files.'),
+				nls.localize('sortOrder.mixed', 'Files and directories are sorted by their names, in alphabetical order. Files are interwoven with directories.'),
+				nls.localize('sortOrder.filesFirst', 'Files and directories are sorted by their names, in alphabetical order. Files are displayed before directories.'),
+				nls.localize('sortOrder.type', 'Files and directories are sorted by their extensions, in alphabetical order. Directories are displayed before files.'),
+				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
+			],
+			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories in the explorer.")
 		}
 	}
 });

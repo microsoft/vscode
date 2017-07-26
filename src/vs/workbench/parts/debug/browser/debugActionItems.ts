@@ -15,7 +15,7 @@ import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/acti
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -32,6 +32,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
+	private options: { name: string, launch: ILaunch }[];
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(
@@ -58,17 +59,16 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
-			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
-				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			if (e.selected === StartDebugActionItem.ADD_CONFIGURATION) {
+				this.selectBox.select(0);
 				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
 			} else {
-				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+				this.debugService.getConfigurationManager().selectConfiguration(this.options[e.index].launch, this.options[e.index].name);
 			}
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfiguration(configurationName => {
-			const manager = this.debugService.getConfigurationManager();
-			this.selectBox.select(manager.getConfigurationNames().indexOf(configurationName));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this.updateOptions();
 		}));
 	}
 
@@ -149,14 +149,23 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private updateOptions(): void {
-		const options = this.debugService.getConfigurationManager().getConfigurationNames();
-		if (options.length === 0) {
-			options.push(nls.localize('noConfigurations', "No Configurations"));
+		let selected = 0;
+		this.options = [];
+		this.debugService.getConfigurationManager().getLaunches().forEach(launch => {
+			launch.getConfigurationNames().forEach(name => {
+				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
+					selected = this.options.length;
+				}
+				this.options.push({ name, launch });
+			});
+		});
+		const selectOptions = this.options.map(o => o.name);
+		if (this.options.length === 0) {
+			selectOptions.push(nls.localize('noConfigurations', "No Configurations"));
 		}
-		const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
-		options.push(StartDebugActionItem.SEPARATOR);
-		options.push(StartDebugActionItem.ADD_CONFIGURATION);
-		this.selectBox.setOptions(options, selected, options.length - 2);
+		selectOptions.push(StartDebugActionItem.SEPARATOR);
+		selectOptions.push(StartDebugActionItem.ADD_CONFIGURATION);
+		this.selectBox.setOptions(selectOptions, selected, selectOptions.length - 2);
 	}
 }
 

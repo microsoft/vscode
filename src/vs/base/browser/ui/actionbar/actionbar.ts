@@ -32,6 +32,7 @@ export interface IActionItem extends IEventEmitter {
 
 export interface IBaseActionItemOptions {
 	draggable?: boolean;
+	isMenu?: boolean;
 }
 
 export class BaseActionItem extends EventEmitter implements IActionItem {
@@ -129,7 +130,19 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			setTimeout(() => this.onClick(e), 50);
+			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
+			// > Writing to the clipboard
+			// > You can use the "cut" and "copy" commands without any special
+			// permission if you are using them in a short-lived event handler
+			// for a user action (for example, a click handler).
+
+			// => to get the Copy and Paste context menu actions working on Firefox,
+			// there should be no timeout here
+			if (this.options && this.options.isMenu) {
+				this.onClick(e);
+			} else {
+				setTimeout(() => this.onClick(e), 50);
+			}
 		});
 
 		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
@@ -218,7 +231,6 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
-	isMenu?: boolean;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -435,12 +447,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		// Prevent native context menu on actions
-		$(this.domNode).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
-		});
-
 		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 
@@ -535,6 +541,12 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			const actionItemElement = document.createElement('li');
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
+
+			// Prevent native context menu on actions
+			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
+				e.preventDefault();
+				e.stopPropagation();
+			});
 
 			let item: IActionItem = null;
 
@@ -723,8 +735,8 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.selectBox.onDidSelect(selected => {
-			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
 		}));
 	}
 

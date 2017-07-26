@@ -26,7 +26,15 @@
 	"schema.indentationRules.increaseIndentPattern.flags": "increaseIndentPattern 的正则表达式标志。",
 	"schema.indentationRules.increaseIndentPattern.errorMessage": "必须匹配模式“/^([gimuy]+)$/”。",
 	"schema.indentationRules.decreaseIndentPattern": "如果一行文本匹配此模式，则之后所有内容都应被取消缩进一次（直到匹配其他规则）。",
+	"schema.indentationRules.decreaseIndentPattern.pattern": "decreaseIndentPattern 的正则表达式模式。",
+	"schema.indentationRules.decreaseIndentPattern.flags": "decreaseIndentPattern 的正则表达式标志。",
 	"schema.indentationRules.decreaseIndentPattern.errorMessage": "必须匹配模式“/^([gimuy]+)$/”。",
+	"schema.indentationRules.indentNextLinePattern": "如果某一行匹配此模式，那么仅此行之后的**下一行**应缩进一次。",
+	"schema.indentationRules.indentNextLinePattern.pattern": "indentNextLinePattern 的正则表达式模式。",
+	"schema.indentationRules.indentNextLinePattern.flags": "indentNextLinePattern 的正则表达式标志。",
 	"schema.indentationRules.indentNextLinePattern.errorMessage": "必须匹配模式“/^([gimuy]+)$/”。",
+	"schema.indentationRules.unIndentedLinePattern": "如果某一行匹配此模式，那么不应更改此行的缩进，且不应针对其他规则对其进行计算。",
+	"schema.indentationRules.unIndentedLinePattern.pattern": "unIndentedLinePattern 的正则表达式模式。",
+	"schema.indentationRules.unIndentedLinePattern.flags": "unIndentedLinePattern 的正则表达式标志。",
 	"schema.indentationRules.unIndentedLinePattern.errorMessage": "必须匹配模式“/^([gimuy]+)$/”。"
 }

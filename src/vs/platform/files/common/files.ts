@@ -520,7 +520,11 @@ export enum FileOperationResult {
 	FILE_INVALID_PATH
 }
 
-export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+// See https://github.com/Microsoft/vscode/issues/30180
+const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
+const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
+
+export const MAX_FILE_SIZE = (typeof process === 'object' ? (process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE) : WIN32_MAX_FILE_SIZE);
 
 export const AutoSaveConfiguration = {
 	OFF: 'off',
@@ -784,3 +788,9 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 45
 	}
 };
+
+export enum FileKind {
+	FILE,
+	FOLDER,
+	ROOT_FOLDER
+}

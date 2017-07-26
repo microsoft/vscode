@@ -36,8 +36,20 @@
         "url": "vscode://schemas/settings"
       },
       {
+        "fileMatch": "vscode://settings/workspaceSettings.json",
+        "url": "vscode://schemas/settings"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings"
+      },
+      {
+        "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/locale.json",

@@ -352,7 +352,8 @@ namespace Tasks {
 			group: task.group ? (task.group as types.TaskGroup).id : undefined,
 			command: command,
 			isBackground: !!task.isBackground,
-			problemMatchers: task.problemMatchers.slice()
+			problemMatchers: task.problemMatchers.slice(),
+			hasDefinedMatchers: (task as types.Task).hasDefinedMatchers
 		};
 		return result;
 	}

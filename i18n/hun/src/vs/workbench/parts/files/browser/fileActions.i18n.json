@@ -69,5 +69,7 @@
 	"emptyFileNameError": "Meg kell adni egy fájl vagy mappa nevét.",
 	"fileNameExistsError": "Már létezik **{0}** nevű fájl vagy mappa ezen a helyszínen. Adjon meg egy másik nevet!",
 	"invalidFileNameError": "A(z) **{0}** név nem érvényes fájl- vagy mappanév. Adjon meg egy másik nevet!",
-	"filePathTooLongError": "A(z) **{0}** név egy olyan elérési utat eredményez, ami túl hosszú. Adjon meg egy másik nevet!"
+	"filePathTooLongError": "A(z) **{0}** név egy olyan elérési utat eredményez, ami túl hosszú. Adjon meg egy másik nevet!",
+	"compareWithSaved": "Aktív fájl összehasonlítása a mentett változattal",
+	"modifiedLabel": "{0} (a lemezen) ↔ {1}"
 }

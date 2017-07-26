@@ -6,6 +6,5 @@
 {
 	"newWindow": "新建窗口",
 	"newWindowDesc": "打开一个新窗口",
-	"recentFolders": "最近的文件夹",
 	"folderDesc": "{0} {1}"
 }

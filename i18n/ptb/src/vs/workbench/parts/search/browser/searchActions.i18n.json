@@ -16,6 +16,5 @@
 	"FocusPreviousSearchResult.label": "Focalizar o Resultado da Pesquisa Anterior",
 	"RemoveAction.label": "Remover",
 	"file.replaceAll.label": "Substituir Tudo",
-	"match.replace.label": "Substituir",
-	"ConfigureGlobalExclusionsAction.label": "Abrir configurações"
+	"match.replace.label": "Substituir"
 }

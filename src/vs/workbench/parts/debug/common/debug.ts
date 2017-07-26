@@ -23,6 +23,7 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
+export const CONTEXT_IS_NODE_DEBUG_TYPE = new RawContextKey<boolean>('_isNodeDebugType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', undefined);
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -268,18 +269,12 @@ export interface IViewModel extends ITreeElement {
 	setSelectedExpression(expression: IExpression);
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 
-	selectedConfigurationName: string;
-	setSelectedConfigurationName(name: string): void;
-
 	isMultiProcessView(): boolean;
 
+	onDidFocusProcess: Event<IProcess | undefined>;
 	onDidFocusStackFrame: Event<IStackFrame>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
-	/**
-	 * Allows to register on change of selected debug configuration.
-	 */
-	onDidSelectConfiguration: Event<string>;
 }
 
 export interface IModel extends ITreeElement {
@@ -329,6 +324,7 @@ export interface IEnvConfig {
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
 	__restart?: any;
+	__sessionId?: string;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;
@@ -377,12 +373,55 @@ export interface IRawAdapter extends IRawEnvAdapter {
 }
 
 export interface IConfigurationManager {
+	/**
+	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 */
+	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
+	 * Returns null for no folder workspace. Otherwise returns a launch object corresponding to the selected debug configuration.
+	 */
+	selectedLaunch: ILaunch;
+
+	selectedName: string;
+
+	selectConfiguration(launch: ILaunch, name: string): void;
+
+	getLaunches(): ILaunch[];
+
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidSelectConfiguration: Event<void>;
+
+	/**
+	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
+	 * If no type is specified will try to automatically pick an adapter by looking at
+	 * the active editor language and matching it against the "languages" contribution of an adapter.
+	 */
+	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
+}
+
+export interface ILaunch {
+
+	/**
+	 * Resource pointing to the launch.json this object is wrapping.
+	 */
+	uri: uri;
+
+	workspaceUri: uri;
 
 	/**
 	 * Returns a configuration with the specified name.
 	 * Returns null if there is no configuration with the specified name.
 	 */
 	getConfiguration(name: string): IConfig;
+
+	/**
+	 * Returns a compound with the specified name.
+	 * Returns null if there is no compound with the specified name.
+	 */
+	getCompound(name: string): ICompound;
 
 	/**
 	 * Returns the names of all configurations and compounds.
@@ -394,32 +433,13 @@ export interface IConfigurationManager {
 	 * Returns the resolved configuration.
 	 * Replaces os specific values, system variables, interactive variables.
 	 */
-	resloveConfiguration(config: IConfig): TPromise<IConfig>;
+	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
-	/**
-	 * Returns a compound with the specified name.
-	 * Returns null if there is no compound with the specified name.
-	 */
-	getCompound(name: string): ICompound;
-
-	configFileUri: uri;
 
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
-
-	/**
-	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
-	 */
-	canSetBreakpointsIn(model: EditorIModel): boolean;
-
-	/**
-	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
-	 * If no type is specified will try to automatically pick an adapter by looking at
-	 * the active editor language and matching it against the "languages" contribution of an adapter.
-	 */
-	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 }
 
 // Debug service interfaces
@@ -440,9 +460,19 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
+	 * Allows to register on new process events.
+	 */
+	onDidNewProcess: Event<IProcess>;
+
+	/**
 	 * Allows to register on end process events.
 	 */
 	onDidEndProcess: Event<IProcess>;
+
+	/**
+	 * Allows to register on custom DAP events.
+	 */
+	onDidCustomEvent: Event<DebugProtocol.Event>;
 
 	/**
 	 * Gets the current configuration manager.
@@ -450,7 +480,7 @@ export interface IDebugService {
 	getConfigurationManager(): IConfigurationManager;
 
 	/**
-	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
+	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
 	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
 
@@ -530,16 +560,21 @@ export interface IDebugService {
 	removeWatchExpressions(id?: string): void;
 
 	/**
-	 * Starts debugging. If the configName is not passed uses the selected configuration in the debug dropdown.
+	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(configName?: string, noDebug?: boolean): TPromise<any>;
+	startDebugging(configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
 	createProcess(config: IConfig): TPromise<IProcess>;
+
+	/**
+	 * Find process by ID.
+	 */
+	findProcessByUUID(uuid: string): IProcess | null;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

@@ -165,7 +165,8 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// don't run the action when not enabled
 	if (!actionInstance.enabled) {
 		actionInstance.dispose();
-		return undefined;
+
+		return void 0;
 	}
 
 	const from = args && args.from || 'keybinding';

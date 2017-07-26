@@ -28,6 +28,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern. Erfordert TypeScript 2.3.0 oder höher.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für Vorlagenzeichenfolgen. Erfordert TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für JSX-Ausdrücke. Erfordert TypeScript >= 2.0.6.",
+	"format.insertSpaceAfterTypeAssertion": "Definiert die Verarbeitung von Leerzeichen nach Typassertionen in TypeScript. Erfordert TypeScript >= 2.4.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Definiert, ob eine öffnende geschweifte Klammer für Funktionen in eine neue Zeile eingefügt wird.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Definiert, ob eine öffnende geschweifte Klammer für Kontrollblöcke in eine neue Zeile eingefügt wird.",
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren.",
@@ -44,5 +45,7 @@
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
 	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
 	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
-	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n"
+	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n",
+	"typescript.problemMatchers.tsc.label": "TypeScript-Probleme",
+	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)"
 }

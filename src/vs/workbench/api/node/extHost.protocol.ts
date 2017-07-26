@@ -183,6 +183,7 @@ export interface ITextDocumentShowOptions {
 	position?: EditorPosition;
 	preserveFocus?: boolean;
 	pinned?: boolean;
+	selection?: IRange;
 }
 
 export abstract class MainThreadEditorsShape {
@@ -202,7 +203,7 @@ export abstract class MainThreadEditorsShape {
 
 export abstract class MainThreadTreeViewsShape {
 	$registerView(treeViewId: string): void { throw ni(); }
-	$refresh(treeViewId: string, treeItemHandle?: number): void { throw ni(); }
+	$refresh(treeViewId: string, treeItemHandles: number[]): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -262,7 +263,6 @@ export abstract class MainThreadTerminalServiceShape {
 	$hide(terminalId: number): void { throw ni(); }
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void { throw ni(); }
 	$show(terminalId: number, preserveFocus: boolean): void { throw ni(); }
-	$registerOnData(terminalId: number): void { throw ni(); }
 }
 
 export interface MyQuickPickItems extends IPickOpenEntry {
@@ -295,6 +295,8 @@ export abstract class MainThreadWorkspaceShape {
 	$cancelSearch(requestId: number): Thenable<boolean> { throw ni(); }
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> { throw ni(); }
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean> { throw ni(); }
+	$registerFileSystemProvider(handle: number, authority: string): void { throw ni(); }
+	$onFileSystemChange(handle: number, resource: URI): void { throw ni(); }
 }
 
 export abstract class MainThreadTaskShape {
@@ -346,8 +348,15 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
-	$createDebugSession(config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
+	$startDebugging(folderUri: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
+	$startDebugSession(folderUri: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
+}
+
+export abstract class MainThreadCredentialsShape {
+	$readSecret(service: string, account: string): Thenable<string | undefined> { throw ni(); }
+	$writeSecret(service: string, account: string, secret: string): Thenable<void> { throw ni(); }
+	$deleteSecret(service: string, account: string): Thenable<boolean> { throw ni(); }
 }
 
 // -- extension host
@@ -420,6 +429,8 @@ export abstract class ExtHostTreeViewsShape {
 
 export abstract class ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void { throw ni(); }
+	$resolveFile(handle: number, resource: URI): TPromise<string> { throw ni(); }
+	$storeFile(handle: number, resource: URI, content: string): TPromise<any> { throw ni(); }
 }
 
 export abstract class ExtHostExtensionServiceShape {
@@ -470,7 +481,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> { throw ni(); }
 	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
 	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> { throw ni(); }
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> { throw ni(); }
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
@@ -493,7 +504,6 @@ export abstract class ExtHostQuickOpenShape {
 export abstract class ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number): void { throw ni(); }
 	$acceptTerminalProcessId(id: number, processId: number): void { throw ni(); }
-	$acceptTerminalData(id: number, data: string): void { throw ni(); }
 }
 
 export abstract class ExtHostSCMShape {
@@ -508,7 +518,13 @@ export abstract class ExtHostTaskShape {
 }
 
 export abstract class ExtHostDebugServiceShape {
+	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void { throw ni(); }
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void { throw ni(); }
+	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void { throw ni(); }
+	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void { throw ni(); }
+}
+
+export abstract class ExtHostCredentialsShape {
 }
 
 // --- proxy identifiers
@@ -535,7 +551,8 @@ export const MainContext = {
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', MainThreadWorkspaceShape),
 	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService', MainProcessExtensionServiceShape),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', MainThreadSCMShape),
-	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape)
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask', MainThreadTaskShape),
+	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials', MainThreadCredentialsShape),
 };
 
 export const ExtHostContext = {
@@ -557,4 +574,5 @@ export const ExtHostContext = {
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ExtHostWorkspaceShape),
+	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials', ExtHostCredentialsShape),
 };

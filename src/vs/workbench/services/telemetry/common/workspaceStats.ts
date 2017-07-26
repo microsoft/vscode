@@ -13,7 +13,7 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IOptions } from 'vs/workbench/common/options';
+import { IWindowConfiguration } from "vs/platform/windows/common/windows";
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -144,10 +144,10 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
-	private getWorkspaceTags(workbenchOptions: IOptions): TPromise<Tags> {
+	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
-		const { filesToOpen, filesToCreate, filesToDiff } = workbenchOptions;
+		const { filesToOpen, filesToCreate, filesToDiff } = configuration;
 		tags['workbench.filesToOpen'] = filesToOpen && filesToOpen.length || undefined;
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
@@ -156,7 +156,7 @@ export class WorkspaceStats {
 		tags['workspace.roots'] = workspace ? workspace.roots.length : 0;
 		tags['workspace.empty'] = !workspace;
 
-		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(workbenchOptions);
+		const folders = workspace ? workspace.roots : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
 		if (folders && folders.length && this.fileService) {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
@@ -229,18 +229,18 @@ export class WorkspaceStats {
 		}
 	}
 
-	private findFolders(options: IOptions): URI[] {
-		const folder = this.findFolder(options);
+	private findFolders(configuration: IWindowConfiguration): URI[] {
+		const folder = this.findFolder(configuration);
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IOptions): URI {
+	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
 		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(filesToOpen[0].resource);
+			return this.parentURI(URI.file(filesToOpen[0].filePath));
 		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(filesToCreate[0].resource);
+			return this.parentURI(URI.file(filesToCreate[0].filePath));
 		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(filesToDiff[0].resource);
+			return this.parentURI(URI.file(filesToDiff[0].filePath));
 		}
 		return undefined;
 	}
@@ -251,8 +251,8 @@ export class WorkspaceStats {
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
 	}
 
-	public reportWorkspaceTags(workbenchOptions: IOptions): void {
-		this.getWorkspaceTags(workbenchOptions).then((tags) => {
+	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
+		this.getWorkspaceTags(configuration).then((tags) => {
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => onUnexpectedError(error));
 	}

@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
+import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -56,7 +57,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
@@ -93,7 +94,8 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 			location: ViewLocation.Explorer,
 			ctor: OpenEditorsView,
 			order: 0,
-			when: OpenEditorsVisibleCondition
+			when: OpenEditorsVisibleCondition,
+			canToggleVisibility: true
 		};
 	}
 
@@ -103,17 +105,19 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 			name: EmptyView.NAME,
 			location: ViewLocation.Explorer,
 			ctor: EmptyView,
-			order: 1
+			order: 1,
+			canToggleVisibility: true
 		};
 	}
 
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: ExplorerView.ID,
-			name: this.contextService.getWorkspace().name,
+			name: localize('folders', "Folders"),
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
-			order: 1
+			order: 1,
+			canToggleVisibility: true
 		};
 	}
 

@@ -136,17 +136,17 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 	hc: '#FFFFFF'
 }, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: null
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
-
-export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, nls.localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
@@ -154,11 +154,17 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_NO_FOLDER_BORDER = registerColor('statusBar.noFolderBorder', {
+	dark: STATUS_BAR_BORDER,
+	light: STATUS_BAR_BORDER,
+	hc: STATUS_BAR_BORDER
+}, nls.localize('statusBarNoFolderBorder', "Status bar border color separating to the sidebar and editor when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
 	dark: Color.white.transparent(0.18),
@@ -251,6 +257,12 @@ export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground'
 	light: SIDE_BAR_FOREGROUND,
 	hc: SIDE_BAR_FOREGROUND
 }, nls.localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
+
+export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
+	dark: Color.white.transparent(0.12),
+	light: Color.white.transparent(0.12),
+	hc: Color.white.transparent(0.12),
+}, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
 	dark: Color.fromHex('#808080').transparent(0.2),

@@ -18,7 +18,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -79,10 +79,9 @@ export class ExplorerView extends CollapsibleView {
 	private fileEventsFilter: ResourceGlobMatcher;
 
 	private shouldRefresh: boolean;
-
 	private autoReveal: boolean;
-
-	private settings: any;
+	private sortOrder: SortOrder;
+	private settings: object;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -136,15 +135,14 @@ export class ExplorerView extends CollapsibleView {
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
 		setHeader();
 
 		super.renderHeader(container);
 	}
 
 	public get name(): string {
-		const workspace = this.contextService.getWorkspace();
-		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
+		return this.contextService.getWorkspace().name;
 	}
 
 	public set name(value) {
@@ -261,6 +259,12 @@ export class ExplorerView extends CollapsibleView {
 			needsRefresh = this.filter.updateConfiguration();
 		}
 
+		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';
+		if (this.sortOrder !== configSortOrder) {
+			this.sortOrder = configSortOrder;
+			needsRefresh = true;
+		}
+
 		// Refresh viewer as needed
 		if (refresh && needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
@@ -339,7 +343,8 @@ export class ExplorerView extends CollapsibleView {
 					this.openFocusedElement();
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 
@@ -375,7 +380,7 @@ export class ExplorerView extends CollapsibleView {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		const sorter = new FileSorter();
+		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
@@ -580,14 +585,12 @@ export class ExplorerView extends CollapsibleView {
 		// Filter to the ones we care
 		e = this.filterFileEvents(e);
 
-		// We only ever refresh from files/folders that got added or deleted
-		if (e.gotAdded() || e.gotDeleted()) {
-			const added = e.getAdded();
-			const deleted = e.getDeleted();
+		if (!this.isCreated) {
+			return false;
+		}
 
-			if (!this.isCreated) {
-				return false;
-			}
+		if (e.gotAdded()) {
+			const added = e.getAdded();
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
 			const ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
@@ -616,6 +619,10 @@ export class ExplorerView extends CollapsibleView {
 					ignoredPaths[parent] = true;
 				}
 			}
+		}
+
+		if (e.gotDeleted()) {
+			const deleted = e.getDeleted();
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
 			for (let j = 0; j < deleted.length; j++) {
@@ -630,15 +637,27 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
+		if (this.sortOrder === SortOrderConfiguration.MODIFIED && e.gotUpdated()) {
+			const updated = e.getUpdated();
+
+			// Check updated: Refresh if updated file/folder part of resolved root
+			for (let j = 0; j < updated.length; j++) {
+				const upd = updated[j];
+				if (!this.contextService.isInsideWorkspace(upd.resource)) {
+					continue; // out of workspace file
+				}
+
+				if (this.model.findClosest(upd.resource)) {
+					return true;
+				}
+			}
+		}
+
 		return false;
 	}
 
 	private filterFileEvents(e: FileChangesEvent): FileChangesEvent {
 		return new FileChangesEvent(e.changes.filter(change => {
-			if (change.type === FileChangeType.UPDATED) {
-				return false; // we only want added / removed
-			}
-
 			if (!this.contextService.isInsideWorkspace(change.resource)) {
 				return false; // exclude changes for resources outside of workspace
 			}
@@ -703,10 +722,12 @@ export class ExplorerView extends CollapsibleView {
 			const rootAndTargets = { root, resource: root.resource, options: { resolveTo: [] } };
 			targetsToResolve.push(rootAndTargets);
 		});
-		let targetsToExpand: URI[] = [];
 
+		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		} else if (this.contextService.hasFolderWorkspace() || (this.contextService.hasMultiFolderWorkspace() && this.model.roots.length === 1)) {
+			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace and multi folder workspace with only 1 root
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -756,7 +777,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.model.roots.length === 1 ? this.model.roots[0] : this.model;
+			const input = this.contextService.hasFolderWorkspace() ? this.model.roots[0] : this.model;
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
@@ -767,10 +788,10 @@ export class ExplorerView extends CollapsibleView {
 			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
 				targetsToExpand.map(expand => this.model.findClosest(expand));
 
-			// Display roots only when there is more than 1 root
+			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
 			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
-		}, (e: any) => TPromise.wrapError(e));
+		}, e => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
@@ -845,7 +866,7 @@ export class ExplorerView extends CollapsibleView {
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, (e: any) => this.messageService.show(Severity.Error, e));
+		}, e => this.messageService.show(Severity.Error, e));
 	}
 
 	private hasSelection(resource: URI): FileStat {
