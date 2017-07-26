@@ -149,14 +149,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		this.executeOnSelect = [];
 		const options = [];
 		const launches = this.debugService.getConfigurationManager().getLaunches();
-		launches.forEach(launch => {
-			launch.getConfigurationNames().forEach(name => {
-				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
-					selected = this.executeOnSelect.length;
-				}
-				this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(launch, name));
-				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
-			});
+		this.debugService.getConfigurationManager().mruConfigs.forEach(entry => {
+			if (entry.name === this.debugService.getConfigurationManager().selectedName && entry.launch === this.debugService.getConfigurationManager().selectedLaunch) {
+				selected = this.executeOnSelect.length;
+			}
+			this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(entry.launch, entry.name));
+			options.push(launches.length > 1 ? `${entry.name} (${entry.launch.name})` : entry.name);
 		});
 
 		if (options.length === 0) {

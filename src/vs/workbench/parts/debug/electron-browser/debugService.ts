@@ -659,7 +659,7 @@ export class DebugService implements debug.IDebugService {
 					config = configOrName;
 				}
 				if (launch) {
-					manager.selectConfiguration(launch, typeof configOrName === 'string' ? configOrName : undefined);
+					manager.selectConfiguration(launch, typeof configOrName === 'string' ? configOrName : undefined, true);
 				}
 
 				if (compound) {

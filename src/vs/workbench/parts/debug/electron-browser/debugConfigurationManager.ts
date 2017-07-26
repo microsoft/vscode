@@ -206,6 +206,8 @@ const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONC
 jsonRegistry.registerSchema(schemaId, schema);
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
+const DEBUG_CONFIG_MRU = 'debug.configmru';
+const MRU_SIZE = 5;
 
 export class ConfigurationManager implements IConfigurationManager {
 	private adapters: Adapter[];
@@ -215,6 +217,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private _selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
+	private _mru: { launch: ILaunch, name: string }[];
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -236,6 +239,24 @@ export class ConfigurationManager implements IConfigurationManager {
 		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
 		const launchToSelect = filtered.length ? filtered[0] : this.launches.length ? this.launches[0] : undefined;
 		this.selectConfiguration(launchToSelect, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+
+		this._mru = [];
+		const mruRaw: { name: string, uriStr: string }[] = JSON.parse(this.storageService.get(DEBUG_CONFIG_MRU, StorageScope.WORKSPACE, '[]'));
+		mruRaw.forEach(raw => {
+			const launch = this.launches.filter(l => l.workspaceUri.toString() === raw.uriStr).pop();
+			if (launch) {
+				this._mru.push({ name, launch });
+			}
+		});
+		if (this._mru.length < MRU_SIZE) {
+			this.launches.forEach(launch => {
+				launch.getConfigurationNames().forEach(name => {
+					if (this._mru.length < MRU_SIZE && this._mru.indexOf({ name, launch }) === -1) {
+						this._mru.push({ name, launch });
+					}
+				});
+			});
+		}
 	}
 
 	private registerListeners(): void {
@@ -314,7 +335,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	public selectConfiguration(launch: ILaunch, name?: string): void {
+	public get mruConfigs(): { name: string, launch: ILaunch }[] {
+		return this._mru;
+	}
+
+	public selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void {
 		this._selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
@@ -323,6 +348,17 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (names.indexOf(this.selectedName) === -1) {
 			this._selectedName = names.length ? names[0] : undefined;
 		}
+
+		if (debugStarted && this._selectedLaunch && this._selectedName) {
+			this._mru = this._mru.filter(entry => entry.launch.workspaceUri !== launch.workspaceUri || entry.name !== name);
+			this._mru.unshift({ launch, name });
+
+			if (this._mru.length > MRU_SIZE) {
+				this._mru.pop();
+			}
+			this.storageService.store(DEBUG_CONFIG_MRU, JSON.stringify(this._mru.map(entry => ({ name: entry.name, uri: entry.launch.uri }))), StorageScope.WORKSPACE);
+		}
+
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
 		if (launch) {
 			this.storageService.store(DEBUG_SELECTED_ROOT, launch.workspaceUri.toString(), StorageScope.WORKSPACE);

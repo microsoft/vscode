@@ -386,7 +386,9 @@ export interface IConfigurationManager {
 
 	selectedName: string;
 
-	selectConfiguration(launch: ILaunch, name?: string): void;
+	mruConfigs: { name: string, launch: ILaunch }[];
+
+	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ILaunch[];
 
