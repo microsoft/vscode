@@ -124,10 +124,6 @@ class Extension implements IExtension {
 			&& URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 	}
 
-	private get repository(): string {
-		return this.gallery && this.gallery.assets.repository.uri;
-	}
-
 	private get galleryIconUrl(): string {
 		return this.gallery && this.gallery.assets.icon.uri;
 	}
@@ -138,6 +134,10 @@ class Extension implements IExtension {
 
 	private get defaultIconUrl(): string {
 		return require.toUrl('../browser/media/defaultIcon.png');
+	}
+
+  get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
 	}
 
 	get licenseUrl(): string {
