@@ -206,7 +206,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
 			this._computer.clearResult();
-			this._hoverOperation.start();
+
+			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
+				this._hoverOperation.start();
+			}
 		}
 	}
 

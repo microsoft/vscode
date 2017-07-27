@@ -271,7 +271,6 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		const proxy = this._proxy;
 		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorRangeProvider>{
 			provideColorRanges: function (model, token) {
-				const provider = this;
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then((colorInfos) => {
 						return colorInfos.map(c => {
@@ -305,8 +304,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 								color,
 								format: format,
 								availableFormats: availableFormats,
-								range: c.range,
-								provider: provider
+								range: c.range
 							};
 						});
 					});
