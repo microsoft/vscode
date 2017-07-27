@@ -171,7 +171,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		const watch = this.shouldUseWatchForBuild(project);
-		const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: project.path, watch: watch };
+		const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, watch: watch };
 		const buildTask = new vscode.Task(
 			identifier,
 			watch
