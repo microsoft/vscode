@@ -16,10 +16,10 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { isEqual } from "vs/base/common/paths";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isEqual } from 'vs/base/common/paths';
 
 export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 	folders: string[]; // TODO@Ben migration
@@ -189,8 +189,8 @@ export class HistoryMainService implements IHistoryMainService {
 			items: [
 				{
 					type: 'task',
-					title: nls.localize('newWindow', "New Window"),
-					description: nls.localize('newWindowDesc', "Opens a new window"),
+					title: nls.localize('newWindow', 'New Window'),
+					description: nls.localize('newWindowDesc', 'Opens a new window'),
 					program: process.execPath,
 					args: '-n', // force new window
 					iconPath: process.execPath,
@@ -211,10 +211,10 @@ export class HistoryMainService implements IHistoryMainService {
 			// Add entries
 			jumpList.push({
 				type: 'custom',
-				name: nls.localize('recentFolders', "Recent Workspaces"),
+				name: nls.localize('recentFolders', 'Recent Workspaces'),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
 					const title = isSingleFolderWorkspaceIdentifier(workspace) ? path.basename(workspace) : getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', '{0} {1}', path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', 'Code Workspace');
 
 					return <Electron.JumpListItem>{
 						type: 'task',
