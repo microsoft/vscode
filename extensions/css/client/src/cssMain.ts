@@ -7,7 +7,7 @@
 import * as path from 'path';
 import * as parse from 'parse-color';
 
-import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, IColorFormat, CancellationToken, TextDocument, ColorInfo } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, ColorFormat, CancellationToken, TextDocument, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -30,7 +30,7 @@ const CSSColorFormats = {
 	}
 };
 
-function detectFormat(value: string): IColorFormat {
+function detectFormat(value: string): ColorFormat {
 	if (/^rgb/i.test(value)) {
 		return CSSColorFormats.RGB;
 	} else if (/^hsl/i.test(value)) {

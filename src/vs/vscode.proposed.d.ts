@@ -101,21 +101,19 @@ declare module 'vscode' {
 		static fromHex(hex: string): Color;
 	}
 
-	export type IColorFormat = string | { opaque: string, transparent: string };
+	export type ColorFormat = string | { opaque: string, transparent: string };
+
 	// TODO@Michel
 	export class ColorInfo {
-		/**
-		 * The range this link applies to.
-		 */
 		range: Range;
 
 		color: Color;
 
-		format: IColorFormat;
+		format: ColorFormat;
 
-		availableFormats: IColorFormat[];
+		availableFormats: ColorFormat[];
 
-		constructor(range: Range, color: Color, format: IColorFormat, availableFormats: IColorFormat[]);
+		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
 	}
 
 	export interface DocumentColorProvider {
