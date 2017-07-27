@@ -13,7 +13,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
@@ -784,8 +784,21 @@ class EditSettingRenderer extends Disposable {
 	private getSettings(lineNumber: number): ISetting[] {
 		const configurationMap = this.getConfigurationsMap();
 		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
-			let jsonSchema: IJSONSchema = configurationMap[setting.key];
-			return jsonSchema && (this.isDefaultSettings() || jsonSchema.type === 'boolean' || jsonSchema.enum);
+			let configurationNode = configurationMap[setting.key];
+			if (configurationNode) {
+				if (this.isDefaultSettings()) {
+					return true;
+				}
+				if (configurationNode.type === 'boolean' || configurationNode.enum) {
+					if ((<SettingsEditorModel>this.masterSettingsModel).configurationTarget !== ConfigurationTarget.FOLDER) {
+						return true;
+					}
+					if (configurationNode.scope === ConfigurationScope.RESOURCE) {
+						return true;
+					}
+				}
+			}
+			return false;
 		});
 	}
 
@@ -834,7 +847,7 @@ class EditSettingRenderer extends Disposable {
 		});
 	}
 
-	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
+	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
 		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	}
 
