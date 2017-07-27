@@ -8,6 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
+import { first } from 'vs/base/common/arrays';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -310,7 +311,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			this.selectConfiguration(this.selectedLaunch);
+			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.selectedLaunch);
+			this.selectConfiguration(toSelect);
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
