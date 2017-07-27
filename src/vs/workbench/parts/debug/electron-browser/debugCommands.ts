@@ -202,14 +202,15 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor) => {
+		handler: (accessor, workspaceUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (!accessor.get(IWorkspaceContextService).hasWorkspace()) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
+			const launch = manager.getLaunches().filter(l => l.workspaceUri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
-			return manager.selectedLaunch.openConfigFile(false).done(editor => {
+			return launch.openConfigFile(false).done(editor => {
 				if (editor) {
 					const codeEditor = <ICommonCodeEditor>editor.getControl();
 					if (codeEditor) {

@@ -32,8 +32,9 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
-	private executeOnSelect: (() => void)[];
+	private executeOnSelect: (() => boolean)[];
 	private toDispose: lifecycle.IDisposable[];
+	private selected: number;
 
 	constructor(
 		private context: any,
@@ -61,7 +62,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			}
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(e => {
-			this.executeOnSelect[e.index]();
+			if (this.executeOnSelect[e.index]()) {
+				this.selected = e.index;
+			} else {
+				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				this.selectBox.select(this.selected);
+			}
 		}));
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
 			this.updateOptions();
@@ -145,16 +151,17 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private updateOptions(): void {
-		let selected = 0;
+		this.selected = 0;
 		this.executeOnSelect = [];
 		const options = [];
-		const launches = this.debugService.getConfigurationManager().getLaunches();
-		this.debugService.getConfigurationManager().getLaunches().forEach(launch =>
+		const manager = this.debugService.getConfigurationManager();
+		const launches = manager.getLaunches();
+		manager.getLaunches().forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
-				if (name === this.debugService.getConfigurationManager().selectedName && launch === this.debugService.getConfigurationManager().selectedLaunch) {
-					selected = this.executeOnSelect.length;
+				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+					this.selected = this.executeOnSelect.length;
 				}
-				this.executeOnSelect.push(() => this.debugService.getConfigurationManager().selectConfiguration(launch, name));
+				this.executeOnSelect.push(() => { manager.selectConfiguration(launch, name); return true; });
 				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
 			}));
 
@@ -168,12 +175,12 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		launches.forEach(l => {
 			options.push(launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration..."));
 			this.executeOnSelect.push(() => {
-				this.debugService.getConfigurationManager().selectConfiguration(l);
-				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
+				this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
+				return false;
 			});
 		});
 
-		this.selectBox.setOptions(options, selected, disabledIdx);
+		this.selectBox.setOptions(options, this.selected, disabledIdx);
 	}
 }
 
