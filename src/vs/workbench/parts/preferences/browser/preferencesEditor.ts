@@ -743,10 +743,9 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 
 	private _onModelChanged(): void {
 		const model = this.editor.getModel();
+		this.disposePreferencesRenderer();
 		if (model) {
 			this.preferencesRenderer = this._createPreferencesRenderer();
-		} else {
-			this.disposePreferencesRenderer();
 		}
 	}
 
