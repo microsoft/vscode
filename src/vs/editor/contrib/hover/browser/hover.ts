@@ -36,6 +36,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _glyphWidget: ModesGlyphHoverWidget;
 
 	private _isMouseDown: boolean;
+	private _hoverClicked: boolean;
 
 	static get(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -80,6 +81,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		var targetType = mouseEvent.target.type;
 
 		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
 		}
@@ -87,6 +89,10 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
 			// mouse down on top of overlay hover widget
 			return;
+		}
+
+		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== ModesGlyphHoverWidget.ID) {
+			this._hoverClicked = false;
 		}
 
 		this._hideWidgets();
@@ -100,7 +106,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		var targetType = mouseEvent.target.type;
 		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (this._isMouseDown) {
+		if (this._isMouseDown || (this._hoverClicked && this._contentWidget.isColorPickerVisible())) {
 			return;
 		}
 

@@ -263,6 +263,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
+	isColorPickerVisible(): boolean {
+		if (this._colorPicker) {
+			return true;
+		}
+		return false;
+	}
+
 	private _withResult(result: HoverPart[], complete: boolean): void {
 		this._messages = result;
 
