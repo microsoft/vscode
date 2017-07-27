@@ -187,7 +187,7 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		const expectedContents = `
 	.one {
 		/*margin: 10px;*/
-		padding: 10px;
+		/*padding: 10px;*/
 	}
 	/*.two {
 		height: 42px;
@@ -199,6 +199,7 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
 			editor.selections = [
 				new Selection(2, 2, 2, 15), // A property completely selected
+				new Selection(3, 0, 3, 16), // A property completely selected along with whitespace
 				new Selection(5, 1, 8, 1), // A rule completely selected
 			];
 
@@ -226,7 +227,7 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 	}*/`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
 			editor.selections = [
-				new Selection(2, 2, 3, 16), // 2 properties completely under a single selection
+				new Selection(2, 0, 3, 16), // 2 properties completely under a single selection along with whitespace
 				new Selection(5, 1, 11, 2), // 2 rules completely under a single selection
 			];
 

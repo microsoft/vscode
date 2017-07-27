@@ -106,9 +106,29 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 
 	let startNode = getNode(rootNode, selectionStart, true);
 	let endNode = getNode(rootNode, selectionEnd, true);
-	if (sameNodes(startNode, endNode)) {
-		selection = new vscode.Selection(startNode.start, endNode.end);
+	if (startNode && endNode) {
+		if (sameNodes(startNode, endNode) || sameNodes(startNode.parent, endNode.parent)) {
+			selection = new vscode.Selection(startNode.start, endNode.end);
+		} else {
+			if (sameNodes(startNode, endNode.parent)) {
+				let newStartNode = startNode.firstChild;
+				while (newStartNode.end.isBefore(selectionStart) && newStartNode.nextSibling) {
+					newStartNode = newStartNode.nextSibling;
+				}
+				startNode = newStartNode;
+			} else if (sameNodes(startNode.parent, endNode)) {
+				let newEndNode = endNode.children[endNode.children.length - 1];
+				while (newEndNode.end.isAfter(selectionEnd) && newEndNode.previousSibling) {
+					newEndNode = newEndNode.previousSibling;
+				}
+				endNode = newEndNode;
+			}
+
+			// TODO: both are properties of different rule : have 2 comments for the 2 rules
+		}
 	}
+
+
 
 	let rangesToUnComment: vscode.Range[] = [];
 
