@@ -212,12 +212,11 @@
 }
 
 .monaco-editor .unsupportedWorkbenhSettingInfo:before {
-	margin: 0.2em 0.1em 0 0.1em;
 	content:" ";
 	display:inline-block;
-	height:0.8em;
+	height:1em;
 	width:1em;
-	background: url(info.svg) 0px -0.1em no-repeat;
+	background: url(info.svg) 50% 50% no-repeat;
 	background-size: 0.9em;
 }
 
