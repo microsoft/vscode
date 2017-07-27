@@ -22,6 +22,8 @@ export interface ContentSecurityPolicyArbiter {
 	getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel;
 
 	setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void>;
+
+	shouldAllowSvgsForResource(resource: vscode.Uri): void;
 }
 
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
@@ -48,6 +50,11 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 
 	public setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void> {
 		return this.globalState.update(this.security_level_key + this.getRoot(resource), level);
+	}
+
+	public shouldAllowSvgsForResource(resource: vscode.Uri) {
+		const securityLevel = this.getSecurityLevelForResource(resource);
+		return securityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent || securityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
 	}
 
 	private getRoot(resource: vscode.Uri): vscode.Uri {
@@ -123,6 +130,14 @@ export class PreviewSecuritySelector {
 		await this.cspArbiter.setSecurityLevelForResource(resource, selection.level);
 
 		const sourceUri = getMarkdownUri(resource);
+
+		await vscode.commands.executeCommand('_workbench.htmlPreview.updateOptions',
+			sourceUri,
+			{
+				allowScripts: true,
+				allowSvgs: this.cspArbiter.shouldAllowSvgsForResource(resource)
+			});
+
 		this.contentProvider.update(sourceUri);
 	}
 }

@@ -21,6 +21,14 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { MenuRegistry } from "vs/platform/actions/common/actions";
 import { WebviewElement } from "vs/workbench/parts/html/browser/webview";
 
+function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
+		.filter(c => c instanceof HtmlPreviewPart && c.model)
+		.map(e => e as HtmlPreviewPart)
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+}
+
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
 	localize('html.editor.label', "Html Preview"),
@@ -70,17 +78,23 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 });
 
 CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
-	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
-		.filter(c => c instanceof HtmlPreviewPart && c.model)
-		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+	const activePreviews = getActivePreviewsForResource(accessor, resource);
 	for (const preview of activePreviews) {
 		preview.sendMessage(message);
 	}
 	return activePreviews.length > 0;
 });
 
+CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', (accessor: ServicesAccessor, resource: URI | string, options: HtmlInputOptions) => {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	const activePreviews = getActivePreviewsForResource(accessor, resource);
+	for (const preview of activePreviews) {
+		if (preview.input && preview.input instanceof HtmlInput) {
+			const input = accessor.get(IInstantiationService).createInstance(HtmlInput, preview.input.getName(), '', uri, options);
+			preview.setInput(input);
+		}
+	}
+});
 
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
 	const elements = document.querySelectorAll('webview.ready');

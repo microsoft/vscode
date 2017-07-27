@@ -83,11 +83,11 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<any> {
+	public createProcess(root: uri, config: debug.IConfig): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -123,6 +123,8 @@ export class MockSession implements debug.ISession {
 	public getId() {
 		return 'mockrawsession';
 	}
+
+	public root: uri;
 
 	public getLengthInSeconds(): number {
 		return 100;

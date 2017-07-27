@@ -17,6 +17,10 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
+	public getHistory(): T[] {
+		return this._elements;
+	}
+
 	public add(t: T) {
 		this._history.add(t);
 		this._onChange();

@@ -167,6 +167,19 @@ export abstract class Marker {
 		return this._children;
 	}
 
+	get snippet(): TextmateSnippet {
+		let candidate: Marker = this;
+		while (true) {
+			if (!candidate) {
+				return undefined;
+			}
+			if (candidate instanceof TextmateSnippet) {
+				return candidate;
+			}
+			candidate = candidate.parent;
+		}
+	}
+
 	toString() {
 		return '';
 	}
@@ -269,8 +282,8 @@ export class Variable extends Marker {
 		super();
 	}
 
-	resolve(resolver: { resolve(name: string): string }): boolean {
-		const value = resolver.resolve(this.name);
+	resolve(resolver: VariableResolver): boolean {
+		const value = resolver.resolve(this);
 		if (value !== undefined) {
 			this._children = [new Text(value)];
 			return true;
@@ -287,6 +300,10 @@ export class Variable extends Marker {
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
+}
+
+export interface VariableResolver {
+	resolve(variable: Variable): string | undefined;
 }
 
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -362,7 +379,7 @@ export class TextmateSnippet extends Marker {
 		return Marker.toString(this.children);
 	}
 
-	resolveVariables(resolver: { resolve(name: string): string }): this {
+	resolveVariables(resolver: VariableResolver): this {
 		this.walk(candidate => {
 			if (candidate instanceof Variable) {
 				if (candidate.resolve(resolver)) {

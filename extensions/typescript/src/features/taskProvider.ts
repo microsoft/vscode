@@ -107,7 +107,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		const { configFileName } = res.body;
 		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-			const path = vscode.Uri.parse(configFileName);
+			const path = vscode.Uri.file(configFileName);
 			const folder = vscode.workspace.getWorkspaceFolder(path);
 			return [{
 				path: configFileName,

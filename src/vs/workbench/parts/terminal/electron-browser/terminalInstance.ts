@@ -414,7 +414,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._process) {
 			if (this._process.connected) {
-				this._process.kill();
+				this._process.send({ event: 'shutdown' });
 			}
 			this._process = null;
 		}

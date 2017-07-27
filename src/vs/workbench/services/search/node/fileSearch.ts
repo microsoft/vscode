@@ -90,7 +90,7 @@ export class FileWalker {
 		this.folderExcludePatterns = new Map<string, glob.ParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
+			const folderExcludeExpression = objects.clone(folderQuery.excludePattern || {});
 
 			// Add excludes for other root folders
 			config.folderQueries
@@ -144,7 +144,7 @@ export class FileWalker {
 					}
 
 					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename }, []);
 				});
 			}
 
@@ -279,9 +279,10 @@ export class FileWalker {
 	 * Public for testing.
 	 */
 	public spawnFindCmd(folderQuery: IFolderSearch) {
-		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
-		const basenames = glob.getBasenameTerms(excludePattern);
-		const pathTerms = glob.getPathTerms(excludePattern);
+		const folderExcludePattern = this.folderExcludePatterns.get(folderQuery.folder);
+		const excludes = [folderExcludePattern, this.globalExcludePattern].filter(excludeSet => !!excludeSet);
+		const basenames = arrays.flatten(excludes.map(glob.getBasenameTerms));
+		const pathTerms = arrays.flatten(excludes.map(glob.getPathTerms));
 		let args = ['-L', '.'];
 		if (basenames.length || pathTerms.length) {
 			args.push('-not', '(', '(');
@@ -379,7 +380,7 @@ export class FileWalker {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
 			const basename = path.basename(this.filePattern);
-			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
+			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename }, undefined, undefined, /*skipExcludes=*/true);
 		}
 
 		function add(relativePath: string) {
@@ -401,7 +402,6 @@ export class FileWalker {
 
 	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IRawFileMatch) => void) {
 		const self = this;
-		const excludePattern = this.folderExcludePatterns.get(rootFolder);
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			self.directoriesWalked++;
@@ -413,7 +413,8 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				const siblings = filePattern !== basename ? entries.map(entry => entry.basename) : [];
+				if (!self.includeMatch(entry, siblings, rootFolder, /*disregardInclude=*/true)) {
 					continue;
 				}
 
@@ -426,7 +427,7 @@ export class FileWalker {
 						continue; // ignore file if its path matches with the file pattern because that is already matched above
 					}
 
-					self.matchFile(onResult, entry);
+					self.matchFile(onResult, entry, siblings, rootFolder);
 				}
 			};
 		}
@@ -521,7 +522,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder)(currentRelativePath, file, () => siblings)) {
+			if (!this.includeMatch({ relativePath: currentRelativePath, basename: file }, siblings, folderQuery.folder, /*disregardInclude=*/true)) {
 				return clb(null, undefined);
 			}
 
@@ -578,7 +579,7 @@ export class FileWalker {
 							return clb(null, undefined); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, { base: rootFolder, relativePath: currentRelativePath, basename: file, size: stat.size });
+						this.matchFile(onResult, { base: rootFolder, relativePath: currentRelativePath, basename: file, size: stat.size }, siblings, folderQuery.folder);
 					}
 
 					// Unwind
@@ -594,8 +595,8 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch): void {
-		if (this.isFilePatternMatch(candidate.relativePath) && (!this.includePattern || this.includePattern(candidate.relativePath, candidate.basename))) {
+	private matchFile(onResult: (result: IRawFileMatch) => void, candidate: IRawFileMatch, siblings: string[], folder?: string, skipIncludeExclude = false): void {
+		if (this.isFilePatternMatch(candidate.relativePath) && (skipIncludeExclude || this.includeMatch(candidate, siblings, folder))) {
 			this.resultCount++;
 
 			if (this.maxResults && this.resultCount > this.maxResults) {
@@ -605,6 +606,22 @@ export class FileWalker {
 			if (!this.isLimitHit) {
 				onResult(candidate);
 			}
+		}
+	}
+
+	private includeMatch(candidate: IRawFileMatch, siblings: string[], folder?: string, disregardInclude = false): boolean {
+		if (this.globalExcludePattern && this.globalExcludePattern(candidate.relativePath, candidate.basename, () => siblings)) {
+			return false;
+		}
+
+		if (this.includePattern) {
+			return disregardInclude || !!this.includePattern(candidate.relativePath, candidate.basename);
+		}
+
+		if (this.folderExcludePatterns.has(folder)) {
+			return !this.folderExcludePatterns.get(folder)(candidate.relativePath, candidate.basename, () => siblings);
+		} else {
+			return true;
 		}
 	}
 

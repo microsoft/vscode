@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import uri from 'vs/base/common/uri';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
@@ -25,16 +26,21 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: '_workbench.startDebug',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string) {
+		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string, folderUri?: uri) {
 			const debugService = accessor.get(IDebugService);
 			if (!configurationOrName) {
 				configurationOrName = debugService.getConfigurationManager().selectedName;
 			}
 
+			if (!folderUri) {
+				const selectedLaunch = debugService.getConfigurationManager().selectedLaunch;
+				folderUri = selectedLaunch ? selectedLaunch.workspaceUri : undefined;
+			}
+
 			if (typeof configurationOrName === 'string') {
-				debugService.startDebugging(configurationOrName);
+				debugService.startDebugging(folderUri, configurationOrName);
 			} else {
-				debugService.createProcess(configurationOrName);
+				debugService.createProcess(folderUri, configurationOrName);
 			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,

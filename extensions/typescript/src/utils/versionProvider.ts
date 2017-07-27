@@ -44,17 +44,34 @@ export class TypeScriptVersionProvider {
 		return undefined;
 	}
 
-	public get localVersion(): TypeScriptVersion | undefined {
+	public get localTsdkVersion(): TypeScriptVersion | undefined {
 		const tsdkVersions = this.localTsdkVersions;
 		if (tsdkVersions && tsdkVersions.length) {
 			return tsdkVersions[0];
 		}
 
 		const nodeVersions = this.localNodeModulesVersions;
-		if (nodeVersions && nodeVersions.length) {
+		if (nodeVersions && nodeVersions.length === 1) {
 			return nodeVersions[0];
 		}
 		return undefined;
+	}
+
+	public get localVersions(): TypeScriptVersion[] {
+		const versions: TypeScriptVersion[] = [];
+		const tsdkVersions = this.localTsdkVersions;
+		if (tsdkVersions && tsdkVersions.length) {
+			versions.push(tsdkVersions[0]);
+		}
+
+		const paths = new Set<string>();
+		return versions.concat(this.localNodeModulesVersions).filter(x => {
+			if (paths.has(x.path)) {
+				return false;
+			}
+			paths.add(x.path);
+			return true;
+		});
 	}
 
 	public get bundledVersion(): TypeScriptVersion {
@@ -83,12 +100,17 @@ export class TypeScriptVersionProvider {
 		}
 
 		for (const root of workspace.workspaceFolders || []) {
-			const rootPrefix = `./${root.name}/`;
-			const winRootPrefix = `.\\${root.name}\\`;
-
-			if (tsdkPathSetting.startsWith(rootPrefix) || tsdkPathSetting.startsWith(winRootPrefix)) {
-				const workspacePath = path.join(root.uri.fsPath, tsdkPathSetting.replace(rootPrefix, ''));
-				return this.getTypeScriptsFromPaths(workspacePath);
+			const rootPrefixes = [`./${root.name}/`, `${root.name}/`, `.\\${root.name}\\`, `${root.name}\\`];
+			for (const rootPrefix of rootPrefixes) {
+				if (tsdkPathSetting.startsWith(rootPrefix)) {
+					const workspacePath = path.join(root.uri.fsPath, tsdkPathSetting.replace(rootPrefix, ''));
+					const version = this.loadFromPath(path.join(workspacePath, 'tsserver.js'));
+					if (version) {
+						version.label = tsdkPathSetting;
+						return [version];
+					}
+					return [];
+				}
 			}
 		}
 
@@ -110,7 +132,7 @@ export class TypeScriptVersionProvider {
 		}
 
 		const versions: TypeScriptVersion[] = [];
-		for (const root of [workspace.workspaceFolders[0]]) {
+		for (const root of workspace.workspaceFolders) {
 			const p = path.join(root.uri.fsPath, typeScriptPath, 'tsserver.js');
 
 			let label: string | undefined = undefined;

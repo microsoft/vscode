@@ -98,8 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
 
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', (uri) => showPreview(cspArbiter, uri, false)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
@@ -206,7 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 
-function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
+function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vscode.Uri, sideBySide: boolean = false) {
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -228,7 +228,10 @@ function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`,
-		{ allowScripts: true, allowSvgs: true });
+		{
+			allowScripts: true,
+			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
+		});
 
 	if (telemetryReporter) {
 		telemetryReporter.sendTelemetryEvent('openPreview', {

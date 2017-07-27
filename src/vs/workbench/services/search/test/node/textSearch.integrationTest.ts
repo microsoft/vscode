@@ -50,7 +50,7 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 				if (typeof expectedResultCount === 'function') {
 					assert(expectedResultCount(c));
 				} else {
-					assert.equal(c, expectedResultCount);
+					assert.equal(c, expectedResultCount, 'legacy');
 				}
 			} catch (e) {
 				reject(e);
@@ -76,7 +76,7 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 				if (typeof expectedResultCount === 'function') {
 					assert(expectedResultCount(c));
 				} else {
-					assert.equal(c, expectedResultCount);
+					assert.equal(c, expectedResultCount, 'rg');
 				}
 			} catch (e) {
 				reject(e);
@@ -88,8 +88,7 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 }
 
 function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
-	return doLegacySearchTest(config, expectedResultCount)
-		.then(() => doRipgrepSearchTest(config, expectedResultCount))
+	return doRipgrepSearchTest(config, expectedResultCount)
 		.then(done, done);
 }
 
@@ -172,7 +171,7 @@ suite('Search-integration', function () {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			excludePattern: { '**/examples': true }
+			excludePattern: makeExpression('**/examples')
 		};
 
 		doSearchTest(config, 394, done);
@@ -182,21 +181,43 @@ suite('Search-integration', function () {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true }
+			includePattern: makeExpression('**/examples/**'),
 		};
 
 		doSearchTest(config, 382, done);
+	});
+
+	test('Text: sibling exclude', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'm' },
+			includePattern: makeExpression('**/site*'),
+			excludePattern: { '*.css': { when: '$(basename).less' } }
+		};
+
+		doSearchTest(config, 1, done);
 	});
 
 	test('Text: e (with includes and exclude)', function (done: () => void) {
 		const config: any = {
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'e' },
-			includePattern: { '**/examples/**': true },
-			excludePattern: { '**/examples/small.js': true }
+			includePattern: makeExpression('**/examples/**'),
+			excludePattern: makeExpression('**/examples/small.js')
 		};
 
 		doSearchTest(config, 361, done);
+	});
+
+	test('Text: e (include/exclude precedence)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			includePattern: makeExpression('**/examples/**'),
+			excludePattern: makeExpression('**/examples/**')
+		};
+
+		doSearchTest(config, 0, done);
 	});
 
 	test('Text: a (capped)', function (done: () => void) {
@@ -271,6 +292,19 @@ suite('Search-integration', function () {
 		};
 
 		doSearchTest(config, 286, done);
+	});
+
+	test('Multiroot: e with folder exclude precedence', function (done: () => void) {
+		const config: IRawSearch = {
+			folderQueries: [
+				{ folder: EXAMPLES_FIXTURES, excludePattern: makeExpression('**/e*.js') },
+				{ folder: MORE_FIXTURES }
+			],
+			contentPattern: { pattern: 'e' },
+			includePattern: makeExpression('**/*.js')
+		};
+
+		doSearchTest(config, 382, done);
 	});
 });
 

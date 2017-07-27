@@ -15,7 +15,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -598,7 +598,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private _content: string;
 	private _contentByLines: string[];
 
-	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
+	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[], readonly configurationScope: ConfigurationScope) {
 		super();
 	}
 
@@ -643,7 +643,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parse() {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []);
+		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
@@ -721,11 +721,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return result;
 	}
 
+	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
+		const result = [];
+		for (const settingsGroup of settingsGroups) {
+			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
+			if (settingsGroup.sections.length) {
+				result.push(settingsGroup);
+			}
+		}
+		return result;
+	}
+
 	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
 		let result = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage) {
+			if (!prop.deprecationMessage && this.matchesScope(prop)) {
 				const value = prop.default;
 				const description = (prop.description || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
@@ -737,6 +748,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
 		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+	}
+
+	private matchesScope(property: IConfigurationNode): boolean {
+		if (this.configurationScope === ConfigurationScope.WORKBENCH) {
+			return true;
+		}
+		return property.scope === this.configurationScope;
 	}
 
 	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {

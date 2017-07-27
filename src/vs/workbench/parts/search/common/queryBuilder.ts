@@ -141,7 +141,7 @@ export class QueryBuilder {
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
 			return pathPortions.map(searchPath => {
 				return <ISearchPathPattern>{
-					searchPath: uri.parse(searchPath),
+					searchPath: uri.file(searchPath),
 					pattern: globPortion
 				};
 			});
@@ -165,7 +165,11 @@ export class QueryBuilder {
 				const searchPathRoot = relativeSearchPathMatch[1];
 				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
 				if (matchingRoots.length) {
-					return matchingRoots.map(root => paths.join(root.fsPath, relativeSearchPathMatch[2] || ''));
+					return matchingRoots.map(root => {
+						return relativeSearchPathMatch[2] ?
+							paths.join(root.fsPath, relativeSearchPathMatch[2]) :
+							root.fsPath;
+					});
 				} else {
 					// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
 				}
@@ -194,8 +198,14 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string, globPorti
 		const globCharIdx = globCharMatch.index;
 		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
 		if (lastSlashMatch) {
+			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
+			if (!pathPortion.match(/[/\\]/)) {
+				// If the last slash was the only slash, then we now have '' or 'C:'. Append a slash.
+				pathPortion += '/';
+			}
+
 			return {
-				pathPortion: searchPath.substr(0, lastSlashMatch.index) || '/',
+				pathPortion,
 				globPortion: searchPath.substr(lastSlashMatch.index + 1)
 			};
 		}

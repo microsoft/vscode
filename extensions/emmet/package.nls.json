@@ -1,0 +1,23 @@
+{
+	"command.removeTag": "Remove Tag",
+	"command.updateTag": "Update Tag",
+	"command.matchTag": "Go to Matching Pair",
+	"command.balanceIn": "Balance (inward)",
+	"command.balanceOut": "Balance (outward)",
+	"command.prevEditPoint": "Go to Previous Edit Point",
+	"command.nextEditPoint": "Go to Next Edit Point",
+	"command.mergeLines": "Merge Lines",
+	"command.selectPrevItem": "Select Previous Item",
+	"command.selectNextItem": "Select Next Item",
+	"command.splitJoinTag": "Split/Join Tag",
+	"command.toggleComment": "Toggle Comment",
+	"command.evaluateMathExpression": "Evaluate Math Expression",
+	"command.updateImageSize": "Update Image Size",
+	"command.reflectCSSValue": "Reflect CSS Value",
+	"command.incrementNumberByOne": "Increment by 1",
+	"command.decrementNumberByOne": "Decrement by 1",
+	"command.incrementNumberByOneTenth": "Increment by 0.1",
+	"command.decrementNumberByOneTenth": "Decrement by 0.1",
+	"command.incrementNumberByTen": "Increment by 10",
+	"command.decrementNumberByTen": "Decrement by 10"
+}

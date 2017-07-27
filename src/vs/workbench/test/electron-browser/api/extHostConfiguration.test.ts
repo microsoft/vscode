@@ -108,13 +108,13 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(actual.defaultValue, 'off');
 		assert.equal(actual.globalValue, 'on');
 		assert.equal(actual.workspaceValue, undefined);
-		assert.ok(Object.keys(actual).indexOf('folderValue') === -1);
+		assert.equal(actual.workspaceFolderValue, undefined);
 
 		actual = testObject.getConfiguration('editor').inspect('wordWrap');
 		assert.equal(actual.defaultValue, 'off');
 		assert.equal(actual.globalValue, 'on');
 		assert.equal(actual.workspaceValue, undefined);
-		assert.ok(Object.keys(actual).indexOf('folderValue') === -1);
+		assert.equal(actual.workspaceFolderValue, undefined);
 	});
 
 	test('inspect in single root context', function () {
@@ -153,25 +153,25 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(actual1.defaultValue, 'off');
 		assert.equal(actual1.globalValue, 'on');
 		assert.equal(actual1.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+		assert.equal(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('wordWrap');
 		assert.equal(actual1.defaultValue, 'off');
 		assert.equal(actual1.globalValue, 'on');
 		assert.equal(actual1.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+		assert.equal(actual1.workspaceFolderValue, undefined);
 
-		let actual2 = testObject.getConfiguration2(null, workspaceUri).inspect('editor.wordWrap');
+		let actual2 = testObject.getConfiguration(null, workspaceUri).inspect('editor.wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'bounded');
+		assert.equal(actual2.workspaceFolderValue, 'bounded');
 
-		actual2 = testObject.getConfiguration2('editor', workspaceUri).inspect('wordWrap');
+		actual2 = testObject.getConfiguration('editor', workspaceUri).inspect('wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'bounded');
+		assert.equal(actual2.workspaceFolderValue, 'bounded');
 	});
 
 	test('inspect in multi root context', function () {
@@ -225,64 +225,64 @@ suite('ExtHostConfiguration', function () {
 		let actual1 = testObject.getConfiguration().inspect('editor.wordWrap');
 		assert.equal(actual1.defaultValue, 'off');
 		assert.equal(actual1.globalValue, 'on');
-		assert.equal(actual1.workspaceValue, 'off');
-		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+		assert.equal(actual1.workspaceValue, 'bounded');
+		assert.equal(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('wordWrap');
 		assert.equal(actual1.defaultValue, 'off');
 		assert.equal(actual1.globalValue, 'on');
-		assert.equal(actual1.workspaceValue, 'off');
-		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+		assert.equal(actual1.workspaceValue, 'bounded');
+		assert.equal(actual1.workspaceFolderValue, undefined);
 
 		actual1 = testObject.getConfiguration('editor').inspect('lineNumbers');
 		assert.equal(actual1.defaultValue, 'on');
 		assert.equal(actual1.globalValue, undefined);
-		assert.equal(actual1.workspaceValue, 'relative');
-		assert.ok(Object.keys(actual1).indexOf('folderValue') === -1);
+		assert.equal(actual1.workspaceValue, undefined);
+		assert.equal(actual1.workspaceFolderValue, undefined);
 
-		let actual2 = testObject.getConfiguration2(null, firstRoot).inspect('editor.wordWrap');
+		let actual2 = testObject.getConfiguration(null, firstRoot).inspect('editor.wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'off');
+		assert.equal(actual2.workspaceFolderValue, 'off');
 
-		actual2 = testObject.getConfiguration2('editor', firstRoot).inspect('wordWrap');
+		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'off');
+		assert.equal(actual2.workspaceFolderValue, 'off');
 
-		actual2 = testObject.getConfiguration2('editor', firstRoot).inspect('lineNumbers');
+		actual2 = testObject.getConfiguration('editor', firstRoot).inspect('lineNumbers');
 		assert.equal(actual2.defaultValue, 'on');
 		assert.equal(actual2.globalValue, undefined);
 		assert.equal(actual2.workspaceValue, undefined);
-		assert.equal(actual2.folderValue, 'relative');
+		assert.equal(actual2.workspaceFolderValue, 'relative');
 
-		actual2 = testObject.getConfiguration2(null, secondRoot).inspect('editor.wordWrap');
+		actual2 = testObject.getConfiguration(null, secondRoot).inspect('editor.wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'on');
+		assert.equal(actual2.workspaceFolderValue, 'on');
 
-		actual2 = testObject.getConfiguration2('editor', secondRoot).inspect('wordWrap');
+		actual2 = testObject.getConfiguration('editor', secondRoot).inspect('wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.equal(actual2.folderValue, 'on');
+		assert.equal(actual2.workspaceFolderValue, 'on');
 
-		actual2 = testObject.getConfiguration2(null, thirdRoot).inspect('editor.wordWrap');
+		actual2 = testObject.getConfiguration(null, thirdRoot).inspect('editor.wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
-		assert.equal(actual2.folderValue, undefined);
+		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
+		assert.equal(actual2.workspaceFolderValue, undefined);
 
-		actual2 = testObject.getConfiguration2('editor', thirdRoot).inspect('wordWrap');
+		actual2 = testObject.getConfiguration('editor', thirdRoot).inspect('wordWrap');
 		assert.equal(actual2.defaultValue, 'off');
 		assert.equal(actual2.globalValue, 'on');
 		assert.equal(actual2.workspaceValue, 'bounded');
-		assert.ok(Object.keys(actual2).indexOf('folderValue') !== -1);
-		assert.equal(actual2.folderValue, undefined);
+		assert.ok(Object.keys(actual2).indexOf('workspaceFolderValue') !== -1);
+		assert.equal(actual2.workspaceFolderValue, undefined);
 	});
 
 	test('getConfiguration vs get', function () {

@@ -39,7 +39,7 @@
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.21.0",
+    "vscode-debugprotocol": "1.22.0",
     "vscode-ripgrep": "joaomoreno/vscode-ripgrep#64a2f0530fd9099de2cb1026a61e0a31b05e983d",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",

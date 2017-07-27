@@ -155,7 +155,7 @@ export class EditorAccessor implements emmet.Editor {
 				if (marker.children.length > 0) {
 					return `\${${marker.name}:${marker.children.map(toSnippetString).join('')}}`;
 				} else {
-					return `\$${marker.name}`;
+					return `\${${marker.name}}`;
 				}
 			} else {
 				throw new Error('unexpected marker: ' + marker);

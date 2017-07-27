@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import cp = require('child_process');
 import net = require('net');
+import uri from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
@@ -70,6 +71,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		private debugServerPort: number,
 		private adapter: Adapter,
 		private customTelemetryService: ITelemetryService,
+		public root: uri,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
@@ -434,7 +436,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	private startServer(): TPromise<any> {
-		return this.adapter.getAdapterExecutable().then(ae => this.launchServer(ae).then(() => {
+		return this.adapter.getAdapterExecutable(this.root).then(ae => this.launchServer(ae).then(() => {
 			this.serverProcess.on('error', (err: Error) => this.onServerError(err));
 			this.serverProcess.on('exit', (code: number, signal: string) => this.onServerExit());
 

@@ -197,6 +197,8 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('$123', '', Placeholder);
 		assertTextAndMarker('$farboo', '', Variable);
 		assertTextAndMarker('$far12boo', '', Variable);
+		assertTextAndMarker('000_${far}_000', '000__000', Text, Variable, Text);
+		assertTextAndMarker('FFF_${TM_SELECTED_TEXT}_FFF$0', 'FFF__FFF', Text, Variable, Text, Placeholder);
 	});
 
 	test('Parser, variables/placeholder with defaults', () => {

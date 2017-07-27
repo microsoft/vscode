@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -63,7 +63,7 @@ export function getMappingForIncludedLanguages(): any {
  * Parses the given document using emmet parsing modules
  * @param document
  */
-export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
 	let rootNode: Node;
 	try {
@@ -274,5 +274,41 @@ export function iterateCSSToken(token: CssToken, fn) {
 		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
 			return false;
 		}
+	}
+}
+
+/**
+ * Returns `name` CSS property from given `rule`
+ * @param  {Node} rule
+ * @param  {String} name
+ * @return {Property}
+ */
+export function getCssPropertyFromRule(rule, name): Property {
+	return rule.children.find(node => node.type === 'property' && node.name === name);
+}
+
+/**
+ * Returns css property under caret in given editor or `null` if such node cannot
+ * be found
+ * @param  {TextEditor}  editor
+ * @return {Property}
+ */
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property {
+	const rootNode = parseDocument(editor.document);
+	const node = getNode(rootNode, position);
+
+	if (isStyleSheet(editor.document.languageId)) {
+		return node && node.type === 'property' ? <Property>node : null;
+	}
+
+	let htmlNode = <HtmlNode>node;
+	if (htmlNode
+		&& htmlNode.name === 'style'
+		&& htmlNode.open.end.isBefore(position)
+		&& htmlNode.close.start.isAfter(position)) {
+		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
+		let rootNode = parseStylesheet(buffer);
+		const node = getNode(rootNode, position);
+		return (node && node.type === 'property') ? <Property>node : null;
 	}
 }

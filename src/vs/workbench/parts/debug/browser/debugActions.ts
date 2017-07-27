@@ -124,7 +124,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.startDebugging(undefined, this.isNoDebug());
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -770,7 +771,7 @@ export class FocusProcessAction extends AbstractDebugAction {
 
 	public run(processName: string): TPromise<any> {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
-		return this.debugService.focusStackFrameAndEvaluate(null, process).then(() => {
+		return this.debugService.focusStackFrameAndEvaluate(null, process, true).then(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {
 				return stackFrame.openInEditor(this.editorService, true);

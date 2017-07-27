@@ -31,19 +31,19 @@ export class Adapter {
 		}
 	}
 
-	public getAdapterExecutable(verifyAgainstFS = true): TPromise<IAdapterExecutable> {
+	public getAdapterExecutable(root: uri, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
 		if (this.rawAdapter.adapterExecutableCommand) {
-			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand).then(ad => {
+			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.toString()).then(ad => {
 				return this.verifyAdapterDetails(ad, verifyAgainstFS);
 			});
 		}
 
 		const adapterExecutable = <IAdapterExecutable>{
-			command: this.getProgram(),
+			command: this.getProgram(root),
 			args: this.getAttributeBasedOnPlatform('args')
 		};
-		const runtime = this.getRuntime();
+		const runtime = this.getRuntime(root);
 		if (runtime) {
 			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
 			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
@@ -82,19 +82,19 @@ export class Adapter {
 			"Cannot determine executable for debug adapter '{0}'.", details.command)));
 	}
 
-	private getRuntime(): string {
+	private getRuntime(root: uri): string {
 		let runtime = this.getAttributeBasedOnPlatform('runtime');
 		if (runtime && runtime.indexOf('./') === 0) {
-			runtime = this.configurationResolverService ? this.configurationResolverService.resolve(runtime) : runtime;
+			runtime = root ? this.configurationResolverService.resolve(root, runtime) : runtime;
 			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
 		}
 		return runtime;
 	}
 
-	private getProgram(): string {
+	private getProgram(root: uri): string {
 		let program = this.getAttributeBasedOnPlatform('program');
 		if (program) {
-			program = this.configurationResolverService ? this.configurationResolverService.resolve(program) : program;
+			program = root ? this.configurationResolverService.resolve(root, program) : program;
 			program = paths.join(this.extensionDescription.extensionFolderPath, program);
 		}
 		return program;

@@ -46,7 +46,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 	}
 
 	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
-		return this.debugService.startDebugging(nameOrConfiguration).then(x => {
+		return this.debugService.startDebugging(folderUri, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
@@ -57,7 +57,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
 			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
 		}
-		return this.debugService.createProcess(configuration).then(process => {
+		return this.debugService.createProcess(folderUri, configuration).then(process => {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}

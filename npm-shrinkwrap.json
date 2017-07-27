@@ -422,9 +422,9 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#5e4a336693e1d5b079c7aecd286a1abcfbc10421"
     },
     "vscode-debugprotocol": {
-      "version": "1.21.0",
-      "from": "vscode-debugprotocol@1.21.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.21.0.tgz"
+      "version": "1.22.0",
+      "from": "vscode-debugprotocol@1.22.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.22.0.tgz"
     },
     "vscode-ripgrep": {
       "version": "0.0.12",
@@ -454,7 +454,7 @@
     "xterm": {
       "version": "2.8.0",
       "from": "Tyriar/xterm.js#vscode-release/1.15",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#9d95fc1eef596c3d7e8d873a7782e0bcdbfa5503"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#b546de750e22addd8e226b01bd414f5b20ec4018"
     },
     "yauzl": {
       "version": "2.3.1",

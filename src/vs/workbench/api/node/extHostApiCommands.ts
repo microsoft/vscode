@@ -195,8 +195,8 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.startDebug', (configuration?: any) => {
-			return this._commands.executeCommand('_workbench.startDebug', configuration);
+		this._register('vscode.startDebug', (configuration?: any, folderUri?: URI) => {
+			return this._commands.executeCommand('_workbench.startDebug', configuration, folderUri);
 		}, {
 				description: 'Start a debugging session.',
 				args: [

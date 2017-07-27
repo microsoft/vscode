@@ -76,6 +76,12 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 						properties: {
 							isExecutable: {
 								type: 'boolean'
+							},
+							scope: {
+								type: 'string',
+								enum: ['workbench', 'resource'],
+								default: 'workbench',
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. `workbench` scope defines configuration can be applied everywhere. `resource` scope defines configuration is applied only to folders and files.")
 							}
 						}
 					}
@@ -147,6 +153,8 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 		}
 		for (let key in properties) {
 			const message = validateProperty(key);
+			const propertyConfiguration = configuration.properties[key];
+			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH;
 			if (message) {
 				collector.warn(message);
 				delete properties[key];
@@ -249,8 +257,8 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.lookup<C>(key, overrides);
 	}
 
-	public keys(): IConfigurationKeys {
-		return this._configuration.keys();
+	public keys(overrides?: IConfigurationOverrides): IConfigurationKeys {
+		return this._configuration.keys(overrides);
 	}
 
 	public values<V>(): IConfigurationValues {
@@ -450,20 +458,22 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				properties: {
 					'id': {
 						type: 'string',
-						description: nls.localize('workspaceConfig.id', "Unique workspace id"),
+						description: nls.localize('workspaceConfig.id.description', "Workspace Identifier. Used for storing internal workspace state, which can be lost on changing."),
 						minLength: 1
 					},
 					'folders': {
 						minItems: 1,
 						uniqueItems: true,
+						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `file:///root/folderA`"),
 						items: {
-							type: 'string'
+							type: 'string',
+							pattern: '^file:///'
 						}
 					},
 					'settings': {
 						type: 'object',
 						default: {},
-						description: nls.localize('workspaceSettings.description', "Configure workspace settings"),
+						description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 						$ref: schemaId
 					}
 				}
@@ -485,8 +495,8 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
-			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.FOLDER : ConfigurationScope.WORKSPACE)));
-			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.FOLDER), false);
+			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH)));
+			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.RESOURCE), false);
 		}
 	}
 

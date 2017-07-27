@@ -83,7 +83,7 @@ export class Lock {
 		if (lock) {
 			var unbindListener: IDisposable;
 
-			return new WinJS.Promise((c, e) => {
+			return new WinJS.TPromise((c, e) => {
 				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
@@ -92,7 +92,7 @@ export class Lock {
 
 		var result: WinJS.Promise;
 
-		return new WinJS.Promise((c, e) => {
+		return new WinJS.TPromise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));

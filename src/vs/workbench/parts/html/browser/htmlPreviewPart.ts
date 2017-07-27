@@ -14,7 +14,7 @@ import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
+import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -182,7 +182,10 @@ export class HtmlPreviewPart extends WebviewEditor {
 			return TPromise.as(undefined);
 		}
 
+		let oldOptions: HtmlInputOptions | undefined = undefined;
+
 		if (this.input instanceof HtmlInput) {
+			oldOptions = this.input.options;
 			this.saveViewState(this.input.getResource(), {
 				scrollYPercentage: this.scrollYPercentage
 			});
@@ -208,6 +211,10 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 				if (!this.model) {
 					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
+				}
+
+				if (oldOptions && !areHtmlInputOptionsEqual(oldOptions, input.options)) {
+					this._doSetVisible(false);
 				}
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {

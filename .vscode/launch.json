@@ -1,6 +1,7 @@
 {
 	"version": "0.1.0",
 	"configurations": [
+
 		{
 			"type": "node",
 			"request": "launch",
@@ -59,6 +60,20 @@
 			"name": "Attach to Main Process",
 			"protocol": "legacy",
 			"port": 5875,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Emmet Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/emmet/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/emmet",
+				"--extensionTestsPath=${workspaceRoot}/extensions/emmet/out/test"
+			],
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
