@@ -371,7 +371,7 @@ export namespace DocumentLink {
 }
 
 export namespace DocumentColorFormat {
-	export function from(colorFormat: vscode.IColorFormat): IRawColorFormat {
+	export function from(colorFormat: vscode.ColorFormat): IRawColorFormat {
 		let format: string | [string, string];
 		if (typeof colorFormat === 'string') {
 			format = colorFormat;

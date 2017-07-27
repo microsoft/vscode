@@ -671,14 +671,14 @@ class ColorProviderAdapter {
 	private _proxy: MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DocumentColorProvider;
-	private _formatStorageMap: Map<vscode.IColorFormat, number>;
+	private _formatStorageMap: Map<vscode.ColorFormat, number>;
 	private _formatStorageIndex;
 
 	constructor(proxy: MainThreadLanguageFeaturesShape, documents: ExtHostDocuments, provider: vscode.DocumentColorProvider) {
 		this._proxy = proxy;
 		this._documents = documents;
 		this._provider = provider;
-		this._formatStorageMap = new Map<vscode.IColorFormat, number>();
+		this._formatStorageMap = new Map<vscode.ColorFormat, number>();
 		this._formatStorageIndex = 0;
 	}
 
