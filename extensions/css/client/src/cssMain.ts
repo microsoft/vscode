@@ -7,7 +7,7 @@
 import * as path from 'path';
 import * as parse from 'parse-color';
 
-import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, CancellationToken, TextDocument, ColorInfo } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, IColorFormat, CancellationToken, TextDocument, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -16,6 +16,28 @@ let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+}
+
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red}, {green}, {blue})',
+		transparent: 'rgba({red}, {green}, {blue}, {alpha:2f[0-1]})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha:2f[0-1]})'
+	}
+};
+
+function detectFormat(value: string): IColorFormat {
+	if (/^rgb/i.test(value)) {
+		return CSSColorFormats.RGB;
+	} else if (/^hsl/i.test(value)) {
+		return CSSColorFormats.HSL;
+	} else {
+		return CSSColorFormats.Hex;
+	}
 }
 
 class ColorProvider implements DocumentColorProvider {
@@ -36,11 +58,9 @@ class ColorProvider implements DocumentColorProvider {
 
 			const [red, green, blue, alpha] = parsedColor.rgba;
 			const color = new Color(red, green, blue, alpha);
-			const format = '#{red:X}{green:X}{blue:X}';
-			const availableFormats = [format];
+			const format = detectFormat(value);
 
-			result.push(new ColorInfo(range, color, format, availableFormats));
-			return result;
+			return [...result, new ColorInfo(range, color, format, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL])];
 		}, []);
 	}
 }
