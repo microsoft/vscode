@@ -18,6 +18,12 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ActionBarContributor } from 'vs/workbench/browser/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export const TERMINAL_PICKER_PREFIX = 'term ';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -659,5 +665,79 @@ export class HideTerminalFindWidgetAction extends Action {
 
 	public run(): TPromise<any> {
 		return TPromise.as(this.terminalService.hideFindWidget());
+	}
+}
+
+
+export class QuickOpenActionTermContributor extends ActionBarContributor {
+
+	constructor(
+		@ITerminalService private terminalService: ITerminalService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	public getActions(context: any): IAction[] {
+		let actions: Action[] = [];
+		if (context.element instanceof TerminalEntry) {
+			actions.push(new RenameTerminalQuickOpenAction(RenameTerminalAction.ID, RenameTerminalAction.LABEL, this.quickOpenService, this.terminalService, this.instantiationService, context.element));
+		}
+		return actions;
+	}
+
+	public hasActions(context: any): boolean {
+		return true;
+	}
+}
+
+export class QuickOpenTermAction extends Action {
+
+	public static ID = 'workbench.action.quickOpenTerm';
+	public static LABEL = nls.localize('quickOpenTerm', "Quick Open Terminal");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
+
+		return TPromise.as(true);
+	}
+}
+
+export class RenameTerminalQuickOpenAction extends Action {
+
+	public static ID = 'workbench.action.terminal.renameQuickPick';
+	public static LABEL = nls.localize('workbench.action.terminal.renameQuickPick', "Rename Quick Pick");
+	private _terminal: TerminalEntry;
+
+	constructor(
+		id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ITerminalService private terminalService: ITerminalService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		private terminal: TerminalEntry
+	) {
+		super(id, label);
+		this._terminal = terminal;
+		this.class = 'quick-open-terminal-configure';
+	}
+
+	public run(): TPromise<any> {
+		const currentTerminal = this.terminalService.getActiveInstance();
+		this.terminalService.setActiveInstanceByIndex(parseInt(this._terminal.getLabel().split(':')[0], 10) - 1);
+		this.instantiationService.createInstance(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL).run().then(result => {
+			this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
+		});
+		this.terminalService.setActiveInstance(currentTerminal);
+		return TPromise.as(null);
 	}
 }
