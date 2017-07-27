@@ -4828,7 +4828,7 @@ declare module monaco.languages {
 		color: IColor;
 		format: IColorFormat;
 		/**
-		 * The available formats used in the model to stringify the color.
+		 * The available formats for this specific color.
 		 */
 		availableFormats: IColorFormat[];
 	}
