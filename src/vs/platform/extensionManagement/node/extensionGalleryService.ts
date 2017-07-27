@@ -198,7 +198,7 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 
 	if (type === AssetType.Repository) {
 		const results = version.properties.filter(p => p.key === type);
-		const gitRegExp = new RegExp( '((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
 
 		const uri = results.filter(r => gitRegExp.test(r.value))[0];
 		if (!uri) {

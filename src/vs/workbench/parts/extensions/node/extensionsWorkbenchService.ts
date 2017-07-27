@@ -124,6 +124,10 @@ class Extension implements IExtension {
 			&& URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
 	}
 
+	private get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
+	}
+
 	private get galleryIconUrl(): string {
 		return this.gallery && this.gallery.assets.icon.uri;
 	}

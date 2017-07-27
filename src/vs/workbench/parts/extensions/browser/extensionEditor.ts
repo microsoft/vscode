@@ -154,6 +154,7 @@ export class ExtensionEditor extends BaseEditor {
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
 	private rating: HTMLElement;
+	private repository: HTMLElement;
 	private description: HTMLElement;
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
@@ -220,6 +221,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
 
 		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
+
+		this.repository = append(subtitle, $('span.repository.clickable'));
+		this.repository.textContent = localize('repository', 'Repository');
+		this.repository.style.display = 'none';
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
@@ -291,6 +296,15 @@ export class ExtensionEditor extends BaseEditor {
 				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
+		}
+
+		if (extension.repository) {
+			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.repository.style.display = 'initial';
+		}
+		else {
+			this.repository.onclick = null;
+			this.repository.style.display = 'none';
 		}
 
 		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });
