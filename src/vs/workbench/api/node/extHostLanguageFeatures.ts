@@ -684,29 +684,35 @@ class ColorProviderAdapter {
 
 	provideColors(resource: URI): TPromise<IRawColorInfo[]> {
 		const doc = this._documents.getDocumentData(resource).document;
+		const colorFormats: IColorFormatMap = [];
+		const getCachedId = (format: vscode.ColorFormat) => {
+			let cachedId = this._formatStorageMap.get(format);
+			if (cachedId === undefined) {
+				cachedId = this._formatStorageIndex;
+				this._formatStorageMap.set(format, cachedId);
+				this._formatStorageIndex += 1;
+
+				if (typeof format === 'string') { // Append to format list for registration
+					colorFormats.push([cachedId, format]);
+				} else {
+					colorFormats.push([cachedId, [format.opaque, format.transparent]]);
+				}
+			}
+
+			return cachedId;
+		};
 
 		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
 			if (Array.isArray(colors)) {
-				const colorFormats: IColorFormatMap = [];
 				const colorInfos: IRawColorInfo[] = [];
 				colors.forEach(ci => {
-					let cachedId = this._formatStorageMap.get(ci.format);
-					if (cachedId === undefined) {
-						cachedId = this._formatStorageIndex;
-						this._formatStorageMap.set(ci.format, cachedId);
-						this._formatStorageIndex += 1;
-
-						if (typeof ci.format === 'string') { // Append to format list for registration
-							colorFormats.push([cachedId, ci.format]);
-						} else {
-							colorFormats.push([cachedId, [ci.format.opaque, ci.format.transparent]]);
-						}
-					}
+					const format = getCachedId(ci.format);
+					const availableFormats = ci.availableFormats.map(f => getCachedId(f));
 
 					colorInfos.push({
 						color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha],
-						format: cachedId,
-						availableFormats: [],
+						format: format,
+						availableFormats: availableFormats,
 						range: TypeConverters.fromRange(ci.range)
 					});
 				});

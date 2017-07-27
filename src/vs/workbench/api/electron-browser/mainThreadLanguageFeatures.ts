@@ -281,7 +281,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 							const format = colorFormatsMap.get(c.format);
 							let availableFormats: modes.IColorFormat[] = [];
 							c.availableFormats.forEach(f => {
-								availableFormats.push(colorFormatsMap.get(c.format));
+								availableFormats.push(colorFormatsMap.get(f));
 							});
 
 							const [red, green, blue, alpha] = c.color;
@@ -313,8 +313,8 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 				format = raw;
 			} else {
 				format = {
-					opaque: raw[1][0],
-					transparent: raw[1][0]
+					opaque: raw[0],
+					transparent: raw[1]
 				};
 			}
 			this._colorFormatsMap.set(f[0], format);
