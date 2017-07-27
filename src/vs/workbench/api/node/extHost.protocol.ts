@@ -230,6 +230,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> { throw ni(); }
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> { throw ni(); }
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
+	$registerColorFormats(formats: IColorFormatMap): TPromise<any> { throw ni(); }
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> { throw ni(); }
 }
@@ -464,12 +465,15 @@ export namespace ObjectIdentifier {
 export abstract class ExtHostHeapServiceShape {
 	$onGarbageCollection(ids: number[]): void { throw ni(); }
 }
-export interface IColorInfo {
+export interface IRawColorInfo {
 	color: [number, number, number, number | undefined];
-	format: string | [string, string];
-	availableFormats: (string | [string, string])[];
+	format: number;
+	availableFormats: number[];
 	range: IRange;
 }
+
+export type IRawColorFormat = string | [string, string];
+export type IColorFormatMap = [number, IRawColorFormat][];
 
 export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
@@ -492,7 +496,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
-	$provideDocumentColors(handle: number, resource: URI): TPromise<IColorInfo[]> { throw ni(); }
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]> { throw ni(); }
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }
 

@@ -16,7 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IColorInfo } from 'vs/workbench/api/node/extHost.protocol';
+import { IRawColorFormat } from "vs/workbench/api/node/extHost.protocol";
 
 export interface PositionLike {
 	line: number;
@@ -370,30 +370,16 @@ export namespace DocumentLink {
 	}
 }
 
-export namespace DocumentColor {
-	export function from(colorInfo: vscode.ColorInfo): IColorInfo {
+export namespace DocumentColorFormat {
+	export function from(colorFormat: vscode.IColorFormat): IRawColorFormat {
 		let format: string | [string, string];
-		if (typeof colorInfo.format === 'string') {
-			format = colorInfo.format;
+		if (typeof colorFormat === 'string') {
+			format = colorFormat;
 		} else {
-			format = [colorInfo.format.opaque, colorInfo.format.transparent];
+			format = [colorFormat.opaque, colorFormat.transparent];
 		}
 
-		let availableFormats: (string | [string, string])[] = [];
-		colorInfo.availableFormats.forEach(format => {
-			if (typeof format === 'string') {
-				availableFormats.push(format);
-			} else {
-				availableFormats.push([format.opaque, format.transparent]);
-			}
-		});
-
-		return {
-			color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha],
-			format: format,
-			availableFormats: availableFormats,
-			range: fromRange(colorInfo.range)
-		};
+		return format;
 	}
 }
 

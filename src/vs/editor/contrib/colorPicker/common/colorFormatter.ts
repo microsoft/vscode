@@ -146,9 +146,6 @@ export class ColorFormatter {
 
 	constructor(format: string) {
 		this.parse(format);
-		// this.tree.push(createLiteralNode('new Color('));
-		// this.tree.push(createPropertyNode('red', 'd', 0, 255));
-		// this.tree.push(createLiteralNode(')'));
 	}
 
 	private parse(format: string): void {
@@ -166,7 +163,7 @@ export class ColorFormatter {
 			// add more parser catches
 			const variable = match[1];
 			if (!variable) {
-				throw new Error(`${variable} is not defined`);
+				throw new Error(`${variable} is not defined.`);
 			}
 			const decimals = parseInt(match[2]);
 			const type = match[3];
