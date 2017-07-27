@@ -654,6 +654,7 @@ export interface LinkProvider {
 
 /**
  * A color in RGBA format.
+ * @internal
  */
 export interface IColor {
 
@@ -679,10 +680,15 @@ export interface IColor {
 }
 
 // TODO@joao TODO@michel can we use a formatter here?
+/**
+ * A color format.
+ * @internal
+ */
 export type IColorFormat = string | { opaque: string, transparent: string };
 
 /**
  * A color range is a range in a text model which represents a color.
+ * @internal
  */
 export interface IColorRange {
 
@@ -707,6 +713,7 @@ export interface IColorRange {
 
 /**
  * A provider of colors for editor models.
+ * @internal
  */
 export interface ColorRangeProvider {
 
