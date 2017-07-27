@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument } from './util';
+import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
 import { Node, Stylesheet } from 'EmmetNode';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -13,7 +13,7 @@ const endCommentStylesheet = '*/';
 const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
-export function toggleComment() {
+export function toggleComment(): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
@@ -39,7 +39,7 @@ export function toggleComment() {
 		return;
 	}
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
 			let [rangesToUnComment, rangeToComment] = toggleCommentInternal(editor.document, selection, rootNode);
 			rangesToUnComment.forEach((rangeToUnComment: vscode.Range) => {
@@ -106,6 +106,10 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 
 	let startNode = getNode(rootNode, selectionStart, true);
 	let endNode = getNode(rootNode, selectionEnd, true);
+	if (sameNodes(startNode, endNode)) {
+		selection = new vscode.Selection(startNode.start, endNode.end);
+	}
+
 	let rangesToUnComment: vscode.Range[] = [];
 
 	let isFirstNodeCommented = false;
