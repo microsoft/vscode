@@ -51,10 +51,10 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			case 'red':
 				absoluteValue = normalize(color.toRGBA().r, min, max, RGBA_ENDRANGE);
 				break;
-			case 'blue':
+			case 'green':
 				absoluteValue = normalize(color.toRGBA().g, min, max, RGBA_ENDRANGE);
 				break;
-			case 'green':
+			case 'blue':
 				absoluteValue = normalize(color.toRGBA().b, min, max, RGBA_ENDRANGE);
 				break;
 			case 'alpha':
