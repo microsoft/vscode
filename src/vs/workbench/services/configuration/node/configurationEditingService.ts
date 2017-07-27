@@ -322,7 +322,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return this.contextService.hasMultiFolderWorkspace() ? workspace.configuration : this.toResource(relativePath, workspace.roots[0]);
 			}
 
-			if (target === ConfigurationTarget.FOLDER) {
+			if (target === ConfigurationTarget.FOLDER && this.contextService.hasMultiFolderWorkspace()) {
 				if (resource) {
 					const root = this.contextService.getRoot(resource);
 					if (root) {
