@@ -56,14 +56,17 @@ function queueProcessExit() {
 		clearTimeout(closeTimeout);
 	}
 	closeTimeout = setTimeout(function () {
+		ptyProcess.kill();
 		if (process.platform === 'win32') {
 			// Forcefully kill the entire process tree under the shell process
 			// on Windows as ptyProcess.kill can leave some lingering processes.
 			// See https://github.com/Microsoft/vscode/issues/26807
-			cp.execFileSync('taskkill.exe', ['/T', '/F', '/PID', ptyProcess.pid.toString()]);
+			cp.execFile('taskkill.exe', ['/T', '/F', '/PID', ptyProcess.pid.toString()]).on('close', () => {
+				process.exit(exitCode);
+			});
+		} else {
+			process.exit(exitCode);
 		}
-		ptyProcess.kill();
-		process.exit(exitCode);
 	}, 250);
 }
 
