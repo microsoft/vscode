@@ -137,11 +137,18 @@ export class StartAction extends AbstractDebugAction {
 		const processes = this.debugService.getModel().getProcesses();
 		const selectedName = this.debugService.getConfigurationManager().selectedName;
 		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		const compound = launch && launch.getCompound(selectedName);
 
-		return state !== State.Initializing && processes.every(p => p.name !== selectedName) &&
-			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
-			(!this.contextService || this.contextService.hasWorkspace() || processes.length === 0);
+		if (state === State.Initializing) {
+			return false;
+		}
+		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
+			return false;
+		}
+		if (processes.some(p => p.name === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
