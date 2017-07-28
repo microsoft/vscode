@@ -15,22 +15,19 @@ const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
-	private _rootShellExecutable: string;
-	private _rootProcessId: number;
-	private _terminalInstance: ITerminalInstance;
 	private _onCheckShell: Emitter<TPromise<string>>;
-	private _xterm: XTermTerminal;
 
-	public constructor(rootProcessId: number, rootShellExecutable: string, terminalInstance: ITerminalInstance, xterm: any) {
+	public constructor(
+		private _rootProcessId: number,
+		private _rootShellExecutable: string,
+		private _terminalInstance: ITerminalInstance,
+		private _xterm: XTermTerminal
+	) {
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
 
-		this._childProcessIdStack = [rootProcessId];
-		this._rootShellExecutable = rootShellExecutable;
-		this._rootProcessId = rootProcessId;
-		this._terminalInstance = terminalInstance;
-		this._xterm = xterm;
+		this._childProcessIdStack = [this._rootProcessId];
 
 		this._onCheckShell = new Emitter<TPromise<string>>();
 		// The debounce is necessary to prevent multiple processes from spawning when
