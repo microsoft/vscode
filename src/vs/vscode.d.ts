@@ -3525,13 +3525,13 @@ declare module 'vscode' {
 
 		/**
 		 * A memento object that stores state in the context
-		 * of the currently opened [workspace](#workspace.rootPath).
+		 * of the currently opened [workspace](#workspace.workspaceFolders).
 		 */
 		workspaceState: Memento;
 
 		/**
 		 * A memento object that stores state independent
-		 * of the current opened [workspace](#workspace.rootPath).
+		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
 		globalState: Memento;
 
@@ -4762,7 +4762,7 @@ declare module 'vscode' {
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
 		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that only files within the current [workspace](#workspace.rootPath) can be watched.
+		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
 		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
