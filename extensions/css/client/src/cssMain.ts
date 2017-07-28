@@ -5,8 +5,9 @@
 'use strict';
 
 import * as path from 'path';
+import * as parse from 'parse-color';
 
-import { languages, window, commands, workspace, ExtensionContext } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext, DocumentColorProvider, Color, ColorFormat, CancellationToken, TextDocument, ColorInfo } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -15,6 +16,53 @@ let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
 	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+}
+
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red}, {green}, {blue})',
+		transparent: 'rgba({red}, {green}, {blue}, {alpha:2f[0-1]})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha:2f[0-1]})'
+	}
+};
+
+function detectFormat(value: string): ColorFormat {
+	if (/^rgb/i.test(value)) {
+		return CSSColorFormats.RGB;
+	} else if (/^hsl/i.test(value)) {
+		return CSSColorFormats.HSL;
+	} else {
+		return CSSColorFormats.Hex;
+	}
+}
+
+class ColorProvider implements DocumentColorProvider {
+
+	constructor(private client: LanguageClient) { }
+
+	async provideDocumentColors(document: TextDocument, token: CancellationToken): Promise<ColorInfo[]> {
+		const ranges = await this.client.sendRequest(ColorSymbolRequest.type, document.uri.toString());
+
+		return ranges.reduce((result, r) => {
+			const range = this.client.protocol2CodeConverter.asRange(r);
+			const value = document.getText(range);
+			const parsedColor = parse(value);
+
+			if (!parsedColor || !parsedColor.rgba) {
+				return result;
+			}
+
+			const [red, green, blue, alpha] = parsedColor.rgba;
+			const color = new Color(red, green, blue, alpha);
+			const format = detectFormat(value);
+
+			return [...result, new ColorInfo(range, color, format, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL])];
+		}, []);
+	}
 }
 
 // this method is called when vs code is activated
@@ -34,7 +82,7 @@ export function activate(context: ExtensionContext) {
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: ['css', 'less', 'scss'],
+		documentSelector: ['css', 'scss', 'less'],
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
 		},
@@ -57,6 +105,10 @@ export function activate(context: ExtensionContext) {
 		let isDecoratorEnabled = (languageId: string) => {
 			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
 		};
+
+		const colorProvider = new ColorProvider(client);
+		context.subscriptions.push(languages.registerColorProvider('css', colorProvider));
+
 		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
 	});

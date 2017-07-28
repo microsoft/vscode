@@ -50,6 +50,14 @@ export class RGBA {
 		}
 		return c | 0;
 	}
+
+	public toString(): string {
+		if (this.a === 255) {
+			return `rgb(${this.r}, ${this.g}, ${this.b})`;
+		}
+
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${(this.a / 255).toFixed(2)})`;
+	}
 }
 
 /**
@@ -100,6 +108,17 @@ export class HSLA {
 			return 1.0;
 		}
 		return n;
+	}
+
+	public toString() {
+		const s = (this.s * 100).toFixed(2);
+		const l = (this.l * 100).toFixed(2);
+
+		if (this.a === 1) {
+			return `hsl(${this.h}, ${s}%, ${l}%)`;
+		}
+
+		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a.toFixed(2)})`;
 	}
 }
 
@@ -386,6 +405,7 @@ export class Color {
 		return this.rgba.a === 0;
 	}
 
+
 	public opposite(): Color {
 		return new Color(new RGBA(
 			255 - this.rgba.r,
@@ -393,6 +413,26 @@ export class Color {
 			255 - this.rgba.b,
 			this.rgba.a
 		));
+	}
+
+	public blend(c: Color): Color {
+		const color = c.toRGBA();
+
+		// Convert to 0..1 opacity
+		const thisA = this.rgba.a / 255;
+		const colorA = color.a / 255;
+
+		let a = thisA + colorA * (1 - thisA);
+		if (a < 1.0e-6) {
+			return Color.transparent;
+		}
+
+		const r = this.rgba.r * thisA / a + color.r * colorA * (1 - thisA) / a;
+		const g = this.rgba.g * thisA / a + color.g * colorA * (1 - thisA) / a;
+		const b = this.rgba.b * thisA / a + color.b * colorA * (1 - thisA) / a;
+		a *= 255;
+
+		return new Color(new RGBA(r, g, b, a));
 	}
 
 	public toString(): string {

@@ -88,4 +88,39 @@ declare module 'vscode' {
 		 */
 		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
+
+	export class Color {
+		readonly red: number;
+		readonly green: number;
+		readonly blue: number;
+		readonly alpha?: number;
+
+		constructor(red: number, green: number, blue: number, alpha?: number);
+
+		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
+		static fromHex(hex: string): Color;
+	}
+
+	export type ColorFormat = string | { opaque: string, transparent: string };
+
+	// TODO@Michel
+	export class ColorInfo {
+		range: Range;
+
+		color: Color;
+
+		format: ColorFormat;
+
+		availableFormats: ColorFormat[];
+
+		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
+	}
+
+	export interface DocumentColorProvider {
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
+	}
+
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	}
 }
