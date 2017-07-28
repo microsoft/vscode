@@ -11,7 +11,6 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
-import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import platform = require('vs/base/common/platform');
 import * as strings from 'vs/base/common/strings';
@@ -383,27 +382,15 @@ export class LineMatch implements ILineMatch {
 
 interface IRgGlobResult {
 	globArgs: string[];
-	siblingClauses?: glob.IExpression;
+	siblingClauses: glob.IExpression;
 }
 
-function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[]): IRgGlobResult {
-	return foldersToRgGlobs(folderQueries, fq => fq.excludePattern);
-}
-
-function foldersToRgIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): IRgGlobResult {
-	return foldersToRgGlobs(folderQueries, fq => objects.assign({}, fq.includePattern || {}, globalInclude || {}));
-}
-
-function foldersToRgGlobalExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
-	return foldersToRgGlobs(folderQueries, () => globalExclude);
-}
-
-function foldersToRgGlobs(folderQueries: IFolderSearch[], patternProvider: (fs: IFolderSearch) => glob.IExpression): IRgGlobResult {
+function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const pattern = patternProvider(folderQuery);
-		const result = globExprsToRgGlobs(pattern, folderQuery.folder);
+		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
+		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
 			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
@@ -411,6 +398,17 @@ function foldersToRgGlobs(folderQueries: IFolderSearch[], patternProvider: (fs: 
 	});
 
 	return { globArgs, siblingClauses };
+}
+
+function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
+	const globArgs = [];
+	folderQueries.forEach(folderQuery => {
+		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
+		const result = globExprsToRgGlobs(totalIncludePattern, folderQuery.folder);
+		globArgs.push(...result.globArgs);
+	});
+
+	return globArgs;
 }
 
 function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {
@@ -463,24 +461,16 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	const globsToGlobArgs = (globArgs: string[]) => arrays.flatten(globArgs.map(arg => ['-g', arg]));
-	const globToNotGlob = (glob: string) => '!' + glob;
-
-	// Include/exclude precedence:
-	// settings exclude < global include < global exclude
-	const excludeResult = foldersToRgExcludeGlobs(config.folderQueries);
-	args.push(...globsToGlobArgs(excludeResult.globArgs.map(globToNotGlob)));
-
-	const includeResult = foldersToRgIncludeGlobs(config.folderQueries, config.includePattern);
-	args.push(...globsToGlobArgs(includeResult.globArgs));
-
-	const globalExcludeResult = foldersToRgGlobalExcludeGlobs(config.folderQueries, config.excludePattern);
-	args.push(...globsToGlobArgs(globalExcludeResult.globArgs.map(globToNotGlob)));
-
 	// includePattern can't have siblingClauses
-	const siblingClauses = (excludeResult.siblingClauses || globalExcludeResult.siblingClauses) ?
-		objects.assign({}, excludeResult.siblingClauses || {}, globalExcludeResult.siblingClauses || {}) :
-		null;
+	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
+		args.push('-g', globArg);
+	});
+
+	let siblingClauses: glob.IExpression;
+	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);
+	rgGlobs.globArgs
+		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+	siblingClauses = rgGlobs.siblingClauses;
 
 	if (config.maxFilesize) {
 		args.push('--max-filesize', config.maxFilesize + '');
