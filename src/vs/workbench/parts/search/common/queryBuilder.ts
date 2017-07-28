@@ -157,7 +157,9 @@ export class QueryBuilder {
 		}
 
 		const workspace = this.workspaceContextService.getWorkspace();
-		if (workspace.roots.length === 1) {
+		if (searchPath === './') {
+			return [];
+		} else if (workspace.roots.length === 1) {
 			return [paths.join(workspace.roots[0].fsPath, searchPath)];
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);

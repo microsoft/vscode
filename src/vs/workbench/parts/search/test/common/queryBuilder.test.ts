@@ -239,7 +239,27 @@ suite('QueryBuilder', () => {
 
 			[
 				[
+					'',
+					<ISearchPathsResult>{
+						searchPaths: undefined
+					}
+				],
+				[
+					'./',
+					<ISearchPathsResult>{
+						searchPaths: undefined
+					}
+				],
+				[
 					'./root1',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(ROOT_1)
+						}]
+					}
+				],
+				[
+					'./root1,./',
 					<ISearchPathsResult>{
 						searchPaths: [{
 							searchPath: getUri(ROOT_1)
@@ -295,11 +315,13 @@ function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISea
 	assert.deepEqual(actual.includePattern, expected.includePattern, message);
 
 	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
-	actual.searchPaths.forEach((searchPath, i) => {
-		const expectedSearchPath = expected.searchPaths[i];
-		assert.equal(searchPath.pattern, expectedSearchPath.pattern);
-		assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
-	});
+	if (actual.searchPaths) {
+		actual.searchPaths.forEach((searchPath, i) => {
+			const expectedSearchPath = expected.searchPaths[i];
+			assert.equal(searchPath.pattern, expectedSearchPath.pattern);
+			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
+		});
+	}
 }
 
 /**
