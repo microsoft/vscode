@@ -82,8 +82,8 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 								enum: ['workbench', 'resource'],
 								default: 'workbench',
 								enumDescriptions: [
-									nls.localize('scope.workbench.description', "Configuration to customise workbench. Can be configured only in User and Workspace Settings."),
-									nls.localize('scope.resource.description', "Configuration to customise resources. Can be configured in User, Workspace and Folder Settings.")
+									nls.localize('scope.workbench.description', "Workbench specific configuration, which can be configured in the User or Workspace settings."),
+									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
 								],
 								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `workbench` and `resource`.")
 							}
