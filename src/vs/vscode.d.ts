@@ -3065,6 +3065,7 @@ declare module 'vscode' {
 		 * Will throw error when
 		 * - Writing a configuration which is not registered.
 		 * - Writing a configuration to workspace or folder target when no workspace is opened
+		 * - Writing a configuration to folder target when there is no folder settings
 		 * - Writing to folder target without passing a resource when getting the configuration (`workspace.getConfiguration(section, resource)`)
 		 * - Writing a window configuration to folder target
 		 *
