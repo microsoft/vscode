@@ -79,13 +79,13 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 							},
 							scope: {
 								type: 'string',
-								enum: ['workbench', 'resource'],
-								default: 'workbench',
+								enum: ['window', 'resource'],
+								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.workbench.description', "Workbench specific configuration, which can be configured in the User or Workspace settings."),
+									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the User or Workspace settings."),
 									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `workbench` and `resource`.")
+								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `window` and `resource`.")
 							}
 						}
 					}
@@ -158,7 +158,7 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 		for (let key in properties) {
 			const message = validateProperty(key);
 			const propertyConfiguration = configuration.properties[key];
-			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH;
+			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
 			if (message) {
 				collector.warn(message);
 				delete properties[key];
@@ -499,7 +499,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
-			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.RESOURCE : ConfigurationScope.WORKBENCH)));
+			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.hasMultiFolderWorkspace() ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW)));
 			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.RESOURCE), false);
 		}
 	}

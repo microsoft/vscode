@@ -1003,7 +1003,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const folderKeys = this.configurationService.keys({ resource: this.workspaceSettingsEditorModel.uri }).folder;
-		const workbenchKeys = folderKeys.filter(key => configurationRegistry[key] && configurationRegistry[key].scope === ConfigurationScope.WORKBENCH);
+		const workbenchKeys = folderKeys.filter(key => configurationRegistry[key] && configurationRegistry[key].scope === ConfigurationScope.WINDOW);
 		if (workbenchKeys.length) {
 			const ranges: IRange[] = [];
 			for (const unsupportedKey of workbenchKeys) {

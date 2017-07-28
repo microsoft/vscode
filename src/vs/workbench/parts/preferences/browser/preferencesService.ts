@@ -135,7 +135,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
-					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.WORKBENCH);
+					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.WINDOW);
 					return model;
 				});
 			this.defaultPreferencesEditorModels.set(uri, promise);

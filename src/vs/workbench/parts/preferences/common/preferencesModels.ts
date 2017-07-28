@@ -751,7 +751,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
-		if (this.configurationScope === ConfigurationScope.WORKBENCH) {
+		if (this.configurationScope === ConfigurationScope.WINDOW) {
 			return true;
 		}
 		return property.scope === this.configurationScope;
