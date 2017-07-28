@@ -8,7 +8,8 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
+import { Location } from 'vs/editor/common/modes';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { fromPromise, stopwatch } from 'vs/base/common/event';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
@@ -86,7 +87,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
+	/**
+	 * @param modelPromise either a PPromise<void, Location[]> or a TPromise<ReferencesMode>.
+	 */
+	public toggleWidget(range: Range, modelPromise: PPromise<ReferencesModel | void, Location[]>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: Position;
@@ -146,8 +150,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		const requestId = ++this._requestIdPool;
 
-		const promise = modelPromise.then(model => {
-
+		const handleModel = (model: ReferencesModel, done: boolean) => {
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
 				return undefined;
@@ -183,11 +186,46 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				if (selection) {
 					return this._widget.setSelection(selection);
 				}
+				if (done) {
+					this._widget.getProgressBar().done();
+				}
 				return undefined;
 			});
 
+		};
+
+		this._widget.getProgressBar().infinite().getContainer().show();
+		let firstUpdate = true;
+		const aggregatedLocations: Location[] = [];
+		const promise = modelPromise.then(result => {
+			if (result instanceof ReferencesModel) {
+				return handleModel(result, true);
+			}
+			if (firstUpdate) {
+				// Didn't receive any non-empty progress events.
+				return handleModel(new ReferencesModel([]), true);
+			}
+			// Received all results via progress so we can ignore the final result.
+			this._widget.getProgressBar().done();
+			return TPromise.wrap(void 0);
 		}, error => {
 			this._messageService.show(Severity.Error, error);
+		}, newLocations => {
+			// still current request? widget still open?
+			if (requestId !== this._requestIdPool || !this._widget) {
+				promise.cancel();
+				return;
+			}
+			if (!newLocations.length) {
+				return;
+			}
+			aggregatedLocations.push(...newLocations);
+			if (firstUpdate) {
+				firstUpdate = false;
+				handleModel(new ReferencesModel(aggregatedLocations), false);
+				return;
+			}
+			this._model.setReferences(aggregatedLocations);
 		});
 
 		const onDone = stopwatch(fromPromise(promise));

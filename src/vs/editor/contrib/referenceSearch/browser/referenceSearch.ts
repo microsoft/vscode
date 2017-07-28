@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -84,7 +84,7 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		const references = provideReferences(model, range.getStartPosition());
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -110,7 +110,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
+		const references = provideReferences(control.getModel(), Position.lift(position));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -191,31 +191,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 
-export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
-
-	// collect references from all providers
-	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
-		return asWinJsPromise((token) => {
-			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		}).then(result => {
-			if (Array.isArray(result)) {
-				return <Location[]>result;
-			}
-			return undefined;
-		}, err => {
-			onUnexpectedExternalError(err);
+export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): PPromise<void, Location[]> {
+	let promise: TPromise<void>;
+	return new PPromise<void, Location[]>((complete, error, progress) => {
+		// collect references from all providers
+		const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
+			return asWinJsPromise((token) => {
+				return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+			}).then(result => {
+				if (Array.isArray(result)) {
+					// The timeout is necessary to get this to work when provideReferences returns synchronously (e.g. tests).
+					// This timeout wouldn't be necessary if TPromise implemented A+ spec (https://promisesaplus.com/#point-67), but it doesn't :(
+					// Without the timeout, the progress handler will get called before there is a progress listener if provideReferences returns synchronously.
+					return TPromise.timeout(0).then(() => progress(result));
+				}
+				return undefined;
+			}, err => {
+				onUnexpectedExternalError(err);
+			});
 		});
-	});
 
-	return TPromise.join(promises).then(references => {
-		let result: Location[] = [];
-		for (let ref of references) {
-			if (ref) {
-				result.push(...ref);
-			}
-		}
-		return result;
-	});
+		promise = TPromise.join(promises).then(() => complete(void 0));
+	}, () => promise.cancel());
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+function provideReferencesCommand(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
+	const values: Location[] = [];
+	return provideReferences(model, position).then(() => TPromise.wrap(values), undefined, progress => values.push(...progress));
+}
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferencesCommand);
