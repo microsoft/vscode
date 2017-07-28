@@ -1025,7 +1025,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
-		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be currently applied because it does not support the folder resource scope. Changing it might impact other workspaces.")
+		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It is applicable when you open the folder directly.")
 	});
 
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
