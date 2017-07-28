@@ -99,6 +99,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
+	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -140,33 +141,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
-		if (this._shellLaunchConfig) {
-			this.setTitle(path.basename(this._shellLaunchConfig.executable), true);
+
+		if (this._shellLaunchConfig && !this._shellLaunchConfig.name) {
+			this.setTitle(this._shellLaunchConfig.executable, true);
 		}
 
 		if (platform.isWindows) {
-			this._processReady.then(() => {
-				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
-				this._onCheckWindowsShell = new Emitter<TPromise<string>>();
-				// The debounce is necessary to prevent multiple processes from spawning when
-				// the enter key or output is spammed
-				debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 200, true)(() => {
-					this.checkWindowShell();
-				});
-				this._xterm.on('lineFeed', () => this._onCheckWindowsShell.fire());
-				this._xterm.on('keypress', () => this._onCheckWindowsShell.fire());
-			});
+			this._processReady.then(() => this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm));
 		}
+
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 		if (_container) {
 			this.attachToElement(_container);
-		}
-	}
-
-	/* ONLY IMPLEMENTED FOR WINDOWS */
-	private checkWindowShell(): void {
-		if (platform.isWindows && this._messageTitleListener) {
-			this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
 		}
 	}
 

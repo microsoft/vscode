@@ -7,6 +7,8 @@ import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter, debounceEvent } from 'vs/base/common/event';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
@@ -14,14 +16,35 @@ export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _rootShellExecutable: string;
 	private _rootProcessId: number;
+	private _terminalInstance: ITerminalInstance;
+	private _onCheckShell: Emitter<TPromise<string>>;
+	private _xterm: any;
 
-	public constructor(rootProcessId: number, rootShellExecutable: string) {
+	public constructor(rootProcessId: number, rootShellExecutable: string, terminalInstance: ITerminalInstance, xterm: any) {
+		if (!platform.isWindows) {
+			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		}
+
 		this._childProcessIdStack = [rootProcessId];
 		this._rootShellExecutable = rootShellExecutable;
 		this._rootProcessId = rootProcessId;
+		this._terminalInstance = terminalInstance;
+		this._xterm = xterm;
 
-		if (!platform.isWindows) {
-			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		this._onCheckShell = new Emitter<TPromise<string>>();
+		// The debounce is necessary to prevent multiple processes from spawning when
+		// the enter key or output is spammed
+		debounceEvent(this._onCheckShell.event, (l, e) => e, 200, true)(() => {
+			this.checkShell();
+		});
+
+		this._xterm.on('lineFeed', () => this._onCheckShell.fire());
+		this._xterm.on('keypress', () => this._onCheckShell.fire());
+	}
+
+	private checkShell(): void {
+		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true));
 		}
 	}
 
