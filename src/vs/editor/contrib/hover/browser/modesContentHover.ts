@@ -193,7 +193,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	dispose(): void {
 		this._hoverOperation.cancel();
-		this._colorPicker.dispose();
+		if (this._colorPicker) {
+			this._colorPicker.dispose();
+		}
 		super.dispose();
 	}
 
