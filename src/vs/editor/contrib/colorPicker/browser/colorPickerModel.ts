@@ -138,9 +138,11 @@ export class ColorPickerModel {
 		if (isAdvancedFormatter(formatter)) {
 			this._transparentFormatter = formatter.transparentFormatter;
 			this._opaqueFormatter = formatter.opaqueFormatter;
+			this.selectedColorString = this._opacity === 1 ? this._opaqueFormatter.toString(this._color) : this._transparentFormatter.toString(this._color);
 		} else if (!this._transparentFormatter || this._opacity === 1) {
 			this._transparentFormatter = null;
 			this._opaqueFormatter = formatter;
+			this.selectedColorString = this._opaqueFormatter.toString(this._color);
 		} else {
 			this.nextColorMode();
 		}
