@@ -5491,12 +5491,12 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The debug session's type from the debug configuration.
+		 * The debug session's type from the [debug configuration](#DebugConfiguration).
 		 */
 		readonly type: string;
 
 		/**
-		 * The debug session's name from the debug configuration.
+		 * The debug session's name from the [debug configuration](#DebugConfiguration).
 		 */
 		readonly name: string;
 
@@ -5533,18 +5533,18 @@ declare module 'vscode' {
 
 		/**
 		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a DebugConfiguration.
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
 		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
 		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. 'workspaceRoot') are resolved against the given folder.
-		 * @param folder The workspace folder for looking up named configurations and resolving variables or undefined.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceRoot}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
 
 		/**
-		 * The currently active debug session or `undefined`. The active debug session is the one
+		 * The currently active [debug session](#DebugSession) or `undefined`. The active debug session is the one
 		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
 		 * If no debug session is active, the value is `undefined`.
 		 */
@@ -5558,17 +5558,17 @@ declare module 'vscode' {
 		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
 
 		/**
-		 * An [event](#Event) which fires when a new debug session has been started.
+		 * An [event](#Event) which fires when a new [debug session](#DebugSession) has been started.
 		 */
 		export const onDidStartDebugSession: Event<DebugSession>;
 
 		/**
-		 * An [event](#Event) which fires when a custom DAP event is received from the debug session.
+		 * An [event](#Event) which fires when a custom DAP event is received from the [debug session](#DebugSession).
 		 */
 		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
 
 		/**
-		 * An [event](#Event) which fires when a debug session has terminated.
+		 * An [event](#Event) which fires when a [debug session](#DebugSession) has terminated.
 		 */
 		export const onDidTerminateDebugSession: Event<DebugSession>;
 	}
