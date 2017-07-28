@@ -6,6 +6,7 @@
 
 // import nls = require('vs/nls');
 import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
@@ -42,27 +43,26 @@ export class QueryBuilder {
 
 	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
 		let { searchPaths, includePattern } = this.parseSearchPaths(options.includePattern);
+		let excludePattern = patternListToIExpression(splitGlobPattern(options.excludePattern));
+
+		// if we have searchPaths, then turn them into folderQueries, and get all the excludes for the workspaces, and add them to excludePattern.
+		// If we don't, then turn the folderResources into folderQueries, with their excludes on each one
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		searchPaths = (searchPaths && searchPaths.length) ?
-			searchPaths :
-			folderResources && folderResources.map(fr => <ISearchPathPattern>{ searchPath: fr });
-
-		const folderQueries = searchPaths && searchPaths.map(searchPath => {
-			const folderQuery = this.getFolderQuery(searchPath.searchPath, options);
-			if (searchPath.pattern) {
-				folderQuery.includePattern = patternListToIExpression([searchPath.pattern]);
+		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
+		if (searchPaths && searchPaths.length) {
+			const allRootExcludes = folderQueries && this.mergeExcludesFromFolderQueries(folderQueries);
+			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath));
+			if (allRootExcludes) {
+				excludePattern = objects.mixin(excludePattern || Object.create(null), allRootExcludes);
 			}
-
-			return folderQuery;
-		});
+		}
 
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
 
-		const excludePattern = patternListToIExpression(splitGlobPattern(options.excludePattern));
 
 		return {
 			type,
@@ -120,7 +120,32 @@ export class QueryBuilder {
 		return result;
 	}
 
-	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: IQueryOptions): glob.IExpression | null {
+	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
+		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
+			if (fq.excludePattern) {
+				objects.mixin(merged, this.getAbsoluteIExpression(fq.excludePattern, fq.folder.fsPath));
+			}
+
+			return merged;
+		}, Object.create(null));
+
+		// Don't return an empty IExpression
+		return Object.keys(mergedExcludes).length ? mergedExcludes : undefined;
+	}
+
+	private getAbsoluteIExpression(expr: glob.IExpression, root: string): glob.IExpression {
+		return Object.keys(expr)
+			.reduce((absExpr: glob.IExpression, key: string) => {
+				if (expr[key] && !paths.isAbsolute(key)) {
+					const absPattern = paths.join(root, key);
+					absExpr[absPattern] = true;
+				}
+
+				return absExpr;
+			}, Object.create(null));
+	}
+
+	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: IQueryOptions): glob.IExpression | undefined {
 		return options.disregardExcludeSettings ?
 			undefined :
 			getExcludes(folderConfig);
@@ -187,7 +212,17 @@ export class QueryBuilder {
 		return [];
 	}
 
-	private getFolderQuery(folder: uri, options?: IQueryOptions): IFolderQuery {
+	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
+		const folder = searchPath.searchPath;
+		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		return <IFolderQuery>{
+			folder,
+			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
+			fileEncoding: folderConfig.files && folderConfig.files.encoding
+		};
+	}
+
+	private getFolderQueryForRoot(folder: uri, options?: IQueryOptions): IFolderQuery {
 		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
 		return <IFolderQuery>{
 			folder,

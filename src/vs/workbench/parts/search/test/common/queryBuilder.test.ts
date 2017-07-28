@@ -15,7 +15,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
-import { ISearchQuery, QueryType, IPatternInfo } from 'vs/platform/search/common/search';
+import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
 suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
@@ -32,6 +32,7 @@ suite('QueryBuilder', () => {
 		instantiationService = new TestInstantiationService();
 
 		mockConfigService = new TestConfigurationService();
+		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
@@ -53,7 +54,6 @@ suite('QueryBuilder', () => {
 	});
 
 	test('folderResources', () => {
-		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
 		assertEqualQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
@@ -65,6 +65,129 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text,
 				useRipgrep: true
 			});
+	});
+
+	test('simple exclude setting', () => {
+		mockConfigService.setUserConfiguration('search', {
+			useRipgrep: true,
+			exclude: {
+				'bar/**': true
+			}
+		});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI]
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI,
+					excludePattern: { 'bar/**': true }
+				}],
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+	});
+
+	test('simple include', () => {
+		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ includePattern: './bar' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
+				}],
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+	});
+
+	test('exclude setting and searchPath', () => {
+		mockConfigService.setUserConfiguration('search', {
+			useRipgrep: true,
+			exclude: {
+				'foo/**/*.js': true
+			}
+		});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ includePattern: './foo' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: getUri(paths.join(ROOT_1, 'foo'))
+				}],
+				excludePattern: { [paths.join(ROOT_1, 'foo/**/*.js')]: true },
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+	});
+
+	test('multiroot exclude settings', () => {
+		const ROOT_2 = '/project/root2';
+		const ROOT_2_URI = getUri(ROOT_2);
+		const ROOT_3 = '/project/root3';
+		const ROOT_3_URI = getUri(ROOT_3);
+		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
+
+		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
+		mockConfigService.setUserConfiguration('search', {
+			useRipgrep: true,
+			exclude: { 'foo/**/*.js': true }
+		}, ROOT_1_URI);
+
+		mockConfigService.setUserConfiguration('search', {
+			useRipgrep: true,
+			exclude: { 'bar': true }
+		}, ROOT_2_URI);
+
+		// There are 3 roots, the first two have search.exclude settings, test that the correct basic query is returned
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI]
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [
+					{ folder: ROOT_1_URI, excludePattern: patternsToIExpression('foo/**/*.js') },
+					{ folder: ROOT_2_URI, excludePattern: patternsToIExpression('bar') },
+					{ folder: ROOT_3_URI }
+				],
+				type: QueryType.Text,
+				useRipgrep: true
+			}
+		);
+
+		// Now test that it merges the root excludes when an 'include' is used
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI, ROOT_2_URI, ROOT_3_URI],
+				{ includePattern: './root2/src' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [
+					{ folder: getUri(paths.join(ROOT_2, 'src')) }
+				],
+				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'foo/**/*.js'), paths.join(ROOT_2, 'bar')),
+				type: QueryType.Text,
+				useRipgrep: true
+			}
+		);
 	});
 
 	suite('parseSearchPaths', () => {
@@ -321,7 +444,23 @@ suite('QueryBuilder', () => {
 	});
 });
 
+// fsPath and toString have the side effects of populating some private fields on uri.
+// Call these so that a uri can be assert.deepEqual'd with another.
+function forceLazyUriProps(someUri: uri): void {
+	let x = someUri.fsPath;
+	x = someUri.toString();
+}
+
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {
+	const forceLazyFolderQueryUriProps = (fqs: IFolderQuery[]) => {
+		if (fqs) {
+			fqs.map(fq => fq.folder).forEach(forceLazyUriProps);
+		}
+	};
+
+	forceLazyFolderQueryUriProps(actual.folderQueries);
+	forceLazyFolderQueryUriProps(expected.folderQueries);
+
 	cleanUndefinedQueryValues(actual);
 	assert.deepEqual(actual, expected);
 }
