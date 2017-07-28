@@ -322,10 +322,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				if (this._colorPicker) {
-					return;
-				}
-
 				let opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter;
 				if (typeof msg.format === 'string') {
 					opaqueFormatter = new ColorFormatter(msg.format);
