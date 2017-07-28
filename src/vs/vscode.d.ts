@@ -4721,8 +4721,8 @@ declare module 'vscode' {
 		export let rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders or `undefined` when no folder is open, `undefined` when no
-		 * folder has been opened. *Note* that the first entry corresponds to the value of `rootPath`.
+		 * List of workspace folders or `undefined` when no folder is open.
+		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 *
 		 * @readonly
 		 */
