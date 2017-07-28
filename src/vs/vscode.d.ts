@@ -4739,12 +4739,15 @@ declare module 'vscode' {
 		 * Returns a path that is relative to the workspace folder or folders.
 		 *
 		 * When there are no [workspace folders](#workspace.workspaceFolders) or when the path
-		 * is not a child of them, the input is returned.
+		 * is not contained in them, the input is returned.
 		 *
 		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
+		 * @param includeWorkspaceFolder When `true` and when the given path is contained inside a
+		 * workspace folder the name of the workspace is prepended. Defaults to `true` when there are
+		 * multiple workspace folders and `false` otherwise.
 		 * @return A path relative to the root or the input.
 		 */
-		export function asRelativePath(pathOrUri: string | Uri): string;
+		export function asRelativePath(pathOrUri: string | Uri, includeWorkspaceFolder?: boolean): string;
 
 		/**
 		 * Creates a file system watcher.
