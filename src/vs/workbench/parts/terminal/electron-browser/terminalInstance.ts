@@ -10,7 +10,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
 import XTermTerminal = require('xterm');
@@ -70,7 +70,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
-	private _onCheckWindowsShell: Emitter<TPromise<string>>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
 	private _skipTerminalCommands: string[];
@@ -141,10 +140,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess(this._shellLaunchConfig);
 		this._createXterm();
-
-		if (this._shellLaunchConfig && !this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.executable, true);
-		}
 
 		if (platform.isWindows) {
 			this._processReady.then(() => this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm));
@@ -536,10 +531,13 @@ export class TerminalInstance implements ITerminalInstance {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
+
+
 		if (shell.name) {
 			this.setTitle(shell.name, false);
 		} else {
 			// Only listen for process title changes when a name is not provided
+			this.setTitle(shell.executable, true);
 			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this.setTitle(message.content ? message.content : '', true);

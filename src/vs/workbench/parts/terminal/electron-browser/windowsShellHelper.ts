@@ -9,6 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import XTermTerminal = require('xterm');
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
@@ -18,7 +19,7 @@ export class WindowsShellHelper {
 	private _rootProcessId: number;
 	private _terminalInstance: ITerminalInstance;
 	private _onCheckShell: Emitter<TPromise<string>>;
-	private _xterm: any;
+	private _xterm: XTermTerminal;
 
 	public constructor(rootProcessId: number, rootShellExecutable: string, terminalInstance: ITerminalInstance, xterm: any) {
 		if (!platform.isWindows) {
