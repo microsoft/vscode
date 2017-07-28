@@ -842,9 +842,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public setTitle(title: string, eventFromProcess: boolean): void {
 		if (eventFromProcess) {
+			title = path.basename(title);
 			if (platform.isWindows) {
 				// Remove the .exe extension
-				title = path.basename(title.split('.exe')[0]);
+				title = title.split('.exe')[0];
 			}
 		} else {
 			// If the title has not been set by the API or the rename command, unregister the handler that
