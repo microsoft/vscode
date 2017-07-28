@@ -171,6 +171,7 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const indentation = es.through(function (file) {
+		let inRawString = false;
 		file.contents
 			.toString('utf8')
 			.split(/\r\n|\r|\n/)
@@ -181,9 +182,16 @@ const hygiene = exports.hygiene = (some, options) => {
 					// good indent
 				} else if (/^[\t]* \*/.test(line)) {
 					// block comment using an extra space
+				} else if (inRawString) {
+					// the start of this line is in a raw string so indentation rules don't apply
 				} else {
 					console.error(file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation');
 					errorCount++;
+				}
+				for (let c of line) {
+					if (c === '`') {
+						inRawString = !inRawString;
+					}
 				}
 			});
 
