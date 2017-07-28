@@ -354,6 +354,20 @@ export class Color {
 		return lum1 > lum2 ? (lum1 + 0.05) / (lum2 + 0.05) : (lum2 + 0.05) / (lum1 + 0.05);
 	}
 
+	public getSaturation(): number {
+		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
+		const cmax = Math.max(r, g, b);
+		const cmin = Math.min(r, g, b);
+		if (cmax === 0) {
+			return 0;
+		}
+		return (cmax - cmin) / cmax;
+	}
+
+	public getValue(): number {
+		return Math.max(this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255);
+	}
+
 	/**
 	 *	http://24ways.org/2010/calculating-color-contrast
 	 *  Return 'true' if darker color otherwise 'false'

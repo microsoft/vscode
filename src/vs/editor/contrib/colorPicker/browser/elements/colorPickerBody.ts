@@ -166,7 +166,7 @@ export class ColorPickerBody extends Disposable {
 		dom.append(this.domNode, this.hueStrip);
 
 		this.hueSlider = new Slider(this.hueStrip);
-		this.hueSlider.top = this.hueStrip.offsetHeight * (this.calculateHueValue(this.model.color) / 360);
+		this.hueSlider.top = this.hueStrip.offsetHeight * (this.calculateHue(this.model.color) / 360);
 		dom.append(this.hueStrip, this.hueSlider.domNode);
 	}
 
@@ -206,7 +206,7 @@ export class ColorPickerBody extends Disposable {
 		return Color.fromRGBA(new RGBA(r, g, b));
 	}
 
-	private calculateHueValue(color: Color): number {
+	private calculateHue(color: Color): number {
 		const c = color.toRGBA();
 		const red = c.r / 255;
 		const green = c.g / 255;
@@ -232,7 +232,6 @@ export class ColorPickerBody extends Disposable {
 
 		return hue;
 	}
-
 
 	private calculateOpacity(slider: Slider): number {
 		const opacityNormalizedHeight = this.opacityStrip.offsetHeight - slider.domNode.offsetHeight;
@@ -262,6 +261,10 @@ export class SaturationBox {
 
 		// Add selection circle
 		this.saturationSelection = $('.saturation-selection');
+		const saturation = this.model.saturation * this.saturationCanvas.clientWidth;
+		const selectionHeight = this.model.value * this.saturationCanvas.clientHeight;
+		const value = selectionHeight === 0 ? this.saturationCanvas.clientHeight : this.saturationCanvas.clientHeight - selectionHeight;
+		this.focusSaturationSelection({ x: saturation, y: value });
 		dom.append(this.domNode, this.saturationSelection);
 	}
 

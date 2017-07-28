@@ -22,6 +22,8 @@ export class ColorPickerModel {
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
 	public colorFormatters: ColorPickerFormatter[];
+	public saturation: number; // [0-1]
+	public value: number; // [0-1]
 
 	private _color: Color;
 	private _selectedColor: string;
@@ -48,6 +50,8 @@ export class ColorPickerModel {
 		this._opaqueFormatter = opaqueFormatter;
 		this.colorFormatters = availableFormatters;
 		this.color = color;
+		this.saturation = this._color.getSaturation();
+		this.value = this._color.getValue();
 		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
