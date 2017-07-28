@@ -8,28 +8,45 @@ import * as platform from 'vs/base/common/platform';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import XTermTerminal = require('xterm');
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
-	private _onCheckWindowsShell: Emitter<string>;
 	private _rootShellExecutable: string;
 	private _rootProcessId: number;
+	private _terminalInstance: ITerminalInstance;
+	private _onCheckShell: Emitter<TPromise<string>>;
+	private _xterm: XTermTerminal;
 
-	public constructor(rootProcessId: number, rootShellExecutable: string) {
-		this._childProcessIdStack = [];
-		this._rootShellExecutable = rootShellExecutable;
-		this._rootProcessId = rootProcessId;
-
+	public constructor(rootProcessId: number, rootShellExecutable: string, terminalInstance: ITerminalInstance, xterm: any) {
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
 
-		this._onCheckWindowsShell = new Emitter<string>();
-		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
-			this.getShellName();
+		this._childProcessIdStack = [rootProcessId];
+		this._rootShellExecutable = rootShellExecutable;
+		this._rootProcessId = rootProcessId;
+		this._terminalInstance = terminalInstance;
+		this._xterm = xterm;
+
+		this._onCheckShell = new Emitter<TPromise<string>>();
+		// The debounce is necessary to prevent multiple processes from spawning when
+		// the enter key or output is spammed
+		debounceEvent(this._onCheckShell.event, (l, e) => e, 200, true)(() => {
+			this.checkShell();
 		});
+
+		this._xterm.on('lineFeed', () => this._onCheckShell.fire());
+		this._xterm.on('keypress', () => this._onCheckShell.fire());
+	}
+
+	private checkShell(): void {
+		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true));
+		}
 	}
 
 	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
@@ -82,13 +99,6 @@ export class WindowsShellHelper {
 	 * Returns the innermost shell executable running in the terminal
 	 */
 	public getShellName(): TPromise<string> {
-		if (this._childProcessIdStack.length === 0) {
-			this._childProcessIdStack.push(this._rootProcessId);
-		}
-		return new TPromise<string>((resolve) => {
-			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null).then(result => {
-				resolve(result);
-			}, error => { return error; });
-		});
+		return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null);
 	}
 }
