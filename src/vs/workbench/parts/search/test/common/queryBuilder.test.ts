@@ -121,6 +121,14 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
+					fixPath('/foo/bar,/foo/../foo/bar/fooar/..'),
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri('/foo/bar')
+						}]
+					}
+				],
+				[
 					fixPath('/foo/bar/**/*.ts'),
 					<ISearchPathsResult>{
 						searchPaths: [{
@@ -190,7 +198,15 @@ suite('QueryBuilder', () => {
 								searchPath: getUri('/project/foo')
 							}]
 					}
-				]
+				],
+				[
+					'./a/b/..,./a',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(ROOT_1 + '/a')
+						}]
+					}
+				],
 			].forEach(testIncludesDataItem);
 		});
 

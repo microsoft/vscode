@@ -135,7 +135,7 @@ export class QueryBuilder {
 			return [];
 		}
 
-		return arrays.flatten(searchPaths.map(searchPath => {
+		const searchPathPatterns = arrays.flatten(searchPaths.map(searchPath => {
 			// 1 open folder => just resolve the search paths to absolute paths
 			const { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 			const pathPortions = this.expandAbsoluteSearchPaths(pathPortion);
@@ -146,6 +146,8 @@ export class QueryBuilder {
 				};
 			});
 		}));
+
+		return searchPathPatterns.filter(arrays.uniqueFilter(searchPathPattern => searchPathPattern.searchPath.toString()));
 	}
 
 	/**
@@ -153,14 +155,15 @@ export class QueryBuilder {
 	 */
 	private expandAbsoluteSearchPaths(searchPath: string): string[] {
 		if (paths.isAbsolute(searchPath)) {
-			return [searchPath];
+			return [paths.normalize(searchPath)];
 		}
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		if (searchPath === './') {
 			return [];
 		} else if (workspace.roots.length === 1) {
-			return [paths.join(workspace.roots[0].fsPath, searchPath)];
+			return [paths.normalize(
+				paths.join(workspace.roots[0].fsPath, searchPath))];
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
 			if (relativeSearchPathMatch) {
@@ -169,7 +172,7 @@ export class QueryBuilder {
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
-							paths.join(root.fsPath, relativeSearchPathMatch[2]) :
+							paths.normalize(paths.join(root.fsPath, relativeSearchPathMatch[2])) :
 							root.fsPath;
 					});
 				} else {
