@@ -265,6 +265,7 @@ export class SaturationBox {
 		const selectionHeight = this.model.value * this.saturationCanvas.clientHeight;
 		const value = selectionHeight === 0 ? this.saturationCanvas.clientHeight : this.saturationCanvas.clientHeight - selectionHeight;
 		this.focusSaturationSelection({ x: saturation, y: value });
+		this.model.saturationSelection = { x: saturation, y: value };
 		dom.append(this.domNode, this.saturationSelection);
 	}
 
