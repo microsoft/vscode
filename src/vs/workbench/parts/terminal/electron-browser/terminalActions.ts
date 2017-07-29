@@ -613,8 +613,8 @@ export class RenameTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ITerminalService private terminalService: ITerminalService
+		@IQuickOpenService protected quickOpenService: IQuickOpenService,
+		@ITerminalService protected terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -682,7 +682,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 	public getActions(context: any): IAction[] {
 		let actions: Action[] = [];
 		if (context.element instanceof TerminalEntry) {
-			actions.push(new RenameTerminalQuickOpenAction(RenameTerminalAction.ID, RenameTerminalAction.LABEL, this.quickOpenService, this.terminalService, this.instantiationService, context.element));
+			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
 		}
 		return actions;
 	}
@@ -706,14 +706,12 @@ export class QuickOpenTermAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
-
-		return TPromise.as(true);
+	public run(): TPromise<void> {
+		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
 	}
 }
 
-export class RenameTerminalQuickOpenAction extends Action {
+export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 
 	public static ID = 'workbench.action.terminal.renameQuickPick';
 	public static LABEL = nls.localize('workbench.action.terminal.renameQuickPick', "Rename Quick Pick");
@@ -721,12 +719,12 @@ export class RenameTerminalQuickOpenAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ITerminalService private terminalService: ITerminalService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		private terminal: TerminalEntry
+		private terminal: TerminalEntry,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@ITerminalService terminalService: ITerminalService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(id, label);
+		super(id, label, quickOpenService, terminalService);
 		this._terminal = terminal;
 		this.class = 'quick-open-terminal-configure';
 	}
@@ -734,7 +732,7 @@ export class RenameTerminalQuickOpenAction extends Action {
 	public run(): TPromise<any> {
 		const currentTerminal = this.terminalService.getActiveInstance();
 		this.terminalService.setActiveInstanceByIndex(parseInt(this._terminal.getLabel().split(':')[0], 10) - 1);
-		this.instantiationService.createInstance(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL).run()
+		super.run()
 			.then(() => TPromise.timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 
