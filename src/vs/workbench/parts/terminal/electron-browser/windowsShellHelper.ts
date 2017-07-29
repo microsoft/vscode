@@ -26,6 +26,7 @@ interface IWindowsProcTreeItem {
 export class WindowsShellHelper {
 	private _childProcessIdStack: IWindowsProcTreeItem[];
 	private _onCheckShell: Emitter<TPromise<string>>;
+	private _searchInProgress: boolean;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -51,8 +52,9 @@ export class WindowsShellHelper {
 	}
 
 	private checkShell(): void {
-		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
-			this.getShellName().then(title => this._terminalInstance.setTitle(title, true));
+		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess && !this._searchInProgress) {
+			this._searchInProgress = true;
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => this._searchInProgress = false);
 		}
 	}
 
