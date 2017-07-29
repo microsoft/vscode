@@ -19,7 +19,6 @@ import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -700,8 +699,7 @@ export class QuickOpenTermAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
@@ -713,8 +711,6 @@ export class QuickOpenTermAction extends Action {
 
 export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 
-	public static ID = 'workbench.action.terminal.renameQuickPick';
-	public static LABEL = nls.localize('workbench.action.terminal.renameQuickPick', "Rename Quick Pick");
 	private _terminal: TerminalEntry;
 
 	constructor(
@@ -733,6 +729,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		const currentTerminal = this.terminalService.getActiveInstance();
 		this.terminalService.setActiveInstanceByIndex(parseInt(this._terminal.getLabel().split(':')[0], 10) - 1);
 		super.run()
+			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
 			.then(() => TPromise.timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 
