@@ -206,11 +206,11 @@ export class QueryBuilder {
 		}
 
 		const workspace = this.workspaceContextService.getWorkspace();
-		if (workspace.roots.length === 1) {
+		if (this.workspaceContextService.hasFolderWorkspace()) {
 			return [paths.normalize(
 				paths.join(workspace.roots[0].fsPath, searchPath))];
 		} else if (searchPath === './') {
-			return []; // ./ or ./**/foo makes sense for single-root but not multiroot
+			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
 			if (relativeSearchPathMatch) {

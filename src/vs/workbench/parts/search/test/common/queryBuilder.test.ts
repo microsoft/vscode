@@ -139,6 +139,7 @@ suite('QueryBuilder', () => {
 		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
 		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
+		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
 			useRipgrep: true,
@@ -385,6 +386,7 @@ suite('QueryBuilder', () => {
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
 			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2)];
+			mockWorkspace.configuration = uri.file(fixPath('config'));
 
 			[
 				[
@@ -424,6 +426,7 @@ suite('QueryBuilder', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
 			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2), getUri(ROOT_3)];
+			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 			[
 				[

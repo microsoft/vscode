@@ -864,7 +864,7 @@ export class SearchViewlet extends Viewlet {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
 		if (workspace && resource) {
-			if (workspace.roots.length === 1) {
+			if (this.contextService.hasFolderWorkspace()) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
