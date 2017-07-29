@@ -92,8 +92,6 @@ suite('QueryBuilder', () => {
 	});
 
 	test('simple include', () => {
-		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
-
 		assertEqualQueries(
 			queryBuilder.text(
 				PATTERN_INFO,
@@ -142,7 +140,6 @@ suite('QueryBuilder', () => {
 		const ROOT_3_URI = getUri(ROOT_3);
 		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
 
-		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
 		mockConfigService.setUserConfiguration('search', {
 			useRipgrep: true,
 			exclude: { 'foo/**/*.js': true }

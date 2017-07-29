@@ -12,6 +12,7 @@ import fs = require('fs');
 import path = require('path');
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import scorer = require('vs/base/common/scorer');
 import objects = require('vs/base/common/objects');
@@ -103,8 +104,32 @@ export class FileWalker {
 					}
 				});
 
-			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression, { trimForExclusions: true }));
+			this.folderExcludePatterns.set(folderQuery.folder, this.parseAbsoluteAndRelativeGlobs(folderExcludeExpression, folderQuery.folder));
 		});
+	}
+
+	private parseAbsoluteAndRelativeGlobs(expr: glob.IExpression, root: string): glob.ParsedExpression {
+		let absoluteGlobExpr: glob.IExpression;
+		let relativeGlobExpr: glob.IExpression;
+		Object.keys(expr).forEach(key => {
+			if (path.isAbsolute(key)) {
+				absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
+				absoluteGlobExpr[key] = true;
+			} else {
+				relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
+				relativeGlobExpr[key] = true;
+			}
+		});
+
+		const absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
+		const relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
+
+		// The absolute and relative expressions don't "have" to be kept separate, but this keeps us from having to path.join every single
+		// file searched, it's only used for a text search with a searchPath
+		return (_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> => {
+			return (relativeParsedExpr && relativeParsedExpr(_path, basename, siblingsFn)) ||
+				(absoluteParsedExpr && absoluteParsedExpr(path.join(root, _path), basename, siblingsFn));
+		};
 	}
 
 	public cancel(): void {

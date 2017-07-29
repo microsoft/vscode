@@ -88,7 +88,8 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 }
 
 function doSearchTest(config: IRawSearch, expectedResultCount: number, done) {
-	return doRipgrepSearchTest(config, expectedResultCount)
+	return doLegacySearchTest(config, expectedResultCount)
+		.then(() => doRipgrepSearchTest(config, expectedResultCount))
 		.then(done, done);
 }
 
@@ -185,6 +186,26 @@ suite('Search-integration', function () {
 		};
 
 		doSearchTest(config, 382, done);
+	});
+
+	test('Text: e (with absolute path excludes)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'))
+		};
+
+		doSearchTest(config, 394, done);
+	});
+
+	test('Text: e (with mixed absolute/relative path excludes)', function (done: () => void) {
+		const config: any = {
+			folderQueries: ROOT_FOLDER_QUERY,
+			contentPattern: { pattern: 'e' },
+			excludePattern: makeExpression(path.join(TEST_FIXTURES, '**/examples'), '*.css')
+		};
+
+		doSearchTest(config, 310, done);
 	});
 
 	test('Text: sibling exclude', function (done: () => void) {

@@ -45,9 +45,6 @@ export class QueryBuilder {
 		let { searchPaths, includePattern } = this.parseSearchPaths(options.includePattern);
 		let excludePattern = patternListToIExpression(splitGlobPattern(options.excludePattern));
 
-		// if we have searchPaths, then turn them into folderQueries, and get all the excludes for the workspaces, and add them to excludePattern.
-		// If we don't, then turn the folderResources into folderQueries, with their excludes on each one
-
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
 		if (searchPaths && searchPaths.length) {

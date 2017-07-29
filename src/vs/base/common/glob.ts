@@ -15,6 +15,10 @@ export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
 }
 
+export function getEmptyExpression(): IExpression {
+	return Object.create(null);
+}
+
 export interface SiblingClause {
 	when: string;
 }
