@@ -1192,7 +1192,7 @@ export class SearchViewlet extends Viewlet {
 		const msgWasHidden = this.messages.isHidden();
 		if (fileCount > 0) {
 			const div = this.clearMessage();
-			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount, this.viewModel.searchResult.folderCount()) });
+			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
 			if (msgWasHidden) {
 				this.reLayout();
 			}
@@ -1201,37 +1201,15 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	private buildResultCountMessage(resultCount: number, fileCount: number, folderCount: number): string {
-		if (!this.contextService.hasMultiFolderWorkspace()) {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
-			} else {
-				return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
-			}
-		} else if (folderCount === 1) {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.folder.file.result', "{0} result in {1} file in {2} folder", resultCount, fileCount, folderCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.folder.files.result', "{0} result in {1} files in {2} folder", resultCount, fileCount, folderCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.folder.file.results', "{0} results in {1} file in {2} folder", resultCount, fileCount, folderCount);
-			} else {
-				return nls.localize('search.folder.files.results', "{0} results in {1} files in {2} folder", resultCount, fileCount, folderCount);
-			}
+	private buildResultCountMessage(resultCount: number, fileCount: number): string {
+		if (resultCount === 1 && fileCount === 1) {
+			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
+		} else if (resultCount === 1) {
+			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
+		} else if (fileCount === 1) {
+			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
 		} else {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.folders.file.result', "{0} result in {1} file in {2} folders", resultCount, fileCount, folderCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.folders.files.result', "{0} result in {1} files in {2} folders", resultCount, fileCount, folderCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.folders.file.results', "{0} results in {1} file in {2} folders", resultCount, fileCount, folderCount);
-			} else {
-				return nls.localize('search.folders.files.results', "{0} results in {1} files in {2} folders", resultCount, fileCount, folderCount);
-			}
+			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
 		}
 	}
 
