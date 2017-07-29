@@ -23,7 +23,7 @@ export interface ISearchPathPattern {
 
 export interface ISearchPathsResult {
 	searchPaths?: ISearchPathPattern[];
-	includePattern?: glob.IExpression;
+	pattern?: glob.IExpression;
 }
 
 export class QueryBuilder {
@@ -42,8 +42,8 @@ export class QueryBuilder {
 	}
 
 	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
-		let { searchPaths, includePattern } = this.parseSearchPaths(options.includePattern);
-		let excludePattern = patternListToIExpression(splitGlobPattern(options.excludePattern));
+		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
+		let excludePattern = this.parseExcludePattern(options.excludePattern);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
@@ -111,10 +111,35 @@ export class QueryBuilder {
 
 		const includePattern = patternListToIExpression(exprSegments);
 		if (includePattern) {
-			result.includePattern = includePattern;
+			result.pattern = includePattern;
 		}
 
 		return result;
+	}
+
+	/**
+	 * Takes the input from the excludePattern as seen in the searchViewlet. Runs the same algorithm as parseSearchPaths,
+	 * but the result is a single IExpression that encapsulates all the exclude patterns.
+	 */
+	public parseExcludePattern(pattern: string): glob.IExpression | undefined {
+		const result = this.parseSearchPaths(pattern);
+		let excludeExpression = glob.getEmptyExpression();
+		if (result.pattern) {
+			excludeExpression = objects.mixin(excludeExpression, result.pattern);
+		}
+
+		if (result.searchPaths) {
+			result.searchPaths.forEach(searchPath => {
+				const excludeFsPath = searchPath.searchPath.fsPath;
+				const excludePath = searchPath.pattern ?
+					paths.join(excludeFsPath, searchPath.pattern) :
+					excludeFsPath;
+
+				excludeExpression[excludePath] = true;
+			});
+		}
+
+		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
@@ -181,11 +206,11 @@ export class QueryBuilder {
 		}
 
 		const workspace = this.workspaceContextService.getWorkspace();
-		if (searchPath === './') {
-			return [];
-		} else if (workspace.roots.length === 1) {
+		if (workspace.roots.length === 1) {
 			return [paths.normalize(
 				paths.join(workspace.roots[0].fsPath, searchPath))];
+		} else if (searchPath === './') {
+			return []; // ./ or ./**/foo makes sense for single-root but not multiroot
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
 			if (relativeSearchPathMatch) {

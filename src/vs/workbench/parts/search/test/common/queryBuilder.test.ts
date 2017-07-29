@@ -187,13 +187,65 @@ suite('QueryBuilder', () => {
 		);
 	});
 
+	test('simple exclude input pattern', () => {
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: 'foo' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.Text,
+				excludePattern: patternsToIExpression(globalGlob('foo')),
+				useRipgrep: true
+			});
+	});
+
+	test('exclude ./ syntax', () => {
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: './bar' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'bar')),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: './bar/**/*.ts' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'bar/**/*.ts')),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+	});
+
 	suite('parseSearchPaths', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					<ISearchPathsResult>{
-						includePattern: patternsToIExpression(...expectedPatterns.map(globalGlob))
+						pattern: patternsToIExpression(...expectedPatterns.map(globalGlob))
 					},
 					includePattern);
 			}
@@ -231,7 +283,7 @@ suite('QueryBuilder', () => {
 					fixPath('/foo/bar') + ',' + 'a',
 					<ISearchPathsResult>{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }],
-						includePattern: patternsToIExpression(globalGlob('a'))
+						pattern: patternsToIExpression(globalGlob('a'))
 					}
 				],
 				[
@@ -464,7 +516,7 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 
 function assertEqualSearchPathResults(actual: ISearchPathsResult, expected: ISearchPathsResult, message?: string): void {
 	cleanUndefinedQueryValues(actual);
-	assert.deepEqual(actual.includePattern, expected.includePattern, message);
+	assert.deepEqual(actual.pattern, expected.pattern, message);
 
 	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
