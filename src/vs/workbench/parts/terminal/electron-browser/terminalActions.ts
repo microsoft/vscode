@@ -630,6 +630,8 @@ export class RenameTerminalAction extends Action {
 			if (name) {
 				terminalInstance.setTitle(name, false);
 			}
+
+			this.quickOpenService.show('term ');
 		});
 	}
 }
@@ -695,7 +697,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 export class QuickOpenTermAction extends Action {
 
 	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Quick Open Terminal");
+	public static LABEL = nls.localize('quickOpenTerm', "Switch active terminal");
 
 	constructor(
 		id: string,
@@ -734,9 +736,10 @@ export class RenameTerminalQuickOpenAction extends Action {
 	public run(): TPromise<any> {
 		const currentTerminal = this.terminalService.getActiveInstance();
 		this.terminalService.setActiveInstanceByIndex(parseInt(this._terminal.getLabel().split(':')[0], 10) - 1);
-		this.instantiationService.createInstance(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL).run().then(result => {
-			this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
-		});
+		this.instantiationService.createInstance(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL).run()
+			.then(() => TPromise.timeout(50))
+			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+
 		this.terminalService.setActiveInstance(currentTerminal);
 		return TPromise.as(null);
 	}
