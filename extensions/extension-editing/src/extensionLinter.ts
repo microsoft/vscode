@@ -22,7 +22,9 @@ const httpsRequired = localize('httpsRequired', "Images must use the HTTPS proto
 const svgsNotValid = localize('svgsNotValid', "SVGs are not a valid image source.");
 const embeddedSvgsNotValid = localize('embeddedSvgsNotValid', "Embedded SVGs are not a valid image source.");
 const dataUrlsNotValid = localize('dataUrlsNotValid', "Data URLs are not a valid image source.");
-const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol in the package.json.");
+const relativeUrlRequiresHttpsRepository = localize('relativeUrlRequiresHttpsRepository', "Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
+const relativeIconUrlRequiresHttpsRepository = localize('relativeIconUrlRequiresHttpsRepository', "An icon requires a repository with HTTPS protocol to be specified in this package.json.");
+const relativeBadgeUrlRequiresHttpsRepository = localize('relativeBadgeUrlRequiresHttpsRepository', "Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 
 enum Context {
 	ICON,
@@ -294,7 +296,14 @@ export class ExtensionLinter {
 
 		if (!scheme && !info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
-			diagnostics.push(new Diagnostic(range, relativeUrlRequiresHttpsRepository, DiagnosticSeverity.Warning));
+			let message = (() => {
+				switch (context) {
+					case Context.ICON: return relativeIconUrlRequiresHttpsRepository;
+					case Context.BADGE: return relativeBadgeUrlRequiresHttpsRepository;
+					default: return relativeUrlRequiresHttpsRepository;
+				}
+			})();
+			diagnostics.push(new Diagnostic(range, message, DiagnosticSeverity.Warning));
 		}
 
 		if (endsWith(uri.path.toLowerCase(), '.svg') && allowedBadgeProviders.indexOf(uri.authority.toLowerCase()) === -1) {

@@ -98,6 +98,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
+	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
 
 	public constructor(
 		private _terminalFocusContextKey: IContextKey<boolean>,
@@ -141,9 +142,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._createXterm();
 
 		if (platform.isWindows) {
-			this._processReady.then(() => {
-				this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable);
-			});
+			this._processReady.then(() => this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm));
 		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
@@ -277,12 +276,6 @@ export class TerminalInstance implements ITerminalInstance {
 			// If tab focus mode is on, tab is not passed to the terminal
 			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 				return false;
-			}
-
-			// Windows does not get a process title event from terminalProcess so we check the name on enter
-			// messageTitleListener is falsy when the API/user renames the terminal so we don't override it
-			if (platform.isWindows && event.keyCode === 13 /* ENTER */ && this._messageTitleListener) {
-				this._windowsShellHelper.getShellName().then(title => this.setTitle(title, true));
 			}
 
 			return undefined;
@@ -544,10 +537,13 @@ export class TerminalInstance implements ITerminalInstance {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
+
+
 		if (shell.name) {
 			this.setTitle(shell.name, false);
 		} else {
 			// Only listen for process title changes when a name is not provided
+			this.setTitle(shell.executable, true);
 			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this.setTitle(message.content ? message.content : '', true);
@@ -852,9 +848,10 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public setTitle(title: string, eventFromProcess: boolean): void {
 		if (eventFromProcess) {
+			title = path.basename(title);
 			if (platform.isWindows) {
 				// Remove the .exe extension
-				title = path.basename(title.split('.exe')[0]);
+				title = title.split('.exe')[0];
 			}
 		} else {
 			// If the title has not been set by the API or the rename command, unregister the handler that
