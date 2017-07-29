@@ -44,7 +44,10 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	}
 
 	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.getText(rangeToReplace).replace(/\r\n|\n/g, '').replace(/>\s*</g, '><');
+	let textToReplaceWith = document.lineAt(startNodeToUpdate.start.line).text.substr(startNodeToUpdate.start.character);
+	for (let i = startNodeToUpdate.start.line + 1; i <= endNodeToUpdate.end.line; i++) {
+		textToReplaceWith += document.lineAt(i).text.trim();
+	}
 
 	return [rangeToReplace, textToReplaceWith];
 }
