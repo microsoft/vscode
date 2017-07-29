@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "Cmd + 单击以跟踪链接",
 	"links.navigate": "Ctrl + 单击以跟踪链接",
+	"links.command.mac": "Cmd + 单击以执行命令",
+	"links.command": "Ctrl + 单击以执行命令",
 	"links.navigate.al": "Alt + 单击以访问链接",
+	"links.command.al": "Alt + 单击以执行命令",
 	"invalid.url": "抱歉，无法打开此链接，因为其格式不正确: {0}",
 	"missing.url": "抱歉，无法打开此链接，因为其目标丢失。",
 	"label": "打开链接"

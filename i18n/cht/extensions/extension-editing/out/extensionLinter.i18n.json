@@ -7,6 +7,5 @@
 	"httpsRequired": "影像必須使用 HTTPS 通訊協定。",
 	"svgsNotValid": "SVGs 不是有效的影像來源。",
 	"embeddedSvgsNotValid": "內嵌 SVGs 不是有效的影像來源。",
-	"dataUrlsNotValid": "資料 URL 不是有效的影像來源。",
-	"relativeUrlRequiresHttpsRepository": "相對影像 URL 在 package.json 中需要 HTTPS 通訊協定的存放庫。"
+	"dataUrlsNotValid": "資料 URL 不是有效的影像來源。"
 }

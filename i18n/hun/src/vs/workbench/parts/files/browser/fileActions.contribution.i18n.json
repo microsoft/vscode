@@ -6,6 +6,6 @@
 {
 	"filesCategory": "Fájlok",
 	"revealInSideBar": "Megjelenítés az oldalsávon",
-	"acceptLocalChanges": "Helyi változtatások használata és a lemezen lévő tartalom felülírása",
-	"revertLocalChanges": "Helyi változtatások eldobása és visszaállítás a lemezen lévő tartalomra"
+	"acceptLocalChanges": "A lemezen lévő tartalom felülírása a saját módosításokkal",
+	"revertLocalChanges": "Saját módosítások elvetése és a lemezen lévő tartalom visszaállítása"
 }

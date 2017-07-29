@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "最後に選択した項目を次の一致項目に移動",
 	"moveSelectionToPreviousFindMatch": "最後に選んだ項目を前の一致項目に移動する",
 	"selectAllOccurrencesOfFindMatch": "一致するすべての出現箇所を選択します",
-	"changeAll.label": "すべての出現箇所を変更"
+	"changeAll.label": "すべての出現箇所を変更",
+	"showNextFindTermAction": "次の検索語句を表示",
+	"showPreviousFindTermAction": "前の検索語句を表示"
 }

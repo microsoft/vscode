@@ -7,7 +7,5 @@
 	"openFolderFirst": "先開啟資料夾以建立工作區設定",
 	"emptyKeybindingsHeader": "將您的按鍵組合放入此檔案中以覆寫預設值",
 	"defaultKeybindings": "預設按鍵繫結關係",
-	"emptySettingsHeader": "將您的設定放入此檔案中以覆寫預設值",
-	"emptySettingsHeader1": "將您的設定放入此檔案中以覆寫預設值和使用者設定。",
 	"fail.createSettings": "無法建立 '{0}' ({1})。"
 }

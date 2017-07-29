@@ -9,7 +9,6 @@
 	"focusNextInputBox": "Focus sur la zone d'entrée suivante",
 	"focusPreviousInputBox": "Focus sur la zone d'entrée précédente",
 	"replaceInFiles": "Remplacer dans les fichiers",
-	"findInFolder": "Rechercher dans le dossier",
 	"RefreshAction.label": "Actualiser",
 	"ClearSearchResultsAction.label": "Effacer les résultats de la recherche",
 	"FocusNextSearchResult.label": "Focus sur le résultat de la recherche suivant",

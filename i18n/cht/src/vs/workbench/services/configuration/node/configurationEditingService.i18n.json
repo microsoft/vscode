@@ -7,11 +7,10 @@
 	"open": "開啟設定",
 	"close": "關閉",
 	"saveAndRetry": "儲存設定並重啟",
-	"errorUnknownKey": "無法寫入組態檔 (不明的按鍵)",
-	"errorInvalidTarget": "無法寫入組態檔 (目標無效)",
-	"errorNoWorkspaceOpened": "無法寫入設定,因為沒有開啟資料夾,請開啟資料夾後再試一次.",
 	"errorInvalidConfiguration": "無法寫入設定.請開啟**使用者設定**並修正錯誤/警告後再試一次.",
 	"errorInvalidConfigurationWorkspace": "無法寫入設定.請開啟**工作區設定**並修正檔案中的錯誤/警告後再試一次.",
 	"errorConfigurationFileDirty": "無法寫入設定,因為檔案已變更.請儲存**使用者設定**後再試一次",
-	"errorConfigurationFileDirtyWorkspace": "無法寫入設定,因檔案已變更.請儲存**工作區設定**後再試一次."
+	"errorConfigurationFileDirtyWorkspace": "無法寫入設定,因檔案已變更.請儲存**工作區設定**後再試一次.",
+	"userTarget": "使用者設定",
+	"workspaceTarget": "工作區設定"
 }

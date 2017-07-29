@@ -7,5 +7,6 @@
 	"newWindow": "Nouvelle fenêtre",
 	"newWindowDesc": "Ouvre une nouvelle fenêtre",
 	"recentFolders": "Espaces de travail récents",
-	"folderDesc": "{0} {1}"
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "Espace de travail de code"
 }

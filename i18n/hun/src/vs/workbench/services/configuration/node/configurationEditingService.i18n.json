@@ -7,11 +7,11 @@
 	"open": "Beállítások megnyitása",
 	"close": "Bezárás",
 	"saveAndRetry": "Beállítások mentése és újrapróbálkozás",
-	"errorUnknownKey": "Nem sikerült írni a konfigurációs fájlt (ismeretlen kulcs)",
-	"errorInvalidTarget": "Nem sikerült írni a konfigurációs fájlt (érvénytelen cél)",
-	"errorNoWorkspaceOpened": "Nem sikerült írni a beállításokba, mert nincs mappa megnyitva. Nyisson meg egy mappát, majd próbálja újra!",
 	"errorInvalidConfiguration": "Nem sikerült írni a beállításokba. Nyissa meg a **Felhasználói beállításokat**, javítsa a hibákat és figyelmeztetéseket a fájlban, majd próbálja újra!",
 	"errorInvalidConfigurationWorkspace": "Nem sikerült írni a beállításokba. Nyissa meg a **Munkaterült beállításait**, javítsa a hibákat és figyelmeztetéseket a fájlban, majd próbálja újra!",
 	"errorConfigurationFileDirty": "Nem sikerült írni a beállításokba, mert a fájl módosítva lett. Mentse a **Felhasználói beállítások** fájlt, majd próbálja újra!",
-	"errorConfigurationFileDirtyWorkspace": "Nem sikerült írni a beállításokba, mert a fájl módosítva lett. Mentse a **Munkaterület beállításai** fájlt, majd próbálja újra!"
+	"errorConfigurationFileDirtyWorkspace": "Nem sikerült írni a beállításokba, mert a fájl módosítva lett. Mentse a **Munkaterület beállításai** fájlt, majd próbálja újra!",
+	"userTarget": "Felhasználói beállítások",
+	"workspaceTarget": "Munkaterület-beállítások",
+	"folderTarget": "Mappabeálíltások"
 }

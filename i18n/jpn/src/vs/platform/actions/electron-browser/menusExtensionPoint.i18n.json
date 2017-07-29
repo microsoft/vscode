@@ -23,7 +23,7 @@
 	"menus.resourceStateContext": "ソース管理リソース状態のコンテキスト メニュー",
 	"view.viewTitle": "提供されたビューのタイトル メニュー",
 	"view.itemContext": "提供されたビュー項目のコンテキスト メニュー",
-	"nonempty": "空以外の値が必要です。",
+	"nonempty": "空でない値が必要です。",
 	"opticon": "`icon` プロパティは省略できます。指定する場合には、文字列または `{dark, light}` などのリテラルにする必要があります",
 	"requireStringOrObject": "`{0}` プロパティは必須で、`string` または `object` の型でなければなりません",
 	"requirestrings": "プロパティの `{0}` と `{1}` は必須で、`string` 型でなければなりません",

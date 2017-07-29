@@ -42,6 +42,14 @@
 	"search.files.result": "{1} dosyada {0} sonuç",
 	"search.file.results": "{1} dosyada {0} sonuç",
 	"search.files.results": "{1} dosyada {0} sonuç",
+	"search.folder.file.result": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folder.files.result": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folder.file.results": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folder.files.results": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folders.file.result": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folders.files.result": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folders.file.results": "{2} klasördeki {1} dosyada {0} sonuç",
+	"search.folders.files.results": "{2} klasördeki {1} dosyada {0} sonuç",
 	"searchWithoutFolder": "Henüz bir klasör açmadınız. Şu an sadece açık dosyalar aranıyor - ",
 	"openFolder": "Klasör Aç"
 }

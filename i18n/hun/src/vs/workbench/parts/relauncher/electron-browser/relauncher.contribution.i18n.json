@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "Egy olyan beállítás változott, melynek hatályba lépéséhez újraindítás szükséges.",
 	"relaunchSettingDetail": "A beállítás engedélyezéséhez nyomja meg az újraindítás gombot a {0} újraindításához.",
 	"restart": "Újraindítás",
+	"relaunchWorkspaceMessage": "A munkaterület módosítása miatt a kiegészítőrendszer újratöltésére van szükség.",
 	"reload": "Újratöltés"
 }

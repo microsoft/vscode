@@ -7,11 +7,10 @@
 	"open": "Abrir configuración",
 	"close": "Cerrar",
 	"saveAndRetry": "Guardar la configuración y reintentar. ",
-	"errorUnknownKey": "No se puede escribir en el archivo de configuración (clave desconocida)",
-	"errorInvalidTarget": "No se puede escribir en el archivo de configuración (destino no válido).",
-	"errorNoWorkspaceOpened": "No se pudo guardar la configuración porque no tiene una carpeta abierta. Abra una carpeta primero y vuelva a intentarlo.",
 	"errorInvalidConfiguration": "No se pudo guardar la configuración. Abra el archivo **Configuración de usuario** para corregir los errores o advertencias del archivo y vuelva a intentarlo.",
 	"errorInvalidConfigurationWorkspace": "No se pudo guardar la configuración. Abra **Configuración de área de trabajo** para corregir los errores o advertencias del archivo y vuelva a intentarlo.",
 	"errorConfigurationFileDirty": "No se pudo guardar la configuración porque el archivo se ha modificado. Guarde el archivo **Configuración de usuario** y vuelva a intentarlo.",
-	"errorConfigurationFileDirtyWorkspace": "No se pudo guardar la configuración porque el archivo se ha modificado. Guarde el archivo **Configuración de área de trabajo** y vuelva a intentarlo."
+	"errorConfigurationFileDirtyWorkspace": "No se pudo guardar la configuración porque el archivo se ha modificado. Guarde el archivo **Configuración de área de trabajo** y vuelva a intentarlo.",
+	"userTarget": "Configuración de usuario",
+	"workspaceTarget": "Configuración de área de trabajo"
 }
