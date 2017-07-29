@@ -174,6 +174,14 @@ export class TerminalPanel extends Panel {
 		this._findWidget.hide();
 	}
 
+	public nextMatchFindWidget(): void {
+		this._findWidget.find(false);
+	}
+
+	public previousMatchFindWidget(): void {
+		this._findWidget.find(true);
+	}
+
 	private _attachEventListeners(): void {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {

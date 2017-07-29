@@ -86,6 +86,20 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 	}
 
+	public nextMatchFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.nextMatchFindWidget();
+		}
+	}
+
+	public previousMatchFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.previousMatchFindWidget();
+		}
+	}
+
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
 		// Only suggest on Windows since $SHELL works great for macOS/Linux
 		if (!platform.isWindows) {
