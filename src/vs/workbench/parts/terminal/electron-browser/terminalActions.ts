@@ -618,8 +618,8 @@ export class RenameTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
+	public run(terminal?: TerminalEntry): TPromise<any> {
+		const terminalInstance = terminal ? this.terminalService.getInstanceFromId(parseInt(terminal.getLabel().split(':')[0], 10)) : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return TPromise.as(void 0);
 		}
@@ -711,8 +711,6 @@ export class QuickOpenTermAction extends Action {
 
 export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 
-	private _terminal: TerminalEntry;
-
 	constructor(
 		id: string, label: string,
 		private terminal: TerminalEntry,
@@ -721,19 +719,14 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label, quickOpenService, terminalService);
-		this._terminal = terminal;
 		this.class = 'quick-open-terminal-configure';
 	}
 
 	public run(): TPromise<any> {
-		const currentTerminal = this.terminalService.getActiveInstance();
-		this.terminalService.setActiveInstanceByIndex(parseInt(this._terminal.getLabel().split(':')[0], 10) - 1);
-		super.run()
+		super.run(this.terminal)
 			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
 			.then(() => TPromise.timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
-
-		this.terminalService.setActiveInstance(currentTerminal);
 		return TPromise.as(null);
 	}
 }
