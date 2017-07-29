@@ -14,6 +14,7 @@ import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/par
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TerminalEntry extends QuickOpenEntryGroup {
 
@@ -79,7 +80,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return TPromise.as(new QuickOpenModel(entries, new ContributableActionProvider()));
 	}
 
 	private getTerminals(): TerminalEntry[] {
