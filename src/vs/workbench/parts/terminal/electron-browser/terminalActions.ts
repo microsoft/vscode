@@ -630,8 +630,6 @@ export class RenameTerminalAction extends Action {
 			if (name) {
 				terminalInstance.setTitle(name, false);
 			}
-
-			this.quickOpenService.show('term ');
 		});
 	}
 }
