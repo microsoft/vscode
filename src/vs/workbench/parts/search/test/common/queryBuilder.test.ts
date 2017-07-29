@@ -493,24 +493,26 @@ suite('QueryBuilder', () => {
 	});
 });
 
-// fsPath and toString have the side effects of populating some private fields on uri.
-// Call these so that a uri can be assert.deepEqual'd with another.
-function forceLazyUriProps(someUri: uri): void {
-	let x = someUri.fsPath;
-	x = someUri.toString();
-}
-
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {
-	const forceLazyFolderQueryUriProps = (fqs: IFolderQuery[]) => {
-		if (fqs) {
-			fqs.map(fq => fq.folder).forEach(forceLazyUriProps);
-		}
+	const folderQueryToCompareObject = (fq: IFolderQuery) => {
+		return {
+			path: fq.folder.fsPath,
+			excludePattern: normalizeExpression(fq.excludePattern),
+			includePattern: normalizeExpression(fq.includePattern),
+			fileEncoding: fq.fileEncoding
+		};
 	};
 
-	forceLazyFolderQueryUriProps(actual.folderQueries);
-	forceLazyFolderQueryUriProps(expected.folderQueries);
+	if (expected.folderQueries) {
+		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
+		delete actual.folderQueries;
+		delete expected.folderQueries;
+	}
 
+	actual.includePattern = normalizeExpression(actual.includePattern);
+	actual.excludePattern = normalizeExpression(actual.excludePattern);
 	cleanUndefinedQueryValues(actual);
+
 	assert.deepEqual(actual, expected);
 }
 
@@ -562,4 +564,17 @@ function fixPath(slashPath: string): string {
 	return process.platform === 'win32' ?
 		(slashPath.match(/^c:/) ? slashPath : paths.join('c:', ...slashPath.split('/'))) :
 		slashPath;
+}
+
+function normalizeExpression(expression: IExpression): IExpression {
+	if (!expression) {
+		return expression;
+	}
+
+	const normalized = Object.create(null);
+	Object.keys(expression).forEach(key => {
+		normalized[key.replace(/\\/g, '/')] = true;
+	});
+
+	return normalized;
 }
