@@ -134,9 +134,9 @@ suite('QueryBuilder', () => {
 	});
 
 	test('multiroot exclude settings', () => {
-		const ROOT_2 = '/project/root2';
+		const ROOT_2 = fixPath('/project/root2');
 		const ROOT_2_URI = getUri(ROOT_2);
-		const ROOT_3 = '/project/root3';
+		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
 		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
 
@@ -217,7 +217,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'bar')),
+				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar'))),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -233,7 +233,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'bar/**/*.ts')),
+				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
