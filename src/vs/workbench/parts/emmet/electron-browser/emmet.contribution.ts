@@ -12,7 +12,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 
 import './actions/expandAbbreviation';
 import './actions/wrapWithAbbreviation';
-// import './actions/base64'; // disabled - we will revisit the implementation
 
 // Configuration: emmet
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
