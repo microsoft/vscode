@@ -60,11 +60,35 @@ export class QueryBuilder {
 			return folderConfig.search.useRipgrep;
 		});
 
+		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
+		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => {
+			if (excludePattern && glob.match(excludePattern, extraFile.fsPath)) {
+				return false;
+			}
+
+			if (includePattern && !glob.match(includePattern, extraFile.fsPath)) {
+				return false;
+			}
+
+			// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+			if (searchPaths) {
+				return searchPaths.every(searchPath => {
+					if (paths.isEqualOrParent(extraFile.fsPath, searchPath.searchPath.fsPath)) {
+						return !searchPath.pattern || glob.match(searchPath.pattern, extraFile.fsPath);
+					} else {
+						return false;
+					}
+				});
+			}
+
+			return true;
+		});
+		extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
 		return {
 			type,
 			folderQueries,
-			extraFileResources: options.extraFileResources,
+			extraFileResources,
 			filePattern: options.filePattern,
 			excludePattern,
 			includePattern,

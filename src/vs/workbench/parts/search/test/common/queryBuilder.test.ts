@@ -240,6 +240,62 @@ suite('QueryBuilder', () => {
 			});
 	});
 
+	test('extraFileResources', () => {
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ extraFileResources: [getUri('/foo/bar.js')] }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				extraFileResources: [getUri('/foo/bar.js')],
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					extraFileResources: [getUri('/foo/bar.js')],
+					excludePattern: '**/*.js'
+				}
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				excludePattern: patternsToIExpression(globalGlob('**/*.js')),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{
+					extraFileResources: [getUri('/foo/bar.js')],
+					includePattern: '**/*.txt'
+				}
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				includePattern: patternsToIExpression(globalGlob('**/*.txt')),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+	});
+
 	suite('parseSearchPaths', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
@@ -506,10 +562,17 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 		};
 	};
 
+	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {
 		assert.deepEqual(actual.folderQueries.map(folderQueryToCompareObject), expected.folderQueries.map(folderQueryToCompareObject));
 		delete actual.folderQueries;
 		delete expected.folderQueries;
+	}
+
+	if (expected.extraFileResources) {
+		assert.deepEqual(actual.extraFileResources.map(extraFile => extraFile.fsPath), expected.extraFileResources.map(extraFile => extraFile.fsPath));
+		delete expected.extraFileResources;
+		delete actual.extraFileResources;
 	}
 
 	actual.includePattern = normalizeExpression(actual.includePattern);
