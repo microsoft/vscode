@@ -39,7 +39,7 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		endNodeToUpdate = getNode(rootNode, selection.end, true);
 	}
 
-	if (!startNodeToUpdate || !endNodeToUpdate) {
+	if (!startNodeToUpdate || !endNodeToUpdate || startNodeToUpdate.start.line === endNodeToUpdate.end.line) {
 		return [null, null];
 	}
 

@@ -143,5 +143,20 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+
+	test('merge lines is no-op when start and end nodes are on the same line', () => {
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 9, 3, 9), // cursor is inside the <span> in <li><span>Hello</span></li>
+				new Selection(4, 5, 4, 5), // cursor is inside the <li> in <li><span>Hello</span></li>
+				new Selection(5, 5, 5, 20) // selection spans multiple nodes in the same line
+			];
+
+			return mergeLines().then(() => {
+				assert.equal(doc.getText(), contents);
+				return Promise.resolve();
+			});
+		});
+	});
 });
 
