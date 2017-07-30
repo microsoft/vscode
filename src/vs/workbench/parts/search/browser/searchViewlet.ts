@@ -209,6 +209,7 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocussed);
 			});
 
@@ -232,6 +233,8 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocussed);
 			});
 		}).getHTMLElement();
