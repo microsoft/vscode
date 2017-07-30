@@ -1042,7 +1042,7 @@ export class SearchViewlet extends Viewlet {
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions - ");
+					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and ignore files - ");
 				}
 
 				// Indicate as status to ARIA
@@ -1089,6 +1089,22 @@ export class SearchViewlet extends Viewlet {
 								editor.focusSearch('.exclude');
 							}
 						}, errors.onUnexpectedError);
+					});
+				}
+
+				if (completed) {
+					$(p).span({
+						text: ' - '
+					});
+
+					$(p).a({
+						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
+						text: nls.localize('openSettings.learnMore', "Learn More")
+					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+						dom.EventHelper.stop(e, false);
+
+						window.open('https://go.microsoft.com/fwlink/?linkid=853977');
 					});
 				}
 
