@@ -954,18 +954,38 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
-		let query: ISearchQuery;
-		// try {
-		query = this.queryBuilder.text(content, folderResources, options);
-		// } catch (e) {
-		// 	// TODO@roblou show error popup
-		// }
+		const query = this.queryBuilder.text(content, folderResources, options);
 
-		this.onQueryTriggered(query, excludePatternText, includePatternText);
+		this.validateQuery(query).then(() => {
+			this.onQueryTriggered(query, excludePatternText, includePatternText);
 
-		if (!preserveFocus) {
-			this.searchWidget.focus(false); // focus back to input field
-		}
+			if (!preserveFocus) {
+				this.searchWidget.focus(false); // focus back to input field
+			}
+		}, (err: Error) => {
+			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
+		});
+	}
+
+	private validateQuery(query: ISearchQuery): TPromise<void> {
+		// Validate folderQueries
+		const folderQueriesExistP =
+			query.folderQueries.map(fq => {
+				return this.fileService.existsFile(fq.folder);
+			});
+
+		return TPromise.join(folderQueriesExistP).then(existResults => {
+			const nonExistantFolders = existResults.map((exists, i) => ({ exists, query: query.folderQueries[i] }))
+				.filter(folderExists => !folderExists.exists);
+
+			if (nonExistantFolders.length) {
+				const nonExistantPath = nonExistantFolders[0].query.folder.fsPath;
+				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
+				return TPromise.wrapError(new Error(searchPathNotFoundError));
+			}
+
+			return undefined;
+		});
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePatternText: string, includePatternText: string): void {

@@ -247,11 +247,10 @@ export class QueryBuilder {
 							root.fsPath;
 					});
 				} else {
-					// throw new Error(nls.localize('search.invalidRootFolder', 'No root folder named {}', searchPathRoot));
+					// No root folder with name, ignore
 				}
 			} else {
-				// Malformed ./ search path
-				// throw new Error(nls.localize('search.invalidRelativeInclude', 'Invalid folder include pattern: {}', searchPath));
+				// Malformed ./ search path, ignore
 			}
 		}
 
