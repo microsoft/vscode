@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
-import { Node, Stylesheet } from 'EmmetNode';
+import { getNodesInBetween, getNode, parseDocument } from './util';
+import { Node, Stylesheet, Rule } from 'EmmetNode';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 const startCommentStylesheet = '/*';
@@ -100,55 +100,94 @@ function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vs
 }
 
 function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet): [vscode.Range[], vscode.Range] {
-
-	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
-	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
+	let selectionStart = selection.isReversed ? selection.active : selection.anchor;
+	let selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 
 	let startNode = getNode(rootNode, selectionStart, true);
 	let endNode = getNode(rootNode, selectionEnd, true);
-	if (startNode && endNode) {
-		if (sameNodes(startNode, endNode) || sameNodes(startNode.parent, endNode.parent)) {
-			selection = new vscode.Selection(startNode.start, endNode.end);
-		} else {
-			if (sameNodes(startNode, endNode.parent)) {
-				let newStartNode = startNode.firstChild;
-				while (newStartNode.end.isBefore(selectionStart) && newStartNode.nextSibling) {
-					newStartNode = newStartNode.nextSibling;
-				}
-				startNode = newStartNode;
-			} else if (sameNodes(startNode.parent, endNode)) {
-				let newEndNode = endNode.children[endNode.children.length - 1];
-				while (newEndNode.end.isAfter(selectionEnd) && newEndNode.previousSibling) {
-					newEndNode = newEndNode.previousSibling;
-				}
-				endNode = newEndNode;
-			}
 
-			// TODO: both are properties of different rule : have 2 comments for the 2 rules
-		}
+	if (!selection.isEmpty || startNode) {
+		selectionStart = selection.isEmpty ? startNode.start : adjustStartNodeCss(startNode, selectionStart, rootNode);
+		selectionEnd = selection.isEmpty ? startNode.end : adjustEndNodeCss(endNode, selectionEnd, rootNode);
+		selection = new vscode.Selection(selectionStart, selectionEnd);
 	}
 
-
-
-	let rangesToUnComment: vscode.Range[] = [];
-
-	let isFirstNodeCommented = false;
-
 	// Uncomment the comments that intersect with the selection.
+	let rangesToUnComment: vscode.Range[] = [];
 	rootNode.comments.forEach(comment => {
-		if (!isFirstNodeCommented) {
-			isFirstNodeCommented = (selectionStart.isAfterOrEqual(comment.start) && selectionEnd.isBefore(comment.end));
-		}
-
-		if (selection.contains(comment.start)
-			|| selection.contains(comment.end)
-			|| (selectionStart.isAfterOrEqual(comment.start) && selectionEnd.isBefore(comment.end))) {
-			rangesToUnComment.push(new vscode.Range(comment.start, comment.end));
+		let commentRange = new vscode.Range(comment.start, comment.end);
+		if (selection.intersection(commentRange)) {
+			rangesToUnComment.push(commentRange);
 		}
 	});
 
-	let rangeToComment = isFirstNodeCommented ? null : new vscode.Range(startNode ? startNode.start : selectionStart, endNode ? endNode.end : selectionEnd);
-	return [rangesToUnComment, rangeToComment];
-
-
+	return [rangesToUnComment, rangesToUnComment.length > 0 ? null : selection];
 }
+
+function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+	for (let i = 0; i < rootNode.comments.length; i++) {
+		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+		if (commentRange.contains(pos)) {
+			return pos;
+		}
+	}
+
+	if (!node) {
+		return pos;
+	}
+
+	if (node.type === 'property') {
+		return node.start;
+	}
+
+	const rule = <Rule>node;
+	if (pos.isBefore(rule.contentStartToken.end) || !rule.firstChild) {
+		return rule.start;
+	}
+
+	if (pos.isBefore(rule.firstChild.start)) {
+		return pos;
+	}
+
+	let newStartNode = rule.firstChild;
+	while (newStartNode.nextSibling && pos.isAfter(newStartNode.end)) {
+		newStartNode = newStartNode.nextSibling;
+	}
+
+	return newStartNode.start;
+}
+
+function adjustEndNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+	for (let i = 0; i < rootNode.comments.length; i++) {
+		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+		if (commentRange.contains(pos)) {
+			return pos;
+		}
+	}
+
+	if (!node) {
+		return pos;
+	}
+
+	if (node.type === 'property') {
+		return node.end;
+	}
+
+	const rule = <Rule>node;
+	if (pos.isEqual(rule.contentEndToken.end) || !rule.firstChild) {
+		return rule.end;
+	}
+
+	if (pos.isAfter(rule.children[rule.children.length - 1].end)) {
+		return pos;
+	}
+
+	let newEndNode = rule.children[rule.children.length - 1];
+	while (newEndNode.previousSibling && pos.isBefore(newEndNode.start)) {
+		newEndNode = newEndNode.previousSibling;
+	}
+
+	return newEndNode.end;
+}
+
+
