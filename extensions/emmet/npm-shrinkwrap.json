@@ -83,9 +83,9 @@
       "resolved": "https://registry.npmjs.org/@emmetio/output-profile/-/output-profile-0.1.5.tgz"
     },
     "@emmetio/output-renderer": {
-      "version": "0.1.1",
+      "version": "0.1.2",
       "from": "@emmetio/output-renderer@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/output-renderer/-/output-renderer-0.1.1.tgz"
+      "resolved": "https://registry.npmjs.org/@emmetio/output-renderer/-/output-renderer-0.1.2.tgz"
     },
     "@emmetio/snippets": {
       "version": "0.2.4",
