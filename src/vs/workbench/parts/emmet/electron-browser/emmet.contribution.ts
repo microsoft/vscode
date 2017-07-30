@@ -31,21 +31,6 @@ configurationRegistry.registerConfiguration({
 			'default': {},
 			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet. Not applicable when emmet.useNewemmet is set to true.")
 		},
-		'emmet.syntaxProfiles': {
-			'type': 'object',
-			'default': {},
-			'description': nls.localize('emmetSyntaxProfiles', "Define profile for specified syntax or use your own profile with specific rules.")
-		},
-		'emmet.excludeLanguages': {
-			'type': 'array',
-			'default': ['markdown'],
-			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
-		},
-		'emmet.extensionsPath': {
-			'type': 'string',
-			'default': null,
-			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences. Only profiles are honored from extensions path when emmet.useNewEmmet is set to true.')
-		},
 		'emmet.useNewEmmet': {
 			'type': 'boolean',
 			'default': true,
