@@ -1154,6 +1154,7 @@ export class SearchViewlet extends Viewlet {
 				isDone = true;
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
+				this.viewModel.searchResult.clear();
 			}
 		};
 
