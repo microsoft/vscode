@@ -54,7 +54,7 @@ export class WindowsShellHelper {
 	private checkShell(): void {
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess && !this._isSearchInProgress) {
 			this._isSearchInProgress = true;
-			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => { this._isSearchInProgress = false; console.log("\n" + JSON.stringify(this._childProcessIdStack)+"\n"); });
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => { this._isSearchInProgress = false; });
 		}
 	}
 
@@ -66,7 +66,6 @@ export class WindowsShellHelper {
 				} else if (stderr.length > 0) {
 					resolve([]); // No processes found
 				} else {
-					console.log(JSON.stringify(stdout));
 					const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
 					const childProcessDetails = childProcessLines.map(str => {
 						const s = str.split('  ');
