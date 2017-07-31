@@ -18,13 +18,13 @@ interface IWindowsTerminalProcess {
 	executable: string;
 }
 
-interface IWindowsProcessTreeItem {
+interface IWindowsProcessStackItem {
 	pid: number;
 	children: IWindowsTerminalProcess[];
 }
 
 export class WindowsShellHelper {
-	private _childProcessIdStack: IWindowsProcessTreeItem[];
+	private _childProcessIdStack: IWindowsProcessStackItem[];
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isSearchInProgress: boolean;
 
@@ -77,7 +77,7 @@ export class WindowsShellHelper {
 		});
 	}
 
-	private refreshShellProcessTree(process: IWindowsProcessTreeItem, parent: string, useCached: boolean): TPromise<string> {
+	private refreshShellProcessTree(process: IWindowsProcessStackItem, parent: string, useCached: boolean): TPromise<string> {
 		return (useCached ? TPromise.as(process.children) : this.getChildProcessDetails(process.pid)).then(result => {
 			process.children = result;
 			// When we didn't find any child processes of the process
