@@ -193,12 +193,12 @@
         "vscode": "1.0.1"
     },
     "dependencies": {
-        "vscode-expand-abbreviation": "0.5.8",
+        "@emmetio/expand-abbreviation": "^0.5.8",
         "@emmetio/extract-abbreviation": "^0.1.1",
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.0.1",
+        "vscode-emmet-helper": "^1.0.4",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"

@@ -3,9 +3,9 @@
   "version": "0.0.1",
   "dependencies": {
     "@emmetio/abbreviation": {
-      "version": "0.6.1",
-      "from": "@emmetio/abbreviation@>=0.6.0 <0.7.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/abbreviation/-/abbreviation-0.6.1.tgz"
+      "version": "0.6.2",
+      "from": "@emmetio/abbreviation@>=0.6.1 <0.7.0",
+      "resolved": "https://registry.npmjs.org/@emmetio/abbreviation/-/abbreviation-0.6.2.tgz"
     },
     "@emmetio/css-abbreviation": {
       "version": "0.3.1",
@@ -21,6 +21,11 @@
       "version": "0.2.5",
       "from": "@emmetio/css-snippets-resolver@>=0.2.5 <0.3.0",
       "resolved": "https://registry.npmjs.org/@emmetio/css-snippets-resolver/-/css-snippets-resolver-0.2.5.tgz"
+    },
+    "@emmetio/expand-abbreviation": {
+      "version": "0.5.8",
+      "from": "@emmetio/expand-abbreviation@0.5.8",
+      "resolved": "https://registry.npmjs.org/@emmetio/expand-abbreviation/-/expand-abbreviation-0.5.8.tgz"
     },
     "@emmetio/extract-abbreviation": {
       "version": "0.1.2",
@@ -69,7 +74,7 @@
     },
     "@emmetio/node": {
       "version": "0.1.2",
-      "from": "@emmetio/node@>=0.1.0 <0.2.0",
+      "from": "@emmetio/node@>=0.1.2 <0.2.0",
       "resolved": "https://registry.npmjs.org/@emmetio/node/-/node-0.1.2.tgz"
     },
     "@emmetio/output-profile": {
@@ -84,7 +89,7 @@
     },
     "@emmetio/snippets": {
       "version": "0.2.4",
-      "from": "@emmetio/snippets@>=0.2.4 <0.3.0",
+      "from": "@emmetio/snippets@>=0.2.3 <0.3.0",
       "resolved": "https://registry.npmjs.org/@emmetio/snippets/-/snippets-0.2.4.tgz"
     },
     "@emmetio/snippets-registry": {
@@ -112,25 +117,15 @@
       "from": "@emmetio/variable-resolver@>=0.2.1 <0.3.0",
       "resolved": "https://registry.npmjs.org/@emmetio/variable-resolver/-/variable-resolver-0.2.1.tgz"
     },
-    "emmet-abbreviation-helper": {
-      "version": "0.6.1",
-      "from": "emmet-abbreviation-helper@0.6.1",
-      "resolved": "https://registry.npmjs.org/emmet-abbreviation-helper/-/emmet-abbreviation-helper-0.6.1.tgz"
-    },
     "image-size": {
       "version": "0.5.5",
       "from": "image-size@>=0.5.2 <0.6.0",
       "resolved": "https://registry.npmjs.org/image-size/-/image-size-0.5.5.tgz"
     },
     "vscode-emmet-helper": {
-      "version": "1.0.1",
-      "from": "vscode-emmet-helper@>=1.0.1 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-1.0.1.tgz"
-    },
-    "vscode-expand-abbreviation": {
-      "version": "0.5.8",
-      "from": "vscode-expand-abbreviation@0.5.8",
-      "resolved": "https://registry.npmjs.org/vscode-expand-abbreviation/-/vscode-expand-abbreviation-0.5.8.tgz"
+      "version": "1.0.4",
+      "from": "vscode-emmet-helper@>=1.0.4 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-1.0.4.tgz"
     },
     "vscode-languageserver-types": {
       "version": "3.3.0",
