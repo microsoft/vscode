@@ -255,7 +255,7 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 export function getEmmetConfiguration() {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	return {
-		useNewEmmet: emmetConfig['useNewEmmet'],
+		useNewEmmet: true,
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles: emmetConfig['syntaxProfiles'],

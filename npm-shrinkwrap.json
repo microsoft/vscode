@@ -87,11 +87,6 @@
       "from": "debug@>=2.0.0 <3.0.0",
       "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz"
     },
-    "emmet": {
-      "version": "1.3.1",
-      "from": "ramya-rao-a/emmet#vscode",
-      "resolved": "git+https://github.com/ramya-rao-a/emmet.git#b4d3edc30de7fa98032302cd1f017a940ab879fd"
-    },
     "expand-brackets": {
       "version": "0.1.5",
       "from": "expand-brackets@>=0.1.4 <0.2.0",
