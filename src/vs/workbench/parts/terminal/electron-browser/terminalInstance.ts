@@ -52,6 +52,25 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 	}
 }
 
+enum ProcessState {
+	// The process has not been initialized yet.
+	UNINITIALIZED,
+	// The process is currently launching, the process is marked as launching
+	// for a short duration after being created and is helpful to indicate
+	// whether the process died as a result of bad shell and args.
+	LAUNCHING,
+	// The process is running normally.
+	RUNNING,
+	// The process was killed during launch, likely as a result of bad shell and
+	// args.
+	KILLED_DURING_LAUNCH,
+	// The process was killed by the user (the event originated from VS Code).
+	KILLED_BY_USER,
+	// The process was killed by itself, for example the shell crashed or `exit`
+	// was run.
+	KILLED_BY_PROCESS
+}
+
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
@@ -62,8 +81,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _id: number;
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
-	private _isLaunching: boolean;
 	private _isVisible: boolean;
+	private _processState: ProcessState;
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
@@ -120,7 +139,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
-		this._isLaunching = true;
+		this._processState = ProcessState.UNINITIALIZED;
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
@@ -407,6 +426,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		if (this._process) {
 			if (this._process.connected) {
+				// If the process was still connected this dispose came from
+				// within VS Code, not the process, so mark the process as
+				// killed by the user.
+				this._processState = ProcessState.KILLED_BY_USER;
 				this._process.send({ event: 'shutdown' });
 			}
 			this._process = null;
@@ -537,7 +560,7 @@ export class TerminalInstance implements ITerminalInstance {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
-
+		this._processState = ProcessState.LAUNCHING;
 
 		if (shell.name) {
 			this.setTitle(shell.name, false);
@@ -568,7 +591,9 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
-			this._isLaunching = false;
+			if (this._processState === ProcessState.LAUNCHING) {
+				this._processState = ProcessState.RUNNING;
+			}
 		}, LAUNCHING_DURATION);
 	}
 
@@ -596,11 +621,22 @@ export class TerminalInstance implements ITerminalInstance {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
-		// Only trigger wait on exit when the exit was triggered by the process, not through the
-		// `workbench.action.terminal.kill` command
-		const triggeredByProcess = exitCode !== null;
+		// If the process is marked as launching then mark the process as killed
+		// during launch. This typically means that there is a problem with the
+		// shell and args.
+		if (this._processState === ProcessState.LAUNCHING) {
+			this._processState = ProcessState.KILLED_DURING_LAUNCH;
+		}
 
-		if (triggeredByProcess && this._shellLaunchConfig.waitOnExit) {
+		// If TerminalInstance did not know about the process exit then it was
+		// triggered by the process, not on VS Code's side.
+		if (this._processState === ProcessState.RUNNING) {
+			this._processState = ProcessState.KILLED_BY_PROCESS;
+		}
+
+		// Only trigger wait on exit when the exit was triggered by the process,
+		// not through the `workbench.action.terminal.kill` command
+		if (this._processState === ProcessState.KILLED_BY_PROCESS && this._shellLaunchConfig.waitOnExit) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
@@ -618,7 +654,7 @@ export class TerminalInstance implements ITerminalInstance {
 		} else {
 			this.dispose();
 			if (exitCode) {
-				if (this._isLaunching) {
+				if (this._processState === ProcessState.KILLED_DURING_LAUNCH) {
 					let args = '';
 					if (typeof this._shellLaunchConfig.args === 'string') {
 						args = this._shellLaunchConfig.args;
