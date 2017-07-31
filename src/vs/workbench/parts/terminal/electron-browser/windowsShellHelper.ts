@@ -68,7 +68,7 @@ export class WindowsShellHelper {
 				} else {
 					const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
 					const childProcessDetails = childProcessLines.map(str => {
-						const s = str.split('  ');
+						const s = str.split(/\s{2,}/);
 						return { executable: s[0], pid: Number(s[1]) };
 					});
 					resolve(childProcessDetails);
