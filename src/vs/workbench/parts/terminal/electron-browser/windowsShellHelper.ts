@@ -54,7 +54,7 @@ export class WindowsShellHelper {
 	private checkShell(): void {
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess && !this._isSearchInProgress) {
 			this._isSearchInProgress = true;
-			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => this._isSearchInProgress = false);
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => { this._isSearchInProgress = false; console.log("\n" + JSON.stringify(this._childProcessIdStack)+"\n"); });
 		}
 	}
 
@@ -66,6 +66,7 @@ export class WindowsShellHelper {
 				} else if (stderr.length > 0) {
 					resolve([]); // No processes found
 				} else {
+					console.log(JSON.stringify(stdout));
 					const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
 					const childProcessDetails = childProcessLines.map(str => {
 						const s = str.split('  ');
@@ -96,7 +97,8 @@ export class WindowsShellHelper {
 				return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null, false);
 			}
 			// We only go one level deep when checking for children of processes other then shells
-			const baseName = path.basename(result[0].executable);
+			const lastResult = result[result.length - 1];
+			const baseName = path.basename(lastResult.executable);
 			if (SHELL_EXECUTABLES.indexOf(baseName) === -1) {
 				if (baseName === 'conhost.exe') {
 					// We're inside an external console, as below for example:
@@ -109,11 +111,11 @@ export class WindowsShellHelper {
 					grandParent.children.splice(grandParent.children.map(p => p.pid).indexOf(process.pid), 1);
 					return this.refreshShellProcessTree(grandParent, null, true);
 				}
-				return TPromise.as(result[0].executable);
+				return TPromise.as(lastResult.executable);
 			}
 			// Save the pid in the stack and keep looking for children of that child
-			this._childProcessIdStack.push({ pid: result[0].pid, children: [] });
-			return this.refreshShellProcessTree({ pid: result[0].pid, children: [] }, result[0].executable, false);
+			this._childProcessIdStack.push({ pid: lastResult.pid, children: [] });
+			return this.refreshShellProcessTree({ pid: lastResult.pid, children: [] }, lastResult.executable, false);
 		}, error => { return error; });
 	}
 
