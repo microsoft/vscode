@@ -55,7 +55,7 @@ export class TypeScriptVersionPicker {
 			label: (this.currentVersion.path === shippedVersion.path
 				? '• '
 				: '') + localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
-			description: shippedVersion.version.versionString,
+			description: shippedVersion.versionString,
 			detail: shippedVersion.label,
 			id: MessageAction.useBundled
 		});
@@ -65,7 +65,7 @@ export class TypeScriptVersionPicker {
 				label: (this.currentVersion.path === version.path
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
-				description: version.version.versionString,
+				description: version.versionString,
 				detail: version.label,
 				id: MessageAction.useLocal,
 				version: version

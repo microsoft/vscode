@@ -82,7 +82,7 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static extractLocalTsdk(configuration: WorkspaceConfiguration): string | null {
-		let inspect = configuration.inspect('typescript.tsdk');
+		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && inspect.workspaceValue && 'string' === typeof inspect.workspaceValue) {
 			return inspect.workspaceValue;
 		}

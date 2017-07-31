@@ -180,7 +180,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.versionProvider = new TypeScriptVersionProvider(this.configuration);
 		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
 
-		this._apiVersion = new API('1.0.0');
+		this._apiVersion = API.defaultVersion;
 		this.tracer = new Tracer(this.logger);
 
 		this.disposables.push(workspace.onDidChangeConfiguration(() => {
@@ -303,14 +303,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			this.info(`Using tsserver from: ${currentVersion.path}`);
-			if (!fs.existsSync(currentVersion.path)) {
-				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path ? path.dirname(currentVersion.path) : ''));
+			if (!fs.existsSync(currentVersion.tsServerPath)) {
+				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
 
 				this.versionPicker.useBundledVersion();
 				currentVersion = this.versionPicker.currentVersion;
 			}
 
-			this._apiVersion = this.versionPicker.currentVersion.version;
+			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
 
 			const label = this._apiVersion.versionString;
 			const tooltip = currentVersion.path;
@@ -376,7 +376,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 
-				electron.fork(currentVersion.path, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
+				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 					if (err) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);

@@ -14,10 +14,71 @@ import { TypeScriptServiceConfiguration } from "./configuration";
 import API from './api';
 
 
-export interface TypeScriptVersion {
-	label?: string;
-	version: API;
-	path: string;
+export class TypeScriptVersion {
+	public readonly label: string;
+
+	constructor(
+		public readonly path: string,
+		label?: string
+	) {
+		this.label = label || path;
+	}
+
+	public get tsServerPath(): string {
+		return path.join(this.path, 'tsserver.js');
+	}
+
+	public get isValid(): boolean {
+		return this.version !== undefined;
+	}
+
+	public get version(): API | undefined {
+		const version = this.getTypeScriptVersion(this.tsServerPath);
+		if (version) {
+			return version;
+		}
+
+		// Allow TS developers to provide custom version
+		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
+		if (tsdkVersion) {
+			return new API(tsdkVersion);
+		}
+
+		return undefined;
+	}
+
+	public get versionString(): string {
+		const version = this.version;
+		return version ? version.versionString : this.path;
+	}
+
+	private getTypeScriptVersion(serverPath: string): API | undefined {
+		if (!fs.existsSync(serverPath)) {
+			return undefined;
+		}
+
+		let p = serverPath.split(path.sep);
+		if (p.length <= 2) {
+			return undefined;
+		}
+		let p2 = p.slice(0, -2);
+		let modulePath = p2.join(path.sep);
+		let fileName = path.join(modulePath, 'package.json');
+		if (!fs.existsSync(fileName)) {
+			return undefined;
+		}
+		let contents = fs.readFileSync(fileName).toString();
+		let desc: any = null;
+		try {
+			desc = JSON.parse(contents);
+		} catch (err) {
+			return undefined;
+		}
+		if (!desc || !desc.version) {
+			return undefined;
+		}
+		return desc.version ? new API(desc.version) : undefined;
+	}
 }
 
 
@@ -58,14 +119,13 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get localVersions(): TypeScriptVersion[] {
-		const versions: TypeScriptVersion[] = [];
 		const tsdkVersions = this.localTsdkVersions;
 		if (tsdkVersions && tsdkVersions.length) {
-			versions.push(tsdkVersions[0]);
+			return [tsdkVersions[0]];
 		}
 
 		const paths = new Set<string>();
-		return versions.concat(this.localNodeModulesVersions).filter(x => {
+		return this.localNodeModulesVersions.filter(x => {
 			if (paths.has(x.path)) {
 				return false;
 			}
@@ -76,8 +136,8 @@ export class TypeScriptVersionProvider {
 
 	public get bundledVersion(): TypeScriptVersion {
 		try {
-			const bundledVersion = this.loadFromPath(require.resolve('typescript/lib/tsserver.js'));
-			if (bundledVersion) {
+			const bundledVersion = new TypeScriptVersion(path.dirname(require.resolve('typescript/lib/tsserver.js')));
+			if (bundledVersion.isValid) {
 				return bundledVersion;
 			}
 		} catch (e) {
@@ -96,8 +156,7 @@ export class TypeScriptVersionProvider {
 
 	private loadVersionsFromSetting(tsdkPathSetting: string): TypeScriptVersion[] {
 		if (path.isAbsolute(tsdkPathSetting)) {
-			const version = this.loadFromPath(path.join(tsdkPathSetting, 'tsserver.js'));
-			return version ? [version] : [];
+			return [new TypeScriptVersion(tsdkPathSetting)];
 		}
 
 		for (const root of workspace.workspaceFolders || []) {
@@ -105,12 +164,7 @@ export class TypeScriptVersionProvider {
 			for (const rootPrefix of rootPrefixes) {
 				if (tsdkPathSetting.startsWith(rootPrefix)) {
 					const workspacePath = path.join(root.uri.fsPath, tsdkPathSetting.replace(rootPrefix, ''));
-					const version = this.loadFromPath(path.join(workspacePath, 'tsserver.js'));
-					if (version) {
-						version.label = tsdkPathSetting;
-						return [version];
-					}
-					return [];
+					return [new TypeScriptVersion(workspacePath, tsdkPathSetting)];
 				}
 			}
 		}
@@ -119,7 +173,8 @@ export class TypeScriptVersionProvider {
 	}
 
 	private get localNodeModulesVersions(): TypeScriptVersion[] {
-		return this.loadTypeScriptVersionsFromPath(path.join('node_modules', 'typescript', 'lib'));
+		return this.loadTypeScriptVersionsFromPath(path.join('node_modules', 'typescript', 'lib'))
+			.filter(x => x.isValid);
 	}
 
 	private loadTypeScriptVersionsFromPath(relativePath: string): TypeScriptVersion[] {
@@ -129,65 +184,13 @@ export class TypeScriptVersionProvider {
 
 		const versions: TypeScriptVersion[] = [];
 		for (const root of workspace.workspaceFolders) {
-			const p = path.join(root.uri.fsPath, relativePath, 'tsserver.js');
-
-			let label: string | undefined = undefined;
+			let label: string = relativePath;
 			if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
 				label = path.join(root.name, relativePath);
 			}
 
-			const version = this.loadFromPath(p, label);
-			if (version) {
-				versions.push(version);
-			}
+			versions.push(new TypeScriptVersion(path.join(root.uri.fsPath, relativePath), label));
 		}
 		return versions;
-	}
-
-	public loadFromPath(tsServerPath: string, label?: string): TypeScriptVersion | undefined {
-		if (!fs.existsSync(tsServerPath)) {
-			return undefined;
-		}
-
-		const version = this.getTypeScriptVersion(tsServerPath);
-		if (version) {
-			return { path: tsServerPath, version, label };
-		}
-
-		// Allow TS developers to provide custom version
-		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
-		if (tsdkVersion) {
-			return { path: tsServerPath, version: new API(tsdkVersion), label };
-		}
-
-		return undefined;
-	}
-
-	private getTypeScriptVersion(serverPath: string): API | undefined {
-		if (!fs.existsSync(serverPath)) {
-			return undefined;
-		}
-
-		let p = serverPath.split(path.sep);
-		if (p.length <= 2) {
-			return undefined;
-		}
-		let p2 = p.slice(0, -2);
-		let modulePath = p2.join(path.sep);
-		let fileName = path.join(modulePath, 'package.json');
-		if (!fs.existsSync(fileName)) {
-			return undefined;
-		}
-		let contents = fs.readFileSync(fileName).toString();
-		let desc: any = null;
-		try {
-			desc = JSON.parse(contents);
-		} catch (err) {
-			return undefined;
-		}
-		if (!desc || !desc.version) {
-			return undefined;
-		}
-		return desc.version ? new API(desc.version) : undefined;
 	}
 }
