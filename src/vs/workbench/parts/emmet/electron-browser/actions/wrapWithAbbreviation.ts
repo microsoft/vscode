@@ -6,11 +6,10 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
+import { EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
-import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 @editorAction
 class WrapWithAbbreviationAction extends EmmetEditorAction {
@@ -25,21 +24,4 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		});
 	}
 
-	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {
-		const quickOpenService = accessor.get(IQuickOpenService);
-
-		let options: IInputOptions = {
-			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
-			placeHolder: nls.localize('abbreviation', "Abbreviation")
-		};
-		quickOpenService.input(options).then(abbreviation => {
-			this.wrapAbbreviation(ctx, abbreviation);
-		});
-	}
-
-	private wrapAbbreviation(ctx: EmmetActionContext, abbreviation: string) {
-		if (abbreviation && !ctx.emmet.run('wrap_with_abbreviation', ctx.editorAccessor, abbreviation)) {
-			this.noExpansionOccurred(ctx.editor);
-		}
-	}
 }
