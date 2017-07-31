@@ -44,7 +44,7 @@ export class TypeScriptVersionProvider {
 		return undefined;
 	}
 
-	public get localTsdkVersion(): TypeScriptVersion | undefined {
+	public get localVersion(): TypeScriptVersion | undefined {
 		const tsdkVersions = this.localTsdkVersions;
 		if (tsdkVersions && tsdkVersions.length) {
 			return tsdkVersions[0];
@@ -96,7 +96,8 @@ export class TypeScriptVersionProvider {
 
 	private loadVersionsFromSetting(tsdkPathSetting: string): TypeScriptVersion[] {
 		if (path.isAbsolute(tsdkPathSetting)) {
-			return this.getTypeScriptsFromPaths(tsdkPathSetting);
+			const version = this.loadFromPath(path.join(tsdkPathSetting, 'tsserver.js'));
+			return version ? [version] : [];
 		}
 
 		for (const root of workspace.workspaceFolders || []) {
@@ -114,30 +115,25 @@ export class TypeScriptVersionProvider {
 			}
 		}
 
-		return this.getTypeScriptsFromPaths(tsdkPathSetting);
+		return this.loadTypeScriptVersionsFromPath(tsdkPathSetting);
 	}
 
 	private get localNodeModulesVersions(): TypeScriptVersion[] {
-		return this.getTypeScriptsFromPaths(path.join('node_modules', 'typescript', 'lib'));
+		return this.loadTypeScriptVersionsFromPath(path.join('node_modules', 'typescript', 'lib'));
 	}
 
-	private getTypeScriptsFromPaths(typeScriptPath: string): TypeScriptVersion[] {
-		if (path.isAbsolute(typeScriptPath)) {
-			const version = this.loadFromPath(path.join(typeScriptPath, 'tsserver.js'));
-			return version ? [version] : [];
-		}
-
+	private loadTypeScriptVersionsFromPath(relativePath: string): TypeScriptVersion[] {
 		if (!workspace.workspaceFolders) {
 			return [];
 		}
 
 		const versions: TypeScriptVersion[] = [];
 		for (const root of workspace.workspaceFolders) {
-			const p = path.join(root.uri.fsPath, typeScriptPath, 'tsserver.js');
+			const p = path.join(root.uri.fsPath, relativePath, 'tsserver.js');
 
 			let label: string | undefined = undefined;
 			if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
-				label = path.join(root.name, typeScriptPath);
+				label = path.join(root.name, relativePath);
 			}
 
 			const version = this.loadFromPath(p, label);

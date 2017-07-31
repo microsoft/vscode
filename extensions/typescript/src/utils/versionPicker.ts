@@ -32,7 +32,7 @@ export class TypeScriptVersionPicker {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
 		if (workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false)) {
-			const localVersion = this.versionProvider.localTsdkVersion;
+			const localVersion = this.versionProvider.localVersion;
 			if (localVersion) {
 				this._currentVersion = localVersion;
 			}
