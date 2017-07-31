@@ -23,5 +23,5 @@ Name[ko]=새 창
 Name[ru]=Новое окно
 Name[zh_CN]=新建窗口
 Name[zh_TW]=開新視窗
-Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window %U
+Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window %F
 Icon=@@NAME@@
