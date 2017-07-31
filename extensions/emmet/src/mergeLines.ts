@@ -20,15 +20,15 @@ export function mergeLines() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			if (rangeToReplace && textToReplaceWith) {
-				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+			if (textEdit) {
+				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
 	let startNodeToUpdate: Node;
 	let endNodeToUpdate: Node;
 
@@ -40,7 +40,7 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	}
 
 	if (!startNodeToUpdate || !endNodeToUpdate || startNodeToUpdate.start.line === endNodeToUpdate.end.line) {
-		return [null, null];
+		return;
 	}
 
 	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
@@ -49,5 +49,5 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		textToReplaceWith += document.lineAt(i).text.trim();
 	}
 
-	return [rangeToReplace, textToReplaceWith];
+	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
 }
