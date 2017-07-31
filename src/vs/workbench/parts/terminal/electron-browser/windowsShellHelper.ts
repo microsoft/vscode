@@ -18,15 +18,15 @@ interface IWindowsTerminalProcess {
 	executable: string;
 }
 
-interface IWindowsProcTreeItem {
+interface IWindowsProcessTreeItem {
 	pid: number;
 	children: IWindowsTerminalProcess[];
 }
 
 export class WindowsShellHelper {
-	private _childProcessIdStack: IWindowsProcTreeItem[];
+	private _childProcessIdStack: IWindowsProcessTreeItem[];
 	private _onCheckShell: Emitter<TPromise<string>>;
-	private _searchInProgress: boolean;
+	private _isSearchInProgress: boolean;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -52,9 +52,9 @@ export class WindowsShellHelper {
 	}
 
 	private checkShell(): void {
-		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess && !this._searchInProgress) {
-			this._searchInProgress = true;
-			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => this._searchInProgress = false);
+		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess && !this._isSearchInProgress) {
+			this._isSearchInProgress = true;
+			this.getShellName().then(title => this._terminalInstance.setTitle(title, true)).then(() => this._isSearchInProgress = false);
 		}
 	}
 
@@ -77,7 +77,7 @@ export class WindowsShellHelper {
 		});
 	}
 
-	private refreshShellProcessTree(process: IWindowsProcTreeItem, parent: string, useCached: boolean): TPromise<string> {
+	private refreshShellProcessTree(process: IWindowsProcessTreeItem, parent: string, useCached: boolean): TPromise<string> {
 		return (useCached ? TPromise.as(process.children) : this.getChildProcessDetails(process.pid)).then(result => {
 			process.children = result;
 			// When we didn't find any child processes of the process
@@ -99,7 +99,11 @@ export class WindowsShellHelper {
 			const baseName = path.basename(result[0].executable);
 			if (SHELL_EXECUTABLES.indexOf(baseName) === -1) {
 				if (baseName === 'conhost.exe') {
-					// We're inside an external console; go up 2 levels and remove the console from the children
+					// We're inside an external console, as below for example:
+					// |___ powershell.exe   <-- Get back to here
+					// | |___ cmd.exe        <-- Remove this
+					// | | |___ conhost.exe  <-- We're here
+					// We'll need to go up 2 levels and remove the console from the children.
 					this._childProcessIdStack.pop();
 					const grandParent = this._childProcessIdStack[this._childProcessIdStack.length - 1];
 					grandParent.children.splice(grandParent.children.map(p => p.pid).indexOf(process.pid), 1);
