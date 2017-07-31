@@ -613,7 +613,7 @@ function cleanUndefinedQueryValues(q: any): void {
 }
 
 function globalGlob(str: string): string {
-	return `{${str}/**,**/${str}}`;
+	return `{**/${str}/**,**/${str}}`;
 }
 
 function patternsToIExpression(...patterns: string[]): IExpression {

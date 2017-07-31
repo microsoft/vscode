@@ -124,7 +124,7 @@ export class QueryBuilder {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return strings.format('{{0}/**,**/{0}}', p); // convert foo to {foo/**,**/foo} to cover files and folders
+				return strings.format('{**/{0}/**,**/{0}}', p); // convert foo to {foo/**,**/foo} to cover files and folders
 			});
 
 		const result: ISearchPathsResult = {};
