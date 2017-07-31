@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { expand } from '@emmetio/expand-abbreviation';
+import { expand } from 'vscode-expand-abbreviation';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
 import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';

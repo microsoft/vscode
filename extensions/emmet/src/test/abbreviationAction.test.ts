@@ -44,6 +44,8 @@ const htmlContents = `
 		}
 	</style>
 	${bemFilterExample}
+	(ul>li.item$)*2
+	(ul>li.item$)*2+span
 </body>
 `;
 
@@ -122,6 +124,14 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 
 	test('Expand abbreviation with numbered repeaters with offset (HTML)', () => {
 		return testHtmlExpandAbbreviation(new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t\t\t<li class="item44"></li>\n\t\t\t<li class="item45"></li>\n\t\t</ul>');
+	});
+
+	test('Expand abbreviation with numbered repeaters in groups (HTML)', () => {
+		return testHtmlExpandAbbreviation(new Selection(17, 16, 17, 16), '(ul>li.item$)*2', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>');
+	});
+
+	test('Expand abbreviation with numbered repeaters in groups with sibling in the end (HTML)', () => {
+		return testHtmlExpandAbbreviation(new Selection(18, 21, 18, 21), '(ul>li.item$)*2+span', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>\n\t<span></span>');
 	});
 
 	test('Expand tag that is opened, but not closed (HTML)', () => {
