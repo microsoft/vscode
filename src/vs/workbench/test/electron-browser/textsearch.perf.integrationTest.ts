@@ -12,8 +12,7 @@ import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
-import { defaultExperiments } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -31,7 +30,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import Event, * as event from 'vs/base/common/event';
 
@@ -165,9 +164,5 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	}
-
-	public getExperiments(): ITelemetryExperiments {
-		return defaultExperiments;
 	}
 };

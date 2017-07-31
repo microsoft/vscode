@@ -28,10 +28,10 @@ export class MainThreadTreeViews extends MainThreadTreeViewsShape {
 		ViewsRegistry.registerTreeViewDataProvider(treeViewId, new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
 	}
 
-	$refresh(treeViewId: string, treeItemHandle?: number): void {
+	$refresh(treeViewId: string, treeItemHandles: number[]): void {
 		const treeViewDataProvider: TreeViewDataProvider = <TreeViewDataProvider>ViewsRegistry.getTreeViewDataProvider(treeViewId);
 		if (treeViewDataProvider) {
-			treeViewDataProvider.refresh(treeItemHandle);
+			treeViewDataProvider.refresh(treeItemHandles);
 		}
 	}
 }
@@ -40,8 +40,8 @@ type TreeItemHandle = number;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
-	private _onDidChange: Emitter<ITreeItem | undefined | null> = new Emitter<ITreeItem | undefined | null>();
-	readonly onDidChange: Event<ITreeItem | undefined | null> = this._onDidChange.event;
+	private _onDidChange: Emitter<ITreeItem[] | undefined | null> = new Emitter<ITreeItem[] | undefined | null>();
+	readonly onDidChange: Event<ITreeItem[] | undefined | null> = this._onDidChange.event;
 
 	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
@@ -71,11 +71,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			}, err => this.messageService.show(Severity.Error, err));
 	}
 
-	refresh(treeItemHandle?: number) {
-		if (treeItemHandle) {
-			let treeItem = this.itemsMap.get(treeItemHandle);
-			if (treeItem) {
-				this._onDidChange.fire(treeItem);
+	refresh(treeItemHandles: number[]) {
+		if (treeItemHandles && treeItemHandles.length) {
+			let treeItems = treeItemHandles.map(treeItemHandle => this.itemsMap.get(treeItemHandle))
+				.filter(treeItem => !!treeItem);
+			if (treeItems.length) {
+				this._onDidChange.fire(treeItems);
 			}
 		} else {
 			this._onDidChange.fire();

@@ -7,7 +7,6 @@
 	"openFolderFirst": "Abrir uma pasta primeiro para criar configurações de espaço de trabalho",
 	"emptyKeybindingsHeader": "Coloque suas chaves de ligações neste arquivo para substituir os padrões",
 	"defaultKeybindings": "Keybindings Padrão",
-	"emptySettingsHeader": "Colocar suas configurações nesse arquivo para sobrecrever as configurações padrão",
-	"emptySettingsHeader1": "Colocar as suas configurações nesse arquivo para sobrescrever as configurações e usuário padrão.",
+	"folderSettingsName": "{0} (configurações de pasta)",
 	"fail.createSettings": "Não foi possível criar '{0}' ({1})."
 }

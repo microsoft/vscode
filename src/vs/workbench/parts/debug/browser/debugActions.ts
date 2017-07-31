@@ -81,12 +81,12 @@ export class ConfigureAction extends AbstractDebugAction {
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.getViewModel().onDidSelectConfiguration(configurationName => this.updateClass()));
+		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
 		this.updateClass();
 	}
 
 	public get tooltip(): string {
-		if (this.debugService.getViewModel().selectedConfigurationName) {
+		if (this.debugService.getConfigurationManager().selectedName) {
 			return ConfigureAction.LABEL;
 		}
 
@@ -94,7 +94,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getViewModel().selectedConfigurationName ? 'debug-action configure' : 'debug-action configure notification';
+		this.class = this.debugService.getConfigurationManager().selectedName ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -104,7 +104,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.getConfigurationManager().openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().selectedLaunch.openConfigFile(sideBySide);
 	}
 }
 
@@ -118,13 +118,14 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getViewModel().onDidSelectConfiguration(() => {
+		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
 			this.updateEnablement();
 		});
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.startDebugging(undefined, this.isNoDebug());
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -134,10 +135,20 @@ export class StartAction extends AbstractDebugAction {
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const processes = this.debugService.getModel().getProcesses();
-		const compound = this.debugService.getConfigurationManager().getCompound(this.debugService.getViewModel().selectedConfigurationName);
-		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
-			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
-			(!this.contextService || this.contextService.hasWorkspace() || processes.length === 0);
+		const selectedName = this.debugService.getConfigurationManager().selectedName;
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+
+		if (state === State.Initializing) {
+			return false;
+		}
+		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
+			return false;
+		}
+		if (processes.some(p => p.name === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
@@ -767,7 +778,7 @@ export class FocusProcessAction extends AbstractDebugAction {
 
 	public run(processName: string): TPromise<any> {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
-		return this.debugService.focusStackFrameAndEvaluate(null, process).then(() => {
+		return this.debugService.focusStackFrameAndEvaluate(null, process, true).then(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {
 				return stackFrame.openInEditor(this.editorService, true);

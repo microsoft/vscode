@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -18,6 +18,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { Emitter } from 'vs/base/common/event';
 
 
 export class MainThreadWorkspace extends MainThreadWorkspaceShape {
@@ -43,24 +45,27 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace2());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		const workspace = this._contextService.getWorkspace2();
+		const workspace = this._contextService.getWorkspace();
 		if (!workspace) {
 			return undefined;
 		}
 
-		const search = this._searchService.search({
+		const query: ISearchQuery = {
 			folderQueries: workspace.roots.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },
 			excludePattern: { [exclude]: true },
-		}).then(result => {
+		};
+		this._searchService.extendQuery(query);
+
+		const search = this._searchService.search(query).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -108,4 +113,32 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		return bulkEdit(this._textModelResolverService, codeEditor, edits, this._fileService)
 			.then(() => true);
 	}
+
+	// --- EXPERIMENT: workspace provider
+
+	private _provider = new Map<number, [IRemoteFileSystemProvider, Emitter<URI>]>();
+
+	$registerFileSystemProvider(handle: number, authority: string): void {
+		if (!(this._fileService instanceof RemoteFileService)) {
+			throw new Error();
+		}
+		const emitter = new Emitter<URI>();
+		const provider = {
+			onDidChange: emitter.event,
+			resolve: (resource) => {
+				return this._proxy.$resolveFile(handle, resource);
+			},
+			update: (resource, value) => {
+				return this._proxy.$storeFile(handle, resource, value);
+			}
+		};
+		this._provider.set(handle, [provider, emitter]);
+		this._fileService.registerProvider(authority, provider);
+	}
+
+	$onFileSystemChange(handle: number, resource: URI) {
+		const [, emitter] = this._provider.get(handle);
+		emitter.fire(resource);
+	};
 }
+

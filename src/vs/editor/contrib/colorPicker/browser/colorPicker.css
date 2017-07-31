@@ -1,0 +1,110 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.colorpicker-widget {
+	height: 190px;
+	user-select: none;
+}
+
+.monaco-shell .colorpicker-hover[tabindex="0"]:focus {
+	outline: none;
+}
+
+
+/* Header */
+
+.colorpicker-header {
+	display: flex;
+	height: 24px;
+	position: relative;
+	background: url('images/opacity-background.png');
+	background-size: 9px 9px;
+	image-rendering: pixelated;
+}
+
+.colorpicker-header .picked-color {
+	width: 216px;
+	text-align: center;
+	text-shadow: 0.5px 0.5px 0.5px black;
+	line-height: 20px;
+	cursor: pointer;
+}
+
+.colorpicker-header .picked-color {
+	flex: 1;
+	text-align: center;
+	color: rgba(255, 255, 255, 1);
+}
+
+.colorpicker-header .original-color {
+	width: 74px;
+	z-index: inherit;
+}
+
+
+/* Body */
+
+.colorpicker-body {
+	display: flex;
+	padding: 8px;
+	position: relative;
+}
+
+.colorpicker-body .saturation-wrap {
+	overflow: hidden;
+	height: 150px;
+	position: relative;
+	min-width: 220px;
+	flex: 1;
+}
+
+.colorpicker-body .saturation-box {
+	height: 150px;
+	position: absolute;
+}
+
+.colorpicker-body .saturation-selection {
+	width: 9px;
+	height: 9px;
+	margin: -5px 0 0 -5px;
+	border: 1px solid rgb(255, 255, 255);
+	border-radius: 100%;
+	box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.3);
+	position: absolute;
+}
+
+.colorpicker-body .strip {
+	width: 25px;
+	height: 150px;
+}
+
+.colorpicker-body .hue-strip {
+	position: relative;
+	margin-left: 8px;
+	cursor: -webkit-grab;
+	background: linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+}
+
+.colorpicker-body .opacity-strip {
+	position: relative;
+	margin-left: 8px;
+	cursor: -webkit-grab;
+	background: url('images/opacity-background.png');
+	background-size: 9px 9px;
+	image-rendering: pixelated;
+}
+
+.colorpicker-body .slider {
+	position: absolute;
+	top: 0;
+	width: 100%;
+	background: rgba(100, 100, 100, 0.7);
+	height: 5px;
+}
+
+.colorpicker-body .opacity-strip .opacity-overlay {
+	height: 150px;
+	pointer-events: none;
+}

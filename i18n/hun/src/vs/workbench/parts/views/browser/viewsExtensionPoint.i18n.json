@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "A nézet megjelenítésének feltétele",
 	"vscode.extension.contributes.views": "Nézeteket szolgáltat a szerkesztőhöz",
 	"views.explorer": "Fájlkezelő-nézet",
+	"views.debug": "Hibakeresési nézet",
 	"locationId.invalid": "A(z) `{0}` nem érvényes nézethelyszín"
 }

@@ -7,6 +7,7 @@
   "license": "MIT",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "enableProposedApi": true,
   "engines": {
     "vscode": "*"
   },
@@ -97,11 +98,6 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%"
-        },
-        "typescript.check.tscVersion": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.check.tscVersion%"
         },
         "typescript.npm": {
           "type": [

@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/MagicStack/MagicPython/commit/976e59dcb78cb577e79c8f2117216c06718337e0",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"fileTypes": [

@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Klavye Kısayollarını Aç",
 	"openGlobalKeybindingsFile": "Klavye Kısayolları Dosyasını Aç",
 	"openWorkspaceSettings": "Çalışma Alanı Ayarlarını Aç",
+	"openFolderSettings": "Klasör Ayarlarını Aç",
+	"pickFolder": "Klasör Seç",
 	"configureLanguageBasedSettings": "Dile Özel Ayarları Yapılandır...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "Dili Seç"

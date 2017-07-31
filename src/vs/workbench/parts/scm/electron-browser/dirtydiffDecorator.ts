@@ -110,6 +110,10 @@ class DirtyDiffModelDecorator {
 				return winjs.TPromise.as([]); // disposed
 			}
 
+			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this.model.uri)) {
+				return winjs.TPromise.as([]); // Files too large
+			}
+
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
 		});
 	}

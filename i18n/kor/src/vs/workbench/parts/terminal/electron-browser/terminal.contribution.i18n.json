@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Linux 터미널에 있을 때 사용할 명령줄 인수입니다.",
 	"terminal.integrated.shell.osx": "터미널이 OS X에서 사용하는 셸의 경로입니다.",
 	"terminal.integrated.shellArgs.osx": "OS X 터미널에 있을 때 사용할 명령줄 인수입니다.",
-	"terminal.integrated.shell.windows": "터미널이 Windows에서 사용하는 셸의 경로입니다. Windows와 함께 제공되는 셸을 사용하는 경우(cmd, PowerShell 또는 Ubuntu의 Bash) 64비트 버전을 사용하려면 C:\\Windows\\System32보다 C:\\Windows\\sysnative가 더 좋습니다.",
 	"terminal.integrated.shellArgs.windows": "Windows 터미널에 있을 때 사용할 명령줄 인수입니다.",
 	"terminal.integrated.rightClickCopyPaste": "설정하는 경우 터미널 내에서 마우스 오른쪽 단추를 클릭할 때 상황에 맞는 메뉴가 표시되지 않고 대신 선택 항목이 있으면 복사하고 선택 항목이 없으면 붙여넣습니다.",
 	"terminal.integrated.fontFamily": "터미널의 글꼴 패밀리를 제어하며, 기본값은 editor.fontFamily의 값입니다.",

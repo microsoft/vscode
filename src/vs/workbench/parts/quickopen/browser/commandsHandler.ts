@@ -404,7 +404,8 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		this.lastSearchValue = searchValue.trim();
+		searchValue = searchValue.trim();
+		this.lastSearchValue = searchValue;
 
 		// Workbench Actions
 		let workbenchEntries: CommandEntry[] = [];

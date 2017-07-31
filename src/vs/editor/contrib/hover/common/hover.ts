@@ -25,7 +25,7 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 		}).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
-				let hasHtmlContent = (typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0);
+				let hasHtmlContent = typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0;
 				if (hasRange && hasHtmlContent) {
 					values[idx] = result;
 				}

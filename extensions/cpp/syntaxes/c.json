@@ -4,10 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-c/commit/0a57fd7ee32bd14e3ee8291434263d744a8ecf1e",
 	"scopeName": "source.c",
 	"fileTypes": [
 		"c",
-		"h.in"
+		"h.in",
+		"xpm"
 	],
 	"firstLineMatch": "(?i)-\\*-[^*]*(Mode:\\s*)?C(\\s*;.*?)?\\s*-\\*-",
 	"name": "C",
@@ -273,7 +275,7 @@
 			"include": "#parens"
 		},
 		{
-			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
 			"end": "(?<=\\))(?!\\w)",
 			"name": "meta.function.c",
 			"patterns": [
@@ -404,7 +406,7 @@
 			]
 		},
 		"c_function_call": {
-			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(?=\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+			"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate)\\s*\\()\n(?=\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
 			"end": "(?<=\\))(?!\\w)",
 			"name": "meta.function-call.c",
 			"patterns": [
@@ -778,7 +780,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -858,7 +860,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1011,7 +1013,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1048,7 +1050,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G(?=.)",
+									"begin": "\\G",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1108,7 +1110,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1145,7 +1147,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G(?=.)",
+									"begin": "\\G",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1192,7 +1194,7 @@
 			"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 			"patterns": [
 				{
-					"begin": "\\G(?=.)",
+					"begin": "\\G",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1251,7 +1253,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1353,7 +1355,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G(?=.)",
+							"begin": "\\G",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1442,7 +1444,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G(?=.)",
+					"begin": "\\G",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1529,7 +1531,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G(?=.)",
+					"begin": "\\G",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1674,7 +1676,7 @@
 					"name": "punctuation.section.parens.end.bracket.round.c"
 				},
 				{
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate|asm|__asm__|auto|bool|_Bool|char|_Complex|double|enum|float|_Imaginary|int|long|short|signed|struct|typedef|union|unsigned|void)\\s*\\()\n(?=\n  (?:[A-Za-z_][A-Za-z0-9_]*+|::)++\\s*\\(  # actual name\n  |\n  (?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\\s*\\(\n)",
 					"end": "(?<=\\))(?!\\w)|(?<!\\\\)(?=\\s*\\n)",
 					"name": "meta.function.c",
 					"patterns": [
@@ -1790,7 +1792,7 @@
 					"include": "#operators"
 				},
 				{
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.c"
@@ -1850,7 +1852,7 @@
 					"include": "#vararg_ellipses"
 				},
 				{
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.c"
@@ -1910,7 +1912,7 @@
 					"include": "#operators"
 				},
 				{
-					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
+					"begin": "(?x)\n(?!(?:while|for|do|if|else|switch|catch|enumerate|return|typeid|alignof|alignas|sizeof|[cr]?iterate)\\s*\\()\n(\n(?:[A-Za-z_][A-Za-z0-9_]*+|::)++  # actual name\n|\n(?:(?<=operator)(?:[-*&<>=+!]+|\\(\\)|\\[\\]))\n)\n\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.c"

@@ -15,7 +15,7 @@ export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptio
 	let expectedTextSource = RawTextSource.fromString(chunks.join(''));
 	let expectedHash = computeHash(expectedTextSource);
 
-	let builder = new ModelBuilder();
+	let builder = new ModelBuilder(true);
 	for (let i = 0, len = chunks.length; i < len; i++) {
 		builder.acceptChunk(chunks[i]);
 	}

@@ -329,7 +329,7 @@ export class Git {
 	}
 
 	async clone(url: string, parentPath: string): Promise<string> {
-		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);

@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Аргументы командной строки, которые следует использовать в терминале Linux.",
 	"terminal.integrated.shell.osx": "Путь оболочки, который используется терминалом в OS X.",
 	"terminal.integrated.shellArgs.osx": "Аргументы командной строки, которые следует использовать в терминале OS X.",
-	"terminal.integrated.shell.windows": "Путь оболочки, который используется терминалом в Windows. При работе с оболочкой, поставляемой с Windows (cmd, PowerShell или Bash на Ubuntu), укажите C:\\Windows\\sysnative вместо C:\\Windows\\System32 для использования 64-разрядных версий.",
 	"terminal.integrated.shellArgs.windows": "Аргументы командной строки, используемые в терминале Windows.",
 	"terminal.integrated.rightClickCopyPaste": "Если задано, блокирует отображение контекстного меню при щелчке правой кнопкой мыши в терминале. Вместо этого будет выполняться копирование выбранного элемента и вставка в область, в которой нет выбранных элементов.",
 	"terminal.integrated.fontFamily": "Определяет семейство шрифтов терминала, значение по умолчанию — editor.fontFamily.",

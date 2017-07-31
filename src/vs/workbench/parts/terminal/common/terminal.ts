@@ -67,6 +67,11 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	env: {
+		linux: { [key: string]: string };
+		osx: { [key: string]: string };
+		windows: { [key: string]: string };
+	};
 }
 
 export interface ITerminalConfigHelper {
@@ -198,6 +203,12 @@ export interface ITerminalInstance {
 	hadFocusOnExit: boolean;
 
 	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
@@ -231,6 +242,11 @@ export interface ITerminalInstance {
 	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(): void;
+
+	/**
+	 * Current selection in the terminal.
+	 */
+	readonly selection: string | undefined;
 
 	/**
 	 * Clear current selection.
@@ -349,12 +365,7 @@ export interface ITerminalInstance {
 	reuseTerminal(shell?: IShellLaunchConfig): void;
 
 	/**
-	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
-	 */
-	enableApiOnData(): void;
-
-	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

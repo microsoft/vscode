@@ -11,21 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 import './actions/expandAbbreviation';
-import './actions/balance';
-import './actions/matchingPair';
 import './actions/wrapWithAbbreviation';
-import './actions/editPoints';
-import './actions/selectItem';
-import './actions/toggleComment';
-import './actions/splitJoinTag';
-import './actions/removeTag';
-import './actions/mergeLines';
-import './actions/updateImageSize';
-import './actions/evaluateMath';
-import './actions/incrementDecrement';
-import './actions/reflectCssValue';
-// import './actions/base64'; // disabled - we will revisit the implementation
-import './actions/updateTag';
 
 // Configuration: emmet
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -44,21 +30,6 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'default': {},
 			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet. Not applicable when emmet.useNewemmet is set to true.")
-		},
-		'emmet.syntaxProfiles': {
-			'type': 'object',
-			'default': {},
-			'description': nls.localize('emmetSyntaxProfiles', "Define profile for specified syntax or use your own profile with specific rules.")
-		},
-		'emmet.excludeLanguages': {
-			'type': 'array',
-			'default': ['markdown'],
-			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
-		},
-		'emmet.extensionsPath': {
-			'type': 'string',
-			'default': null,
-			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences. Only profiles are honored from extensions path when emmet.useNewEmmet is set to true.')
 		},
 		'emmet.useNewEmmet': {
 			'type': 'boolean',

@@ -15,6 +15,7 @@ import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/acti
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -25,14 +26,15 @@ const $ = dom.$;
 
 export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
-	private static ADD_CONFIGURATION = nls.localize('addConfiguration', "Add Configuration...");
 	private static SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
+	private executeOnSelect: (() => boolean)[];
 	private toDispose: lifecycle.IDisposable[];
+	private selected: number;
 
 	constructor(
 		private context: any,
@@ -40,7 +42,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 		this.toDispose = [];
@@ -58,17 +61,16 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
-			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
-				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			if (this.executeOnSelect[e.index]()) {
+				this.selected = e.index;
 			} else {
-				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				this.selectBox.select(this.selected);
 			}
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfiguration(configurationName => {
-			const manager = this.debugService.getConfigurationManager();
-			this.selectBox.select(manager.getConfigurationNames().indexOf(configurationName));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this.updateOptions();
 		}));
 	}
 
@@ -149,14 +151,36 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private updateOptions(): void {
-		const options = this.debugService.getConfigurationManager().getConfigurationNames();
+		this.selected = 0;
+		this.executeOnSelect = [];
+		const options = [];
+		const manager = this.debugService.getConfigurationManager();
+		const launches = manager.getLaunches();
+		manager.getLaunches().forEach(launch =>
+			launch.getConfigurationNames().forEach(name => {
+				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+					this.selected = this.executeOnSelect.length;
+				}
+				this.executeOnSelect.push(() => { manager.selectConfiguration(launch, name); return true; });
+				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
+			}));
+
 		if (options.length === 0) {
 			options.push(nls.localize('noConfigurations', "No Configurations"));
 		}
-		const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
 		options.push(StartDebugActionItem.SEPARATOR);
-		options.push(StartDebugActionItem.ADD_CONFIGURATION);
-		this.selectBox.setOptions(options, selected, options.length - 2);
+		this.executeOnSelect.push(undefined);
+
+		const disabledIdx = options.length - 1;
+		launches.forEach(l => {
+			options.push(launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration..."));
+			this.executeOnSelect.push(() => {
+				this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
+				return false;
+			});
+		});
+
+		this.selectBox.setOptions(options, this.selected, disabledIdx);
 	}
 }
 

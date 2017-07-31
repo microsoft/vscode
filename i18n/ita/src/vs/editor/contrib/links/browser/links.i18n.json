@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "Cmd + clic per seguire il collegamento",
 	"links.navigate": "CTRL + clic per seguire il collegamento",
+	"links.command.mac": "Cmd + click per eseguire il comando",
+	"links.command": "Ctrl + clic per eseguire il comando",
 	"links.navigate.al": "Alt + clic per seguire il collegamento",
+	"links.command.al": "Alt + clic per eseguire il comando",
 	"invalid.url": "Non è stato possibile aprire questo collegamento perché il formato non è valido: {0}",
 	"missing.url": "Non è stato possibile aprire questo collegamento perché manca la destinazione.",
 	"label": "Apri il collegamento"

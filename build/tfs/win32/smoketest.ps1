@@ -4,6 +4,7 @@ Param(
 	[string]$vsoPAT
 )
 
+. .\build\tfs\win32\node.ps1
 . .\scripts\env.ps1
 . .\build\tfs\win32\lib.ps1
 

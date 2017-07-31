@@ -9,6 +9,8 @@
 	"workbench.action.terminal.kill.short": "ターミナルの強制終了",
 	"workbench.action.terminal.copySelection": "選択内容のコピー",
 	"workbench.action.terminal.selectAll": "すべて選択",
+	"workbench.action.terminal.deleteWordLeft": "左の文字を削除",
+	"workbench.action.terminal.deleteWordRight": "右の文字を削除",
 	"workbench.action.terminal.new": "新しい統合ターミナルの作成",
 	"workbench.action.terminal.new.short": "新しいターミナル",
 	"workbench.action.terminal.focus": "端末にフォーカス",

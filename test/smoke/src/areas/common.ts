@@ -27,13 +27,7 @@ export class CommonActions {
 	public async addSetting(setting: string, value: string): Promise<any> {
 		await this.spectron.command('workbench.action.openGlobalSettings');
 		await this.spectron.wait();
-		try {
-			await this.spectron.client.leftClick('.editable-preferences-editor-container .view-lines', 1, 1, false);
-		} catch (e) {
-			return Promise.reject('Failed to select settings editor to add a setting.');
-		}
-		await this.spectron.wait();
-		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowDown', 'NULL'], false);
+		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowRight', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
 		await this.spectron.wait();
 		return this.saveOpenedFile();

@@ -865,4 +865,23 @@ suite('Glob', () => {
 	function nativeSep(slashPath: string): string {
 		return slashPath.replace(/\//g, path.sep);
 	}
+
+	test('mergeExpressions', () => {
+		// Empty => empty
+		assert.deepEqual(glob.mergeExpressions(), glob.getEmptyExpression());
+
+		// Doesn't modify given expressions
+		const expr1 = { 'a': true };
+		glob.mergeExpressions(expr1, { 'b': true });
+		assert.deepEqual(expr1, { 'a': true });
+
+		// Merges correctly
+		assert.deepEqual(glob.mergeExpressions({ 'a': true }, { 'b': true }), { 'a': true, 'b': true });
+
+		// Ignores null/undefined portions
+		assert.deepEqual(glob.mergeExpressions(undefined, { 'a': true }, null, { 'b': true }), { 'a': true, 'b': true });
+
+		// Later expressions take precedence
+		assert.deepEqual(glob.mergeExpressions({ 'a': true, 'b': false, 'c': true }, { 'a': false, 'b': true }), { 'a': false, 'b': true, 'c': true });
+	});
 });

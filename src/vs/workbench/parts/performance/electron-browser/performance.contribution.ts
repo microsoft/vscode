@@ -247,7 +247,7 @@ class PerformanceTelemetry implements IWorkbenchContribution {
 	}
 
 	private _sendWorkbenchMainSizeTelemetry(): void {
-		const { fsPath } = URI.parse(require.toUrl('vs/workbench/electron-browser/workbench.main.js'));
+		const { fsPath } = URI.parse(require.toUrl('vs/workbench/workbench.main.js'));
 		stat(fsPath).then(stats => {
 			this._telemetryService.publicLog('perf:jsFileSize', { workbenchMain: stats.size });
 		});

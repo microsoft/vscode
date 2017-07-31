@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
@@ -61,9 +61,9 @@ export function getMappingForIncludedLanguages(): any {
 
 /**
  * Parses the given document using emmet parsing modules
- * @param document 
+ * @param document
  */
-export function parse(document: vscode.TextDocument, showError: boolean = true): Node {
+export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
 	let rootNode: Node;
 	try {
@@ -252,4 +252,63 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
 
+export function getEmmetConfiguration() {
+	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	return {
+		useNewEmmet: emmetConfig['useNewEmmet'],
+		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
+		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
+		syntaxProfiles: emmetConfig['syntaxProfiles'],
+		variables: emmetConfig['variables']
+	};
+}
 
+/**
+ * Itereates by each child, as well as nested child’ children, in their order
+ * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
+ * @param  {Token}    token
+ * @param  {Function} fn
+ */
+export function iterateCSSToken(token: CssToken, fn) {
+	for (let i = 0, il = token.size; i < il; i++) {
+		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
+			return false;
+		}
+	}
+}
+
+/**
+ * Returns `name` CSS property from given `rule`
+ * @param  {Node} rule
+ * @param  {String} name
+ * @return {Property}
+ */
+export function getCssPropertyFromRule(rule, name): Property {
+	return rule.children.find(node => node.type === 'property' && node.name === name);
+}
+
+/**
+ * Returns css property under caret in given editor or `null` if such node cannot
+ * be found
+ * @param  {TextEditor}  editor
+ * @return {Property}
+ */
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property {
+	const rootNode = parseDocument(editor.document);
+	const node = getNode(rootNode, position);
+
+	if (isStyleSheet(editor.document.languageId)) {
+		return node && node.type === 'property' ? <Property>node : null;
+	}
+
+	let htmlNode = <HtmlNode>node;
+	if (htmlNode
+		&& htmlNode.name === 'style'
+		&& htmlNode.open.end.isBefore(position)
+		&& htmlNode.close.start.isAfter(position)) {
+		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
+		let rootNode = parseStylesheet(buffer);
+		const node = getNode(rootNode, position);
+		return (node && node.type === 'property') ? <Property>node : null;
+	}
+}

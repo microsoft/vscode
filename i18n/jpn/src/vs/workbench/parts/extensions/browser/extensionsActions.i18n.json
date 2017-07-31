@@ -37,6 +37,7 @@
 	"reload": "ウィンドウの再読み込み(&&R)",
 	"toggleExtensionsViewlet": "拡張機能を表示する",
 	"installExtensions": "拡張機能のインストール",
+	"showEnabledExtensions": "有効な拡張機能の表示",
 	"showInstalledExtensions": "インストール済みの拡張機能の表示",
 	"showDisabledExtensions": "無効な拡張機能の表示",
 	"clearExtensionsInput": "拡張機能の入力のクリア",

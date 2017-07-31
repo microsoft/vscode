@@ -11,7 +11,6 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -65,15 +64,19 @@ export class TerminalLinkHandler {
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
+		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
+
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
+			this._handleHypertextLink(uri);
+		}));
+
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
 		});
@@ -102,7 +105,6 @@ export class TerminalLinkHandler {
 	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
-			return;
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
@@ -118,9 +120,10 @@ export class TerminalLinkHandler {
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				event.preventDefault();
 				return false;
 			}
 			return handler(uri);
@@ -163,6 +166,11 @@ export class TerminalLinkHandler {
 	private _validateWebLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
 		this._addTooltipEventListeners(element);
 		callback(true);
+	}
+
+	private _handleHypertextLink(url: string): void {
+		let uri = Uri.parse(url);
+		this._openerService.open(uri);
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
@@ -220,20 +228,20 @@ export class TerminalLinkHandler {
 
 			// Resolve relative paths (.\a, ..\a, ~\a, a\b)
 			if (!link.match('^' + winDrivePrefix)) {
-				if (!this._contextService.hasWorkspace()) {
+				if (!this._initialCwd) {
 					// Abort if no workspace is open
 					return null;
 				}
-				link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+				link = path.join(this._initialCwd, link);
 			}
 		}
 		// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 		else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
-			if (!this._contextService.hasWorkspace()) {
+			if (!this._initialCwd) {
 				// Abort if no workspace is open
 				return null;
 			}
-			link = path.join(this._contextService.getWorkspace().resource.fsPath, link); // TODO@Daniel (https://github.com/Microsoft/vscode/issues/29006)
+			link = path.join(this._initialCwd, link);
 		}
 		return link;
 	}

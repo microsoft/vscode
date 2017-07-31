@@ -22,14 +22,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 const _linkProvider = new class implements vscode.DocumentLinkProvider {
 
-	private _cachedResult: { version: number; links: vscode.DocumentLink[] };
+	private _cachedResult: { key: string; links: vscode.DocumentLink[] };
 	private _linkPattern = /[^!]\[.*?\]\(#(.*?)\)/g;
 
 	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const { version } = document;
-		if (!this._cachedResult || this._cachedResult.version !== version) {
+		const key = `${document.uri.toString()}@${document.version}`;
+		if (!this._cachedResult || this._cachedResult.key !== key) {
 			const links = this._computeDocumentLinks(document);
-			this._cachedResult = { version, links };
+			this._cachedResult = { key, links };
 		}
 		return this._cachedResult.links;
 	}

@@ -83,7 +83,7 @@ export class Lock {
 		if (lock) {
 			var unbindListener: IDisposable;
 
-			return new WinJS.Promise((c, e) => {
+			return new WinJS.TPromise((c, e) => {
 				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
@@ -92,7 +92,7 @@ export class Lock {
 
 		var result: WinJS.Promise;
 
-		return new WinJS.Promise((c, e) => {
+		return new WinJS.TPromise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));
@@ -399,6 +399,10 @@ export class Item extends Events.EventEmitter {
 			const result = childrenPromise.then((elements: any[]) => {
 				if (this.isDisposed() || this.registry.isDisposed()) {
 					return WinJS.TPromise.as(null);
+				}
+
+				if (!Array.isArray(elements)) {
+					return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
 				}
 
 				elements = !elements ? [] : elements.slice(0);

@@ -6,6 +6,6 @@
 {
 	"filesCategory": "Arquivos",
 	"revealInSideBar": "Revelar na Barra Lateral",
-	"acceptLocalChanges": "Usar mudanças locais e sobrescrever o conteúdo do disco",
-	"revertLocalChanges": "Descartar mudanças locais e reverter para conteúdo do disco"
+	"acceptLocalChanges": "Usar suas alterações e substituir o conteúdo do disco",
+	"revertLocalChanges": "Descartar as alterações e reverter para o conteúdo no disco"
 }

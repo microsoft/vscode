@@ -507,18 +507,18 @@ export class LanguageConfigurationRegistryImpl {
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
 		let beforeEnterText;
-		let tokenIndexUnderCursor = lineTokens.findTokenIndexAtOffset(range.startColumn);
-		let tokenIndexAtBeginning = lineTokens.findTokenIndexAtOffset(0);
-		let scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn);
+		let afterEnterText;
+		let scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
 		let scopedLineText = scopedLineTokens.getLineContent();
 
-		if (lineTokens.getLanguageId(tokenIndexAtBeginning) === lineTokens.getLanguageId(tokenIndexUnderCursor)) {
-			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
-		} else {
+		let embeddedLanguage = false;
+		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
+			// we are in the embeded language content
+			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
 			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		} else {
+			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
 		}
-
-		let afterEnterText;
 
 		if (range.isEmpty()) {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
@@ -536,9 +536,8 @@ export class LanguageConfigurationRegistryImpl {
 		let beforeEnterResult = beforeEnterText;
 		let beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
-		if (!autoIndent) {
+		if (!autoIndent && !embeddedLanguage) {
 			let beforeEnterIndentAction = this.getInheritIndentForLine(model, range.startLineNumber);
-			let beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
 
 			if (indentRulesSupport.shouldDecrease(beforeEnterText)) {
 				if (beforeEnterIndentAction) {
@@ -571,15 +570,17 @@ export class LanguageConfigurationRegistryImpl {
 			}
 		};
 
+		let currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
 		let afterEnterAction = this.getInheritIndentForLine(virtualModel, range.startLineNumber + 1);
 		if (!afterEnterAction) {
+			let beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
 			return {
-				beforeEnter: beforeEnterIndent,
-				afterEnter: beforeEnterIndent
+				beforeEnter: beforeEnter,
+				afterEnter: beforeEnter
 			};
 		}
 
-		let afterEnterIndent = afterEnterAction.indentation;
+		let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
 
 		if (afterEnterAction.action === IndentAction.Indent) {
 			afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
@@ -590,7 +591,7 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		return {
-			beforeEnter: beforeEnterIndent,
+			beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
 			afterEnter: afterEnterIndent
 		};
 	}
@@ -618,7 +619,9 @@ export class LanguageConfigurationRegistryImpl {
 			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
-		if (indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
+		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
+		// Users might change the indentation by purpose and we should honor that instead of readjusting.
+		if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
 			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
 			// 1. Get inherited indent action
 			let r = this.getInheritIndentForLine(model, range.startLineNumber, false);
@@ -748,7 +751,7 @@ export class LanguageConfigurationRegistryImpl {
 	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number, columnNumber?: number) {
 		model.forceTokenization(lineNumber);
 		let lineTokens = model.getLineTokens(lineNumber);
-		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber;
+		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1;
 		let scopedLineTokens = createScopedLineTokens(lineTokens, column);
 		return scopedLineTokens;
 	}

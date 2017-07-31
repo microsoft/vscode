@@ -37,6 +37,7 @@
 	"reload": "Ablak új&&ratöltése",
 	"toggleExtensionsViewlet": "Kiegészítők megjelenítése",
 	"installExtensions": "Kiegészítők telepítése",
+	"showEnabledExtensions": "Engedélyezett kiegészítők megjelenítése",
 	"showInstalledExtensions": "Telepített kiegészítők megjelenítése",
 	"showDisabledExtensions": "Letiltott kiegészítők megjelenítése",
 	"clearExtensionsInput": "Kiegészítők beviteli mező tartalmának törlése",

@@ -7,11 +7,11 @@
 	"open": "打开设置",
 	"close": "关闭",
 	"saveAndRetry": "保存设置并重试",
-	"errorUnknownKey": "无法写入配置文件(未知密钥)",
-	"errorInvalidTarget": "无法写入到配置文件(无效的目标)",
-	"errorNoWorkspaceOpened": "没有打开任何文件夹，因此无法写入设置。请先打开一个文件夹，然后重试。",
 	"errorInvalidConfiguration": "无法写入设置。请打开 **用户设置** 更正文件中的错误/警告，然后重试。",
 	"errorInvalidConfigurationWorkspace": "无法写入设置。请打开 **工作区设置** 更正文件中的错误/警告，然后重试。",
 	"errorConfigurationFileDirty": "文件已变更，因此无法写入设置。请先保存 **用户设置** 文件，然后重试。",
-	"errorConfigurationFileDirtyWorkspace": "文件已变更，因此无法写入设置。请先保存 **工作区设置** 文件，然后重试。"
+	"errorConfigurationFileDirtyWorkspace": "文件已变更，因此无法写入设置。请先保存 **工作区设置** 文件，然后重试。",
+	"userTarget": "用户设置",
+	"workspaceTarget": "工作区设置",
+	"folderTarget": "文件夹设置"
 }

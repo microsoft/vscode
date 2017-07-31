@@ -15,7 +15,7 @@ import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser, Placeholder, Variable, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 
 interface ISnippetsExtensionPoint {
@@ -158,48 +158,42 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 	return result;
 }
 
-function _rewriteBogousVariables(snippet: ISnippet): boolean {
-	const marker = new SnippetParser().parse(snippet.codeSnippet, false);
+export function _rewriteBogousVariables(snippet: ISnippet): boolean {
+	const textmateSnippet = new SnippetParser().parse(snippet.codeSnippet, false);
 
 	let placeholders = new Map<string, number>();
 	let placeholderMax = 0;
-	walk(marker, candidate => {
-		if (candidate instanceof Placeholder) {
-			placeholderMax = Math.max(placeholderMax, Number(candidate.index));
-		}
-		return true;
-	});
+	for (const placeholder of textmateSnippet.placeholders) {
+		placeholderMax = Math.max(placeholderMax, placeholder.index);
+	}
 
-	function fixBogousVariables(marker: Marker): string {
-		if (marker instanceof Text) {
-			return SnippetParser.escape(marker.string);
+	let didChange = false;
+	let stack = [...textmateSnippet.children];
 
-		} else if (marker instanceof Placeholder) {
-			if (marker.children.length > 0) {
-				return `\${${marker.index}:${marker.children.map(fixBogousVariables).join('')}}`;
-			} else {
-				return `\$${marker.index}`;
-			}
-		} else if (marker instanceof Variable) {
-			if (marker.children.length === 0 && !EditorSnippetVariableResolver.VariableNames[marker.name]) {
-				// a 'variable' without a default value and not being one of our supported
-				// variables is automatically turing into a placeholder. This is to restore
-				// a bug we had before. So `${foo}` becomes `${N:foo}`
-				let index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
-				placeholders.set(marker.name, index);
-				return `\${${index++}:${marker.name}}`;
+	while (stack.length > 0) {
+		let marker = stack.shift();
 
-			} else if (marker.children.length > 0) {
-				return `\${${marker.name}:${marker.children.map(fixBogousVariables).join('')}}`;
-			} else {
-				return `\$${marker.name}`;
-			}
+		if (
+			marker instanceof Variable
+			&& marker.children.length === 0
+			&& !EditorSnippetVariableResolver.VariableNames[marker.name]
+		) {
+			// a 'variable' without a default value and not being one of our supported
+			// variables is automatically turing into a placeholder. This is to restore
+			// a bug we had before. So `${foo}` becomes `${N:foo}`
+			const index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
+			placeholders.set(marker.name, index);
+
+			const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
+			textmateSnippet.replace(marker, [synthetic]);
+			didChange = true;
+
 		} else {
-			throw new Error('unexpected marker: ' + marker);
+			// recurse
+			stack.push(...marker.children);
 		}
 	}
 
-	const placeholderCountBefore = placeholderMax;
-	snippet.codeSnippet = marker.map(fixBogousVariables).join('');
-	return placeholderCountBefore !== placeholderMax;
+	snippet.codeSnippet = textmateSnippet.toTextmateString();
+	return didChange;
 }
