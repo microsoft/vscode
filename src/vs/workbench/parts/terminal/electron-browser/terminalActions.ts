@@ -624,6 +624,7 @@ export class RenameTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		return this.quickOpenService.input({
+			value: terminalInstance.title,
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
