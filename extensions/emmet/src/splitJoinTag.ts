@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function splitJoinTag() {
@@ -13,7 +13,7 @@ export function splitJoinTag() {
 		return;
 	}
 
-	let rootNode = parseDocument(editor.document);
+	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
@@ -28,8 +28,8 @@ export function splitJoinTag() {
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
-	let nodeToUpdate: Node = getNode(rootNode, selection.start);
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.TextEdit {
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 

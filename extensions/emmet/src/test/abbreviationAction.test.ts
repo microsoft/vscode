@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandAbbreviation, wrapWithAbbreviation } from '../abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation } from '../abbreviationActions';
 
 const cssContents = `
 .boo {
@@ -145,7 +145,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	test('Expand css when inside style tag (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 			editor.selection = new Selection(13, 3, 13, 6);
-			let expandPromise = expandAbbreviation({ language: 'css' });
+			let expandPromise = expandEmmetAbbreviation({ language: 'css' });
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
@@ -176,7 +176,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	test('Expand abbreviation (CSS)', () => {
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
 			editor.selection = new Selection(4, 1, 4, 4);
-			return expandAbbreviation(null).then(() => {
+			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), cssContents.replace('m10', 'margin: 10px;'));
 				return Promise.resolve();
 			});
@@ -248,7 +248,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 		editor.selection = selection;
-		let expandPromise = expandAbbreviation(null);
+		let expandPromise = expandEmmetAbbreviation(null);
 		if (!expandPromise) {
 			if (!shouldFail) {
 				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);

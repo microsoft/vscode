@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { expand } from '@emmetio/expand-abbreviation';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
-import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode } from 'vscode-emmet-helper';
+import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode, expandAbbreviation } from 'vscode-emmet-helper';
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -49,7 +48,7 @@ export function wrapWithAbbreviation(args) {
 	});
 }
 
-export function expandAbbreviation(args) {
+export function expandEmmetAbbreviation(args) {
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax || !validate()) {
 		return;
@@ -212,7 +211,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 
 	try {
 		// Expand the abbreviation
-		let expandedText = expand(input.abbreviation, expandOptions);
+		let expandedText = expandAbbreviation(input.abbreviation, expandOptions);
 
 		// If the expanded text is single line then we dont need the \t we added to $TM_SELECTED_TEXT earlier
 		if (input.textToWrap && expandedText.indexOf('\n') === -1) {

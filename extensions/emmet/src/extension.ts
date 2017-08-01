@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { expandAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
 import { matchTag } from './matchTag';
@@ -32,7 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
-		expandAbbreviation(args);
+		expandEmmetAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.removeTag', () => {
