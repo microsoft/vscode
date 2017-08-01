@@ -955,9 +955,19 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-
 		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
-		const query = this.queryBuilder.text(content, folderResources, options);
+
+		const onQueryValidationError = (err: Error) => {
+			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
+			this.viewModel.searchResult.clear();
+		};
+
+		let query: ISearchQuery;
+		try {
+			query = this.queryBuilder.text(content, folderResources, options);
+		} catch (err) {
+			onQueryValidationError(err);
+		}
 
 		this.validateQuery(query).then(() => {
 			this.onQueryTriggered(query, excludePatternText, includePatternText);
@@ -965,9 +975,7 @@ export class SearchViewlet extends Viewlet {
 			if (!preserveFocus) {
 				this.searchWidget.focus(false); // focus back to input field
 			}
-		}, (err: Error) => {
-			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
-		});
+		}, onQueryValidationError);
 	}
 
 	private validateQuery(query: ISearchQuery): TPromise<void> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// import nls = require('vs/nls');
+import nls = require('vs/nls');
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
@@ -247,7 +247,9 @@ export class QueryBuilder {
 							root.fsPath;
 					});
 				} else {
-					// No root folder with name, ignore
+					// No root folder with name
+					const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "No folder in workspace with name: {0}", searchPathRoot);
+					throw new Error(searchPathNotFoundError);
 				}
 			} else {
 				// Malformed ./ search path, ignore
