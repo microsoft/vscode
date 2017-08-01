@@ -43,7 +43,8 @@ export default class TsConfigProvider extends vscode.Disposable {
 
 		const configFileWatcher = vscode.workspace.createFileSystemWatcher(tsconfigGlob);
 		this.disposables.push(configFileWatcher);
-		configFileWatcher.onDidCreate(this.handleProjectCreate, this, this.disposables);
+		configFileWatcher.onDidCreate(this.handleProjectUpdate, this, this.disposables);
+		configFileWatcher.onDidChange(this.handleProjectUpdate, this, this.disposables);
 		configFileWatcher.onDidDelete(this.handleProjectDelete, this, this.disposables);
 
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -56,12 +57,12 @@ export default class TsConfigProvider extends vscode.Disposable {
 	private async reloadWorkspaceConfigs(): Promise<this> {
 		this.tsconfigs.clear();
 		for (const config of await vscode.workspace.findFiles(tsconfigGlob, '**/node_modules/**')) {
-			this.handleProjectCreate(config);
+			this.handleProjectUpdate(config);
 		}
 		return this;
 	}
 
-	private handleProjectCreate(config: vscode.Uri) {
+	private handleProjectUpdate(config: vscode.Uri) {
 		const root = vscode.workspace.getWorkspaceFolder(config);
 		if (root) {
 			this.tsconfigs.set(config.fsPath, {
