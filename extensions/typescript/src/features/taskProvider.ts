@@ -83,10 +83,9 @@ class TscTaskProvider implements vscode.TaskProvider {
 		if (editor) {
 			if (path.basename(editor.document.fileName).match(/^tsconfig\.(.\.)?json$/)) {
 				const path = editor.document.uri;
-				const folder = vscode.workspace.getWorkspaceFolder(path);
 				return [{
 					path: path.fsPath,
-					workspaceFolder: folder
+					workspaceFolder: vscode.workspace.getWorkspaceFolder(path)
 				}];
 			}
 		}
@@ -96,23 +95,28 @@ class TscTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
-			'projectInfo',
-			{ file, needFileNameList: false } as protocol.ProjectInfoRequestArgs,
-			token);
+		try {
+			const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
+				'projectInfo',
+				{ file, needFileNameList: false } as protocol.ProjectInfoRequestArgs,
+				token);
 
-		if (!res || !res.body) {
-			return [];
+			if (!res || !res.body) {
+				return [];
+			}
+
+			const { configFileName } = res.body;
+			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+				const path = vscode.Uri.file(configFileName);
+				const folder = vscode.workspace.getWorkspaceFolder(path);
+				return [{
+					path: configFileName,
+					workspaceFolder: folder
+				}];
+			}
 		}
-
-		const { configFileName } = res.body;
-		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-			const path = vscode.Uri.file(configFileName);
-			const folder = vscode.workspace.getWorkspaceFolder(path);
-			return [{
-				path: configFileName,
-				workspaceFolder: folder
-			}];
+		catch (e) {
+			// noop
 		}
 		return [];
 	}

@@ -9,6 +9,8 @@ export interface TSConfig {
 	workspaceFolder?: vscode.WorkspaceFolder;
 }
 
+const tsconfigGlob = '**/tsconfig*.json';
+
 export default class TsConfigProvider extends vscode.Disposable {
 	private readonly tsconfigs = new Map<string, TSConfig>();
 
@@ -37,9 +39,9 @@ export default class TsConfigProvider extends vscode.Disposable {
 		}
 		this.activated = true;
 
-		this.reloadWorkspaceConfigs();
+		await this.reloadWorkspaceConfigs();
 
-		const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/tsconfig*.json');
+		const configFileWatcher = vscode.workspace.createFileSystemWatcher(tsconfigGlob);
 		this.disposables.push(configFileWatcher);
 		configFileWatcher.onDidCreate(this.handleProjectCreate, this, this.disposables);
 		configFileWatcher.onDidDelete(this.handleProjectDelete, this, this.disposables);
@@ -53,7 +55,7 @@ export default class TsConfigProvider extends vscode.Disposable {
 
 	private async reloadWorkspaceConfigs(): Promise<this> {
 		this.tsconfigs.clear();
-		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**')) {
+		for (const config of await vscode.workspace.findFiles(tsconfigGlob, '**/node_modules/**')) {
 			this.handleProjectCreate(config);
 		}
 		return this;
