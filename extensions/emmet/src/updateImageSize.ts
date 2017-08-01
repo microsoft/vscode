@@ -77,7 +77,7 @@ function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promis
 		if (currentNode && currentNode.name === 'style'
 			&& currentNode.open.end.isBefore(position)
 			&& currentNode.close.start.isAfter(position)) {
-			let buffer = new DocumentStreamReader(editor.document, currentNode.start, new Range(currentNode.start, currentNode.end));
+			let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new Range(currentNode.open.end, currentNode.close.start));
 			let rootNode = parseStylesheet(buffer);
 			const node = getNode(rootNode, position);
 			return (node && node.type === 'property') ? <Property>node : null;

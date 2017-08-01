@@ -23,6 +23,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<li>Another Node</li>
 		</ul>
 		<span/>
+		<style>
+			.boo {
+				margin: 10px;
+				padding: 20px;
+			}
+			.hoo {
+				margin: 10px;
+				padding: 20px;
+			}
+		</style>
 	</div>
 	`;
 
@@ -39,6 +49,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<li>Another Node</li>
 		</ul>-->
 		<span/>
+		<style>
+			.boo {
+				/*margin: 10px;*/
+				padding: 20px;
+			}
+			/*.hoo {
+				margin: 10px;
+				padding: 20px;
+			}*/
+		</style>
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
@@ -46,7 +66,9 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 				new Selection(3, 17, 3, 17), // cursor inside the inner span element
 				new Selection(4, 5, 4, 5), // cursor inside opening tag
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
-				new Selection(7, 3, 7, 3) // cursor inside open tag of <ul> one of of whose children is already commented
+				new Selection(7, 3, 7, 3), // cursor inside open tag of <ul> one of of whose children is already commented
+				new Selection(14, 8, 14, 8), // cursor inside the css property inside the style tag
+				new Selection(18, 3, 18, 3) // cursor inside the css rule inside the style tag
 			];
 
 			return toggleComment().then(() => {
@@ -69,13 +91,25 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<li>Another Node</li>
 		</ul>-->
 		<span/>
+		<style>
+			.boo {
+				/*margin: 10px;*/
+				padding: 20px;
+			}
+			/*.hoo {
+				margin: 10px;
+				padding: 20px;
+			}*/
+		</style>
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [
 				new Selection(3, 7, 3, 25), // <span>Hello</span><
 				new Selection(4, 3, 4, 30), // <li><span>There</span></li>
-				new Selection(7, 2, 10, 7) // The <ul> one of of whose children is already commented
+				new Selection(7, 2, 10, 7), // The <ul> one of of whose children is already commented
+				new Selection(14, 4, 14, 17), // css property inside the style tag
+				new Selection(17, 3, 20, 4) // the css rule inside the style tag
 			];
 
 			return toggleComment().then(() => {
@@ -98,11 +132,22 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<li>Another Node</li>
 		</ul>
 		<span/>
+		<style>
+			.boo {
+				/*margin: 10px;
+				padding: 20px;*/
+			}
+			.hoo {
+				margin: 10px;
+				padding: 20px;
+			}
+		</style>
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [
-				new Selection(3, 4, 4, 30)
+				new Selection(3, 4, 4, 30),
+				new Selection(14, 4, 15, 18) // 2 css properties inside the style tag
 			];
 
 			return toggleComment().then(() => {
@@ -125,6 +170,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<li>Another Node</li>
 		</ul>-->
 		<span/>
+		<style>
+			.boo {
+				margin: 10px;
+				padding: 20px;
+			}
+			.hoo {
+				margin: 10px;
+				padding: 20px;
+			}
+		</style>
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
