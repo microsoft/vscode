@@ -93,7 +93,7 @@ export class PreviewSecuritySelector {
 					level: MarkdownPreviewSecurityLevel.Strict,
 					label: localize(
 						'preview.showPreviewSecuritySelector.strictTitle',
-						'Strict. Only load secure content.'),
+						'Strict. Only load secure content'),
 					description: '',
 					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict
 						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
@@ -102,7 +102,7 @@ export class PreviewSecuritySelector {
 					level: MarkdownPreviewSecurityLevel.AllowInsecureContent,
 					label: localize(
 						'preview.showPreviewSecuritySelector.insecureContentTitle',
-						'Allow loading content over http.'),
+						'Allow loading content over http'),
 					description: '',
 					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent
 						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
@@ -111,7 +111,7 @@ export class PreviewSecuritySelector {
 					level: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
 					label: localize(
 						'preview.showPreviewSecuritySelector.scriptsAndAllContent',
-						'Allow all content and script execution. Not recommend.'),
+						'Allow all content and script execution. Not recommended'),
 					description: '',
 					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent
 						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
