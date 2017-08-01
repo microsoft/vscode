@@ -49,7 +49,8 @@ export class TypeScriptVersion {
 
 	public get versionString(): string {
 		const version = this.version;
-		return version ? version.versionString : this.path;
+		return version ? version.versionString : localize(
+			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
 	}
 
 	private getTypeScriptVersion(serverPath: string): API | undefined {
