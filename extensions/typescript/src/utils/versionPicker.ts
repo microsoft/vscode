@@ -54,7 +54,7 @@ export class TypeScriptVersionPicker {
 		pickOptions.push({
 			label: (this.currentVersion.path === shippedVersion.path
 				? '• '
-				: '') + localize('useVSCodeVersionOption', 'Use VSCode\'s Version'),
+				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
 			detail: shippedVersion.label,
 			id: MessageAction.useBundled

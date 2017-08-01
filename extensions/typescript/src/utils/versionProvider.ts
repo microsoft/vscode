@@ -146,7 +146,7 @@ export class TypeScriptVersionProvider {
 		}
 		window.showErrorMessage(localize(
 			'noBundledServerFound',
-			'VSCode\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
+			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 		throw new Error('Could not find bundled tsserver.js');
 	}
 
