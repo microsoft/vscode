@@ -6,6 +6,7 @@
 {
 	"tag at": "{0} 处的 Tag",
 	"remote branch at": "{0} 处的远程分支",
+	"create branch": "$(plus) 创建新分支",
 	"repourl": "存储库 URL",
 	"parent": "父目录",
 	"cloning": "正在克隆 GIT 存储库...",

@@ -25,7 +25,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		private client: ITypescriptServiceClient,
 		private modeId: string) { }
 
-	public provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
+	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
@@ -48,37 +48,34 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		}
 
 		if (!uri) {
-			return Promise.resolve<SymbolInformation[]>([]);
+			return [];
 		}
 
 		const filepath = this.client.normalizePath(uri);
 		if (!filepath) {
-			return Promise.resolve<SymbolInformation[]>([]);
+			return [];
 		}
 		const args: Proto.NavtoRequestArgs = {
 			file: filepath,
 			searchValue: search
 		};
-		return this.client.execute('navto', args, token).then((response): SymbolInformation[] => {
-			const result: SymbolInformation[] = [];
-			let data = response.body;
-			if (data) {
-				for (let item of data) {
-					if (!item.containerName && item.kind === 'alias') {
-						continue;
-					}
-					const range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
-					let label = item.name;
-					if (item.kind === 'method' || item.kind === 'function') {
-						label += '()';
-					}
-					result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-						new Location(this.client.asUrl(item.file), range)));
+		const response = await this.client.execute('navto', args, token);
+		const result: SymbolInformation[] = [];
+		const data = response.body;
+		if (data) {
+			for (const item of data) {
+				if (!item.containerName && item.kind === 'alias') {
+					continue;
 				}
+				const range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
+				let label = item.name;
+				if (item.kind === 'method' || item.kind === 'function') {
+					label += '()';
+				}
+				result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
+					new Location(this.client.asUrl(item.file), range)));
 			}
-			return result;
-		}, () => {
-			return [];
-		});
+		}
+		return result;
 	}
 }

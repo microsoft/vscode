@@ -17,6 +17,7 @@
 	"reloadWindow": "Перезагрузить окно",
 	"switchWindowPlaceHolder": "Выберите окно, в которое нужно переключиться",
 	"current": "Текущее окно",
+	"close": "Закрыть окно",
 	"switchWindow": "Переключить окно...",
 	"quickSwitchWindow": "Быстро переключить окно...",
 	"files": "файлы",

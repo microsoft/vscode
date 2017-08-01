@@ -10,6 +10,7 @@ import { removeTag } from '../removeTag';
 import { updateTag } from '../updateTag';
 import { matchTag } from '../matchTag';
 import { splitJoinTag } from '../splitJoinTag';
+import { mergeLines } from '../mergeLines';
 
 suite('Tests for Emmet actions on html tags', () => {
 	teardown(closeAllEditors);
@@ -121,6 +122,40 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 
 			return Promise.resolve();
+		});
+	});
+
+	test('merge lines of tag with children when empty selection', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul><li><span>Hello</span></li><li><span>There</span></li><div><li><span>Bye</span></li></div></ul>
+		<span/>
+	</div>
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 3, 2, 3)
+			];
+
+			return mergeLines().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('merge lines is no-op when start and end nodes are on the same line', () => {
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 9, 3, 9), // cursor is inside the <span> in <li><span>Hello</span></li>
+				new Selection(4, 5, 4, 5), // cursor is inside the <li> in <li><span>Hello</span></li>
+				new Selection(5, 5, 5, 20) // selection spans multiple nodes in the same line
+			];
+
+			return mergeLines().then(() => {
+				assert.equal(doc.getText(), contents);
+				return Promise.resolve();
+			});
 		});
 	});
 });

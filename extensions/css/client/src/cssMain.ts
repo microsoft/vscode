@@ -107,7 +107,7 @@ export function activate(context: ExtensionContext) {
 		};
 
 		const colorProvider = new ColorProvider(client);
-		context.subscriptions.push(languages.registerColorProvider('css', colorProvider));
+		context.subscriptions.push(languages.registerColorProvider(['css', 'scss', 'less'], colorProvider));
 
 		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);

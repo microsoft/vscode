@@ -11,5 +11,7 @@
 	"noSettingsFound": "沒有結果",
 	"oneSettingFound": "1 項相符設定",
 	"settingsFound": "{0} 項相符設定",
+	"fileEditorWithInputAriaLabel": "{0}。文字檔編輯器。",
+	"fileEditorAriaLabel": "文字檔編輯器。",
 	"preferencesAriaLabel": "預設喜好設定。唯讀文字編輯器。"
 }

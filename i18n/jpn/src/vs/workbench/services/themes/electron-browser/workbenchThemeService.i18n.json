@@ -21,7 +21,7 @@
 	"reqid": "`contributes.{0}.id` に文字列が必要です。提供された値: {1}",
 	"error.cannotloadicontheme": "Unable to load {0}",
 	"error.cannotparseicontheme": "Problems parsing file icons file: {0}",
-	"colorTheme": "Specifies the color theme used in the workbench.",
+	"colorTheme": "ワークベンチで使用する配色テーマを指定します。",
 	"colorThemeError": "Theme is unknown or not installed.",
 	"iconTheme": "ワークベンチで使用するアイコンのテーマを指定します。'null' を指定するとファイル アイコンが表示されなくなります。",
 	"noIconThemeDesc": "No file icons",

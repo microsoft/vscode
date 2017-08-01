@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "Hivatkozott oldal megnyitása Cmd + kattintás paranccsal",
 	"links.navigate": "Hivatkozott oldal megnyitása Ctrl + kattintás paranccsal",
+	"links.command.mac": "Cmd + kattintás a parancs végrehajtásához",
+	"links.command": "Ctrl + kattintás a parancs végrehajtásához",
 	"links.navigate.al": "Hivatkozás megnyitása Alt + kattintás paranccsal",
+	"links.command.al": "Alt + kattintás a parancs végrehajtásához",
 	"invalid.url": "A hivatkozást nem sikerült megnyitni, mert nem jól formázott: {0}",
 	"missing.url": "A hivatkozást nem sikerült megnyitni, hiányzik a célja.",
 	"label": "Hivatkozás megnyitása"

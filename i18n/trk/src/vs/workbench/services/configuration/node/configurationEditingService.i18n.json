@@ -7,11 +7,16 @@
 	"open": "Ayarları Aç",
 	"close": "Kapat",
 	"saveAndRetry": "Ayarları Kaydet ve Yeniden Dene",
-	"errorUnknownKey": "Yapılandırma dosyasına yazılamıyor (Bilinmeyen Anahtar)",
-	"errorInvalidTarget": "Yapılandırma dosyasına yazılamıyor (Bilinmeyen Hedef)",
-	"errorNoWorkspaceOpened": "Hiçbir klasör açık olmadığı için ayarlara yazılamıyor. Lütfen ilk olarak bir klasörü açın ve tekrar deneyin.",
+	"errorUnknownKey": "{0} dosyasına, {1} kayıtlı bir yapılandırma olmadığı için yazılamıyor.",
+	"errorInvalidFolderConfiguration": "{0}, klasör kaynak kapsamını desteklemediği için klasör ayarlarına yazılamıyor.",
+	"errorInvalidUserTarget": "{0}, global kapsamı desteklemediği için kullanıcı ayarlarına yazılamıyor.",
+	"errorInvalidFolderTarget": "Hiçbir kaynak belirtilmediği için klasör ayarlarına yazılamıyor.",
+	"errorNoWorkspaceOpened": "Hiçbir çalışma alanı açık olmadığı için {0}'a yazılamıyor. Lütfen ilk olarak bir çalışma alanı açın ve tekrar deneyin.",
 	"errorInvalidConfiguration": "Ayarlara yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Kullanıcı Ayarları'nı** açın ve tekrar deneyin.",
 	"errorInvalidConfigurationWorkspace": "Ayarlara yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Çalışma Alanı Ayarları'nı** açın ve tekrar deneyin.",
 	"errorConfigurationFileDirty": "Dosya kaydedilmemiş değişiklikler içerdiği için ayarlara yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Kullanıcı Ayarları'nı** açın ve tekrar deneyin.",
-	"errorConfigurationFileDirtyWorkspace": "Dosya kaydedilmemiş değişiklikler içerdiği için ayarlara yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Çalışma Alanı Ayarları'nı** açın ve tekrar deneyin."
+	"errorConfigurationFileDirtyWorkspace": "Dosya kaydedilmemiş değişiklikler içerdiği için ayarlara yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Çalışma Alanı Ayarları'nı** açın ve tekrar deneyin.",
+	"userTarget": "Kullanıcı Ayarları",
+	"workspaceTarget": "Çalışma Alanı Ayarları",
+	"folderTarget": "Klasör Ayarları"
 }

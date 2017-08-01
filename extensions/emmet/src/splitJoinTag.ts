@@ -20,21 +20,21 @@ export function splitJoinTag() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			if (rangeToReplace && textToReplaceWith) {
-				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+			if (textEdit) {
+				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
 	let nodeToUpdate: Node = getNode(rootNode, selection.start);
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 
 	if (!nodeToUpdate) {
-		return [null, null];
+		return;
 	}
 
 	if (!nodeToUpdate.close) {
@@ -54,5 +54,5 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		textToReplaceWith = '/>';
 	}
 
-	return [rangeToReplace, textToReplaceWith];
+	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
 }

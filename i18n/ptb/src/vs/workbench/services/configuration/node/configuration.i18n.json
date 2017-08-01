@@ -11,6 +11,7 @@
 	"invalid.title": "'configuration.title' deve ser um string",
 	"vscode.extension.contributes.defaultConfiguration": "Contribui às definições de configuração padrão do editor por linguagem.",
 	"invalid.properties": "'configuration.properties' deve ser um objeto",
-	"workspaceConfig.id": "Identificação do espaço de trabalho único",
-	"workspaceSettings.description": "Definir configurações de espaço de trabalho"
+	"workspaceConfig.id.description": "Identificador de espaço de trabalho. Usado para armazenar o estado interno do espaço de trabalho, que pode ser perdido em mudança.",
+	"workspaceConfig.folders.description": "Lista de pastas a serem carregadas na área de trabalho. Deve ser um caminho de arquivo, por exemplo, 'file:///root/folderA'",
+	"workspaceConfig.settings.description": "Configurações de espaço de trabalho"
 }

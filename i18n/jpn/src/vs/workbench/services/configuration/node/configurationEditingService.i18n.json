@@ -7,11 +7,10 @@
 	"open": "設定を開く",
 	"close": "閉じる",
 	"saveAndRetry": "設定を保存して再試行",
-	"errorUnknownKey": "構成ファイルに書き込めません (不明なキー)",
-	"errorInvalidTarget": "構成ファイルに書き込めません (無効なターゲット)",
-	"errorNoWorkspaceOpened": "開いているフォルダーがないため、設定を書き込めません。最初にフォルダーを開いてから、もう一度お試しください。",
 	"errorInvalidConfiguration": "設定を書き込めません。**User Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorInvalidConfigurationWorkspace": "設定を書き込めません。**Workspace Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorConfigurationFileDirty": "ファイルが変更されているため、設定を書き込めません。**User Settings** ファイルを保存してから、もう一度お試しください。",
-	"errorConfigurationFileDirtyWorkspace": "ファイルが変更されているため、設定を書き込めません。**Workspace Settings** ファイルを保存してから、もう一度お試しください。"
+	"errorConfigurationFileDirtyWorkspace": "ファイルが変更されているため、設定を書き込めません。**Workspace Settings** ファイルを保存してから、もう一度お試しください。",
+	"userTarget": "ユーザー設定",
+	"workspaceTarget": "ワークスペースの設定"
 }

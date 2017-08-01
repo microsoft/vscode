@@ -7,7 +7,5 @@
 	"openFolderFirst": "첫 번째 폴더를 열어서 작업 영역 설정을 만듭니다.",
 	"emptyKeybindingsHeader": "키 바인딩을 이 파일에 넣어서 기본값을 덮어씁니다.",
 	"defaultKeybindings": "기본 키 바인딩",
-	"emptySettingsHeader": "설정을 이 파일에 넣어서 기본 설정을 덮어씁니다.",
-	"emptySettingsHeader1": "설정을 이 파일에 넣어서 기본 설정과 사용자 설정을 덮어씁니다.",
 	"fail.createSettings": "{0}'({1})을(를) 만들 수 없습니다."
 }

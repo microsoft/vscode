@@ -24,7 +24,6 @@
   "dependencies": {
     "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
-    "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",

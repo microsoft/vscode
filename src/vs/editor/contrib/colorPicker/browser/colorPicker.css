@@ -8,6 +8,10 @@
 	user-select: none;
 }
 
+.monaco-shell .colorpicker-hover[tabindex="0"]:focus {
+	outline: none;
+}
+
 
 /* Header */
 

@@ -14,27 +14,29 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 	public constructor(
 		private client: ITypescriptServiceClient) { }
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined | null> {
+	public async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve(null);
+			return undefined;
 		}
 		const args: Proto.FileLocationRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		return this.client.execute('quickinfo', args, token).then((response): Hover | undefined => {
+
+		try {
+			const response = await this.client.execute('quickinfo', args, token);
 			if (response && response.body) {
 				const data = response.body;
 				return new Hover(
 					TypeScriptHoverProvider.getContents(data),
 					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
 			}
-			return undefined;
-		}, () => {
-			return null;
-		});
+		} catch (e) {
+			// noop
+		}
+		return undefined;
 	}
 
 	private static getContents(data: Proto.QuickInfoResponseBody) {

@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "设置已更改，需要重启才能生效。",
 	"relaunchSettingDetail": "按下“重启”按钮以重新启动 {0} 并启用该设置。",
 	"restart": "重启",
+	"relaunchWorkspaceMessage": "此工作区更改需要重载扩展系统。",
 	"reload": "重新加载"
 }

@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
@@ -27,6 +27,8 @@ import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPi
 import { isColorDecorationOptions } from 'vs/editor/contrib/colorPicker/common/color';
 import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { Color, RGBA } from 'vs/base/common/color';
+import * as lifecycle from 'vs/base/common/lifecycle';
+const $ = dom.$;
 
 class ColorHover {
 
@@ -173,6 +175,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _modeService: IModeService;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget;
+	private toDispose: lifecycle.IDisposable[];
 
 	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -189,6 +192,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			null,
 			result => this._withResult(result, false)
 		);
+
+		this.toDispose = [];
+		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+			if (this._colorPicker) {
+				dom.addClass(this.getDomNode(), 'colorpicker-hover');
+			}
+		}));
+		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
+		}));
 	}
 
 	dispose(): void {
@@ -196,6 +209,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		if (this._colorPicker) {
 			this._colorPicker.dispose();
 		}
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 

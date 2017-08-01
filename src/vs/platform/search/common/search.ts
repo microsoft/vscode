@@ -6,7 +6,6 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import * as objects from 'vs/base/common/objects';
 import { IExpression } from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
@@ -174,26 +173,4 @@ export function getExcludes(configuration: ISearchConfiguration): IExpression {
 	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
 
 	return allExcludes;
-}
-
-export function getMergedExcludes(query: ISearchQuery, absolutePaths?: boolean): IExpression {
-	const globalExcludePattern: IExpression = query.excludePattern || {};
-
-	return query.folderQueries
-		.map(folderQuery => {
-			const mergedFolderExclude = objects.assign({}, globalExcludePattern, folderQuery.excludePattern || {});
-			return absolutePaths ?
-				makeExcludesAbsolute(mergedFolderExclude, folderQuery.folder) :
-				mergedFolderExclude;
-		});
-}
-
-function makeExcludesAbsolute(excludePattern: IExpression, rootFolder: uri) {
-	return Object.keys(excludePattern)
-		.reduce((absolutePattern: IExpression, key: string) => {
-			const value = excludePattern[key];
-			key = paths.join(rootFolder.fsPath, key);
-			absolutePattern[key] = value;
-			return absolutePattern;
-		}, {});
 }

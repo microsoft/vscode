@@ -33,18 +33,18 @@
                         "inMarkupAndStylesheetFilesOnly"
                     ],
                     "default": "inMarkupAndStylesheetFilesOnly",
-                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows expanded emmet abbreviations as suggestions.\nThe option \"inMarkupAndStylesheetFilesOnly\" applies to html, haml, jade, slim, xml, xsl, css, scss, sass, less and stylus.\nThe option \"always\" applies to all parts of the file regardless of markup/css."
+                    "description": "%emmetShowExpandedAbbreviation%"
                 },
                 "emmet.showAbbreviationSuggestions": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nShows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\"."
+                    "description": "%emmetShowAbbreviationSuggestions%"
                 },
                 "emmet.includeLanguages": {
                     "type": "object",
                     "default": {},
-                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nEnable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}"
-                },
+                    "description": "%emmetIncludeLanguages%"
+                                },
                 "emmet.variables": {
                     "type": "object",
                     "properties": {
@@ -58,7 +58,22 @@
                         }
                     },
                     "default": {},
-                    "description": "Applicable only when emmet.useNewEmmet is set to true.\nVariables to be used in emmet snippets"
+                    "description": "%emmetVariables%"
+                },
+                "emmet.syntaxProfiles":{
+                    "type": "object",
+                    "default": {},
+                    "description": "%emmetSyntaxProfiles%"
+                },
+                "emmet.excludeLanguages":{
+                    "type": "array",
+                    "default": ["markdown"],
+                    "description": "%emmetExclude%"
+                },
+                "emmet.extensionsPath": {
+                    "type": "string",
+                    "default": null,
+                    "description": "%emmetExtensionsPath%"
                 }
             }
         },
@@ -183,7 +198,7 @@
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.3.0",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.0.0",
+        "vscode-emmet-helper": "^1.0.4",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"

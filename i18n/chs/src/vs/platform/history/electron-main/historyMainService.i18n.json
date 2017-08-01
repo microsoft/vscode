@@ -6,5 +6,7 @@
 {
 	"newWindow": "新建窗口",
 	"newWindowDesc": "打开一个新窗口",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "最近使用的工作区",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "代码工作区"
 }

@@ -6,6 +6,6 @@
 {
 	"filesCategory": "Dosyalar",
 	"revealInSideBar": "Kenar Çubuğunda Ortaya Çıkar",
-	"acceptLocalChanges": "Yerel değişiklikleri kullan ve diskk içeriklerinin üzerine yaz",
-	"revertLocalChanges": "Yerel değişiklikleri göz ardı et ve diskteki içeriğe geri dön"
+	"acceptLocalChanges": "Değişikliklerinizi kullanın ve diskteki içeriklerin üzerine yazın",
+	"revertLocalChanges": "Değişikliklerinizi göz ardı edin ve diskteki içeriğe geri dönün"
 }

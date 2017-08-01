@@ -45,6 +45,9 @@ export class PatternInputWidget extends Widget {
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
+	private _onCancel = this._register(new Emitter<boolean>());
+	public onCancel: CommonEvent<boolean> = this._onCancel.event;
+
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
 		this.history = new HistoryNavigator<string>();
@@ -180,6 +183,9 @@ export class PatternInputWidget extends Widget {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 				this._onSubmit.fire();
+				return;
+			case KeyCode.Escape:
+				this._onCancel.fire();
 				return;
 			default:
 				return;

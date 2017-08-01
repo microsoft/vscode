@@ -35,8 +35,10 @@
 	"JsonSchema.tasks.customize.deprecated": "customize プロパティは非推奨です。新しいタスクのカスタマイズ方法に移行する方法については 1.14 リリース ノートをご確認ください。",
 	"JsonSchema.tasks.showOputput.deprecated": "showOutputプロパティは非推奨です。代わりに presentation プロパティ内の reveal プロパティを使用してください。また 1.14 リリース ノートをご確認ください。",
 	"JsonSchema.tasks.echoCommand.deprecated": "echoCommand プロパティは使用されていません。代わりに presentation プロパティ内の echo プロパティを使用してください。また 1.14 リリース ノートをご確認ください。",
+	"JsonSchema.tasks.suppressTaskName.deprecated": "suppressTaskName プロパティは非推奨です。代わりに、その引数を含むコマンドをタスクにインライン展開してください。1.14 リリース ノートも参照してください。",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "isBuildCommand プロパティは非推奨です。代わりに group プロパティを使用してください。また 1.14 リリース ノートをご確認ください。",
 	"JsonSchema.tasks.isTestCommand.deprecated": "isTestCommand プロパティは非推奨です。代わりに group プロパティを使用してください。また 1.14 リリース ノートをご確認ください。",
+	"JsonSchema.tasks.taskSelector.deprecated": "taskSelector プロパティは非推奨です。代わりに、その引数を含むコマンドをタスクにインライン展開してください。1.14 リリース ノートも参照してください。",
 	"JsonSchema.windows": "Windows 固有のコマンド構成",
 	"JsonSchema.mac": "Mac 固有のコマンド構成",
 	"JsonSchema.linux": "Linux 固有のコマンド構成"

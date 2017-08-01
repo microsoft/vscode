@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Name des Verbunds. Wird im Dropdownmenü der Startkonfiguration angezeigt.",
 	"app.launch.json.compounds.configurations": "Namen von Konfigurationen, die als Bestandteil dieses Verbunds gestartet werden.",
 	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",
-	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0}).",
-	"selectDebug": "Umgebung auswählen"
+	"selectDebug": "Umgebung auswählen",
+	"DebugConfig.failed": "Die Datei \"launch.json\" kann nicht im Ordner \".vscode\" erstellt werden ({0})."
 }

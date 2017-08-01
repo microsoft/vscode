@@ -28,7 +28,7 @@ export class ColorPickerModel {
 	private _color: Color;
 	private _selectedColor: string;
 	private _opacity: number;
-	private _hue: Color;
+	private _hue: number;
 
 	private _opaqueFormatter: ColorFormatter;
 	private _transparentFormatter: ColorFormatter;
@@ -50,22 +50,21 @@ export class ColorPickerModel {
 		this._opaqueFormatter = opaqueFormatter;
 		this.colorFormatters = availableFormatters;
 		this.color = color;
-		this.saturation = this._color.getSaturation();
-		this.value = this._color.getValue();
+		this.hue = color.getHue();
+		this.saturation = color.getSaturation();
+		this.value = color.getValue();
 		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
 	public set color(color: Color) {
 		this._color = color;
 
-		if (!this._hue) {
-			this._hue = color;
-		}
-
-		const alpha = this.color.toRGBA().a;
+		const alpha = color.toRGBA().a;
 		if (!this._opacity) {
 			this._opacity = alpha / 255;
 		}
+		this.saturation = color.getSaturation();
+		this.value = color.getValue();
 
 		if (this._opacity === 1) {
 			this.selectedColorString = this._opaqueFormatter.toString(this._color);
@@ -105,15 +104,14 @@ export class ColorPickerModel {
 		return this._selectedColor;
 	}
 
-	public set hue(color: Color) {
-		this._hue = color;
-
-		if (this.widget.body) {
+	public set hue(hue: number) {
+		this._hue = hue;
+		if (this.widget && this.widget.body) {
 			this.widget.body.saturationBox.fillSaturationBox();
 		}
 	}
 
-	public get hue(): Color {
+	public get hue(): number {
 		return this._hue;
 	}
 
@@ -150,6 +148,38 @@ export class ColorPickerModel {
 		} else {
 			this.nextColorMode();
 		}
+	}
+
+	public getHueColor(hue: number): Color {
+		const hh = hue / 60;
+		const X = 1 - Math.abs(hh % 2 - 1);
+		let r = 0, g = 0, b = 0;
+
+		if (hh >= 0 && hh < 1) {
+			r = 1;
+			g = X;
+		} else if (hh >= 1 && hh < 2) {
+			r = X;
+			g = 1;
+		} else if (hh >= 2 && hh < 3) {
+			g = 1;
+			b = X;
+		} else if (hh >= 3 && hh < 4) {
+			g = X;
+			b = 1;
+		} else if (hh >= 4 && hh < 5) {
+			r = X;
+			b = 1;
+		} else {
+			r = 1;
+			b = X;
+		}
+
+		r = Math.round(r * 255);
+		g = Math.round(g * 255);
+		b = Math.round(b * 255);
+
+		return Color.fromRGBA(new RGBA(r, g, b));
 	}
 }
 

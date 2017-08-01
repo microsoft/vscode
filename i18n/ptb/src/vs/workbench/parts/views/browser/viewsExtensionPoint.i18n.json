@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "Condição que deve ser verdadeira para mostrar esta visualização",
 	"vscode.extension.contributes.views": "Contribui visualizações ao editor",
 	"views.explorer": "Visualização do explorador",
+	"views.debug": "Visualizar Depurador",
 	"locationId.invalid": "'{0}' não é um local válido de visualização"
 }

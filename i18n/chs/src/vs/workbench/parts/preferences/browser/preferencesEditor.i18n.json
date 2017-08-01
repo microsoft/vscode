@@ -11,5 +11,7 @@
 	"noSettingsFound": "无结果",
 	"oneSettingFound": "1 个设置匹配",
 	"settingsFound": "{0} 个设置匹配",
+	"fileEditorWithInputAriaLabel": "{0}。文本文件编辑器。",
+	"fileEditorAriaLabel": "文本文件编辑器。",
 	"preferencesAriaLabel": "默认首选项。只读文本编辑器。"
 }

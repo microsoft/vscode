@@ -203,6 +203,12 @@ export interface ITerminalInstance {
 	hadFocusOnExit: boolean;
 
 	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;

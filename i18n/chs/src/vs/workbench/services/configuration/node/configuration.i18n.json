@@ -10,5 +10,6 @@
 	"invalid.type": "如果进行设置，\"configuration.type\" 必须设置为对象",
 	"invalid.title": "configuration.title 必须是字符串",
 	"vscode.extension.contributes.defaultConfiguration": "按语言提供默认编辑器配置设置。",
-	"invalid.properties": "configuration.properties 必须是对象"
+	"invalid.properties": "configuration.properties 必须是对象",
+	"workspaceConfig.settings.description": "工作区设置"
 }

@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "再起動が必要な設定を変更しました。",
 	"relaunchSettingDetail": "{0} を再起動ボタンで再起動して、設定を有効にしてください。",
 	"restart": "再起動",
+	"relaunchWorkspaceMessage": "このワークスペースの変更には、拡張システムの再読み込みが必要です。",
 	"reload": "再読み込み"
 }

@@ -37,6 +37,7 @@
 	"reload": "Pencereyi &&Yeniden Yükle",
 	"toggleExtensionsViewlet": "Eklentileri Göster",
 	"installExtensions": "Eklenti Yükle",
+	"showEnabledExtensions": "Etkinleştirilmiş Eklentileri Göster",
 	"showInstalledExtensions": "Yüklenen Eklentileri Göster",
 	"showDisabledExtensions": "Devre Dışı Bırakılan Eklentileri Göster",
 	"clearExtensionsInput": "Eklenti Girdisini Temizle",
