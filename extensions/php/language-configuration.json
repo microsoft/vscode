@@ -16,7 +16,7 @@
 		{ "open": "\"", "close": "\"", "notIn": ["string"] }
 	],
 	"indentationRules": {
-		"increaseIndentPattern": "({(?!.+}).*|\\(|\\|((else(\s)?)?if|else|for(each)?|while|switch).*:)\\s*(\/(\/*).*)?)?$",
-		"decreaseIndentPattern": "^(.*\\*\/)?\\s*(}|(\\)+([;,]|\\s*{))|(\\]\\)*([;,]|$)|else:|((end(if|for(each)?|while|switch));)"
+		"increaseIndentPattern": "({(?!.+}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch).*:)\\s*(/[/*].*)?$",
+		"decreaseIndentPattern": "^(.*\\*\\/)?\\s*((\\})|(\\)+[;,])|(\\][;,])|\\b(else:)|\\b((end(if|for(each)?|while|switch));))"
 	}
 }
