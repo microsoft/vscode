@@ -271,6 +271,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
+			if (response && response.body && response.body.allThreadsContinued !== undefined) {
+				this.allThreadsContinued = response.body.allThreadsContinued;
+			}
 			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
 			return response;
 		});
