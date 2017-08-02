@@ -42,10 +42,6 @@ class TscTaskProvider implements vscode.TaskProvider {
 		this.tsconfigProvider = new TsConfigProvider();
 	}
 
-	dispose() {
-		this.tsconfigProvider.dispose();
-	}
-
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
 		const folders = vscode.workspace.workspaceFolders;
 		if (!folders || !folders.length) {
