@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandEmmetAbbreviation, wrapWithAbbreviation } from '../abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
 
 const cssContents = `
 .boo {
@@ -196,8 +196,8 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursors = [new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6)];
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33)];
-
-
+	
+	
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected);
 	});
@@ -246,6 +246,29 @@ suite('Tests for Wrap with Abbreviations', () => {
 		return testWrapWithAbbreviation(multiCursorsWithFullLineSelection, 'ul>li', wrapMultiLineAbbrExpected);
 	});
 
+	test('Wrap individual lines with abbreviation', () => {
+	const contents = `
+	<ul class="nav main">
+		<li class="item1">img</li>
+		<li class="item2">hithere</li>
+	</ul>
+`;
+	const wrapIndividualLinesExpected = `
+	<ul class="nav main">
+		<ul>
+			<li class="hello1"><li class="item1">img</li></li>
+			<li class="hello2"><li class="item2">hithere</li></li>
+		</ul>
+	</ul>
+`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(2, 2, 3, 33)];
+			return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' }).then(() => {
+				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
+				return Promise.resolve();
+			});
+		});
+	});
 });
 
 
