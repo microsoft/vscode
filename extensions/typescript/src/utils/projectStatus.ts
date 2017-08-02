@@ -161,7 +161,6 @@ function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFil
 				root);
 		}
 	}
-});
 }
 
 export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
