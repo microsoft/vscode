@@ -10,6 +10,7 @@
 
 
 	var firstLoad = true;
+	var loadTimeout;
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -190,7 +191,7 @@
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
+			newFrame.style.cssText = "display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden";
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
@@ -200,13 +201,11 @@
 				return false;
 			};
 
-			newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
-				/** @type {any} */
-				const contentDocument = e.target;
+			var onLoad = function (contentDocument, contentWindow) {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body, this);
+					setInitialScrollPosition(contentDocument.body, contentWindow);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
@@ -219,8 +218,24 @@
 						document.body.removeChild(oldActiveFrame);
 					}
 					newFrame.setAttribute('id', 'active-frame');
-					newFrame.style.display = 'block';
-					this.addEventListener('scroll', handleInnerScroll);
+					newFrame.style.visibility = 'visible';
+					contentWindow.addEventListener('scroll', handleInnerScroll);
+				}
+			};
+
+			clearTimeout(loadTimeout);
+			loadTimeout = undefined;
+			loadTimeout = setTimeout(function() {
+				clearTimeout(loadTimeout);
+				loadTimeout = undefined;
+				onLoad(newFrame.contentDocument, newFrame.contentWindow);
+			}, 200);
+
+			newFrame.contentWindow.addEventListener('load', function(e) {
+				if (loadTimeout) {
+					clearTimeout(loadTimeout);
+					loadTimeout = undefined;
+					onLoad(e.target, this);
 				}
 			});
 

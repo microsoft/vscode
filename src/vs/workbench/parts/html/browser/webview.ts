@@ -85,10 +85,10 @@ export default class Webview {
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
+		this._webview.style.flex = '0 1';
+		this._webview.style.width = '0';
+		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -163,7 +163,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-set-content') {
-					this._webview.style.opacity = '';
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
 					this.layout();
 					return;
 				}
