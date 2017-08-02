@@ -71,12 +71,9 @@ export class TypeScriptServiceConfiguration {
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
-		let inspect = configuration.inspect('typescript.tsdk');
+		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && inspect.globalValue && 'string' === typeof inspect.globalValue) {
 			return inspect.globalValue;
-		}
-		if (inspect && inspect.defaultValue && 'string' === typeof inspect.defaultValue) {
-			return inspect.defaultValue;
 		}
 		return null;
 	}
