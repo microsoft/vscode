@@ -83,8 +83,8 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 }
 
 export function expandEmmetAbbreviation(args) {
-	const syntax = getSyntaxFromArgs(args);
-	if (!syntax || !validate()) {
+	const syntax = getSyntaxFromArgs(args) || 'html';
+	if (!validate()) {
 		return;
 	}
 
