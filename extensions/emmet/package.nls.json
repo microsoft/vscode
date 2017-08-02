@@ -1,5 +1,6 @@
 {
 	"command.wrapWithAbbreviation": "Wrap with Abbreviation",
+	"command.wrapIndividualLinesWithAbbreviation": "Wrap Individual Lines with Abbreviation",
 	"command.removeTag": "Remove Tag",
 	"command.updateTag": "Update Tag",
 	"command.matchTag": "Go to Matching Pair",

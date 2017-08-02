@@ -12,7 +12,7 @@ interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
 	rangeToReplace: vscode.Range;
-	textToWrap?: string;
+	textToWrap?: string | string[];
 	filters?: string[];
 }
 
@@ -46,6 +46,36 @@ export function wrapWithAbbreviation(args) {
 
 		return expandAbbreviationInRange(editor, expandAbbrList, true);
 	});
+}
+
+export function wrapIndividualLinesWithAbbreviation(args) {
+	if (!validate(false)) {
+		return;
+	}
+
+	const editor = vscode.window.activeTextEditor;
+	if (editor.selection.isEmpty) {
+		vscode.window.showInformationMessage('Select more than 1 line and try again.');
+		return;
+	}
+
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
+	const syntax = getSyntaxFromArgs({ language: editor.document.languageId }) || 'html';
+	const lines = editor.document.getText(editor.selection).split('\n').map(x => x.trim());
+
+	return abbreviationPromise.then(abbreviation => {
+		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }
+
+		let input: ExpandAbbreviationInput = {
+			syntax,
+			abbreviation,
+			rangeToReplace: editor.selection,
+			textToWrap: lines
+		};
+
+		return expandAbbreviationInRange(editor, [input], true);
+	});
+
 }
 
 export function expandEmmetAbbreviation(args) {
