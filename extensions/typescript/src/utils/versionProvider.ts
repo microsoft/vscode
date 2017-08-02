@@ -120,13 +120,9 @@ export class TypeScriptVersionProvider {
 	}
 
 	public get localVersions(): TypeScriptVersion[] {
-		const tsdkVersions = this.localTsdkVersions;
-		if (tsdkVersions && tsdkVersions.length) {
-			return [tsdkVersions[0]];
-		}
-
+		const allVersions = this.localTsdkVersions.concat(this.localNodeModulesVersions);
 		const paths = new Set<string>();
-		return this.localNodeModulesVersions.filter(x => {
+		return allVersions.filter(x => {
 			if (paths.has(x.path)) {
 				return false;
 			}
