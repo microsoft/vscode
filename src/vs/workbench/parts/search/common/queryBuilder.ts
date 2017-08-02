@@ -93,7 +93,7 @@ export class QueryBuilder {
 	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
 			// A segment is a search path if it is an absolute path or starts with ./
-			return paths.isAbsolute(segment) || strings.startsWith(segment, './');
+			return paths.isAbsolute(segment) || strings.startsWith(segment, './') || strings.startsWith(segment, '.\\');
 		};
 
 		const segments = splitGlobPattern(pattern);
@@ -218,7 +218,7 @@ export class QueryBuilder {
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
-			const relativeSearchPathMatch = searchPath.match(/\.\/([^\/]+)(\/.+)?/);
+			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
 				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);

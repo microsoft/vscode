@@ -106,6 +106,21 @@ suite('QueryBuilder', () => {
 				type: QueryType.Text,
 				useRipgrep: true
 			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ includePattern: '.\\bar' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
+				}],
+				type: QueryType.Text,
+				useRipgrep: true
+			});
 	});
 
 	test('exclude setting and searchPath', () => {
@@ -228,6 +243,22 @@ suite('QueryBuilder', () => {
 				PATTERN_INFO,
 				[ROOT_1_URI],
 				{ excludePattern: './bar/**/*.ts' }
+			),
+			<ISearchQuery>{
+				contentPattern: PATTERN_INFO,
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
+				type: QueryType.Text,
+				useRipgrep: true
+			});
+
+		assertEqualQueries(
+			queryBuilder.text(
+				PATTERN_INFO,
+				[ROOT_1_URI],
+				{ excludePattern: '.\\bar\\**\\*.ts' }
 			),
 			<ISearchQuery>{
 				contentPattern: PATTERN_INFO,
