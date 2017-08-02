@@ -17,13 +17,13 @@ interface ExpandAbbreviationInput {
 }
 
 export function wrapWithAbbreviation(args) {
-	const syntax = getSyntaxFromArgs(args);
-	if (!syntax || !validate()) {
+	if (!validate(false)) {
 		return;
 	}
 
 	const editor = vscode.window.activeTextEditor;
 	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
+	const syntax = getSyntaxFromArgs({ language: editor.document.languageId }) || 'html';
 
 	return abbreviationPromise.then(abbreviation => {
 		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }

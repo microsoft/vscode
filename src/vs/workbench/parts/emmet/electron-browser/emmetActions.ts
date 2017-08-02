@@ -57,11 +57,6 @@ export interface IEmmetActionOptions extends IActionOptions {
 
 export abstract class EmmetEditorAction extends EditorAction {
 
-	private actionMap = {
-		'editor.emmet.action.wrapWithAbbreviation': 'emmet.wrapWithAbbreviation',
-		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation'
-	};
-
 	protected emmetActionName: string;
 
 	constructor(opts: IEmmetActionOptions) {
@@ -88,15 +83,10 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
 
-		let mappedCommand = this.actionMap[this.id];
-		if (mappedCommand && mappedCommand !== 'emmet.expandAbbreviation' && mappedCommand !== 'emmet.wrapWithAbbreviation') {
-			return commandService.executeCommand<void>(mappedCommand);
-		}
-
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
-			if (mappedCommand === 'emmet.expandAbbreviation' || mappedCommand === 'emmet.wrapWithAbbreviation') {
-				return commandService.executeCommand<void>(mappedCommand, EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
+			if (this.id === 'editor.emmet.action.expandAbbreviation') {
+				return commandService.executeCommand<void>('emmet.expandAbbreviation', EmmetEditorAction.getLanguage(modeService, editor, grammarContributions));
 			}
 
 			return undefined;

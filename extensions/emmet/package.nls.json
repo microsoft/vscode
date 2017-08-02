@@ -1,4 +1,5 @@
 {
+	"command.wrapWithAbbreviation": "Wrap with Abbreviation",
 	"command.removeTag": "Remove Tag",
 	"command.updateTag": "Update Tag",
 	"command.matchTag": "Go to Matching Pair",

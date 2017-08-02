@@ -27,7 +27,7 @@ import * as path from 'path';
 export function activate(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context, true);
 
-	context.subscriptions.push(vscode.commands.registerCommand('emmet.wrapWithAbbreviation', (args) => {
+	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
 	}));
 
