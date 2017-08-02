@@ -269,6 +269,30 @@ suite('Tests for Wrap with Abbreviations', () => {
 			});
 		});
 	});
+
+	test('Wrap individual lines with abbreviation and trim', () => {
+		const contents = `
+		<ul class="nav main">
+			• lorem ipsum
+			• lorem ipsum
+		</ul>
+	`;
+		const wrapIndividualLinesExpected = `
+		<ul class="nav main">
+			<ul>
+				<li class="hello1">lorem ipsum</li>
+				<li class="hello2">lorem ipsum</li>
+			</ul>
+		</ul>
+	`;
+			return withRandomFileEditor(contents, 'html', (editor, doc) => {
+				editor.selections = [new Selection(2, 3, 3, 16)];
+				return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' }).then(() => {
+					assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
+					return Promise.resolve();
+				});
+			});
+		});
 });
 
 
