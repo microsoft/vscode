@@ -86,36 +86,25 @@ export class PreviewSecuritySelector {
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
+		function markActiveWhen(when: boolean): string {
+			return when ? '• ' : '';
+		}
+
 		const currentSecurityLevel = this.cspArbiter.getSecurityLevelForResource(resource);
 		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
 			[
 				{
 					level: MarkdownPreviewSecurityLevel.Strict,
-					label: localize(
-						'preview.showPreviewSecuritySelector.strictTitle',
-						'Strict. Only load secure content'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + localize('strict.title', 'Strict'),
+					description: localize('strict.description', 'Only load secure content'),
 				}, {
 					level: MarkdownPreviewSecurityLevel.AllowInsecureContent,
-					label: localize(
-						'preview.showPreviewSecuritySelector.insecureContentTitle',
-						'Allow loading content over http'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + localize('insecureContent.title', 'Allow insecure content'),
+					description: localize('insecureContent.description', 'Enable loading content over http'),
 				}, {
 					level: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
-					label: localize(
-						'preview.showPreviewSecuritySelector.scriptsAndAllContent',
-						'Allow all content and script execution. Not recommended'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent) + localize('disable.title', 'Disable'),
+					description: localize('disable.description', 'Allow all content and script execution. Not recommended'),
 				},
 			], {
 				placeHolder: localize(
