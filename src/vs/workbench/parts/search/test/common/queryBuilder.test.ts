@@ -575,6 +575,7 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 		delete actual.extraFileResources;
 	}
 
+	delete actual.usingSearchPaths;
 	actual.includePattern = normalizeExpression(actual.includePattern);
 	actual.excludePattern = normalizeExpression(actual.excludePattern);
 	cleanUndefinedQueryValues(actual);

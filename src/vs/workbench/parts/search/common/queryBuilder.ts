@@ -13,7 +13,7 @@ import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes } from 'vs/platform/search/common/search';
+import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ISearchPathPattern {
@@ -60,35 +60,11 @@ export class QueryBuilder {
 			return folderConfig.search.useRipgrep;
 		});
 
-		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => {
-			if (excludePattern && glob.match(excludePattern, extraFile.fsPath)) {
-				return false;
-			}
-
-			if (includePattern && !glob.match(includePattern, extraFile.fsPath)) {
-				return false;
-			}
-
-			// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-			if (searchPaths) {
-				return searchPaths.every(searchPath => {
-					if (paths.isEqualOrParent(extraFile.fsPath, searchPath.searchPath.fsPath)) {
-						return !searchPath.pattern || glob.match(searchPath.pattern, extraFile.fsPath);
-					} else {
-						return false;
-					}
-				});
-			}
-
-			return true;
-		});
-		extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
-
-		return {
+		const query = <ISearchQuery>{
 			type,
 			folderQueries,
-			extraFileResources,
+			usingSearchPaths: !!(searchPaths && searchPaths.length),
+			extraFileResources: options.extraFileResources,
 			filePattern: options.filePattern,
 			excludePattern,
 			includePattern,
@@ -100,6 +76,12 @@ export class QueryBuilder {
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings
 		};
+
+		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
+		let extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(query, extraFile.fsPath));
+		query.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+
+		return query;
 	}
 
 	/**
