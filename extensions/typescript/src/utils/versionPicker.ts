@@ -56,7 +56,7 @@ export class TypeScriptVersionPicker {
 				? '• '
 				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
-			detail: shippedVersion.label,
+			detail: shippedVersion.pathLabel,
 			id: MessageAction.useBundled
 		});
 
@@ -66,7 +66,7 @@ export class TypeScriptVersionPicker {
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 				description: version.versionString,
-				detail: version.label,
+				detail: version.pathLabel,
 				id: MessageAction.useLocal,
 				version: version
 			});
@@ -94,7 +94,7 @@ export class TypeScriptVersionPicker {
 				await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 				if (selected.version) {
 					const tsConfig = workspace.getConfiguration('typescript');
-					await tsConfig.update('tsdk', selected.version.label, false);
+					await tsConfig.update('tsdk', selected.version.pathLabel, false);
 
 					const previousVersion = this.currentVersion;
 					this._currentVersion = selected.version;

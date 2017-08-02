@@ -15,17 +15,17 @@ import API from './api';
 
 
 export class TypeScriptVersion {
-	public readonly label: string;
-
 	constructor(
 		public readonly path: string,
-		label?: string
-	) {
-		this.label = label || path;
-	}
+		private readonly _pathLabel?: string
+	) { }
 
 	public get tsServerPath(): string {
 		return path.join(this.path, 'tsserver.js');
+	}
+
+	public get pathLabel(): string {
+		return typeof this._pathLabel === 'undefined' ? this.path : this._pathLabel;
 	}
 
 	public get isValid(): boolean {
@@ -133,7 +133,9 @@ export class TypeScriptVersionProvider {
 
 	public get bundledVersion(): TypeScriptVersion {
 		try {
-			const bundledVersion = new TypeScriptVersion(path.dirname(require.resolve('typescript/lib/tsserver.js')));
+			const bundledVersion = new TypeScriptVersion(
+				path.dirname(require.resolve('typescript/lib/tsserver.js')),
+				'');
 			if (bundledVersion.isValid) {
 				return bundledVersion;
 			}
