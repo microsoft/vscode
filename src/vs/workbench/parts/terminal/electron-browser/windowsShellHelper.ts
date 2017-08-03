@@ -55,6 +55,7 @@ export class WindowsShellHelper {
 	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
 		return new TPromise((resolve, reject) => {
 			this._wmicProcess = cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
+				this._wmicProcess = null;
 				if (this._isDisposed) {
 					reject(null);
 				}
