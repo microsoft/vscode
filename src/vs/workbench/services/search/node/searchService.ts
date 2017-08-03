@@ -196,8 +196,7 @@ export class DiskSearch {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: verboseLogging
-				},
-				debug: 7890
+				}
 			}
 		);
 
