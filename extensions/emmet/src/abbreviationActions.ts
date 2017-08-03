@@ -25,7 +25,7 @@ export function wrapWithAbbreviation(args) {
 
 	const editor = vscode.window.activeTextEditor;
 	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId }) || 'html';
+	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 
 	return abbreviationPromise.then(abbreviation => {
 		if (!abbreviation || !abbreviation.trim() || !isAbbreviationValid(syntax, abbreviation)) { return; }
@@ -62,7 +62,7 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 	}
 
 	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId }) || 'html';
+	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 	const lines = editor.document.getText(editor.selection).split('\n').map(x => x.trim());
 
 	return abbreviationPromise.then(inputAbbreviation => {
@@ -83,8 +83,8 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 }
 
 export function expandEmmetAbbreviation(args) {
-	const syntax = getSyntaxFromArgs(args) || 'html';
-	if (!validate()) {
+	const syntax = getSyntaxFromArgs(args);
+	if (!syntax || !validate()) {
 		return;
 	}
 
@@ -278,9 +278,13 @@ function getSyntaxFromArgs(args: any): string {
 	let parentMode: string = (args && typeof args === 'object') ? args['parentMode'] : undefined;
 	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
 	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
-	if (syntax) {
-		return syntax;
+	if (!syntax) {
+		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
 	}
 
-	return getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
+	// Final fallback to html
+	if (!syntax) {
+		syntax = getEmmetMode('html', excludedLanguages);
+	}
+	return syntax;
 }
