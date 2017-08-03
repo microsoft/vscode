@@ -205,7 +205,7 @@
     "dependencies": {
 
         "@emmetio/html-matcher": "^0.3.1",
-        "@emmetio/css-parser": "^0.3.0",
+        "@emmetio/css-parser": "^0.4.0",
         "@emmetio/math-expression": "^0.1.1",
         "vscode-emmet-helper": "^1.0.10",
         "vscode-languageserver-types": "^3.0.3",
