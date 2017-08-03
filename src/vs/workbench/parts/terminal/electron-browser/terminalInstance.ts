@@ -410,6 +410,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		if (this._windowsShellHelper) {
+			this._windowsShellHelper.dispose();
+		}
 		if (this._linkHandler) {
 			this._linkHandler.dispose();
 		}
