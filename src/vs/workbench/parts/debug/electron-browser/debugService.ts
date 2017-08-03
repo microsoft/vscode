@@ -822,6 +822,7 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
+				this._onDidNewProcess.fire(process);
 				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
@@ -843,7 +844,6 @@ export class DebugService implements debug.IDebugService {
 					this.viewModel.setMultiProcessView(true);
 				}
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
-				this._onDidNewProcess.fire(process);
 
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
