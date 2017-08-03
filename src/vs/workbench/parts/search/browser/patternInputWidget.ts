@@ -131,6 +131,13 @@ export class PatternInputWidget extends Widget {
 		this.history = new HistoryNavigator<string>(history);
 	}
 
+	public onSearchSubmit(): void {
+		const value = this.getValue();
+		if (value) {
+			this.history.addIfNotPresent(value);
+		}
+	}
+
 	public showNextTerm() {
 		let next = this.history.next();
 		if (next) {
