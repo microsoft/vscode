@@ -173,7 +173,7 @@
 					}
 				};
 			} else {
-				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 				setInitialScrollPosition = function (body) {
 					if (body.scrollTop === 0) {
 						body.scrollTop = scrollY;

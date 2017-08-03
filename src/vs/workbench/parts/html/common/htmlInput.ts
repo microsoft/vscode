@@ -12,6 +12,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 export interface HtmlInputOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
+	svgWhiteList?: string[];
 }
 
 export function areHtmlInputOptionsEqual(left: HtmlInputOptions, right: HtmlInputOptions) {

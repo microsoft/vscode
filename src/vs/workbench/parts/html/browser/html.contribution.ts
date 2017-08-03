@@ -20,6 +20,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MenuRegistry } from "vs/platform/actions/common/actions";
 import { WebviewElement } from "vs/workbench/parts/html/browser/webview";
+import { IExtensionsWorkbenchService } from "vs/workbench/parts/extensions/common/extensions";
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
@@ -65,9 +66,13 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		}
 	}
 
+	const inputOptions = (Object as any).assign({}, options || defaultPreviewHtmlOptions);
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	inputOptions.svgWhiteList = extensionsWorkbenchService.allowedBadgeProviders;
+
 	// Otherwise, create new input and open it
 	if (!input) {
-		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, options || defaultPreviewHtmlOptions);
+		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, inputOptions);
 	} else {
 		input.setName(label); // make sure to use passed in label
 	}
@@ -77,7 +82,11 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		.then(editor => true);
 });
 
-CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
+CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function (
+	accessor: ServicesAccessor,
+	resource: URI | string,
+	message: any
+) {
 	const activePreviews = getActivePreviewsForResource(accessor, resource);
 	for (const preview of activePreviews) {
 		preview.sendMessage(message);
@@ -85,7 +94,17 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor
 	return activePreviews.length > 0;
 });
 
-CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', (accessor: ServicesAccessor, resource: URI | string, options: HtmlInputOptions) => {
+CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', function (
+	accessor: ServicesAccessor,
+	resource: URI | string,
+	options: HtmlInputOptions
+) {
+
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const inputOptions: HtmlInputOptions = options;
+	const allowedBadgeProviders = extensionsWorkbenchService.allowedBadgeProviders;
+	inputOptions.svgWhiteList = allowedBadgeProviders;
+
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
 	const activePreviews = getActivePreviewsForResource(accessor, resource);
 	for (const preview of activePreviews) {
