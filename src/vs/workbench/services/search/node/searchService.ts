@@ -59,8 +59,6 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		this.extendQuery(query);
-
 		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
 		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
@@ -198,7 +196,8 @@ export class DiskSearch {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: verboseLogging
-				}
+				},
+				debug: 7890
 			}
 		);
 
