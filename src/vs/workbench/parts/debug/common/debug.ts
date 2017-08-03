@@ -451,6 +451,10 @@ export interface ILaunch {
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
+export interface DebugEvent extends DebugProtocol.Event {
+	sessionId?: string;
+}
+
 export interface IDebugService {
 	_serviceBrand: any;
 
@@ -477,7 +481,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on custom DAP events.
 	 */
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	onDidCustomEvent: Event<DebugEvent>;
 
 	/**
 	 * Gets the current configuration manager.

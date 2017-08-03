@@ -69,7 +69,7 @@ export class DebugService implements debug.IDebugService {
 	private _onDidChangeState: Emitter<debug.State>;
 	private _onDidNewProcess: Emitter<debug.IProcess>;
 	private _onDidEndProcess: Emitter<debug.IProcess>;
-	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
+	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private allSessionIds: Set<string>;
@@ -114,7 +114,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState = new Emitter<debug.State>();
 		this._onDidNewProcess = new Emitter<debug.IProcess>();
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
-		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
+		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allSessionIds = new Set<string>();
 
@@ -346,7 +346,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				if (event.body && event.body.restart && process) {
 					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
@@ -416,7 +416,7 @@ export class DebugService implements debug.IDebugService {
 					payload: [process.session.root.fsPath]
 				});
 			}
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				this.onSessionEnd(session);
 			}
 		}));
@@ -511,7 +511,7 @@ export class DebugService implements debug.IDebugService {
 		return this._onDidEndProcess.event;
 	}
 
-	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
 
