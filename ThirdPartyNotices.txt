@@ -1,3 +1,5 @@
+===================BEGIN GENERATOR LOG
+===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
@@ -13,7 +15,7 @@ This project incorporates components from the projects listed below. The origina
 6.	atom/language-objective-c (https://github.com/atom/language-objective-c)
 7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
 8.	atom/language-xml (https://github.com/atom/language-xml)
-9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
+9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
 10.	chjj-marked version 0.3.6 (https://github.com/npmcomponent/chjj-marked)
 11.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
 12.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
