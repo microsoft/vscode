@@ -170,8 +170,8 @@ class TscTaskProvider implements vscode.TaskProvider {
 			}
 		}
 
-		const watch = this.shouldUseWatchForBuild(project);
-		const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label, watch: watch };
+		const watch = false && this.shouldUseWatchForBuild(project);
+		const identifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
 		const buildTask = new vscode.Task(
 			identifier,
 			watch
@@ -179,8 +179,12 @@ class TscTaskProvider implements vscode.TaskProvider {
 				: localize('buildTscLabel', 'build - {0}', label),
 			'tsc',
 			new vscode.ShellExecution(`${command} ${watch ? '--watch' : ''} -p "${project.path}"`),
-			'$tsc');
+			watch
+				? '$tsc-watch'
+				: '$tsc'
+		);
 		buildTask.group = vscode.TaskGroup.Build;
+		buildTask.isBackground = watch;
 		return buildTask;
 	}
 }

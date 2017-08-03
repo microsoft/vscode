@@ -9,6 +9,7 @@
   "activationEvents": [
     "onLanguage:json"
   ],
+  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
     "compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
