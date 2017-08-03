@@ -1732,12 +1732,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (Types.isString(arg)) {
-			this.tasks().then(tasks => {
-				for (let task of tasks) {
-					if (task.identifier === arg) {
-						this.run(task);
-					}
+			this.getTask(arg).then((task) => {
+				if (task) {
+					this.run(task);
+				} else {
+					this.quickOpenService.show('task ');
 				}
+			}, () => {
+				this.quickOpenService.show('task ');
 			});
 		} else {
 			this.quickOpenService.show('task ');
