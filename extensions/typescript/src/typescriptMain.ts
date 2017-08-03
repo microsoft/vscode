@@ -423,16 +423,20 @@ class LanguageProvider {
 	}
 
 	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.syntaxDiagnostics[file] = diagnostics;
+		if (this._validate) {
+			this.syntaxDiagnostics[file] = diagnostics;
+		}
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		const syntaxMarkers = this.syntaxDiagnostics[file];
-		if (syntaxMarkers) {
-			delete this.syntaxDiagnostics[file];
-			diagnostics = syntaxMarkers.concat(diagnostics);
+		if (this._validate) {
+			const syntaxMarkers = this.syntaxDiagnostics[file];
+			if (syntaxMarkers) {
+				delete this.syntaxDiagnostics[file];
+				diagnostics = syntaxMarkers.concat(diagnostics);
+			}
+			this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 		}
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {

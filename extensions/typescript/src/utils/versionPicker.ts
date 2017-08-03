@@ -31,12 +31,16 @@ export class TypeScriptVersionPicker {
 	) {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
-		if (workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false)) {
+		if (this.useWorkspaceTsdkSetting) {
 			const localVersion = this.versionProvider.localVersion;
 			if (localVersion) {
 				this._currentVersion = localVersion;
 			}
 		}
+	}
+
+	public get useWorkspaceTsdkSetting(): boolean {
+		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
 	}
 
 	public get currentVersion(): TypeScriptVersion {
@@ -52,7 +56,7 @@ export class TypeScriptVersionPicker {
 
 		const shippedVersion = this.versionProvider.defaultVersion;
 		pickOptions.push({
-			label: (this.currentVersion.path === shippedVersion.path
+			label: (!this.useWorkspaceTsdkSetting
 				? '• '
 				: '') + localize('useVSCodeVersionOption', 'Use VS Code\'s Version'),
 			description: shippedVersion.versionString,
@@ -62,7 +66,7 @@ export class TypeScriptVersionPicker {
 
 		for (const version of this.versionProvider.localVersions) {
 			pickOptions.push({
-				label: (this.currentVersion.path === version.path
+				label: (this.useWorkspaceTsdkSetting && this.currentVersion.path === version.path
 					? '• '
 					: '') + localize('useWorkspaceVersionOption', 'Use Workspace Version'),
 				description: version.versionString,

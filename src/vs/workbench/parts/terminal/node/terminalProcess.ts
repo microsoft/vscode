@@ -56,7 +56,6 @@ function queueProcessExit() {
 		clearTimeout(closeTimeout);
 	}
 	closeTimeout = setTimeout(function () {
-		ptyProcess.kill();
 		if (process.platform === 'win32') {
 			// Forcefully kill the entire process tree under the shell process
 			// on Windows as ptyProcess.kill can leave some lingering processes.
@@ -65,6 +64,7 @@ function queueProcessExit() {
 				process.exit(exitCode);
 			});
 		} else {
+			ptyProcess.kill();
 			process.exit(exitCode);
 		}
 	}, 250);

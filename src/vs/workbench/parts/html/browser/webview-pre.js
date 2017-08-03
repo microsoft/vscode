@@ -8,9 +8,10 @@
 
 	const ipcRenderer = require('electron').ipcRenderer;
 
-
+	// state
 	var firstLoad = true;
 	var loadTimeout;
+	var pendingMessages = [];
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -186,6 +187,7 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
+			pendingMessages = [];
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
@@ -220,18 +222,23 @@
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
 					contentWindow.addEventListener('scroll', handleInnerScroll);
+
+					pendingMessages.forEach(function(data) {
+						contentWindow.postMessage(data, document.location.origin);
+					});
+					pendingMessages = [];
 				}
 			};
 
 			clearTimeout(loadTimeout);
 			loadTimeout = undefined;
-			loadTimeout = setTimeout(function() {
+			loadTimeout = setTimeout(function () {
 				clearTimeout(loadTimeout);
 				loadTimeout = undefined;
 				onLoad(newFrame.contentDocument, newFrame.contentWindow);
 			}, 200);
 
-			newFrame.contentWindow.addEventListener('load', function(e) {
+			newFrame.contentWindow.addEventListener('load', function (e) {
 				if (loadTimeout) {
 					clearTimeout(loadTimeout);
 					loadTimeout = undefined;
@@ -250,9 +257,14 @@
 
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', function (event, data) {
-			const target = getActiveFrame();
-			if (target) {
-				target.contentWindow.postMessage(data, document.location.origin);
+			const pending = getPendingFrame();
+			if (pending) {
+				pendingMessages.push(data);
+			} else {
+				const target = getActiveFrame();
+				if (target) {
+					target.contentWindow.postMessage(data, document.location.origin);
+				}
 			}
 		});
 

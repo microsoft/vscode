@@ -183,7 +183,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._apiVersion = API.defaultVersion;
 		this.tracer = new Tracer(this.logger);
 
-		this.disposables.push(workspace.onDidChangeConfiguration(() => {
+		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this.configuration;
 			this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
@@ -199,7 +199,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.restartTsServer();
 				}
 			}
-		}));
+		}, this, this.disposables);
 		this.telemetryReporter = new TelemetryReporter();
 		this.disposables.push(this.telemetryReporter);
 		this.startService();
