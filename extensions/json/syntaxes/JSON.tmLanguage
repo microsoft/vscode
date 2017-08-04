@@ -314,7 +314,7 @@
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>support.type.property-name.json</string>
+			<string>string.json support.type.property-name.json</string>
 			<key>patterns</key>
 			<array>
 				<dict>
