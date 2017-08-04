@@ -161,7 +161,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._createXterm();
 
 		if (platform.isWindows) {
-			this._processReady.then(() => this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm));
+			this._processReady.then(() => {
+				if (!this._isDisposed) {
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
+				}
+			});
 		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
