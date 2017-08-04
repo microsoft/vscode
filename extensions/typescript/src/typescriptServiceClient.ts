@@ -599,10 +599,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get mainWorkspaceRootPath(): string | undefined {
-		if (workspace.rootPath) {
-			return workspace.rootPath;
-		}
-
 		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
 			return workspace.workspaceFolders[0].uri.fsPath;
 		}
