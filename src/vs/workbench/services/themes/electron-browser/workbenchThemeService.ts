@@ -1038,6 +1038,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[CUSTOM_EDITOR_COLORS_SETTING]: {
 			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
+			default: {},
 			properties: {
 				comments: tokenGroupSettings,
 				strings: tokenGroupSettings,
