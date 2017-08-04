@@ -121,7 +121,7 @@ export enum ProcessState {
 }
 
 export interface IProcess extends ITreeElement {
-	name: string;
+	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;

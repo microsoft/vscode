@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -557,8 +558,8 @@ export class Process implements IProcess {
 		return this._session;
 	}
 
-	public get name(): string {
-		return this.configuration.name;
+	public getName(includeRoot: boolean): string {
+		return includeRoot ? `${this.configuration.name} (${paths.basename(this.session.root.fsPath)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {

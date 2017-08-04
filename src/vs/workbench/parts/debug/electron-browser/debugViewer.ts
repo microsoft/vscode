@@ -520,7 +520,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.name;
+		data.name.textContent = process.getName(this.contextService.hasMultiFolderWorkspace());
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
