@@ -162,14 +162,11 @@
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = function (body, window) {
-					body.scrollTop = 0;
+				setInitialScrollPosition = function (body) {
 					if (!isNaN(initData.initialScrollProgress)) {
-						window.addEventListener('load', function () {
-							if (body.scrollTop === 0) {
-								body.scrollTop = body.clientHeight * initData.initialScrollProgress;
-							}
-						});
+						if (body.scrollTop === 0) {
+							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
+						}
 					}
 				};
 			} else {
@@ -207,7 +204,7 @@
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body, contentWindow);
+					setInitialScrollPosition(contentDocument.body);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
