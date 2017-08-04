@@ -440,7 +440,6 @@ export interface ILaunch {
 	 */
 	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
-
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
