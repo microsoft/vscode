@@ -29,12 +29,4 @@ export class HtmlInput extends ResourceEditorInput {
 	) {
 		super(name, description, resource, textModelResolverService);
 	}
-
-	public matches(otherInput: any): boolean {
-		if (!super.matches(otherInput)) {
-			return false;
-		}
-
-		return otherInput instanceof HtmlInput && areHtmlInputOptionsEqual(this.options, otherInput.options);
-	}
 }
