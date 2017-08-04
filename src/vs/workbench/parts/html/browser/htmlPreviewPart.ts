@@ -178,7 +178,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
-		if (this.input && this.input.matches(input) && this._hasValidModel()) {
+		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
 		}
 

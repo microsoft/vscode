@@ -245,6 +245,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			themeData = createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
 		}
 		themeData.setCustomColors(this.colorCustomizations);
+		themeData.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, null, true);
 

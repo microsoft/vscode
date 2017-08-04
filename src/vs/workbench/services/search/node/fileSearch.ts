@@ -692,15 +692,17 @@ class AbsoluteAndRelativeParsedExpression {
 	private init(expr: glob.IExpression): void {
 		let absoluteGlobExpr: glob.IExpression;
 		let relativeGlobExpr: glob.IExpression;
-		Object.keys(expr).forEach(key => {
-			if (path.isAbsolute(key)) {
-				absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
-				absoluteGlobExpr[key] = true;
-			} else {
-				relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
-				relativeGlobExpr[key] = true;
-			}
-		});
+		Object.keys(expr)
+			.filter(key => expr[key])
+			.forEach(key => {
+				if (path.isAbsolute(key)) {
+					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
+					absoluteGlobExpr[key] = true;
+				} else {
+					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
+					relativeGlobExpr[key] = true;
+				}
+			});
 
 		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
