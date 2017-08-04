@@ -12,7 +12,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
@@ -599,10 +598,7 @@ export class Process implements IProcess {
 			// whether the thread is stopped or not
 			if (data.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					// Only update the details if all the threads are stopped
-					// because we don't want to overwrite the details of other
-					// threads that have stopped for a different reason
-					thread.stoppedDetails = clone(data.stoppedDetails);
+					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});
