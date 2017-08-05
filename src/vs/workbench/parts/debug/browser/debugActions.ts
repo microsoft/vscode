@@ -144,7 +144,7 @@ export class StartAction extends AbstractDebugAction {
 		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.name === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
 			return false;
 		}
 
@@ -777,7 +777,8 @@ export class FocusProcessAction extends AbstractDebugAction {
 	}
 
 	public run(processName: string): TPromise<any> {
-		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
+		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
 		return this.debugService.focusStackFrameAndEvaluate(null, process, true).then(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {

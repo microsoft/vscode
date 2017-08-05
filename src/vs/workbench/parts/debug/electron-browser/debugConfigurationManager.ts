@@ -524,31 +524,40 @@ class Launch implements ILaunch {
 		const resource = this.uri;
 		let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
+		return this.fileService.resolveContent(resource).then(content => content, err => {
+			return this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
 				.then(content => {
 					if (!content) {
-						return false;
+						return undefined;
 					}
 
 					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => true);
-				}))
-			.then(errorFree => {
-				if (!errorFree) {
-					return undefined;
+					return this.fileService.updateContent(resource, content).then(() => content);
+				});
+		}).then(content => {
+			if (!content) {
+				return undefined;
+			}
+			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+			let startLineNumber = 1;
+			for (let i = 0; i < index; i++) {
+				if (content.value.charAt(i) === '\n') {
+					startLineNumber++;
 				}
+			}
+			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-				return this.editorService.openEditor({
-					resource: resource,
-					options: {
-						forceOpen: true,
-						pinned: configFileCreated, // pin only if config file is created #8727
-						revealIfVisible: true
-					},
-				}, sideBySide);
-			}, (error) => {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
-			});
+			return this.editorService.openEditor({
+				resource: resource,
+				options: {
+					forceOpen: true,
+					selection,
+					pinned: configFileCreated, // pin only if config file is created #8727
+					revealIfVisible: true
+				},
+			}, sideBySide);
+		}, (error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+		});
 	}
 }

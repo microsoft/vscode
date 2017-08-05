@@ -24,19 +24,19 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
-		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name)));
+		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
 			if (proc) {
-				this._proxy.$acceptDebugSessionActiveChanged(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.name);
+				this._proxy.$acceptDebugSessionActiveChanged(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false));
 			} else {
 				this._proxy.$acceptDebugSessionActiveChanged(undefined);
 			}
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
-			if (event.body && event.body.sessionId) {
-				const process = this.debugService.findProcessByUUID(event.body.sessionId);	// TODO
-				this._proxy.$acceptDebugSessionCustomEvent(event.body.sessionId, process.configuration.type, process.configuration.name, event);
+			if (event && event.sessionId) {
+				const process = this.debugService.findProcessByUUID(event.sessionId);
+				this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
 			}
 		}));
 	}

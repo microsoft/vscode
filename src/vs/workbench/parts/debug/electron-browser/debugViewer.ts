@@ -520,7 +520,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.name;
+		data.name.textContent = process.getName(this.contextService.hasMultiFolderWorkspace());
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -532,7 +532,8 @@ export class CallStackRenderer implements IRenderer {
 		data.name.textContent = thread.name;
 
 		if (thread.stopped) {
-			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason);
+			data.stateLabel.textContent = thread.stoppedDetails.description ||
+				thread.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason) : nls.localize('paused', "Paused");
 		} else {
 			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}

@@ -197,8 +197,8 @@ export class FocusProcessActionItem extends SelectActionItem {
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			const process = this.debugService.getViewModel().focusedProcess;
 			if (process) {
-				const names = this.debugService.getModel().getProcesses().map(p => p.name);
-				this.select(names.indexOf(process.name));
+				const index = this.debugService.getModel().getProcesses().indexOf(process);
+				this.select(index);
 			}
 		});
 
@@ -208,7 +208,9 @@ export class FocusProcessActionItem extends SelectActionItem {
 
 	private update() {
 		const process = this.debugService.getViewModel().focusedProcess;
-		const names = this.debugService.getModel().getProcesses().map(p => p.name);
-		this.setOptions(names, process ? names.indexOf(process.name) : undefined);
+		const processes = this.debugService.getModel().getProcesses();
+		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
+		const names = processes.map(p => p.getName(showRootName));
+		this.setOptions(names, process ? processes.indexOf(process) : undefined);
 	}
 }

@@ -38,7 +38,7 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
-import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -69,13 +69,12 @@ export class DebugService implements debug.IDebugService {
 	private _onDidChangeState: Emitter<debug.State>;
 	private _onDidNewProcess: Emitter<debug.IProcess>;
 	private _onDidEndProcess: Emitter<debug.IProcess>;
-	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
+	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private allSessionIds: Set<string>;
 	private configurationManager: ConfigurationManager;
 	private customTelemetryService: ITelemetryService;
-	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private inDebugMode: IContextKey<boolean>;
@@ -114,7 +113,7 @@ export class DebugService implements debug.IDebugService {
 		this._onDidChangeState = new Emitter<debug.State>();
 		this._onDidNewProcess = new Emitter<debug.IProcess>();
 		this._onDidEndProcess = new Emitter<debug.IProcess>();
-		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
+		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
 		this.allSessionIds = new Set<string>();
 
@@ -135,24 +134,8 @@ export class DebugService implements debug.IDebugService {
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-
-		if (this.taskService) {
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (e: TaskEvent) => {
-				this.lastTaskEvent = e;
-			}));
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (e: TaskEvent) => {
-				if (e.type === TaskType.SingleRun) {
-					this.lastTaskEvent = null;
-				}
-			}));
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (e: TaskEvent) => {
-				this.lastTaskEvent = null;
-			}));
-		}
-
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
-
 		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 	}
 
@@ -346,7 +329,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				if (event.body && event.body.restart && process) {
 					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
@@ -416,7 +399,7 @@ export class DebugService implements debug.IDebugService {
 					payload: [process.session.root.fsPath]
 				});
 			}
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				this.onSessionEnd(session);
 			}
 		}));
@@ -511,7 +494,7 @@ export class DebugService implements debug.IDebugService {
 		return this._onDidEndProcess.event;
 	}
 
-	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
 
@@ -839,6 +822,7 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
+				this._onDidNewProcess.fire(process);
 				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
@@ -860,7 +844,6 @@ export class DebugService implements debug.IDebugService {
 					this.viewModel.setMultiProcessView(true);
 				}
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
-				this._onDidNewProcess.fire(process);
 
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
@@ -907,29 +890,19 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
-			// task is already running - nothing to do.
-			if (this.lastTaskEvent && this.lastTaskEvent.taskId === task._id) {
-				return TPromise.as(null);
-			}
+			return this.taskService.getActiveTasks().then(tasks => {
+				if (tasks.filter(t => t._id === task._id).length) {
+					// task is already running - nothing to do.
+					return TPromise.as(null);
+				}
 
-			if (this.lastTaskEvent) {
-				// there is a different task running currently.
-				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "The task '{0}' is already running. Cannot run pre-launch task '{1}'.", this.lastTaskEvent.taskName, taskName)));
-			}
+				const taskPromise = this.taskService.run(task);
+				if (task.isBackground) {
+					return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
+				}
 
-			// no task running, execute the preLaunchTask.
-			const taskPromise = this.taskService.run(task).then(result => {
-				this.lastTaskEvent = null;
-				return result;
-			}, err => {
-				this.lastTaskEvent = null;
+				return taskPromise;
 			});
-
-			if (task.isBackground) {
-				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
-			}
-
-			return taskPromise;
 		});
 	}
 

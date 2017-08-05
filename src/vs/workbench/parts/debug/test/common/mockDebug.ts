@@ -15,7 +15,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
 		return null;
 	}
 
@@ -172,7 +172,7 @@ export class MockSession implements debug.ISession {
 		return {};
 	}
 
-	public get onDidEvent(): Event<DebugProtocol.Event> {
+	public get onDidEvent(): Event<debug.DebugEvent> {
 		return null;
 	}
 
