@@ -32,7 +32,7 @@
                         "always",
                         "inMarkupAndStylesheetFilesOnly"
                     ],
-                    "default": "inMarkupAndStylesheetFilesOnly",
+                    "default": "always",
                     "description": "%emmetShowExpandedAbbreviation%"
                 },
                 "emmet.showAbbreviationSuggestions": {
