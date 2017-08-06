@@ -23,7 +23,7 @@ import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, IFileNestingConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
@@ -36,7 +36,7 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -51,14 +51,52 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+declare type Pattern = {
+	[glob: string]: string[];
+};
+
+declare type Patterns = {
+	common: Pattern;
+	custom: Pattern;
+};
+
 export class FileDataSource implements IDataSource {
+	private toDispose: IDisposable[] = [];
+	private enableVirtualDirectories: boolean;
+	private virtualDirectoryPatterns: Patterns;
+
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) { }
+	) {
+		this.updateNesting();
+		// this.nestingConfig = configurationService.lookup<IFileNestingConfiguration>('explorer.fileNesting');
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateNesting(e)));
+	}
+
+	private updateNesting(e?: IConfigurationServiceEvent): void {
+		let patterns = this.virtualDirectoryPatterns = { common: {}, custom: {} };
+		let config = this.configurationService.getConfiguration<IFilesConfiguration>().explorer.fileNesting;
+		let common = fill(patterns.common, config.commonRules);
+		let custom = fill(patterns.custom, config.rules);
+		this.enableVirtualDirectories = config.enable && (common || custom);
+
+		function fill(patterns, rules) {
+			if (!rules || !Object.keys(rules).length) {
+				return false;
+			}
+
+			Object.keys(rules)
+				.map(key => ({ key, rule: rules[key].when }))
+				.filter(({ rule }) => rule && rule.length)
+				.forEach(({ key, rule }) => patterns[key] = Array.isArray(rule) ? rule : [rule]);
+			return true;
+		}
+	}
 
 	public getId(tree: ITree, stat: FileStat | Model): string {
 		if (stat instanceof Model) {
@@ -69,7 +107,15 @@ export class FileDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
-		return stat instanceof Model || (stat instanceof FileStat && stat.isDirectory);
+		if (stat instanceof Model) {
+			return true;
+		}
+
+		if (stat instanceof FileStat) {
+			return stat.isDirectory || (this.enableVirtualDirectories && stat.isVirtualDirectory);
+		}
+
+		return false;
 	}
 
 	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
@@ -77,8 +123,19 @@ export class FileDataSource implements IDataSource {
 			return TPromise.as(stat.roots);
 		}
 
+		if (stat.isVirtualDirectory) {
+			this.resolveVirtualDirectories(stat.parent.children);
+			return TPromise.as(this.enableVirtualDirectories ? stat.children : []);
+		}
+
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
+			this.resolveVirtualDirectories(stat.children);
+
+			if (this.enableVirtualDirectories) {
+				return TPromise.as(stat.children.filter(x => !x.isVirtualDirectoryMember));
+			}
+
 			return TPromise.as(stat.children);
 		}
 
@@ -96,7 +153,13 @@ export class FileDataSource implements IDataSource {
 					stat.addChild(modelDirStat.children[i]);
 				}
 
+				this.resolveVirtualDirectories(stat.children);
+
 				stat.isDirectoryResolved = true;
+
+				if (this.enableVirtualDirectories) {
+					return stat.children.filter(x => !x.isVirtualDirectoryMember);
+				}
 
 				return stat.children;
 			}, (e: any) => {
@@ -108,6 +171,59 @@ export class FileDataSource implements IDataSource {
 			this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 			return promise;
+		}
+	}
+
+	private resolveVirtualDirectories(files: FileStat[]) {
+		if (!this.enableVirtualDirectories) {
+			return;
+		}
+
+		files = files.filter(x => !x.isDirectory);
+		files.forEach(x => x.isVirtualDirectory = x.isVirtualDirectoryMember = false);
+
+		let nesting = files
+			.map(child => ({
+				child,
+				parent: files.filter(x => x !== child && this.isVirtualDirectoryOf(x.name, child.name))[0]
+			}))
+			.filter(x => x.parent);
+
+		nesting.forEach(({ parent }) => {
+			parent.children = [];
+			parent.isVirtualDirectory = true;
+		});
+
+		nesting.forEach(({ child, parent }) => {
+			child.isVirtualDirectoryMember = true;
+			child.virtualDirectoryName = parent.name;
+			parent.children.push(child);
+		});
+	}
+
+	private isVirtualDirectoryOf(parent: string, file: string): boolean {
+		if (!parent || !file) {
+			return false;
+		}
+
+		let index = parent.lastIndexOf('.');
+		let basename = index < 0 ? parent : parent.substring(0, index);
+		let ext = index < 0 ? '' : parent.substring(index + 1);
+
+		return test(this.virtualDirectoryPatterns.common)
+			|| test(this.virtualDirectoryPatterns.custom);
+
+		function test(patterns) {
+			return Object.keys(patterns).some(g => {
+				if (!glob.match(g, parent)) {
+					return false;
+				}
+
+				return patterns[g].some(p => {
+					let _p = p.replace('$(basename)', basename).replace('$(ext)', ext);
+					return glob.match(_p, file);
+				});
+			});
 		}
 	}
 

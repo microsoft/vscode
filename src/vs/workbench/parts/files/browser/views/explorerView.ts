@@ -13,6 +13,7 @@ import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import glob = require('vs/base/common/glob');
+import { equals } from 'vs/base/common/objects';
 import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
@@ -82,6 +83,9 @@ export class ExplorerView extends CollapsibleView {
 	private autoReveal: boolean;
 	private sortOrder: SortOrder;
 	private settings: object;
+
+	private fileNestingEnable: boolean;
+	private fileNestingRules: boolean | object;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -252,11 +256,23 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
+		let fileNestingEnable = configuration && configuration.explorer && configuration.explorer.fileNesting && configuration.explorer.fileNesting.enable;
+		let fileNestingRules = configuration && configuration.explorer && configuration.explorer.fileNesting && configuration.explorer.fileNesting.rules || {};
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
 		if (this.filter) {
 			needsRefresh = this.filter.updateConfiguration();
+		}
+
+		if (this.fileNestingEnable !== fileNestingEnable) {
+			this.fileNestingEnable = fileNestingEnable;
+			needsRefresh = true;
+		}
+
+		if (!equals(this.fileNestingRules, fileNestingRules)) {
+			this.fileNestingRules = fileNestingRules;
+			needsRefresh = true;
 		}
 
 		const configSortOrder = configuration && configuration.explorer && configuration.explorer.sortOrder || 'default';

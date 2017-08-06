@@ -296,6 +296,35 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
+let nestingPattern = {
+	'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+	// 'pattern': '\\w*\\$\\(basename\\)\\w*',
+	'default': '$(basename).ext',
+	'description': nls.localize('explorer.fileNesting.default.when', "File nesting rule. Use $(basename) as variable for the matching file name.")
+};
+
+let nestingRules = {
+	'anyOf': [
+		{
+			'type': 'boolean'
+		},
+		{
+			'type': 'object',
+			'properties': {
+				'when': {
+					'anyOf': [
+						nestingPattern,
+						{
+							'type': 'array',
+							'items': nestingPattern
+						}
+					]
+				}
+			}
+		}
+	]
+};
+
 configurationRegistry.registerConfiguration({
 	'id': 'explorer',
 	'order': 10,
@@ -334,6 +363,41 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
 			],
 			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories in the explorer.")
+		},
+		'explorer.fileNesting.enable': {
+			'type': 'boolean',
+			'description': nls.localize('fileNesting', "Enables file nesting based on naming"),
+			'default': false
+		},
+		'explorer.fileNesting.commonRules': {
+			'description': nls.localize('fileNestingCommonRules', "Common file nesting rules"),
+			'default': {
+				'*': { 'when': ['$(basename).*.$(ext)', '$(basename).$(ext).*'] },
+				'firebase.json': { 'when': '.firebaserc' },
+				'package.json': { 'when': 'package-lock.json' },
+				'Dockerfile': { 'when': '.dockerignore' }
+			},
+			'anyOf': [
+				{
+					'type': 'boolean'
+				},
+				{
+					'type': 'object',
+					'additionalProperties': nestingRules,
+				}
+			]
+		},
+		'explorer.fileNesting.rules': {
+			'description': nls.localize('fileNestingCustomRules', "Custom file nesting rules"),
+			'anyOf': [
+				{
+					'type': 'boolean'
+				},
+				{
+					'type': 'object',
+					'additionalProperties': nestingRules,
+				}
+			]
 		}
 	}
 });

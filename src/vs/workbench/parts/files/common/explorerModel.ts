@@ -70,6 +70,9 @@ export class FileStat implements IFileStat {
 	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
+	public isVirtualDirectory: boolean;
+	public isVirtualDirectoryMember: boolean;
+	public virtualDirectoryName: string;
 
 	public isDirectoryResolved: boolean;
 

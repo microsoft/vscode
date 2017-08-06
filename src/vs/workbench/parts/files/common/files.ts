@@ -52,6 +52,20 @@ export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
+export interface IFileNestingRule {
+	when: string | string[];
+}
+
+export interface IFileNestingRuleMap {
+	[glob: string]: boolean | IFileNestingRule;
+}
+
+export interface IFileNestingConfiguration {
+	enable: boolean;
+	commonRules: boolean | IFileNestingRuleMap;
+	rules: boolean | IFileNestingRuleMap;
+}
+
 export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
@@ -61,6 +75,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
 		sortOrder: SortOrder;
+		fileNesting: IFileNestingConfiguration;
 	};
 	editor: IEditorOptions;
 }
