@@ -291,7 +291,7 @@ configurationRegistry.registerConfiguration({
 			'default': false
 		},
 		'files.nesting.rules': {
-			'description': nls.localize('fileNestingRules', "File nesting rules"),
+			'description': nls.localize('fileNestingRules', "File nesting rules. Property names are treated as globs. If a file matches a glob, the value of `when` is used to find files that should be nested under it."),
 			'default': {
 				'*': { 'when': ['$(basename).*.$(ext)', '$(basename).$(ext).*'] },
 				'firebase.json': { 'when': '.firebaserc' },
