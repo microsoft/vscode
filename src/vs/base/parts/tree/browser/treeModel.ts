@@ -227,7 +227,9 @@ export class Item extends Events.EventEmitter {
 		this.element = element;
 
 		this.id = id;
-		this.registry.register(this);
+		if (!this.registry.isRegistered(this.id)) {
+			this.registry.register(this);
+		}
 
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.needsChildrenRefresh = true;
@@ -411,6 +413,9 @@ export class Item extends Events.EventEmitter {
 				var staleItems: IItemMap = {};
 				while (this.firstChild !== null) {
 					staleItems[this.firstChild.id] = this.firstChild;
+					// if (this.registry.isRegistered(this.firstChild.id)) {
+					// 	this.registry.deregister(this.firstChild);
+					// }
 					this.removeChild(this.firstChild);
 				}
 
@@ -597,7 +602,9 @@ export class Item extends Events.EventEmitter {
 		var eventData: IItemDisposeEvent = { item: this };
 		this.emit('item:dispose', eventData);
 
-		this.registry.deregister(this);
+		if (this.registry.isRegistered(this.id)) {
+			this.registry.deregister(this);
+		}
 		super.dispose();
 
 		this._isDisposed = true;
