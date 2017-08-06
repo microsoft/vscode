@@ -61,14 +61,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
 		sortOrder: SortOrder;
-		fileNesting: {
-			enable: boolean;
-			rules: {
-				[glob: string]: boolean | {
-					when: string | string[];
-				};
-			};
-		};
 	};
 	editor: IEditorOptions;
 }

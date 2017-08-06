@@ -256,8 +256,8 @@ export class ExplorerView extends CollapsibleView {
 		}
 
 		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
-		let fileNestingEnable = configuration && configuration.explorer && configuration.explorer.fileNesting && configuration.explorer.fileNesting.enable;
-		let fileNestingRules = configuration && configuration.explorer && configuration.explorer.fileNesting && configuration.explorer.fileNesting.rules || {};
+		let fileNestingEnable = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.enable;
+		let fileNestingRules = configuration && configuration.files && configuration.files.nesting && configuration.files.nesting.rules || {};
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;

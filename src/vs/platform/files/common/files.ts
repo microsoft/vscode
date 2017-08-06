@@ -555,6 +555,14 @@ export interface IFilesConfiguration {
 		eol: string;
 		hotExit: string;
 		useExperimentalFileWatcher: boolean;
+		nesting: {
+			enable: boolean;
+			rules: {
+				[glob: string]: boolean | {
+					when: string | string[];
+				};
+			};
+		};
 	};
 }
 

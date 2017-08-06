@@ -70,7 +70,7 @@ export class FileDataSource implements IDataSource {
 
 	private updateNesting(): void {
 		let patterns = this.virtualDirectoryPatterns = {};
-		let config = this.configurationService.getConfiguration<IFilesConfiguration>().explorer.fileNesting;
+		let config = this.configurationService.getConfiguration<IFilesConfiguration>().files.nesting;
 		this.enableVirtualDirectories = config.enable && !!config.rules && Object.keys(config.rules).length > 0;
 
 		Object.keys(config.rules)
@@ -202,7 +202,7 @@ export class FileDataSource implements IDataSource {
 				return false;
 			}
 
-			let patterns = this.virtualDirectoryPatterns[g]
+			let patterns = this.virtualDirectoryPatterns[g];
 			return patterns.some(p => {
 				let _p = p.replace('$(basename)', basename).replace('$(ext)', ext);
 				return glob.match(_p, file);
