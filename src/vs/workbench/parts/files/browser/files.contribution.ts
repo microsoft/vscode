@@ -303,28 +303,6 @@ let nestingPattern = {
 	'description': nls.localize('explorer.fileNesting.default.when', "File nesting rule. Use $(basename) as variable for the matching file name.")
 };
 
-let nestingRules = {
-	'anyOf': [
-		{
-			'type': 'boolean'
-		},
-		{
-			'type': 'object',
-			'properties': {
-				'when': {
-					'anyOf': [
-						nestingPattern,
-						{
-							'type': 'array',
-							'items': nestingPattern
-						}
-					]
-				}
-			}
-		}
-	]
-};
-
 configurationRegistry.registerConfiguration({
 	'id': 'explorer',
 	'order': 10,
@@ -369,35 +347,36 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('fileNesting', "Enables file nesting based on naming"),
 			'default': false
 		},
-		'explorer.fileNesting.commonRules': {
-			'description': nls.localize('fileNestingCommonRules', "Common file nesting rules"),
+		'explorer.fileNesting.rules': {
+			'description': nls.localize('fileNestingRules', "File nesting rules"),
 			'default': {
 				'*': { 'when': ['$(basename).*.$(ext)', '$(basename).$(ext).*'] },
 				'firebase.json': { 'when': '.firebaserc' },
 				'package.json': { 'when': 'package-lock.json' },
 				'Dockerfile': { 'when': '.dockerignore' }
 			},
-			'anyOf': [
-				{
-					'type': 'boolean'
-				},
-				{
-					'type': 'object',
-					'additionalProperties': nestingRules,
-				}
-			]
-		},
-		'explorer.fileNesting.rules': {
-			'description': nls.localize('fileNestingCustomRules', "Custom file nesting rules"),
-			'anyOf': [
-				{
-					'type': 'boolean'
-				},
-				{
-					'type': 'object',
-					'additionalProperties': nestingRules,
-				}
-			]
+			'type': 'object',
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean'
+					},
+					{
+						'type': 'object',
+						'properties': {
+							'when': {
+								'anyOf': [
+									nestingPattern,
+									{
+										'type': 'array',
+										'items': nestingPattern
+									}
+								]
+							}
+						}
+					}
+				]
+			},
 		}
 	}
 });

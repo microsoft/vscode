@@ -23,7 +23,7 @@ import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { IFilesConfiguration, IFileNestingConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
@@ -36,7 +36,7 @@ import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -51,19 +51,10 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-declare type Pattern = {
-	[glob: string]: string[];
-};
-
-declare type Patterns = {
-	common: Pattern;
-	custom: Pattern;
-};
-
 export class FileDataSource implements IDataSource {
 	private toDispose: IDisposable[] = [];
 	private enableVirtualDirectories: boolean;
-	private virtualDirectoryPatterns: Patterns;
+	private virtualDirectoryPatterns: { [glob: string]: string[] };
 
 	constructor(
 		@IProgressService private progressService: IProgressService,
@@ -74,28 +65,24 @@ export class FileDataSource implements IDataSource {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		this.updateNesting();
-		// this.nestingConfig = configurationService.lookup<IFileNestingConfiguration>('explorer.fileNesting');
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateNesting(e)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.updateNesting()));
 	}
 
-	private updateNesting(e?: IConfigurationServiceEvent): void {
-		let patterns = this.virtualDirectoryPatterns = { common: {}, custom: {} };
+	private updateNesting(): void {
+		let patterns = this.virtualDirectoryPatterns = {};
 		let config = this.configurationService.getConfiguration<IFilesConfiguration>().explorer.fileNesting;
-		let common = fill(patterns.common, config.commonRules);
-		let custom = fill(patterns.custom, config.rules);
-		this.enableVirtualDirectories = config.enable && (common || custom);
+		this.enableVirtualDirectories = config.enable && !!config.rules && Object.keys(config.rules).length > 0;
 
-		function fill(patterns, rules) {
-			if (!rules || !Object.keys(rules).length) {
-				return false;
-			}
-
-			Object.keys(rules)
-				.map(key => ({ key, rule: rules[key].when }))
-				.filter(({ rule }) => rule && rule.length)
-				.forEach(({ key, rule }) => patterns[key] = Array.isArray(rule) ? rule : [rule]);
-			return true;
-		}
+		Object.keys(config.rules)
+			.map(key => {
+				let value = config.rules[key];
+				return {
+					key,
+					rule: typeof value === 'object' ? value.when : []
+				};
+			})
+			.filter(({ rule }) => rule.length)
+			.forEach(({ key, rule }) => patterns[key] = Array.isArray(rule) ? rule : [rule]);
 	}
 
 	public getId(tree: ITree, stat: FileStat | Model): string {
@@ -210,21 +197,17 @@ export class FileDataSource implements IDataSource {
 		let basename = index < 0 ? parent : parent.substring(0, index);
 		let ext = index < 0 ? '' : parent.substring(index + 1);
 
-		return test(this.virtualDirectoryPatterns.common)
-			|| test(this.virtualDirectoryPatterns.custom);
+		return Object.keys(this.virtualDirectoryPatterns).some(g => {
+			if (!glob.match(g, parent)) {
+				return false;
+			}
 
-		function test(patterns) {
-			return Object.keys(patterns).some(g => {
-				if (!glob.match(g, parent)) {
-					return false;
-				}
-
-				return patterns[g].some(p => {
-					let _p = p.replace('$(basename)', basename).replace('$(ext)', ext);
-					return glob.match(_p, file);
-				});
+			let patterns = this.virtualDirectoryPatterns[g]
+			return patterns.some(p => {
+				let _p = p.replace('$(basename)', basename).replace('$(ext)', ext);
+				return glob.match(_p, file);
 			});
-		}
+		});
 	}
 
 	public getParent(tree: ITree, stat: FileStat | Model): TPromise<FileStat> {
