@@ -1021,14 +1021,18 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-const tokenGroupSettings = {
-	anyOf: [
-		{
-			type: 'string',
-			format: 'color'
-		},
-		colorThemeSchema.tokenColorizationSettingSchema
-	]
+function tokenGroupSettings(description: string) {
+	return {
+		description,
+		anyOf: [
+			{
+				type: 'string',
+				format: 'color',
+				defaultSnippets: [{ body: '#FF0000' }]
+			},
+			colorThemeSchema.tokenColorizationSettingSchema
+		]
+	};
 };
 
 configurationRegistry.registerConfiguration({
@@ -1040,14 +1044,14 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 			default: {},
 			properties: {
-				comments: tokenGroupSettings,
-				strings: tokenGroupSettings,
-				keywords: tokenGroupSettings,
-				numbers: tokenGroupSettings,
-				types: tokenGroupSettings,
-				functions: tokenGroupSettings,
-				variables: tokenGroupSettings,
-				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema
+				comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
+				strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
+				keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
+				numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
+				types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
+				functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
+				variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
+				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
 			}
 		}
 	}
