@@ -1750,7 +1750,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.build();
 			return;
 		}
@@ -1793,7 +1793,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.runTest();
 			return;
 		}
@@ -1899,7 +1899,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureBuildTask().run();
@@ -1932,7 +1932,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureAction().run();
