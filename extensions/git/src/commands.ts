@@ -121,8 +121,9 @@ function command(commandId: string, skipModelCheck = false, requiresDiffInformat
 }
 
 export class CommandCenter {
-	private _cloneCp: cp.ChildProcess;
-	private _cloneBarEntry: StatusBarItem;
+private _cloneError : boolean;
+private _cloneCp : cp.ChildProcess;
+private _cloneBarEntry : StatusBarItem;
 
 	private model: Model;
 	private disposables: Disposable[];
@@ -250,7 +251,7 @@ export class CommandCenter {
 
 	@command('git.clone', true)
 	async clone(): Promise<void> {
-		let cloneError = false;
+		this._cloneError = false;
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
@@ -277,10 +278,11 @@ export class CommandCenter {
 
 		const { folderName, child } = await this.git.clone(url, parentPath);
 		this._cloneCp = child;
+		console.log(this._cloneCp);
 		this._cloneBarEntry.show();
 
 		// git streams progress to stderr: https://git-scm.com/docs/git-clone
-		child.stderr.on('data', (data) => {
+		this._cloneCp.stderr.on('data', (data) => {
 			const message = data.toString();
 			if (/^fatal/.test(message)) {
 				if (/already exists and is not an empty directory/.test(message)) {
@@ -288,17 +290,17 @@ export class CommandCenter {
 				} else {
 					this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 				}
-				cloneError = true;
+				this._cloneError = true;
 				window.showErrorMessage(message);
 			} else {
-				cloneError = false;
+				this._cloneError = false;
 				this._cloneBarEntry.text = message;
 			}
 		});
 
-		child.stdout.on('end', async (data) => {
-			if (!cloneError) {
-				this._cloneBarEntry.dispose();
+		this._cloneCp.stdout.on('end', async (data) => {
+			this._cloneBarEntry.hide();
+			if (!this._cloneError) {
 				const repositoryPath = path.join(parentPath, folderName);
 
 				const open = localize('openrepo', "Open Repository");
@@ -316,7 +318,11 @@ export class CommandCenter {
 	@command('git.cloneCancel', true)
 	async cloneCancel() {
 		try {
+			console.log('Cancel', this._cloneError);
+			this._cloneError = true;
+			console.log('Cancel', this._cloneError);
 			this._cloneCp.kill('SIGKILL');
+			console.log(this._cloneCp);
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'clone_cancel' });
 		} catch (err) {
 			throw err;
