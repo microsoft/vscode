@@ -9,8 +9,8 @@ import * as Proto from './protocol';
 import API from './utils/api';
 
 export interface ITypescriptServiceClientHost {
-	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
-	semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
+	syntaxDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): void;
+	semanticDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): void;
 	configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void;
 	populateService(): void;
 }
@@ -65,5 +65,8 @@ export interface ITypescriptServiceClient {
 	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
 	execute(command: 'compileOnSaveAffectedFileList', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.CompileOnSaveAffectedFileListResponse>;
 	execute(command: 'compileOnSaveEmitFile', args: Proto.CompileOnSaveEmitFileRequestArgs, token?: CancellationToken): Promise<any>;
+	execute(command: 'semanticDiagnosticsSync', args: Proto.SemanticDiagnosticsSyncRequestArgs, token?: CancellationToken): Promise<Proto.SemanticDiagnosticsSyncResponse>;
+	execute(command: 'syntaxDiagnosticsSync', args: Proto.SyntacticDiagnosticsSyncRequestArgs, token?: CancellationToken): Promise<Proto.SyntacticDiagnosticsSyncResponse>;
+
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
 }

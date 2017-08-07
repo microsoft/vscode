@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as Proto from '../protocol';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 
@@ -19,7 +20,7 @@ class ProjectDelayer {
 	private readonly pendingProjectUpdates = new Map<string, PendingProjectUpdate>();
 
 	constructor(
-		private task: (fileNames: Set<string>) => void
+		private task: (project: string, fileNames: Set<string>) => void
 	) { }
 
 	dispose() {
@@ -55,7 +56,7 @@ class ProjectDelayer {
 		if (!entry) {
 			return;
 		}
-		this.task(entry.files);
+		this.task(projectFileName, entry.files);
 		this.pendingProjectUpdates.delete(projectFileName);
 	}
 }
@@ -67,9 +68,11 @@ export default class CompileOnSaveHelper {
 
 	constructor(
 		private client: ITypescriptServiceClient,
-		private languages: string[]
+		private languages: string[],
+		private readonly syntaxDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void,
+		private readonly semanticsDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void
 	) {
-		this.emitter = new ProjectDelayer(files => this.emit(files));
+		this.emitter = new ProjectDelayer((project, files) => this.emit(project, files));
 		this.saveSubscription = vscode.workspace.onDidSaveTextDocument(this.onDidSave, this);
 	}
 
@@ -108,18 +111,25 @@ export default class CompileOnSaveHelper {
 		return config && config.compileOnSave;
 	}
 
-	private emit(files: Set<string>): void {
+	private emit(_project: string, files: Set<string>): void {
 		if (!files.size) {
 			return;
 		}
 
 		for (const file of files) {
 			this.client.execute('compileOnSaveEmitFile', { file }, false);
+
+			this.client.execute('semanticDiagnosticsSync', { file }).then(resp => {
+				if (resp && resp.body) {
+					this.semanticsDiagnosticsReceived(file, resp.body as Proto.Diagnostic[]);
+				}
+			});
+
+			this.client.execute('syntaxDiagnosticsSync', { file }).then(resp => {
+				if (resp && resp.body) {
+					this.syntaxDiagnosticsReceived(file, resp.body as Proto.Diagnostic[]);
+				}
+			});
 		}
-		const args: Proto.GeterrRequestArgs = {
-			delay: 0,
-			files: Array.from(files)
-		};
-		this.client.execute('geterr', args, false);
 	}
 }

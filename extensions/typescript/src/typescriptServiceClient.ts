@@ -743,9 +743,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private dispatchEvent(event: Proto.Event) {
 		if (event.event === 'syntaxDiag') {
-			this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
+			const diagnosticEvent = event as Proto.DiagnosticEvent;
+			if (diagnosticEvent.body) {
+				this.host.syntaxDiagnosticsReceived(diagnosticEvent.body.file, diagnosticEvent.body.diagnostics);
+			}
 		} else if (event.event === 'semanticDiag') {
-			this.host.semanticDiagnosticsReceived(event as Proto.DiagnosticEvent);
+			const diagnosticEvent = event as Proto.DiagnosticEvent;
+			if (diagnosticEvent.body) {
+				this.host.semanticDiagnosticsReceived(diagnosticEvent.body.file, diagnosticEvent.body.diagnostics);
+			}
 		} else if (event.event === 'configFileDiag') {
 			this.host.configFileDiagnosticsReceived(event as Proto.ConfigFileDiagnosticEvent);
 		} else if (event.event === 'telemetry') {
@@ -771,6 +777,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (data) {
 				this._onTypesInstallerInitializationFailed.fire(data);
 			}
+		} else {
+			console.log(event.event);
 		}
 	}
 

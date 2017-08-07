@@ -35,7 +35,7 @@ import SignatureHelpProvider from './features/signatureHelpProvider';
 import RenameProvider from './features/renameProvider';
 import { TypeScriptFormattingProvider, FormattingProviderManager } from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
-import CompileOnSaveHelper from './utils/CompileOnSave';
+import CompileOnSaveHelper from './utils/compileOnSave';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
@@ -203,7 +203,9 @@ class LanguageProvider {
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
-		private readonly description: LanguageDescription
+		private readonly description: LanguageDescription,
+		syntaxDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void,
+		semanticsDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void
 	) {
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
@@ -214,7 +216,7 @@ class LanguageProvider {
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
 		if (!this.description.isExternal) {
-			this.disposables.push(new CompileOnSaveHelper(client, description.modeIds));
+			this.disposables.push(new CompileOnSaveHelper(client, description.modeIds, syntaxDiagnosticsReceived, semanticsDiagnosticsReceived));
 		}
 
 		this.typingsStatus = new TypingsStatus(client);
@@ -484,7 +486,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 		this.languagePerId = new Map();
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description);
+			const manager = new LanguageProvider(this.client, description, this.syntaxDiagnosticsReceived.bind(this), this.semanticDiagnosticsReceived.bind(this));
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -508,7 +510,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description);
+				const manager = new LanguageProvider(this.client, description, this.syntaxDiagnosticsReceived.bind(this), this.semanticDiagnosticsReceived.bind(this));
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -636,26 +638,20 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		});
 	}
 
-	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
-		}
+	/* internal */ syntaxDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): void {
+		this.findLanguage(file).then(language => {
+			if (language) {
+				language.syntaxDiagnosticsReceived(file, this.createMarkerDatas(diagnostics, language.diagnosticSource));
+			}
+		});
 	}
 
-	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		const body = event.body;
-		if (body && body.diagnostics) {
-			this.findLanguage(body.file).then(language => {
-				if (language) {
-					language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-				}
-			});
-		}
+	/* internal */ semanticDiagnosticsReceived(file: string, diagnostics: Proto.Diagnostic[]): void {
+		this.findLanguage(file).then(language => {
+			if (language) {
+				language.semanticDiagnosticsReceived(file, this.createMarkerDatas(diagnostics, language.diagnosticSource));
+			}
+		});
 	}
 
 	/* internal */ configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
