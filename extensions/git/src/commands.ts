@@ -121,9 +121,9 @@ function command(commandId: string, skipModelCheck = false, requiresDiffInformat
 }
 
 export class CommandCenter {
-private _cloneError : boolean;
-private _cloneCp : cp.ChildProcess;
-private _cloneBarEntry : StatusBarItem;
+	private _cloneError: boolean;
+	private _cloneCp: cp.ChildProcess;
+	private _cloneBarEntry: StatusBarItem;
 
 	private model: Model;
 	private disposables: Disposable[];
@@ -278,7 +278,6 @@ private _cloneBarEntry : StatusBarItem;
 
 		const { folderName, child } = await this.git.clone(url, parentPath);
 		this._cloneCp = child;
-		console.log(this._cloneCp);
 		this._cloneBarEntry.show();
 
 		// git streams progress to stderr: https://git-scm.com/docs/git-clone
@@ -318,11 +317,8 @@ private _cloneBarEntry : StatusBarItem;
 	@command('git.cloneCancel', true)
 	async cloneCancel() {
 		try {
-			console.log('Cancel', this._cloneError);
 			this._cloneError = true;
-			console.log('Cancel', this._cloneError);
-			this._cloneCp.kill('SIGKILL');
-			console.log(this._cloneCp);
+			this._cloneCp.kill();
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'clone_cancel' });
 		} catch (err) {
 			throw err;
