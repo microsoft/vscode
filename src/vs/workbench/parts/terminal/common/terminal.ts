@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IDisposable } from 'vs/base/common/lifecycle';
