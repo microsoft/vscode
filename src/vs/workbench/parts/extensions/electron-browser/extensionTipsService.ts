@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
+import { flatten } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -68,16 +68,20 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as([]);
 		}
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
-			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
-			if (extensionsContent.recommendations) {
-				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-				return extensionsContent.recommendations.filter((element, position) => {
-					return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
-				});
-			}
-			return [];
-		}, err => []);
+		return TPromise.join(
+			this.contextService.getWorkspace().roots.map(root =>
+				this.fileService.resolveContent(root.with({ path: root.path + '/.vscode/extensions.json' })).then(content => {
+					const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
+					if (extensionsContent.recommendations) {
+						const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+						return extensionsContent.recommendations.filter((element, position) => {
+							return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+						});
+					}
+					return [];
+				}).then<string[]>(null, err => [])
+			)
+		).then(flatten);
 	}
 
 	getRecommendations(): string[] {
