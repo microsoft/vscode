@@ -94,15 +94,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, stat: FileStat | Model): boolean {
-		if (stat instanceof Model) {
-			return true;
-		}
-
-		if (stat instanceof FileStat) {
-			return stat.isDirectory || (this.enableVirtualDirectories && stat.isVirtualDirectory);
-		}
-
-		return false;
+		return stat instanceof Model || (stat instanceof FileStat && (stat.isDirectory || stat.isVirtualDirectory));
 	}
 
 	public getChildren(tree: ITree, stat: FileStat | Model): TPromise<FileStat[]> {
@@ -162,29 +154,31 @@ export class FileDataSource implements IDataSource {
 	}
 
 	private resolveVirtualDirectories(files: FileStat[]) {
+		files.forEach(x => x.isVirtualDirectory = x.isVirtualDirectoryMember = false);
+
 		if (!this.enableVirtualDirectories) {
 			return;
 		}
 
 		files = files.filter(x => !x.isDirectory);
-		files.forEach(x => x.isVirtualDirectory = x.isVirtualDirectoryMember = false);
 
-		let nesting = files
-			.map(child => ({
-				child,
-				parent: files.filter(x => x !== child && this.isVirtualDirectoryOf(x.name, child.name))[0]
+		let nesting = new Map<FileStat, FileStat[]>();
+		files.forEach(x => nesting.set(x, []));
+
+		files.filter(x => !x.isDirectory)
+			.map(x => ({
+				child: x,
+				parent: files.filter(y => x !== y && this.isVirtualDirectoryOf(y.name, x.name))[0]
 			}))
-			.filter(x => x.parent);
+			.filter(x => x.parent)
+			.forEach(({ parent, child }) => {
+				child.isVirtualDirectoryMember = true;
+				nesting.get(parent).push(child);
+			});
 
-		nesting.forEach(({ parent }) => {
-			parent.children = [];
-			parent.isVirtualDirectory = true;
-		});
-
-		nesting.forEach(({ child, parent }) => {
-			child.isVirtualDirectoryMember = true;
-			child.virtualDirectoryName = parent.name;
-			parent.children.push(child);
+		nesting.forEach((children, parent) => {
+			parent.children = children;
+			parent.isVirtualDirectory = !!children.length;
 		});
 	}
 
