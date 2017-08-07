@@ -997,9 +997,9 @@ const colorCustomizationsSchema: IJSONSchema = {
 	default: {},
 	defaultSnippets: [{
 		body: {
-			'statusBarBackground': '#666666',
-			'panelBackground': '#555555',
-			'sideBarBackground': '#444444'
+			'statusBar.background': '#666666',
+			'panel.background': '#555555',
+			'sideBar.background': '#444444'
 		}
 	}]
 };
