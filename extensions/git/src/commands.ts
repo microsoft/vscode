@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, StatusBarAlignment, StatusBarItem, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
+import * as cp from 'child_process';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -120,6 +121,8 @@ function command(commandId: string, skipModelCheck = false, requiresDiffInformat
 }
 
 export class CommandCenter {
+	private _cloneCp: cp.ChildProcess;
+	private _cloneBarEntry: StatusBarItem;
 
 	private model: Model;
 	private disposables: Disposable[];
@@ -133,6 +136,10 @@ export class CommandCenter {
 		if (model) {
 			this.model = model;
 		}
+
+		this._cloneBarEntry = window.createStatusBarItem(StatusBarAlignment.Left);
+		this._cloneBarEntry.tooltip = 'Cancel Clone';
+		this._cloneBarEntry.command = 'git.cloneCancel';
 
 		this.disposables = Commands
 			.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
@@ -243,6 +250,7 @@ export class CommandCenter {
 
 	@command('git.clone', true)
 	async clone(): Promise<void> {
+		let cloneError = false;
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
@@ -267,26 +275,50 @@ export class CommandCenter {
 			return;
 		}
 
-		const clonePromise = this.git.clone(url, parentPath);
-		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+		const { folderName, child } = await this.git.clone(url, parentPath);
+		this._cloneCp = child;
+		this._cloneBarEntry.show();
 
-		try {
-			const repositoryPath = await clonePromise;
-
-			const open = localize('openrepo', "Open Repository");
-			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
-
-			const openFolder = result === open;
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
-			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
-			}
-		} catch (err) {
-			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+		// git streams progress to stderr: https://git-scm.com/docs/git-clone
+		child.stderr.on('data', (data) => {
+			const message = data.toString();
+			if (/^fatal/.test(message)) {
+				if (/already exists and is not an empty directory/.test(message)) {
+					this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+				} else {
+					this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
+				}
+				cloneError = true;
+				window.showErrorMessage(message);
 			} else {
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
+				cloneError = false;
+				this._cloneBarEntry.text = message;
 			}
+		});
+
+		child.stdout.on('end', async (data) => {
+			if (!cloneError) {
+				this._cloneBarEntry.dispose();
+				const repositoryPath = path.join(parentPath, folderName);
+
+				const open = localize('openrepo', "Open Repository");
+				const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+
+				const openFolder = result === open;
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+				if (openFolder) {
+					commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+				}
+			}
+		});
+	}
+
+	@command('git.cloneCancel', true)
+	async cloneCancel() {
+		try {
+			this._cloneCp.kill('SIGKILL');
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'clone_cancel' });
+		} catch (err) {
 			throw err;
 		}
 	}
