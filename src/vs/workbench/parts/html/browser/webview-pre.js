@@ -128,15 +128,6 @@
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
-			// know what happens here
-			const stats = {
-				scriptTags: newDocument.documentElement.querySelectorAll('script').length,
-				inputTags: newDocument.documentElement.querySelectorAll('input').length,
-				styleTags: newDocument.documentElement.querySelectorAll('style').length,
-				linkStyleSheetTags: newDocument.documentElement.querySelectorAll('link[rel=stylesheet]').length,
-				stringLen: text.length
-			};
-
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = newDocument.createElement('base');
@@ -249,7 +240,7 @@
 			newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 			newFrame.contentDocument.close();
 
-			ipcRenderer.sendToHost('did-set-content', stats);
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// Forward message to the embedded iframe
