@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 'use strict';
 
 import { localize } from 'vs/nls';
@@ -21,7 +22,6 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-
 import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
