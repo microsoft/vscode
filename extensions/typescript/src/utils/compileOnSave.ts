@@ -109,8 +109,17 @@ export default class CompileOnSaveHelper {
 	}
 
 	private emit(files: Set<string>): void {
+		if (!files.size) {
+			return;
+		}
+
 		for (const file of files) {
 			this.client.execute('compileOnSaveEmitFile', { file }, false);
 		}
+		const args: Proto.GeterrRequestArgs = {
+			delay: 0,
+			files: Array.from(files)
+		};
+		this.client.execute('geterr', args, false);
 	}
 }
