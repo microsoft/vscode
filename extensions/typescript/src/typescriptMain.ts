@@ -490,16 +490,16 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				return;
 			}
 
-			const langauges = new Set<string>();
+			const languages = new Set<string>();
 			for (const plugin of plugins) {
 				for (const language of plugin.languages) {
-					langauges.add(language);
+					languages.add(language);
 				}
 			}
-			if (langauges.size) {
+			if (languages.size) {
 				const description: LanguageDescription = {
 					id: 'typescript-plugins',
-					modeIds: Array.from(langauges.values()),
+					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
