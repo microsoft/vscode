@@ -89,7 +89,7 @@ export default class CompileOnSaveHelper {
 		}
 
 		const affectedFileList = await this.client.execute('compileOnSaveAffectedFileList', { file });
-		if (!affectedFileList || !affectedFileList.body || !affectedFileList.body.length) {
+		if (!affectedFileList || !affectedFileList.body) {
 			return;
 		}
 
