@@ -35,6 +35,7 @@ import SignatureHelpProvider from './features/signatureHelpProvider';
 import RenameProvider from './features/renameProvider';
 import { TypeScriptFormattingProvider, FormattingProviderManager } from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
+import CompileOnSaveHelper from './utils/CompileOnSave';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
@@ -211,6 +212,10 @@ class LanguageProvider {
 		}, this._validate);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+
+		if (!this.description.isExternal) {
+			this.disposables.push(new CompileOnSaveHelper(client, description.modeIds));
+		}
 
 		this.typingsStatus = new TypingsStatus(client);
 		new AtaProgressReporter(client);
