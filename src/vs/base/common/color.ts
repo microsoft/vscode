@@ -225,7 +225,7 @@ export class Color {
 	 * Creates a color from a hex string (#RRGGBB or #RRGGBBAA).
 	 */
 	static fromHex(hex: string): Color {
-		return Color.Format.CSS.parseHexH(hex);
+		return Color.Format.CSS.parseHexH(hex) || Color.red;
 	}
 
 	/**
