@@ -69,7 +69,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = (x: number, y: number) => {
 			const { r, g, b } = this.saturationBox.extractColor(x, y).rgba;
-			this.widget.model.color = Color.fromRGBA(new RGBA(r, g, b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
+			this.widget.model.color = new Color(new RGBA(r, g, b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
 			this.saturationBox.focusSaturationSelection({ x: x, y: y });
 		};
 
@@ -267,8 +267,8 @@ export class SaturationBox {
 		const opacityX = 1 - (offsetX / this.domNode.offsetWidth);
 		const opacityY = offsetY / this.domNode.offsetHeight;
 
-		const whiteGradientColor = Color.fromRGBA(new RGBA(255, 255, 255, opacityX * 255));
-		const blackGradientColor = Color.fromRGBA(new RGBA(0, 0, 0, opacityY * 255));
+		const whiteGradientColor = new Color(new RGBA(255, 255, 255, opacityX * 255));
+		const blackGradientColor = new Color(new RGBA(0, 0, 0, opacityY * 255));
 
 		const gradientsMix = blackGradientColor.blend(whiteGradientColor);
 		return gradientsMix.blend(this.calculateHueColor(this.model.hue));
@@ -303,7 +303,7 @@ export class SaturationBox {
 		g = Math.round(g * 255);
 		b = Math.round(b * 255);
 
-		return Color.fromRGBA(new RGBA(r, g, b));
+		return new Color(new RGBA(r, g, b));
 	}
 }
 

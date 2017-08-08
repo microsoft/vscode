@@ -534,7 +534,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let colorMap = TokenizationRegistry.getColorMap();
 		let result: string[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = Color.Format.CSS.asHex(colorMap[i]);
+			result[i] = Color.Format.CSS.formatHex(colorMap[i]);
 		}
 		return result;
 	}

@@ -1031,7 +1031,7 @@ export class Color {
 		if (!alpha) {
 			alpha = 1;
 		}
-		const color = CommonColor.fromHSLA(new HSLA(hue, saturation, luminosity, alpha)).rgba;
+		const color = new CommonColor(new HSLA(hue, saturation, luminosity, alpha)).rgba;
 		return new Color(color.r, color.g, color.b, color.a / 255);
 	}
 

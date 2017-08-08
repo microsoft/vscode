@@ -454,7 +454,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
-			let background = Color.Format.CSS.asHex(newTheme.getColor(editorBackground)); // only take RGB, its what is used in the initial CSS
+			let background = Color.Format.CSS.formatHex(newTheme.getColor(editorBackground)); // only take RGB, its what is used in the initial CSS
 			let data = { id: newTheme.id, background: background };
 			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify(data) });
 		}

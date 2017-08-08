@@ -159,7 +159,7 @@ export class OverviewRulerImpl {
 		if (this._background === null) {
 			ctx.clearRect(0, 0, width, height);
 		} else {
-			ctx.fillStyle = Color.Format.CSS.asHex(this._background);
+			ctx.fillStyle = Color.Format.CSS.formatHex(this._background);
 			ctx.fillRect(0, 0, width, height);
 		}
 

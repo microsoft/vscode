@@ -11,49 +11,49 @@ import { Color, RGBA, HSLA, isValidHexColor } from 'vs/base/common/color';
 suite('Color', () => {
 
 	test('rgba2hsla', function () {
-		assert.deepEqual(new HSLA(0, 0, 0, 1), Color.fromRGBA(new RGBA(0, 0, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(0, 0, 1, 1), Color.fromRGBA(new RGBA(255, 255, 255, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 0, 0, 1), new Color(new RGBA(0, 0, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 0, 1, 1), new Color(new RGBA(255, 255, 255, 255)).hsla);
 
-		assert.deepEqual(new HSLA(0, 1, 0.5, 1), Color.fromRGBA(new RGBA(255, 0, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(120, 1, 0.5, 1), Color.fromRGBA(new RGBA(0, 255, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(240, 1, 0.5, 1), Color.fromRGBA(new RGBA(0, 0, 255, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 1, 0.5, 1), new Color(new RGBA(255, 0, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(120, 1, 0.5, 1), new Color(new RGBA(0, 255, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(240, 1, 0.5, 1), new Color(new RGBA(0, 0, 255, 255)).hsla);
 
-		assert.deepEqual(new HSLA(60, 1, 0.5, 1), Color.fromRGBA(new RGBA(255, 255, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(180, 1, 0.5, 1), Color.fromRGBA(new RGBA(0, 255, 255, 255)).hsla);
-		assert.deepEqual(new HSLA(300, 1, 0.5, 1), Color.fromRGBA(new RGBA(255, 0, 255, 255)).hsla);
+		assert.deepEqual(new HSLA(60, 1, 0.5, 1), new Color(new RGBA(255, 255, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(180, 1, 0.5, 1), new Color(new RGBA(0, 255, 255, 255)).hsla);
+		assert.deepEqual(new HSLA(300, 1, 0.5, 1), new Color(new RGBA(255, 0, 255, 255)).hsla);
 
-		assert.deepEqual(new HSLA(0, 0, 0.753, 1), Color.fromRGBA(new RGBA(192, 192, 192, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 0, 0.753, 1), new Color(new RGBA(192, 192, 192, 255)).hsla);
 
-		assert.deepEqual(new HSLA(0, 0, 0.502, 1), Color.fromRGBA(new RGBA(128, 128, 128, 255)).hsla);
-		assert.deepEqual(new HSLA(0, 1, 0.251, 1), Color.fromRGBA(new RGBA(128, 0, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(60, 1, 0.251, 1), Color.fromRGBA(new RGBA(128, 128, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(120, 1, 0.251, 1), Color.fromRGBA(new RGBA(0, 128, 0, 255)).hsla);
-		assert.deepEqual(new HSLA(300, 1, 0.251, 1), Color.fromRGBA(new RGBA(128, 0, 128, 255)).hsla);
-		assert.deepEqual(new HSLA(180, 1, 0.251, 1), Color.fromRGBA(new RGBA(0, 128, 128, 255)).hsla);
-		assert.deepEqual(new HSLA(240, 1, 0.251, 1), Color.fromRGBA(new RGBA(0, 0, 128, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 0, 0.502, 1), new Color(new RGBA(128, 128, 128, 255)).hsla);
+		assert.deepEqual(new HSLA(0, 1, 0.251, 1), new Color(new RGBA(128, 0, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(60, 1, 0.251, 1), new Color(new RGBA(128, 128, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(120, 1, 0.251, 1), new Color(new RGBA(0, 128, 0, 255)).hsla);
+		assert.deepEqual(new HSLA(300, 1, 0.251, 1), new Color(new RGBA(128, 0, 128, 255)).hsla);
+		assert.deepEqual(new HSLA(180, 1, 0.251, 1), new Color(new RGBA(0, 128, 128, 255)).hsla);
+		assert.deepEqual(new HSLA(240, 1, 0.251, 1), new Color(new RGBA(0, 0, 128, 255)).hsla);
 	});
 
 	test('hsla2rgba', function () {
-		assert.deepEqual(new RGBA(0, 0, 0, 255), Color.fromHSLA(new HSLA(0, 0, 0, 1)).rgba);
-		assert.deepEqual(new RGBA(255, 255, 255, 255), Color.fromHSLA(new HSLA(0, 0, 1, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 0, 0, 255), new Color(new HSLA(0, 0, 0, 1)).rgba);
+		assert.deepEqual(new RGBA(255, 255, 255, 255), new Color(new HSLA(0, 0, 1, 1)).rgba);
 
-		assert.deepEqual(new RGBA(255, 0, 0, 255), Color.fromHSLA(new HSLA(0, 1, 0.5, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 255, 0, 255), Color.fromHSLA(new HSLA(120, 1, 0.5, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 0, 255, 255), Color.fromHSLA(new HSLA(240, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(255, 0, 0, 255), new Color(new HSLA(0, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 255, 0, 255), new Color(new HSLA(120, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 0, 255, 255), new Color(new HSLA(240, 1, 0.5, 1)).rgba);
 
-		assert.deepEqual(new RGBA(255, 255, 0, 255), Color.fromHSLA(new HSLA(60, 1, 0.5, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 255, 255, 255), Color.fromHSLA(new HSLA(180, 1, 0.5, 1)).rgba);
-		assert.deepEqual(new RGBA(255, 0, 255, 255), Color.fromHSLA(new HSLA(300, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(255, 255, 0, 255), new Color(new HSLA(60, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 255, 255, 255), new Color(new HSLA(180, 1, 0.5, 1)).rgba);
+		assert.deepEqual(new RGBA(255, 0, 255, 255), new Color(new HSLA(300, 1, 0.5, 1)).rgba);
 
-		assert.deepEqual(new RGBA(192, 192, 192, 255), Color.fromHSLA(new HSLA(0, 0, 0.753, 1)).rgba);
+		assert.deepEqual(new RGBA(192, 192, 192, 255), new Color(new HSLA(0, 0, 0.753, 1)).rgba);
 
-		assert.deepEqual(new RGBA(128, 128, 128, 255), Color.fromHSLA(new HSLA(0, 0, 0.502, 1)).rgba);
-		assert.deepEqual(new RGBA(128, 0, 0, 255), Color.fromHSLA(new HSLA(0, 1, 0.251, 1)).rgba);
-		assert.deepEqual(new RGBA(128, 128, 0, 255), Color.fromHSLA(new HSLA(60, 1, 0.251, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 128, 0, 255), Color.fromHSLA(new HSLA(120, 1, 0.251, 1)).rgba);
-		assert.deepEqual(new RGBA(128, 0, 128, 255), Color.fromHSLA(new HSLA(300, 1, 0.251, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 128, 128, 255), Color.fromHSLA(new HSLA(180, 1, 0.251, 1)).rgba);
-		assert.deepEqual(new RGBA(0, 0, 128, 255), Color.fromHSLA(new HSLA(240, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(128, 128, 128, 255), new Color(new HSLA(0, 0, 0.502, 1)).rgba);
+		assert.deepEqual(new RGBA(128, 0, 0, 255), new Color(new HSLA(0, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(128, 128, 0, 255), new Color(new HSLA(60, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 128, 0, 255), new Color(new HSLA(120, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(128, 0, 128, 255), new Color(new HSLA(300, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 128, 128, 255), new Color(new HSLA(180, 1, 0.251, 1)).rgba);
+		assert.deepEqual(new RGBA(0, 0, 128, 255), new Color(new HSLA(240, 1, 0.251, 1)).rgba);
 	});
 
 	test('hex2rgba', function () {
@@ -143,7 +143,7 @@ suite('Color', () => {
 	});
 
 	test('isLighterColor', function () {
-		let color1 = Color.fromHSLA(new HSLA(60, 1, 0.5, 1)), color2 = Color.fromHSLA(new HSLA(0, 0, 0.753, 1));
+		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.ok(color1.isLighterThan(color2));
 
@@ -152,7 +152,7 @@ suite('Color', () => {
 	});
 
 	test('getLighterColor', function () {
-		let color1 = Color.fromHSLA(new HSLA(60, 1, 0.5, 1)), color2 = Color.fromHSLA(new HSLA(0, 0, 0.753, 1));
+		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.deepEqual(color1.hsla, Color.getLighterColor(color1, color2).hsla);
 		assert.deepEqual(new HSLA(0, 0, 0.914, 1), Color.getLighterColor(color2, color1).hsla);
@@ -163,14 +163,14 @@ suite('Color', () => {
 	});
 
 	test('isDarkerColor', function () {
-		let color1 = Color.fromHSLA(new HSLA(60, 1, 0.5, 1)), color2 = Color.fromHSLA(new HSLA(0, 0, 0.753, 1));
+		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.ok(color2.isDarkerThan(color1));
 
 	});
 
 	test('getDarkerColor', function () {
-		let color1 = Color.fromHSLA(new HSLA(60, 1, 0.5, 1)), color2 = Color.fromHSLA(new HSLA(0, 0, 0.753, 1));
+		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.deepEqual(color2.hsla, Color.getDarkerColor(color2, color1).hsla);
 		assert.deepEqual(new HSLA(60, 1, 0.392, 1), Color.getDarkerColor(color1, color2).hsla);
@@ -183,56 +183,56 @@ suite('Color', () => {
 	});
 
 	test('luminosity', function () {
-		assert.deepEqual(0, Color.fromRGBA(new RGBA(0, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(1, Color.fromRGBA(new RGBA(255, 255, 255, 255)).getLuminosity());
+		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.2126, Color.fromRGBA(new RGBA(255, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7152, Color.fromRGBA(new RGBA(0, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0722, Color.fromRGBA(new RGBA(0, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.2126, new Color(new RGBA(255, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(0.7152, new Color(new RGBA(0, 255, 0, 255)).getLuminosity());
+		assert.deepEqual(0.0722, new Color(new RGBA(0, 0, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.9278, Color.fromRGBA(new RGBA(255, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7874, Color.fromRGBA(new RGBA(0, 255, 255, 255)).getLuminosity());
-		assert.deepEqual(0.2848, Color.fromRGBA(new RGBA(255, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.9278, new Color(new RGBA(255, 255, 0, 255)).getLuminosity());
+		assert.deepEqual(0.7874, new Color(new RGBA(0, 255, 255, 255)).getLuminosity());
+		assert.deepEqual(0.2848, new Color(new RGBA(255, 0, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.5271, Color.fromRGBA(new RGBA(192, 192, 192, 255)).getLuminosity());
+		assert.deepEqual(0.5271, new Color(new RGBA(192, 192, 192, 255)).getLuminosity());
 
-		assert.deepEqual(0.2159, Color.fromRGBA(new RGBA(128, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0459, Color.fromRGBA(new RGBA(128, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.2003, Color.fromRGBA(new RGBA(128, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.1544, Color.fromRGBA(new RGBA(0, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0615, Color.fromRGBA(new RGBA(128, 0, 128, 255)).getLuminosity());
-		assert.deepEqual(0.17, Color.fromRGBA(new RGBA(0, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0156, Color.fromRGBA(new RGBA(0, 0, 128, 255)).getLuminosity());
+		assert.deepEqual(0.2159, new Color(new RGBA(128, 128, 128, 255)).getLuminosity());
+		assert.deepEqual(0.0459, new Color(new RGBA(128, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(0.2003, new Color(new RGBA(128, 128, 0, 255)).getLuminosity());
+		assert.deepEqual(0.1544, new Color(new RGBA(0, 128, 0, 255)).getLuminosity());
+		assert.deepEqual(0.0615, new Color(new RGBA(128, 0, 128, 255)).getLuminosity());
+		assert.deepEqual(0.17, new Color(new RGBA(0, 128, 128, 255)).getLuminosity());
+		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 255)).getLuminosity());
 	});
 
 	test('contrast', function () {
-		assert.deepEqual(0, Color.fromRGBA(new RGBA(0, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(1, Color.fromRGBA(new RGBA(255, 255, 255, 255)).getLuminosity());
+		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.2126, Color.fromRGBA(new RGBA(255, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7152, Color.fromRGBA(new RGBA(0, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0722, Color.fromRGBA(new RGBA(0, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.2126, new Color(new RGBA(255, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(0.7152, new Color(new RGBA(0, 255, 0, 255)).getLuminosity());
+		assert.deepEqual(0.0722, new Color(new RGBA(0, 0, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.9278, Color.fromRGBA(new RGBA(255, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7874, Color.fromRGBA(new RGBA(0, 255, 255, 255)).getLuminosity());
-		assert.deepEqual(0.2848, Color.fromRGBA(new RGBA(255, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.9278, new Color(new RGBA(255, 255, 0, 255)).getLuminosity());
+		assert.deepEqual(0.7874, new Color(new RGBA(0, 255, 255, 255)).getLuminosity());
+		assert.deepEqual(0.2848, new Color(new RGBA(255, 0, 255, 255)).getLuminosity());
 
-		assert.deepEqual(0.5271, Color.fromRGBA(new RGBA(192, 192, 192, 255)).getLuminosity());
+		assert.deepEqual(0.5271, new Color(new RGBA(192, 192, 192, 255)).getLuminosity());
 
-		assert.deepEqual(0.2159, Color.fromRGBA(new RGBA(128, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0459, Color.fromRGBA(new RGBA(128, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.2003, Color.fromRGBA(new RGBA(128, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.1544, Color.fromRGBA(new RGBA(0, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0615, Color.fromRGBA(new RGBA(128, 0, 128, 255)).getLuminosity());
-		assert.deepEqual(0.17, Color.fromRGBA(new RGBA(0, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0156, Color.fromRGBA(new RGBA(0, 0, 128, 255)).getLuminosity());
+		assert.deepEqual(0.2159, new Color(new RGBA(128, 128, 128, 255)).getLuminosity());
+		assert.deepEqual(0.0459, new Color(new RGBA(128, 0, 0, 255)).getLuminosity());
+		assert.deepEqual(0.2003, new Color(new RGBA(128, 128, 0, 255)).getLuminosity());
+		assert.deepEqual(0.1544, new Color(new RGBA(0, 128, 0, 255)).getLuminosity());
+		assert.deepEqual(0.0615, new Color(new RGBA(128, 0, 128, 255)).getLuminosity());
+		assert.deepEqual(0.17, new Color(new RGBA(0, 128, 128, 255)).getLuminosity());
+		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 255)).getLuminosity());
 	});
 
 	test('blending', function () {
-		assert.deepEqual(Color.fromRGBA(new RGBA(0, 0, 0, 0)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(243, 34, 43)));
-		assert.deepEqual(Color.fromRGBA(new RGBA(255, 255, 255)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(255, 255, 255)));
-		assert.deepEqual(Color.fromRGBA(new RGBA(122, 122, 122, 178.5)).blend(Color.fromRGBA(new RGBA(243, 34, 43))), Color.fromRGBA(new RGBA(158, 95, 98)));
-		assert.deepEqual(Color.fromRGBA(new RGBA(0, 0, 0, 147.9)).blend(Color.fromRGBA(new RGBA(255, 255, 255, 84.15))), Color.fromRGBA(new RGBA(49, 49, 49, 182)));
+		assert.deepEqual(new Color(new RGBA(0, 0, 0, 0)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(243, 34, 43)));
+		assert.deepEqual(new Color(new RGBA(255, 255, 255)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(255, 255, 255)));
+		assert.deepEqual(new Color(new RGBA(122, 122, 122, 178.5)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(158, 95, 98)));
+		assert.deepEqual(new Color(new RGBA(0, 0, 0, 147.9)).blend(new Color(new RGBA(255, 255, 255, 84.15))), new Color(new RGBA(49, 49, 49, 182)));
 	});
 
 });

@@ -190,7 +190,7 @@ class GenerateColorThemeAction extends Action {
 		colorRegistry.getColors().map(c => {
 			let color = theme.getColor(c.id, false);
 			if (color) {
-				resultingColors[c.id] = Color.Format.CSS.asHexA(color, true);
+				resultingColors[c.id] = Color.Format.CSS.formatHexA(color, true);
 			}
 		});
 		let contents = JSON.stringify({

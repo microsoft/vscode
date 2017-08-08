@@ -119,7 +119,7 @@ export class ColorPickerModel {
 		this._opacity = opacity;
 
 		const rgba = this._color.rgba;
-		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
+		this.color = new Color(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 
 		if (this.widget.header) {
 			this.widget.header.updatePickedColor();
@@ -179,7 +179,7 @@ export class ColorPickerModel {
 		g = Math.round(g * 255);
 		b = Math.round(b * 255);
 
-		return Color.fromRGBA(new RGBA(r, g, b));
+		return new Color(new RGBA(r, g, b));
 	}
 }
 

@@ -58,7 +58,7 @@ class ThemeDocument {
 	}
 
 	private _generateExplanation(selector: string, color: Color): string {
-		return `${selector}: ${Color.Format.CSS.asHexA(color, true).toUpperCase()}`;
+		return `${selector}: ${Color.Format.CSS.formatHexA(color, true).toUpperCase()}`;
 	}
 
 	public explainTokenColor(scopes: string, color: Color): string {
@@ -68,14 +68,14 @@ class ThemeDocument {
 			let expected = Color.fromHex(this._defaultColor);
 			// No matching rule
 			if (!color.equals(expected)) {
-				throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.asHexA(color)} for ${scopes}. Expected default ${Color.Format.CSS.asHexA(expected)}`);
+				throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected default ${Color.Format.CSS.formatHexA(expected)}`);
 			}
 			return this._generateExplanation('default', color);
 		}
 
 		let expected = Color.fromHex(matchingRule.settings.foreground);
 		if (!color.equals(expected)) {
-			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.asHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.asHexA(expected)} coming in from ${matchingRule.rawSelector}`);
+			throw new Error(`[${this._theme.label}]: Unexpected color ${Color.Format.CSS.formatHexA(color)} for ${scopes}. Expected ${Color.Format.CSS.formatHexA(expected)} coming in from ${matchingRule.rawSelector}`);
 		}
 		return this._generateExplanation(matchingRule.rawSelector, color);
 	}
