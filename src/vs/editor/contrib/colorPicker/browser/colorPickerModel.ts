@@ -50,7 +50,7 @@ export class ColorPickerModel {
 		this._opaqueFormatter = opaqueFormatter;
 		this.colorFormatters = availableFormatters;
 		this.color = color;
-		this.hue = color.getHue();
+		this.hue = color.hsla.h;
 		this.saturation = color.hsla.s;
 		this.value = color.getValue();
 		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);

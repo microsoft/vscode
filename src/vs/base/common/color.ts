@@ -288,29 +288,6 @@ export class Color {
 		return lum1 > lum2 ? (lum1 + 0.05) / (lum2 + 0.05) : (lum2 + 0.05) / (lum1 + 0.05);
 	}
 
-	getHue(): number {
-		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
-		const cmax = Math.max(r, g, b);
-		const cmin = Math.min(r, g, b);
-		const delta = cmax - cmin;
-		let hue;
-
-		if (delta === 0) {
-			hue = 0;
-		} else if (cmax === r) {
-			hue = 60 * (((g - b) / delta) % 6);
-		} else if (cmax === g) {
-			hue = 60 * (((b - r) / delta) + 2);
-		} else {
-			hue = 60 * (((r - g) / delta) + 4);
-		}
-
-		if (hue < 0) {
-			hue += 360;
-		}
-		return hue;
-	}
-
 	getValue(): number {
 		return Math.max(this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255);
 	}

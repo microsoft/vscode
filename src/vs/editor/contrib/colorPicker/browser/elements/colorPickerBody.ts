@@ -162,7 +162,7 @@ export class ColorPickerBody extends Disposable {
 
 		this.hueSlider = new Slider(this.hueStrip);
 		dom.append(this.hueStrip, this.hueSlider.domNode);
-		this.hueSlider.top = (this.hueStrip.offsetHeight - this.hueSlider.domNode.offsetHeight) * (this.model.color.getHue() / 359);
+		this.hueSlider.top = (this.hueStrip.offsetHeight - this.hueSlider.domNode.offsetHeight) * (this.model.color.hsla.h / 359);
 	}
 
 	private calculateSliderHue(slider: Slider): number {
