@@ -760,3 +760,71 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		return TPromise.as(null);
 	}
 }
+
+export class ShowNextFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
+	public static LABEL = nls.localize('nextTerminalFindTerm', "Terminal: Show Next Search Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showNextFindTermFindWidget());
+	}
+}
+
+export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
+	public static LABEL = nls.localize('previousTerminalFindTerm', "Terminal: Show Previous Search Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
+	}
+}
+
+export class NextMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.nextMatchFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.nextMatchFindWidget', "Terminal: Find Next Match");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.nextMatchFindWidget());
+	}
+}
+
+export class PreviousMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.previousMatchFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.previousMatchFindWidget', "Terminal: Find Previous Match");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.previousMatchFindWidget());
+	}
+}
