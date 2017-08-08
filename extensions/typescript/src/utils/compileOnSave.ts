@@ -62,13 +62,13 @@ class ProjectDelayer {
 }
 
 export default class CompileOnSaveHelper {
-	private saveSubscription: vscode.Disposable;
+	private readonly saveSubscription: vscode.Disposable;
 
 	private readonly emitter: ProjectDelayer;
 
 	constructor(
-		private client: ITypescriptServiceClient,
-		private languages: string[],
+		private readonly client: ITypescriptServiceClient,
+		private readonly languages: string[],
 		private readonly syntaxDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void,
 		private readonly semanticsDiagnosticsReceived: (file: string, diag: protocol.Diagnostic[]) => void
 	) {
@@ -111,21 +111,17 @@ export default class CompileOnSaveHelper {
 		return config && config.compileOnSave;
 	}
 
-	private emit(_project: string, files: Set<string>): void {
-		if (!files.size) {
-			return;
-		}
-
+	private emit(project: string, files: Set<string>): void {
 		for (const file of files) {
 			this.client.execute('compileOnSaveEmitFile', { file }, false);
 
-			this.client.execute('semanticDiagnosticsSync', { file }).then(resp => {
+			this.client.execute('semanticDiagnosticsSync', { file, projectFileName: project }).then(resp => {
 				if (resp && resp.body) {
 					this.semanticsDiagnosticsReceived(file, resp.body as Proto.Diagnostic[]);
 				}
 			});
 
-			this.client.execute('syntaxDiagnosticsSync', { file }).then(resp => {
+			this.client.execute('syntaxDiagnosticsSync', { file, projectFileName: project }).then(resp => {
 				if (resp && resp.body) {
 					this.syntaxDiagnosticsReceived(file, resp.body as Proto.Diagnostic[]);
 				}
