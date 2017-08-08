@@ -52,9 +52,9 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -72,42 +72,48 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
-		await super.setInput(input, options);
+		return super.setInput(input, options)
+			.then(() => {
+				const result = [];
+				const renderer = new marked.Renderer();
+				renderer.code = (code, lang) => {
+					const modeId = this.modeService.getModeIdForLanguageName(lang);
+					result.push(this.modeService.getOrCreateMode(modeId));
+					return '';
+				};
 
-		const result = [];
-		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			result.push(this.modeService.getOrCreateMode(modeId));
-			return '';
-		};
+				marked(text, { renderer });
+				return TPromise.join(result);
+			}).then(() => {
+				const renderer = new marked.Renderer();
+				renderer.code = (code, lang) => {
+					const modeId = this.modeService.getModeIdForLanguageName(lang);
+					return `<code>${tokenizeToString(code, modeId)}</code>`;
+				};
 
-		marked(text, { renderer });
-		await TPromise.join(result);
+				return marked(text, { renderer });
+			})
+			.then(renderBody)
+			.then<void>(body => {
+				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, this.contextKey);
 
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
+				if (this.input && this.input instanceof ReleaseNotesInput) {
+					const state = this.loadViewState(this.input.version);
+					if (state) {
+						this._webview.initialScrollProgress = state.scrollYPercentage;
+					}
+				}
+				this.onThemeChange(this.themeService.getTheme());
+				this._webview.contents = [body];
 
-		const body = renderBody(marked(text, { renderer }));
-		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
-		if (this.input && this.input instanceof ReleaseNotesInput) {
-			const state = this.loadViewState(this.input.version);
-			if (state) {
-				this._webview.initialScrollProgress = state.scrollYPercentage;
-			}
-		}
-		this.onThemeChange(this.themeService.getTheme());
-		this._webview.contents = [body];
-
-		this._webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-		this._webview.onDidScroll(event => {
-			this.scrollYPercentage = event.scrollYPercentage;
-		}, null, this.contentDisposables);
-		this.themeService.onThemeChange(this.onThemeChange, this, this.contentDisposables);
-		this.contentDisposables.push(this._webview);
-		this.contentDisposables.push(toDisposable(() => this._webview = null));
+				this._webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this._webview.onDidScroll(event => {
+					this.scrollYPercentage = event.scrollYPercentage;
+				}, null, this.contentDisposables);
+				this.themeService.onThemeChange(this.onThemeChange, null, this.contentDisposables);
+				this.contentDisposables.push(this._webview);
+				this.contentDisposables.push(toDisposable(() => this._webview = null));
+			});
 	}
 
 	layout(): void {

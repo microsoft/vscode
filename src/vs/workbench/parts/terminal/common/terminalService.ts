@@ -63,6 +63,7 @@ export abstract class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
@@ -208,6 +209,10 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+	public abstract showNextFindTermFindWidget(): void;
+	public abstract showPreviousFindTermFindWidget(): void;
+	public abstract nextMatchFindWidget(): void;
+	public abstract previousMatchFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

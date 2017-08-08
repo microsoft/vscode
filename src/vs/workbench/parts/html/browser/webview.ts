@@ -14,7 +14,12 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+/**  A context key that is set when the find widget find input in WebViewEditor is focused. */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('webviewEditorFindWidgetInputFocused', undefined);
+/**  A context key that is set when the find widget find input in WebViewEditor is not focused. */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -55,6 +60,7 @@ export interface WebviewOptions {
 	svgWhiteList?: string[];
 }
 
+
 export default class Webview {
 	private static index: number = 0;
 
@@ -73,6 +79,7 @@ export default class Webview {
 		private parent: HTMLElement,
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		private _contextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
@@ -192,7 +199,7 @@ export default class Webview {
 			})
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED);
 		this._disposables.push(this._webviewFindWidget);
 
 		if (parent) {
@@ -449,5 +456,21 @@ export default class Webview {
 
 	public hideFind() {
 		this._webviewFindWidget.hide();
+	}
+
+	public showNextFindTerm() {
+		this._webviewFindWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTerm() {
+		this._webviewFindWidget.showPreviousFindTerm();
+	}
+
+	public nextMatchFindWidget(): void {
+		this._webviewFindWidget.find(false);
+	}
+
+	public previousMatchFindWidget(): void {
+		this._webviewFindWidget.find(true);
 	}
 }
