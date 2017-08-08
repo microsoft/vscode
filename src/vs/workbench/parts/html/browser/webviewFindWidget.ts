@@ -6,20 +6,19 @@
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import WebView from './webview';
+import Webview from './webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		private webview: WebView,
+		private webview: Webview,
 		private _findInputContextKey: RawContextKey<boolean>
 	) {
 		super(_contextViewService);
 
 		this._findInputFocused = _findInputContextKey.bindTo(this._contextKeyService);
-		console.debug(this._findInputContextKey.keys());
 		this.find = this.find.bind(this);
 		this.hide = this.hide.bind(this);
 		this.onInputChanged = this.onInputChanged.bind(this);
@@ -59,11 +58,4 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this.webview.notifyFindWidgetFocusChanged(false);
 	}
 
-	protected onFindInputFocusTrackerFocus() {
-		this._findInputFocused.set(true);
-	}
-
-	protected onFindInputFocusTrackerBlur() {
-		this._findInputFocused.reset();
-	}
 }

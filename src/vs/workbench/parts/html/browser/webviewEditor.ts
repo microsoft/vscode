@@ -14,7 +14,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { default as WebView, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED } from './webview';
+import { default as Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED } from './webview';
 import { Builder } from 'vs/base/browser/builder';
 
 export interface HtmlPreviewEditorViewState {
@@ -32,7 +32,7 @@ export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_NOT_FOCUSED: ContextKeyExpr = KEYB
 export abstract class WebviewEditor extends BaseWebviewEditor {
 
 	protected _webviewFocusContextKey: IContextKey<boolean>;
-	protected _webview: WebView;
+	protected _webview: Webview;
 	protected content: HTMLElement;
 	protected contextKey: IContextKey<boolean>;
 

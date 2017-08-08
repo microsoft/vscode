@@ -355,11 +355,11 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousFind
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NextMatchTerminalFindWidgetAction, NextMatchTerminalFindWidgetAction.ID, NextMatchTerminalFindWidgetAction.LABEL, {
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find Next', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Find Next', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PreviousMatchTerminalFindWidgetAction, PreviousMatchTerminalFindWidgetAction.ID, PreviousMatchTerminalFindWidgetAction.LABEL, {
 	primary: KeyMod.Shift | KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Find Previous', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Find Previous', category);
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,

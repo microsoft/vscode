@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import Webview from 'vs/workbench/parts/html/browser/webview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -95,7 +95,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, this.contextKey);
+				this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, this.contextKey);
 
 				if (this.input && this.input instanceof ReleaseNotesInput) {
 					const state = this.loadViewState(this.input.version);

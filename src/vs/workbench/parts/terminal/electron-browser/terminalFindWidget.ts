@@ -48,11 +48,4 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
 	}
 
-	protected onFindInputFocusTrackerFocus() {
-		this._findInputFocused.set(true);
-	}
-
-	protected onFindInputFocusTrackerBlur() {
-		this._findInputFocused.reset();
-	}
 }
