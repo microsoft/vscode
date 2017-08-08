@@ -59,7 +59,7 @@ export class ColorPickerModel {
 	public set color(color: Color) {
 		this._color = color;
 
-		const alpha = color.toRGBA().a;
+		const alpha = color.rgba.a;
 		if (!this._opacity) {
 			this._opacity = alpha / 255;
 		}
@@ -118,7 +118,7 @@ export class ColorPickerModel {
 	public set opacity(opacity: number) {
 		this._opacity = opacity;
 
-		const rgba = this._color.toRGBA();
+		const rgba = this._color.rgba;
 		this.color = Color.fromRGBA(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 
 		if (this.widget.header) {

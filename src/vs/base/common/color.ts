@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
+import { memoize } from 'vs/base/common/decorators';
 
 export class RGBA {
 	_rgbaBrand: void;
@@ -49,14 +50,6 @@ export class RGBA {
 			return 255;
 		}
 		return c | 0;
-	}
-
-	public toString(): string {
-		if (this.a === 255) {
-			return `rgb(${this.r}, ${this.g}, ${this.b})`;
-		}
-
-		return `rgba(${this.r}, ${this.g}, ${this.b}, ${(this.a / 255).toFixed(2)})`;
 	}
 }
 
@@ -108,17 +101,6 @@ export class HSLA {
 			return 1.0;
 		}
 		return n;
-	}
-
-	public toString() {
-		const s = (this.s * 100).toFixed(2);
-		const l = (this.l * 100).toFixed(2);
-
-		if (this.a === 1) {
-			return `hsl(${this.h}, ${s}%, ${l}%)`;
-		}
-
-		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a.toFixed(2)})`;
 	}
 }
 
@@ -293,6 +275,11 @@ function _hue2rgb(p: number, q: number, t: number) {
 	return p;
 }
 
+function _toTwoDigitHex(n: number): string {
+	const r = n.toString(16);
+	return r.length !== 2 ? '0' + r : r;
+}
+
 export class Color {
 
 	public static fromRGBA(rgba: RGBA): Color {
@@ -357,17 +344,17 @@ export class Color {
 		return Color.fromRGBA(new RGBA(red, green, blue, opacity));
 	}
 
-	private readonly rgba: RGBA;
+	readonly rgba: RGBA;
+
+	@memoize
+	get hsla(): HSLA { return rgba2hsla(this.rgba); }
 
 	private constructor(arg: RGBA) {
 		this.rgba = arg;
 	}
 
 	public equals(other: Color): boolean {
-		if (!other) {
-			return false;
-		}
-		return RGBA.equals(this.rgba, other.rgba);
+		return !!other && RGBA.equals(this.rgba, other.rgba);
 	}
 
 	/**
@@ -465,14 +452,12 @@ export class Color {
 	}
 
 	public lighten(factor: number): Color {
-		const hsl = this.toHSLA();
-		const result = new HSLA(hsl.h, hsl.s, hsl.l + hsl.l * factor, hsl.a);
+		const result = new HSLA(this.hsla.h, this.hsla.s, this.hsla.l + this.hsla.l * factor, this.hsla.a);
 		return new Color(hsla2rgba(result));
 	}
 
 	public darken(factor: number): Color {
-		const hsl = this.toHSLA();
-		const result = new HSLA(hsl.h, hsl.s, hsl.l - hsl.l * factor, hsl.a);
+		const result = new HSLA(this.hsla.h, this.hsla.s, this.hsla.l - this.hsla.l * factor, this.hsla.a);
 		return new Color(hsla2rgba(result));
 	}
 
@@ -496,67 +481,27 @@ export class Color {
 	}
 
 	public blend(c: Color): Color {
-		const color = c.toRGBA();
+		const rgba = c.rgba;
 
 		// Convert to 0..1 opacity
 		const thisA = this.rgba.a / 255;
-		const colorA = color.a / 255;
+		const colorA = rgba.a / 255;
 
 		let a = thisA + colorA * (1 - thisA);
 		if (a < 1.0e-6) {
 			return Color.transparent;
 		}
 
-		const r = this.rgba.r * thisA / a + color.r * colorA * (1 - thisA) / a;
-		const g = this.rgba.g * thisA / a + color.g * colorA * (1 - thisA) / a;
-		const b = this.rgba.b * thisA / a + color.b * colorA * (1 - thisA) / a;
+		const r = this.rgba.r * thisA / a + rgba.r * colorA * (1 - thisA) / a;
+		const g = this.rgba.g * thisA / a + rgba.g * colorA * (1 - thisA) / a;
+		const b = this.rgba.b * thisA / a + rgba.b * colorA * (1 - thisA) / a;
 		a *= 255;
 
 		return new Color(new RGBA(r, g, b, a));
 	}
 
-	public toString(): string {
-		const rgba = this.rgba;
-		if (rgba.a === 255) {
-			return this.toRGBHex();
-		}
-		return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
-	}
-
-	/**
-	 * Prins the color as #RRGGBB
-	 */
-	public toRGBHex(): string {
-		const rgba = this.rgba;
-		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}`;
-	}
-
-	/**
-	 * Prins the color as #RRGGBBAA
-	 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
-	 */
-	public toRGBAHex(compact = false): string {
-		const rgba = this.rgba;
-		if (compact && rgba.a === 0xFF) {
-			return this.toRGBHex();
-		}
-		return `#${Color._toTwoDigitHex(rgba.r)}${Color._toTwoDigitHex(rgba.g)}${Color._toTwoDigitHex(rgba.b)}${Color._toTwoDigitHex(rgba.a)}`;
-	}
-
-	private static _toTwoDigitHex(n: number): string {
-		let r = n.toString(16);
-		if (r.length !== 2) {
-			return '0' + r;
-		}
-		return r;
-	}
-
-	public toHSLA(): HSLA {
-		return rgba2hsla(this.rgba);
-	}
-
-	public toRGBA(): RGBA {
-		return this.rgba;
+	toString(): string {
+		return Color.Format.CSS.format(this);
 	}
 
 	public static getLighterColor(of: Color, relative: Color, factor?: number): Color {
@@ -589,4 +534,69 @@ export class Color {
 	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
 	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
 	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
+}
+
+export namespace Color {
+	export namespace Format {
+		export namespace CSS {
+
+			export function asRGB(color: Color): string {
+				if (color.rgba.a === 255) {
+					return `rgb(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b})`;
+				}
+
+				return Color.Format.CSS.asRGBA(color);
+			}
+
+			export function asRGBA(color: Color): string {
+				return `rgba(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b}, ${+(color.rgba.a / 255).toFixed(2)})`;
+			}
+
+			export function asHSL(color: Color): string {
+				if (color.hsla.a === 1) {
+					return `hsl(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%)`;
+				}
+
+				return Color.Format.CSS.asHSLA(color);
+			}
+
+			export function asHSLA(color: Color): string {
+				return `hsla(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%, ${color.hsla.a.toFixed(2)})`;
+			}
+
+			/**
+			 * Formats the color as #RRGGBB
+			 */
+			export function asHex(color: Color): string {
+				return `#${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}`;
+			}
+
+			/**
+			 * Formats the color as #RRGGBBAA
+			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 */
+			export function asHexA(color: Color, compact = false): string {
+				if (compact && color.rgba.a === 0xFF) {
+					return Color.Format.CSS.asHex(color);
+				}
+
+				return `#${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}${_toTwoDigitHex(color.rgba.a)}`;
+			}
+
+			/**
+			 * The default format will use HEX if opaque and RGBA otherwise.
+			 */
+			export function format(color: Color): string | null {
+				if (!color) {
+					return null;
+				}
+
+				if (color.rgba.a === 255) {
+					return Color.Format.CSS.asHex(color);
+				}
+
+				return Color.Format.CSS.asRGBA(color);
+			}
+		}
+	}
 }

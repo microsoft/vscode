@@ -49,25 +49,25 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 
 		switch (variable) {
 			case 'red':
-				absoluteValue = normalize(color.toRGBA().r, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.r, min, max, RGBA_ENDRANGE);
 				break;
 			case 'green':
-				absoluteValue = normalize(color.toRGBA().g, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.g, min, max, RGBA_ENDRANGE);
 				break;
 			case 'blue':
-				absoluteValue = normalize(color.toRGBA().b, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.b, min, max, RGBA_ENDRANGE);
 				break;
 			case 'alpha':
-				absoluteValue = normalize(color.toRGBA().a, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.a, min, max, RGBA_ENDRANGE);
 				break;
 			case 'hue':
-				absoluteValue = normalize(color.toHSLA().h, min, max, HSL_HUERANGE);
+				absoluteValue = normalize(color.hsla.h, min, max, HSL_HUERANGE);
 				break;
 			case 'saturation':
-				absoluteValue = normalize(color.toHSLA().s, min, max, HSL_ENDRANGE);
+				absoluteValue = normalize(color.hsla.s, min, max, HSL_ENDRANGE);
 				break;
 			case 'luminosity':
-				absoluteValue = normalize(color.toHSLA().l, min, max, HSL_ENDRANGE);
+				absoluteValue = normalize(color.hsla.l, min, max, HSL_ENDRANGE);
 				break;
 		}
 

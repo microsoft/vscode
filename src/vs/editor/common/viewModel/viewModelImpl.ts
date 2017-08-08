@@ -20,6 +20,7 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { Color } from 'vs/base/common/color';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -533,7 +534,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let colorMap = TokenizationRegistry.getColorMap();
 		let result: string[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = colorMap[i].toRGBHex();
+			result[i] = Color.Format.CSS.asHex(colorMap[i]);
 		}
 		return result;
 	}

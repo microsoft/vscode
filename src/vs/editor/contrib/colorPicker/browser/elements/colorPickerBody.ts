@@ -41,11 +41,7 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	public fillOpacityOverlay(color: Color): void {
-		const c = color.toRGBA();
-		const r = c.r;
-		const g = c.g;
-		const b = c.b;
-
+		const { r, g, b } = color.rgba;
 		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
 	}
 
@@ -72,8 +68,8 @@ export class ColorPickerBody extends Disposable {
 		}
 
 		const updateModel = (x: number, y: number) => {
-			const saturationRGBA = this.saturationBox.extractColor(x, y).toRGBA();
-			this.widget.model.color = Color.fromRGBA(new RGBA(saturationRGBA.r, saturationRGBA.g, saturationRGBA.b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
+			const { r, g, b } = this.saturationBox.extractColor(x, y).rgba;
+			this.widget.model.color = Color.fromRGBA(new RGBA(r, g, b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
 			this.saturationBox.focusSaturationSelection({ x: x, y: y });
 		};
 
@@ -235,7 +231,7 @@ export class SaturationBox {
 	}
 
 	public fillSaturationBox(): void {
-		this.saturationCtx.fillStyle = this.calculateHueColor(this.model.hue).toString();
+		this.saturationCtx.fillStyle = Color.Format.CSS.format(this.calculateHueColor(this.model.hue));
 		this.saturationCtx.fill();
 		this.saturationCtx.fillStyle = this.whiteGradient;
 		this.saturationCtx.fill();

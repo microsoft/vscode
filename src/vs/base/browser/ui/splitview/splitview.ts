@@ -128,7 +128,7 @@ export abstract class HeaderView extends View {
 
 	private headerForeground: Color;
 	private headerBackground: Color;
-	private headerHighContrastBorder;
+	private headerHighContrastBorder: Color;
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);

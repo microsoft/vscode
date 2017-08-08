@@ -140,7 +140,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
 		for (let key in this.colorMap) {
-			content.colors[key] = this.colorMap[key].toRGBAHex(true);
+			content.colors[key] = Color.Format.CSS.asHexA(this.colorMap[key], true);
 		}
 		return JSON.stringify(content, null, '\t');
 	}
@@ -148,7 +148,7 @@ export class ColorThemeData implements IColorTheme {
 	toStorageData() {
 		let colorMapData = {};
 		for (let key in this.colorMap) {
-			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+			colorMapData[key] = Color.Format.CSS.asHexA(this.colorMap[key], true);
 		}
 		// no need to persist custom colors, they will be taken from the settings
 		return JSON.stringify({
@@ -322,8 +322,8 @@ function _sanitizeTokenColors(theme: ColorThemeData) {
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
 	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
 	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
-	defaultRule.settings.foreground = foreground.toRGBAHex();
-	defaultRule.settings.background = background.toRGBAHex();
+	defaultRule.settings.foreground = Color.Format.CSS.asHexA(foreground);
+	defaultRule.settings.background = Color.Format.CSS.asHexA(background);
 	return defaultRule;
 }
 
