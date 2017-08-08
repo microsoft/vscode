@@ -122,7 +122,7 @@ function command(commandId: string, skipModelCheck = false, requiresDiffInformat
 
 export class CommandCenter {
 	private _cloneError: boolean;
-	private _cloneCp: cp.ChildProcess;
+	private _cp: cp.ChildProcess;
 	private _cloneBarEntry: StatusBarItem;
 
 	private model: Model;
@@ -277,11 +277,11 @@ export class CommandCenter {
 		}
 
 		const { folderName, child } = await this.git.clone(url, parentPath);
-		this._cloneCp = child;
+		this._cp = child;
 		this._cloneBarEntry.show();
 
 		// git streams progress to stderr: https://git-scm.com/docs/git-clone
-		this._cloneCp.stderr.on('data', (data) => {
+		this._cp.stderr.on('data', (data) => {
 			const message = data.toString();
 			if (/^fatal/.test(message)) {
 				if (/already exists and is not an empty directory/.test(message)) {
@@ -297,11 +297,10 @@ export class CommandCenter {
 			}
 		});
 
-		this._cloneCp.stdout.on('end', async (data) => {
-			this._cloneBarEntry.hide();
+		this._cp.stdout.on('end', async (data) => {
 			if (!this._cloneError) {
+				this._cloneBarEntry.hide();
 				const repositoryPath = path.join(parentPath, folderName);
-
 				const open = localize('openrepo', "Open Repository");
 				const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
 
@@ -318,7 +317,10 @@ export class CommandCenter {
 	async cloneCancel() {
 		try {
 			this._cloneError = true;
-			this._cloneCp.kill();
+			this._cp.stderr.removeAllListeners();
+			this._cp.stdout.removeAllListeners();
+			this._cloneBarEntry.hide();
+			this._cp.kill();
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'clone_cancel' });
 		} catch (err) {
 			throw err;
