@@ -107,8 +107,12 @@ export default class CompileOnSaveHelper {
 			return false;
 		}
 
-		const config = JSON.parse(fs.readFileSync(info.body.configFileName, 'utf8'));
-		return config && config.compileOnSave;
+		try {
+			const config = JSON.parse(fs.readFileSync(info.body.configFileName, 'utf8'));
+			return config && config.compileOnSave;
+		} catch (e) {
+			return false;
+		}
 	}
 
 	private emit(project: string, files: Set<string>): void {
