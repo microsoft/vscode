@@ -11,19 +11,19 @@ export class RGBA {
 	/**
 	 * Red: integer in [0-255]
 	 */
-	public readonly r: number;
+	readonly r: number;
 	/**
 	 * Green: integer in [0-255]
 	 */
-	public readonly g: number;
+	readonly g: number;
 	/**
 	 * Blue: integer in [0-255]
 	 */
-	public readonly b: number;
+	readonly b: number;
 	/**
 	 * Alpha: integer in [0-255]
 	 */
-	public readonly a: number;
+	readonly a: number;
 
 	constructor(r: number, g: number, b: number, a: number = 255) {
 		this.r = RGBA._clampInt_0_255(r);
@@ -32,7 +32,7 @@ export class RGBA {
 		this.a = RGBA._clampInt_0_255(a);
 	}
 
-	public static equals(a: RGBA, b: RGBA): boolean {
+	static equals(a: RGBA, b: RGBA): boolean {
 		return (
 			a.r === b.r
 			&& a.g === b.g
@@ -61,19 +61,19 @@ export class HSLA {
 	/**
 	 * Hue: float in [0, 360]
 	 */
-	public readonly h: number;
+	readonly h: number;
 	/**
 	 * Saturation: float in [0, 1]
 	 */
-	public readonly s: number;
+	readonly s: number;
 	/**
 	 * Luminosity: float in [0, 1]
 	 */
-	public readonly l: number;
+	readonly l: number;
 	/**
 	 * Alpha: float in [0, 1]
 	 */
-	public readonly a: number;
+	readonly a: number;
 
 	constructor(h: number, s: number, l: number, a: number) {
 		this.h = HSLA._clampFloat_0_360(h);
@@ -234,7 +234,7 @@ export class Color {
 	 *	saturation [0..1]
 	 *	value [0..1]
 	 */
-	public static fromHSV(hue: number, saturation: number, value: number, opacity: number = 255, parseErrorColor = Color.red) {
+	static fromHSV(hue: number, saturation: number, value: number, opacity: number = 255, parseErrorColor = Color.red) {
 		if (hue < 0 || hue >= 360 || saturation < 0 || saturation > 1 || value < 0 || value > 1) {
 			return parseErrorColor;
 		}
@@ -306,7 +306,7 @@ export class Color {
 	 * http://www.w3.org/TR/WCAG20/#relativeluminancedef
 	 * Returns the number in the set [0, 1]. O => Darkest Black. 1 => Lightest white.
 	 */
-	public getLuminosity(): number {
+	getLuminosity(): number {
 		const R = Color._luminosityFor(this.rgba.r);
 		const G = Color._luminosityFor(this.rgba.g);
 		const B = Color._luminosityFor(this.rgba.b);
@@ -323,13 +323,13 @@ export class Color {
 	 * http://www.w3.org/TR/WCAG20/#contrast-ratiodef
 	 * Returns the contrast ration number in the set [1, 21].
 	 */
-	public getContrast(another: Color): number {
+	getContrast(another: Color): number {
 		const lum1 = this.getLuminosity();
 		const lum2 = another.getLuminosity();
 		return lum1 > lum2 ? (lum1 + 0.05) / (lum2 + 0.05) : (lum2 + 0.05) / (lum1 + 0.05);
 	}
 
-	public getHue(): number {
+	getHue(): number {
 		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
 		const cmax = Math.max(r, g, b);
 		const cmin = Math.min(r, g, b);
@@ -352,7 +352,7 @@ export class Color {
 		return hue;
 	}
 
-	public getSaturation(): number {
+	getSaturation(): number {
 		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
 		const cmax = Math.max(r, g, b);
 		const cmin = Math.min(r, g, b);
@@ -362,7 +362,7 @@ export class Color {
 		return (cmax - cmin) / cmax;
 	}
 
-	public getValue(): number {
+	getValue(): number {
 		return Math.max(this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255);
 	}
 
@@ -370,7 +370,7 @@ export class Color {
 	 *	http://24ways.org/2010/calculating-color-contrast
 	 *  Return 'true' if darker color otherwise 'false'
 	 */
-	public isDarker(): boolean {
+	isDarker(): boolean {
 		const yiq = (this.rgba.r * 299 + this.rgba.g * 587 + this.rgba.b * 114) / 1000;
 		return yiq < 128;
 	}
@@ -379,44 +379,44 @@ export class Color {
 	 *	http://24ways.org/2010/calculating-color-contrast
 	 *  Return 'true' if lighter color otherwise 'false'
 	 */
-	public isLighter(): boolean {
+	isLighter(): boolean {
 		const yiq = (this.rgba.r * 299 + this.rgba.g * 587 + this.rgba.b * 114) / 1000;
 		return yiq >= 128;
 	}
 
-	public isLighterThan(another: Color): boolean {
+	isLighterThan(another: Color): boolean {
 		const lum1 = this.getLuminosity();
 		const lum2 = another.getLuminosity();
 		return lum1 > lum2;
 	}
 
-	public isDarkerThan(another: Color): boolean {
+	isDarkerThan(another: Color): boolean {
 		const lum1 = this.getLuminosity();
 		const lum2 = another.getLuminosity();
 		return lum1 < lum2;
 	}
 
-	public lighten(factor: number): Color {
+	lighten(factor: number): Color {
 		const result = new HSLA(this.hsla.h, this.hsla.s, this.hsla.l + this.hsla.l * factor, this.hsla.a);
 		return new Color(hsla2rgba(result));
 	}
 
-	public darken(factor: number): Color {
+	darken(factor: number): Color {
 		const result = new HSLA(this.hsla.h, this.hsla.s, this.hsla.l - this.hsla.l * factor, this.hsla.a);
 		return new Color(hsla2rgba(result));
 	}
 
-	public transparent(factor: number): Color {
+	transparent(factor: number): Color {
 		const { r, g, b, a } = this.rgba;
 		return new Color(new RGBA(r, g, b, Math.round(a * factor)));
 	}
 
-	public isTransparent(): boolean {
+	isTransparent(): boolean {
 		return this.rgba.a === 0;
 	}
 
 
-	public opposite(): Color {
+	opposite(): Color {
 		return new Color(new RGBA(
 			255 - this.rgba.r,
 			255 - this.rgba.g,
@@ -425,7 +425,7 @@ export class Color {
 		));
 	}
 
-	public blend(c: Color): Color {
+	blend(c: Color): Color {
 		const rgba = c.rgba;
 
 		// Convert to 0..1 opacity
@@ -449,7 +449,7 @@ export class Color {
 		return Color.Format.CSS.format(this);
 	}
 
-	public static getLighterColor(of: Color, relative: Color, factor?: number): Color {
+	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
 		if (of.isLighterThan(relative)) {
 			return of;
 		}
@@ -460,7 +460,7 @@ export class Color {
 		return of.lighten(factor);
 	}
 
-	public static getDarkerColor(of: Color, relative: Color, factor?: number): Color {
+	static getDarkerColor(of: Color, relative: Color, factor?: number): Color {
 		if (of.isDarkerThan(relative)) {
 			return of;
 		}
@@ -471,14 +471,14 @@ export class Color {
 		return of.darken(factor);
 	}
 
-	public static readonly white = new Color(new RGBA(255, 255, 255, 255));
-	public static readonly black = new Color(new RGBA(0, 0, 0, 255));
-	public static readonly red = new Color(new RGBA(255, 0, 0, 255));
-	public static readonly blue = new Color(new RGBA(0, 0, 255, 255));
-	public static readonly green = new Color(new RGBA(0, 255, 0, 255));
-	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
-	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
-	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
+	static readonly white = new Color(new RGBA(255, 255, 255, 255));
+	static readonly black = new Color(new RGBA(0, 0, 0, 255));
+	static readonly red = new Color(new RGBA(255, 0, 0, 255));
+	static readonly blue = new Color(new RGBA(0, 0, 255, 255));
+	static readonly green = new Color(new RGBA(0, 255, 0, 255));
+	static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
+	static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
+	static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
 }
 
 export namespace Color {
