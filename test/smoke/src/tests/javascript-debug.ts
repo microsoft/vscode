@@ -27,12 +27,12 @@ export function testJavaScriptDebug() {
 			return await app.stop();
 		});
 
-		// it('autodetects program attribute for launch.json', async function () {
-		// 	await jsDebug.openDebugViewlet();
-		// 	await jsDebug.pressConfigureLaunchJson();
-		// 	const value = await jsDebug.getProgramConfigValue();
-		// 	process.platform === 'win32' ? assert.equal(value, '${workspaceRoot}\\bin\\www') : assert.equal(value, '${workspaceRoot}/bin/www');
-		// });
+		it('autodetects program attribute for launch.json', async function () {
+			await jsDebug.openDebugViewlet();
+			await jsDebug.pressConfigureLaunchJson();
+			const value = await jsDebug.getProgramConfigValue();
+			process.platform === 'win32' ? assert.equal(value, '${workspaceRoot}\\bin\\www') : assert.equal(value, '${workspaceRoot}/bin/www');
+		});
 
 		it(`can set a breakpoint and verify if it's set`, async function () {
 			await common.openFirstMatchFile('index.js');
