@@ -1024,6 +1024,7 @@ configurationRegistry.registerConfiguration({
 function tokenGroupSettings(description: string) {
 	return {
 		description,
+		default: '#FF0000',
 		anyOf: [
 			{
 				type: 'string',
