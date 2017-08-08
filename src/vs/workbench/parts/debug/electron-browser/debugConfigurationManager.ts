@@ -532,7 +532,10 @@ class Launch implements ILaunch {
 					}
 
 					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => content);
+					return this.fileService.updateContent(resource, content).then(() => {
+						// convert string into IContent; see #32135
+						return { value: content };
+					});
 				});
 		}).then(content => {
 			if (!content) {
