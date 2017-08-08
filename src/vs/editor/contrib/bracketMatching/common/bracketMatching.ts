@@ -119,21 +119,28 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 
 		const position = selection.getStartPosition();
-		const brackets = model.matchBracket(position);
-		if (!brackets) {
-			return;
-		}
 
+		// find matching brackets if position is on a bracket
+		const brackets = model.matchBracket(position);
 		let resultingPosition: Position = null;
+		if (brackets) {
 		if (brackets[0].containsPosition(position)) {
 			resultingPosition = brackets[1].getStartPosition();
 		} else if (brackets[1].containsPosition(position)) {
 			resultingPosition = brackets[0].getStartPosition();
 		}
+		} else {
+			// find the next bracket if the position isn't on a matching bracket
+			const nextBracket = model.findNextBracket(position);
+			if (nextBracket.range) {
+				resultingPosition = nextBracket.range.getStartPosition();
+			}
+		}
 
 		if (resultingPosition) {
 			this._editor.setPosition(resultingPosition);
 			this._editor.revealPosition(resultingPosition);
+		}
 		}
 	}
 

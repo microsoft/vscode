@@ -37,6 +37,7 @@ suite('bracket matching', () => {
 		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
 
+			// start on closing bracket
 			editor.setPosition(new Position(1, 20));
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 9));
@@ -52,6 +53,57 @@ suite('bracket matching', () => {
 			assert.deepEqual(editor.getPosition(), new Position(1, 23));
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 31));
+
+			bracketMatchingController.dispose();
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
+	test('Jump to next bracket', () => {
+		class BracketMode extends MockMode {
+
+			private static _id = new LanguageIdentifier('bracketMode', 3);
+
+			constructor() {
+				super(BracketMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')'],
+					],
+					comments: {
+						blockComment: ['/*', '*/']
+					}
+				}));
+			}
+		}
+
+		let mode = new BracketMode();
+		let model = Model.createFromString('var x = (3 + (5-7)); /* test () comment */ x();', undefined, mode.getLanguageIdentifier());
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
+
+			// start position between brackets
+			editor.setPosition(new Position(1, 16));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 18));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 14));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 18));
+
+			// skip brackets in comments
+			editor.setPosition(new Position(1, 27));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 45));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 46));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 45));
 
 			bracketMatchingController.dispose();
 		});
