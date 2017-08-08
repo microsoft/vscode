@@ -5,7 +5,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import scorer = require('vs/base/common/scorer');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -101,7 +100,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), () => {
 			const newTerminal = this.terminalService.createInstance();
 			this.terminalService.setActiveInstance(newTerminal);
-			this.terminalService.showPanel();
+			this.terminalService.showPanel(true);
 		}));
 
 		const entries = terminalEntries.filter(e => {
@@ -126,9 +125,8 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		const terminals = this.terminalService.getInstanceLabels();
 		const terminalEntries = terminals.map(terminal => {
 			return new TerminalEntry(terminal, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstanceByIndex(parseInt(terminal.split(':')[0], 10) - 1);
-				}, errors.onUnexpectedError);
+				this.terminalService.setActiveInstanceByIndex(parseInt(terminal.split(':')[0], 10) - 1);
+				this.terminalService.showPanel(true);
 			});
 		});
 		return terminalEntries;
