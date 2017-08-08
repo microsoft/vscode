@@ -283,7 +283,7 @@ export class CallStackController extends BaseDebugController {
 	}
 
 	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		this.debugService.focusStackFrameAndEvaluate(stackFrame).then(() => {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
 		}, errors.onUnexpectedError);
@@ -373,7 +373,7 @@ export class CallStackDataSource implements IDataSource {
 		}
 
 		return callStackPromise.then(() => {
-			if (callStack.length === 1) {
+			if (callStack.length === 1 && thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
 				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
@@ -520,7 +520,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.name;
+		data.name.textContent = process.getName(this.contextService.hasMultiFolderWorkspace());
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -532,7 +532,8 @@ export class CallStackRenderer implements IRenderer {
 		data.name.textContent = thread.name;
 
 		if (thread.stopped) {
-			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason);
+			data.stateLabel.textContent = thread.stoppedDetails.description ||
+				thread.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason) : nls.localize('paused', "Paused");
 		} else {
 			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}

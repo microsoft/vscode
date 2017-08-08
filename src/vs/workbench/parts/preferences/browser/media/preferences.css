@@ -107,7 +107,6 @@
 }
 
 .monaco-editor .settings-header-widget .title-container {
-	padding-left: 12px;
 	display: flex;
 }
 
@@ -128,7 +127,6 @@
 }
 
 .monaco-editor .settings-header-widget .title-container .message {
-	padding-left: 12px;
 	white-space: nowrap;
 }
 
@@ -213,7 +211,16 @@
 	background: url('edit_inverse.svg') center center no-repeat;
 }
 
-.monaco-editor .invalidSetting {
+.monaco-editor .unsupportedWorkbenhSettingInfo:before {
+	content:" ";
+	display:inline-block;
+	height:1em;
+	width:1em;
+	background: url(info.svg) 50% 50% no-repeat;
+	background-size: 0.9em;
+}
+
+.monaco-editor .dim-configuration {
 	color: #b1b1b1;
 }
 

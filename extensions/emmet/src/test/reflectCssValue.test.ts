@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Selection, commands } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
+import { reflectCssValue } from '../reflectCssValue';
 
 suite('Tests for Emmet: Reflect CSS Value command', () => {
 	teardown(closeAllEditors);
@@ -41,7 +42,7 @@ suite('Tests for Emmet: Reflect CSS Value command', () => {
 	test('Reflect Css Value in css file', function (): any {
 		return withRandomFileEditor(cssContents, '.css', (editor, doc) => {
 			editor.selections = [new Selection(5, 10, 5, 10)];
-			return commands.executeCommand('emmet.reflectCssValue').then(() => {
+			return reflectCssValue().then(() => {
 				assert.equal(doc.getText(), cssContents.replace(/\(50deg\)/g, '(20deg)'));
 				return Promise.resolve();
 			});
@@ -51,7 +52,7 @@ suite('Tests for Emmet: Reflect CSS Value command', () => {
 	test('Reflect Css Value in html file', function (): any {
 		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
 			editor.selections = [new Selection(7, 20, 7, 20)];
-			return commands.executeCommand('emmet.reflectCssValue').then(() => {
+			return reflectCssValue().then(() => {
 				assert.equal(doc.getText(), htmlContents.replace(/\(50deg\)/g, '(20deg)'));
 				return Promise.resolve();
 			});

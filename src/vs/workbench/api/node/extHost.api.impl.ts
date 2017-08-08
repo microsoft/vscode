@@ -273,7 +273,11 @@ export function createApiFactory(
 			},
 			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
 				return languageFeatures.setLanguageConfiguration(language, configuration);
-			}
+			},
+			// proposed API
+			registerColorProvider: proposedApiFunction(extension, (selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider) => {
+				return languageFeatures.registerColorProvider(selector, provider);
+			})
 		};
 
 		// namespace: window
@@ -382,8 +386,8 @@ export function createApiFactory(
 				apiUsage.publicLog('workspace#onDidChangeWorkspaceFolders');
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
-			asRelativePath: (pathOrUri) => {
-				return extHostWorkspace.getRelativePath(pathOrUri);
+			asRelativePath: (pathOrUri, includeWorkspace) => {
+				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
 				return extHostWorkspace.findFiles(include, exclude, maxResults, token);
@@ -445,12 +449,9 @@ export function createApiFactory(
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return extHostConfiguration.onDidChangeConfiguration(listener, thisArgs, disposables);
 			},
-			getConfiguration: (section?: string): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration(section);
+			getConfiguration: (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
+				return extHostConfiguration.getConfiguration(section, <URI>resource);
 			},
-			getConfiguration2: proposedApiFunction(extension, (section?: string, resource?: vscode.Uri): vscode.WorkspaceConfiguration => {
-				return extHostConfiguration.getConfiguration2(section, <URI>resource);
-			}),
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
@@ -480,11 +481,8 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
-			startDebugging: proposedApiFunction(extension, (folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) => {
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
-			}),
-			startDebugSession(folder: vscode.WorkspaceFolder | undefined, config: vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugSession(folder, config);
 			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
@@ -514,7 +512,7 @@ export function createApiFactory(
 		};
 
 
-		return {
+		const api: typeof vscode = {
 			version: pkg.version,
 			// namespaces
 			commands,
@@ -525,14 +523,13 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
-			get credentials() {
-				return proposedApiFunction(extension, () => {
-					return credentials;
-				})();
-			},
+			credentials,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
+			Color: extHostTypes.Color,
+			ColorInfo: extHostTypes.ColorInfo,
+			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
@@ -542,7 +539,6 @@ export function createApiFactory(
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			DocumentLink: extHostTypes.DocumentLink,
-			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
@@ -578,8 +574,13 @@ export function createApiFactory(
 			TaskGroup: extHostTypes.TaskGroup,
 			ProcessExecution: extHostTypes.ProcessExecution,
 			ShellExecution: extHostTypes.ShellExecution,
-			Task: extHostTypes.Task
+			Task: extHostTypes.Task,
+			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
+		if (!extension.enableProposedApi) {
+			delete api.credentials; // Instead of error to avoid #31854
+		}
+		return api;
 	};
 }
 

@@ -9,6 +9,7 @@ import 'vs/css!./media/extensionsWidgets';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
+import * as platform from 'vs/base/common/platform';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -78,12 +79,17 @@ export class InstallWidget implements IDisposable {
 				installLabel = `${Math.floor(installCount / 100000) / 10}M`;
 			} else if (installCount > 1000) {
 				installLabel = `${Math.floor(installCount / 1000)}K`;
+			} else {
+				installLabel = String(installCount);
 			}
+		}
+		else {
+			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
 		append(this.container, $('span.octicon.octicon-cloud-download'));
 		const count = append(this.container, $('span.count'));
-		count.textContent = installLabel || String(installCount);
+		count.textContent = installLabel;
 	}
 
 	dispose(): void {

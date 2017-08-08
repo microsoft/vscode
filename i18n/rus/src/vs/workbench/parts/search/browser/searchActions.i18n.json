@@ -9,7 +9,6 @@
 	"focusNextInputBox": "Фокус на следующем поле ввода",
 	"focusPreviousInputBox": "Фокус на предыдущем поле ввода",
 	"replaceInFiles": "Заменить в файлах",
-	"findInFolder": "Найти в папке",
 	"RefreshAction.label": "Обновить",
 	"ClearSearchResultsAction.label": "Очистить результаты поиска",
 	"FocusNextSearchResult.label": "Перейти к следующему результату поиска.",

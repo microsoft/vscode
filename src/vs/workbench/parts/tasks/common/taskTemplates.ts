@@ -28,7 +28,7 @@ const dotnetBuild: TaskEntry = {
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "build",',
-		'\t\t\t"command": "dotnet",',
+		'\t\t\t"command": "dotnet build",',
 		'\t\t\t"type": "shell",',
 		'\t\t\t"group": "build",',
 		'\t\t\t"presentation": {',

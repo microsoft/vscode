@@ -36,7 +36,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 import { isEqual } from "vs/base/common/paths";
-import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
+import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
 
 export class LazyMessagePassingProtol implements IMessagePassingProtocol {
 
@@ -111,6 +111,13 @@ export class ExtensionHostProcessWorker {
 			const extensionPaths = broadcast.payload as string[];
 			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
 				this.windowService.closeWindow();
+			}
+		}
+
+		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this.isExtensionDevelopmentHost) {
+			const extensionPaths = broadcast.payload as string[];
+			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
+				this.windowService.reloadWindow();
 			}
 		}
 	}

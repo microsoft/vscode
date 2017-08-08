@@ -6,6 +6,7 @@
 import * as semver from 'semver';
 
 export default class API {
+	public static readonly defaultVersion = new API('1.0.0');
 
 	private readonly _version: string;
 

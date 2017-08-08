@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import uri from 'vs/base/common/uri';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
@@ -25,16 +26,21 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: '_workbench.startDebug',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string) {
+		handler(accessor: ServicesAccessor, configurationOrName: IConfig | string, folderUri?: uri) {
 			const debugService = accessor.get(IDebugService);
 			if (!configurationOrName) {
 				configurationOrName = debugService.getConfigurationManager().selectedName;
 			}
 
+			if (!folderUri) {
+				const selectedLaunch = debugService.getConfigurationManager().selectedLaunch;
+				folderUri = selectedLaunch ? selectedLaunch.workspaceUri : undefined;
+			}
+
 			if (typeof configurationOrName === 'string') {
-				debugService.startDebugging(configurationOrName);
+				debugService.startDebugging(folderUri, configurationOrName);
 			} else {
-				debugService.createProcess(configurationOrName);
+				debugService.createProcess(folderUri, configurationOrName);
 			}
 		},
 		when: CONTEXT_NOT_IN_DEBUG_MODE,
@@ -196,14 +202,15 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor) => {
+		handler: (accessor, workspaceUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (!accessor.get(IWorkspaceContextService).hasWorkspace()) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
+			const launch = manager.getLaunches().filter(l => l.workspaceUri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
-			return manager.selectedLaunch.openConfigFile(false).done(editor => {
+			return launch.openConfigFile(false).done(editor => {
 				if (editor) {
 					const codeEditor = <ICommonCodeEditor>editor.getControl();
 					if (codeEditor) {

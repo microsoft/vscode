@@ -65,7 +65,12 @@ export class MarkdownEngine {
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
 		}
-		this.md.set({ breaks: vscode.workspace.getConfiguration('markdown').get('preview.breaks', false) });
+
+		const config = vscode.workspace.getConfiguration('markdown');
+		this.md.set({
+			breaks: config.get('preview.breaks', false),
+			linkify: config.get('preview.linkify', true)
+		});
 		return this.md;
 	}
 

@@ -654,7 +654,13 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
 			// Checks in cache so that view do not jump. See #29609
-			return this.viewsStates.size === 1;
+			let visibleViewsCount = 0;
+			this.viewsStates.forEach(viewState => {
+				if (!viewState.isHidden) {
+					visibleViewsCount++;
+				}
+			});
+			return visibleViewsCount === 1;
 		}
 		return true;
 	}

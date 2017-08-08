@@ -97,11 +97,11 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public hasFolderWorkspace(): boolean {
-		return this.hasWorkspace();
+		return this.workspace && !this.workspace.configuration;
 	}
 
 	public hasMultiFolderWorkspace(): boolean {
-		return false;
+		return this.workspace && !!this.workspace.configuration;
 	}
 
 	public getLegacyWorkspace(): ILegacyWorkspace {

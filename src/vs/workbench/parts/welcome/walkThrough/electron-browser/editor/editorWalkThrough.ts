@@ -11,8 +11,18 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
+import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+
+const typeId = 'workbench.editors.walkThroughInput';
+const inputOptions: WalkThroughInputOptions = {
+	typeId,
+	name: localize('editorWalkThrough.title', "Interactive Playground"),
+	resource: URI.parse(require.toUrl('./vs_code_editor_walkthrough.md'))
+		.with({ scheme: Schemas.walkThrough }),
+	telemetryFrom: 'walkThrough'
+};
 
 export class EditorWalkThroughAction extends Action {
 
@@ -29,10 +39,21 @@ export class EditorWalkThroughAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		const uri = URI.parse(require.toUrl('./vs_code_editor_walkthrough.md'))
-			.with({ scheme: Schemas.walkThrough });
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Interactive Playground"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
+		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
 		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(() => void (0));
+	}
+}
+
+export class EditorWalkThroughInputFactory implements IEditorInputFactory {
+
+	static ID = typeId;
+
+	public serialize(editorInput: EditorInput): string {
+		return '{}';
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WalkThroughInput {
+		return instantiationService.createInstance(WalkThroughInput, inputOptions);
 	}
 }

@@ -6,9 +6,21 @@
 {
 	"openFolder": "打开文件夹...",
 	"openFileFolder": "打开...",
+	"reload": "重新加载(&&R)",
 	"cancel": "取消",
+	"select": "选择(&&S)",
+	"selectWorkspace": "选择文件夹作为工作区",
+	"addSupported": "需要重载窗口以打开多个文件夹。",
 	"addFolderToWorkspace": "将文件夹添加到工作区...",
+	"add": "添加(&&A)",
 	"addFolderToWorkspaceTitle": "将文件夹添加到工作区",
 	"removeFolderFromWorkspace": "将文件夹从工作区删除",
-	"save": "保存(&&S)"
+	"saveWorkspaceAsAction": "将工作区另存为...",
+	"saveEmptyWorkspaceNotSupported": "请先打开一个工作区再保存。",
+	"saveNotSupported": "需要重载窗口以保存工作区。",
+	"save": "保存(&&S)",
+	"saveWorkspace": "保存工作区",
+	"openWorkspaceAction": "打开工作区...",
+	"newWorkspace": "新建工作区...",
+	"openWorkspaceConfigFile": "打开工作区配置文件"
 }

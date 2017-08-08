@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Arguments de ligne de commande à utiliser sur le terminal Linux.",
 	"terminal.integrated.shell.osx": "Chemin de l'interpréteur de commandes utilisé par le terminal sur OS X.",
 	"terminal.integrated.shellArgs.osx": "Arguments de ligne de commande à utiliser sur le terminal OS X.",
-	"terminal.integrated.shell.windows": "Chemin de l'interpréteur de commandes utilisé par le terminal sur Windows. Quand vous vous servez des interpréteurs de commandes fournis avec Windows (cmd, PowerShell ou Bash sur Ubuntu), préférez C:\\Windows\\sysnative à C:\\Windows\\System32 pour utiliser les versions 64 bits.",
 	"terminal.integrated.shellArgs.windows": "Arguments de ligne de commande à utiliser sur le terminal Windows.",
 	"terminal.integrated.rightClickCopyPaste": "Une fois le paramètre défini, le menu contextuel cesse de s'afficher quand l'utilisateur clique avec le bouton droit dans le terminal. À la place, une opération de copie est effectuée quand il existe une sélection, et une opération de collage est effectuée en l'absence de sélection.",
 	"terminal.integrated.fontFamily": "Contrôle la famille de polices du terminal. La valeur par défaut est la valeur associée à editor.fontFamily.",

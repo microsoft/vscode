@@ -462,5 +462,53 @@ suite('SnippetSession', function () {
 
 		assert.equal(editor.getModel().getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
 	});
+
+	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
+		editor.getModel().setValue([
+			'start',
+			'\t\t-one',
+			'\t\t-two',
+			'end'
+		].join('\n'));
+
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 3, 7));
+
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+
+		let expected = [
+			'start',
+			'\t<div>',
+			'\t\t\t-one',
+			'\t\t\t-two',
+			'\t</div>',
+			'end'
+		].join('\n');
+
+		assert.equal(editor.getModel().getValue(), expected);
+
+		editor.getModel().setValue([
+			'start',
+			'\t\t-one',
+			'\t-two',
+			'end'
+		].join('\n'));
+
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 3, 7));
+
+		new SnippetSession(editor, '<div>\n\t$TM_SELECTED_TEXT\n</div>$0').insert();
+
+		expected = [
+			'start',
+			'\t<div>',
+			'\t\t\t-one',
+			'\t\t-two',
+			'\t</div>',
+			'end'
+		].join('\n');
+
+		assert.equal(editor.getModel().getValue(), expected);
+	});
 });
 

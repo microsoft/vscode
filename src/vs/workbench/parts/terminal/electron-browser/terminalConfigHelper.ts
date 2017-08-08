@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -152,6 +153,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
 		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
+
+		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+		// safe to assume that this was used by accident as Sysnative does not
+		// exist and will break the terminal in non-WoW64 environments.
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+			}
+		}
 	}
 
 	private _toInteger(source: any, minimum?: number): number {

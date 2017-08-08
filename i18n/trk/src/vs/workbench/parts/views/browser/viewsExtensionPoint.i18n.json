@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "Bu görünümü göstermek için doğru olması gereken koşul",
 	"vscode.extension.contributes.views": "Görünümleri düzenleyiciye ekler.",
 	"views.explorer": "Gezgin Görünümü",
+	"views.debug": "Hata Ayıklama Görünümü",
 	"locationId.invalid": "`{0}` geçerli bir görünüm konumu değil"
 }

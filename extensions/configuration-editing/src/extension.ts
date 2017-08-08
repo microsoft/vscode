@@ -146,3 +146,38 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 
 	editor.setDecorations(decoration, ranges);
 }
+
+vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'json' }, {
+	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
+		const result: vscode.SymbolInformation[] = [];
+		let name: string = '';
+		let lastProperty = '';
+		let startOffset = 0;
+		let depthInObjects = 0;
+
+		visit(document.getText(), {
+			onObjectProperty: (property, offset, length) => {
+				lastProperty = property;
+			},
+			onLiteralValue: (value: any, offset: number, length: number) => {
+				if (lastProperty === 'name') {
+					name = value;
+				}
+			},
+			onObjectBegin: (offset: number, length: number) => {
+				depthInObjects++;
+				if (depthInObjects === 2) {
+					startOffset = offset;
+				}
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				if (name && depthInObjects === 2) {
+					result.push(new vscode.SymbolInformation(name, vscode.SymbolKind.Object, new vscode.Range(document.positionAt(startOffset), document.positionAt(offset))));
+				}
+				depthInObjects--;
+			},
+		});
+
+		return result;
+	}
+});

@@ -8,33 +8,57 @@ import * as platform from 'vs/base/common/platform';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
+import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import XTermTerminal = require('xterm');
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
-	private _onCheckWindowsShell: Emitter<string>;
-	private _rootShellExecutable: string;
-	private _rootProcessId: number;
+	private _onCheckShell: Emitter<TPromise<string>>;
+	private _wmicProcess: cp.ChildProcess;
+	private _isDisposed: boolean;
 
-	public constructor(rootProcessId: number, rootShellExecutable: string) {
-		this._childProcessIdStack = [];
-		this._rootShellExecutable = rootShellExecutable;
-		this._rootProcessId = rootProcessId;
-
+	public constructor(
+		private _rootProcessId: number,
+		private _rootShellExecutable: string,
+		private _terminalInstance: ITerminalInstance,
+		private _xterm: XTermTerminal
+	) {
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
 		}
 
-		this._onCheckWindowsShell = new Emitter<string>();
-		debounceEvent(this._onCheckWindowsShell.event, (l, e) => e, 100, true)(() => {
-			this.getShellName();
+		this._childProcessIdStack = [this._rootProcessId];
+		this._isDisposed = false;
+		this._onCheckShell = new Emitter<TPromise<string>>();
+		// The debounce is necessary to prevent multiple processes from spawning when
+		// the enter key or output is spammed
+		debounceEvent(this._onCheckShell.event, (l, e) => e, 200, true)(() => {
+			this.checkShell();
 		});
+
+		this._xterm.on('lineFeed', () => this._onCheckShell.fire());
+		this._xterm.on('keypress', () => this._onCheckShell.fire());
+	}
+
+	private checkShell(): void {
+		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
+			this.getShellName().then(title => {
+				if (!this._isDisposed) {
+					this._terminalInstance.setTitle(title, true);
+				}
+			});
+		}
 	}
 
 	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
 		return new TPromise((resolve, reject) => {
-			cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
+			this._wmicProcess = cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
+				this._wmicProcess = null;
+				if (this._isDisposed) {
+					reject(null);
+				}
 				if (err) {
 					reject(err);
 				} else if (stderr.length > 0) {
@@ -75,20 +99,24 @@ export class WindowsShellHelper {
 			// Save the pid in the stack and keep looking for children of that child
 			this._childProcessIdStack.push(result[0].pid);
 			return this.refreshShellProcessTree(result[0].pid, result[0].executable);
-		}, error => { return error; });
+		}, error => {
+			if (!this._isDisposed) {
+				return error;
+			}
+		});
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
+		if (this._wmicProcess) {
+			this._wmicProcess.kill();
+		}
 	}
 
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
 	public getShellName(): TPromise<string> {
-		if (this._childProcessIdStack.length === 0) {
-			this._childProcessIdStack.push(this._rootProcessId);
-		}
-		return new TPromise<string>((resolve) => {
-			this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null).then(result => {
-				resolve(result);
-			}, error => { return error; });
-		});
+		return this.refreshShellProcessTree(this._childProcessIdStack[this._childProcessIdStack.length - 1], null);
 	}
 }

@@ -11,5 +11,7 @@
 	"noSettingsFound": "Nincs eredmény",
 	"oneSettingFound": "1 illeszkedő beállítás",
 	"settingsFound": "{0} illeszkedő beállítás",
+	"fileEditorWithInputAriaLabel": "{0}. Szövegfájlszerkesztő.",
+	"fileEditorAriaLabel": "Szövegfájlszerkesztő",
 	"preferencesAriaLabel": "Az alapértelmezett beállítások. Írásvédett szerkesztőablak."
 }

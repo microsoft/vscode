@@ -11,7 +11,7 @@
 
 	let didShow = false;
 
-	document.addEventListener('securitypolicyviolation', () => {
+	const showCspWarning = () => {
 		if (didShow) {
 			return;
 		}
@@ -28,5 +28,15 @@
 		notification.setAttribute('href', `command:markdown.showPreviewSecuritySelector?${encodeURIComponent(JSON.stringify(args))}`);
 
 		document.body.appendChild(notification);
+	};
+
+	document.addEventListener('securitypolicyviolation', () => {
+		showCspWarning();
+	});
+
+	window.addEventListener('message', (event) => {
+		if (event && event.data && event.data.name === 'vscode-did-block-svg') {
+			showCspWarning();
+		}
 	});
 }());

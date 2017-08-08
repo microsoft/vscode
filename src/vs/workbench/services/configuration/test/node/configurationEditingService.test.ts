@@ -178,7 +178,7 @@ suite('ConfigurationEditingService', () => {
 	test('errors cases - invalid target', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'tasks.something', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_INVALID_TARGET'),
-			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_TARGET));
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET));
 	});
 
 	test('errors cases - no workspace', () => {

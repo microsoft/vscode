@@ -87,6 +87,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface ISession {
+	root: uri;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -120,7 +121,7 @@ export enum ProcessState {
 }
 
 export interface IProcess extends ITreeElement {
-	name: string;
+	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
@@ -272,7 +273,7 @@ export interface IViewModel extends ITreeElement {
 	isMultiProcessView(): boolean;
 
 	onDidFocusProcess: Event<IProcess | undefined>;
-	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 }
@@ -385,7 +386,9 @@ export interface IConfigurationManager {
 
 	selectedName: string;
 
-	selectConfiguration(launch: ILaunch, name: string): void;
+	mruConfigs: { name: string, launch: ILaunch }[];
+
+	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
 
 	getLaunches(): ILaunch[];
 
@@ -411,6 +414,8 @@ export interface ILaunch {
 
 	workspaceUri: uri;
 
+	name: string;
+
 	/**
 	 * Returns a configuration with the specified name.
 	 * Returns null if there is no configuration with the specified name.
@@ -435,7 +440,6 @@ export interface ILaunch {
 	 */
 	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
-
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
@@ -445,6 +449,10 @@ export interface ILaunch {
 // Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+
+export interface DebugEvent extends DebugProtocol.Event {
+	sessionId?: string;
+}
 
 export interface IDebugService {
 	_serviceBrand: any;
@@ -472,7 +480,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on custom DAP events.
 	 */
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	onDidCustomEvent: Event<DebugEvent>;
 
 	/**
 	 * Gets the current configuration manager.
@@ -482,7 +490,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
+	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess, explicit?: boolean): TPromise<void>;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -564,12 +572,12 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(root: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<IProcess>;
+	createProcess(root: uri, config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Find process by ID.

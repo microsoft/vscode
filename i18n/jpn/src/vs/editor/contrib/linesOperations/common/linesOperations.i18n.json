@@ -16,7 +16,7 @@
 	"lines.outdent": "行のインデント解除",
 	"lines.insertBefore": "行を上に挿入",
 	"lines.insertAfter": "行を下に挿入",
-	"lines.deleteAllLeft": "残りをすべて削除する",
+	"lines.deleteAllLeft": "左側をすべて削除",
 	"lines.deleteAllRight": "右側をすべて削除",
 	"lines.joinLines": "行をつなげる",
 	"editor.transpose": "カーソルの周囲の文字を入れ替える",

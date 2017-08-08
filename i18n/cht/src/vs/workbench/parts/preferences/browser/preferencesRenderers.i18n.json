@@ -6,7 +6,6 @@
 {
 	"errorInvalidConfiguration": "無法寫入設定.請開啟使用者設定並修正檔案中的錯誤/警告後再試一次.",
 	"defaultSettingsTitle": "預設設定",
-	"defaultSettingsMessage": "請將您的設定放置在檔案中的右側以覆寫。",
 	"noSettingsFound": "找不到任何設定。",
 	"editTtile": "編輯",
 	"replaceDefaultValue": "在設定中取代",

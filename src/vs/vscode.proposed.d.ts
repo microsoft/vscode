@@ -7,12 +7,6 @@
 
 declare module 'vscode' {
 
-	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
-
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
-
-	}
-
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 		// todo@joh -> added, deleted, renamed, changed
@@ -25,79 +19,6 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
-
-		/**
-		 * Get a configuration object.
-		 *
-		 * When a section-identifier is provided only that part of the configuration
-		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
-		 *
-		 * When a resource is provided, only configuration scoped to that resource
-		 * is returned.
-		 *
-		 * If editor is opened with `no folders` then returns the global configuration.
-		 *
-		 * If editor is opened with `folders` then returns the configuration from the folder in which the resource belongs to.
-		 *
-		 * If resource does not belongs to any opened folders, then returns the workspace configuration.
-		 *
-		 * @param section A dot-separated identifier.
-		 * @param resource A resource for which configuration is asked
-		 * @return The full workspace configuration or a subset.
-		 */
-		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
-	}
-
-	/**
-	 * Represents the workspace configuration.
-	 *
-	 * The workspace configuration is a merged view of
-	 *
-	 * - Default configuration
-	 * - Global configuration
-	 * - Workspace configuration (if available)
-	 * - Folder configuration of the [resource](#workspace.getConfiguration2) (if requested and available)
-	 *
-	 * **Global configuration** comes from User Settings and shadows Defaults.
-	 *
-	 * **Workspace configuration** comes from the `.vscode` folder under first [workspace folders](#workspace.workspaceFolders)
-	 * and shadows Globals configuration.
-	 *
-	 * **Folder configurations** comes from `.vscode` folder under [workspace folders](#workspace.workspaceFolders). Each [workspace folder](#workspace.workspaceFolders)
-	 * has a configuration and the requested resource determines which folder configuration to pick. Folder configuration shodows Workspace configuration.
-	 *
-	 * *Note:* Workspace and Folder configurations contains settings from `launch.json` and `tasks.json` files. Their basename will be
-	 * part of the section identifier. The following snippets shows how to retrieve all configurations
-	 * from `launch.json`:
-	 *
-	 * ```ts
-	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch', workspace.workspaceFolders[1]);
-	 *
-	 * // retrieve values
-	 * const values = config.get('configurations');
-	 * ```
-	 */
-	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
-
-		/**
-		 * Retrieve all information about a configuration setting. A configuration value
-		 * often consists of a *default* value, a global or installation-wide value,
-		 * a workspace-specific value and a folder-specific value.
-		 *
-		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
-		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `folderValue`.
-		 *
-		 * *Note:* The configuration name must denote a leaf in the configuration tree
-		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return Information about a configuration setting or `undefined`.
-		 */
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
-
 	}
 
 	export namespace window {
@@ -134,21 +55,6 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	export namespace debug {
-
-		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a DebugConfiguration.
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. 'workspaceRoot') are resolved against the given folder.
-		 * @param folder The workspace folder for looking up named configurations and resolving variables or undefined.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a DebugConfiguration object.
-		 * @return A thenable that resolves when debugging could be successfully started.
-		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
-	}
-
 	/**
 	 * Namespace for handling credentials.
 	 */
@@ -181,5 +87,40 @@ declare module 'vscode' {
 		 * @return A promise resolving to true if there was a secret for that service and account.
 		 */
 		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+	}
+
+	export class Color {
+		readonly red: number;
+		readonly green: number;
+		readonly blue: number;
+		readonly alpha?: number;
+
+		constructor(red: number, green: number, blue: number, alpha?: number);
+
+		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
+		static fromHex(hex: string): Color;
+	}
+
+	export type ColorFormat = string | { opaque: string, transparent: string };
+
+	// TODO@Michel
+	export class ColorInfo {
+		range: Range;
+
+		color: Color;
+
+		format: ColorFormat;
+
+		availableFormats: ColorFormat[];
+
+		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
+	}
+
+	export interface DocumentColorProvider {
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
+	}
+
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
 	}
 }

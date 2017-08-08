@@ -140,22 +140,6 @@ export class RipgrepEngine {
 	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
 
-		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
-		// Only show it if it's from a search path.
-		const reg = /^\.\/(.*): No such file or directory \(os error 2\)/;
-		const noSuchFileMatch = firstLine.match(reg);
-		if (noSuchFileMatch) {
-			const errorPath = noSuchFileMatch[1];
-			const matchingPathSegmentReg = new RegExp('[\\/]' + errorPath);
-			const matchesFolderQuery = this.config.folderQueries
-				.map(q => q.folder)
-				.some(folder => !!folder.match(matchingPathSegmentReg));
-
-			return matchesFolderQuery ?
-				firstLine :
-				undefined;
-		}
-
 		if (strings.startsWith(firstLine, 'Error parsing regex')) {
 			return firstLine;
 		}
@@ -389,7 +373,7 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
+		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
 		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
@@ -420,7 +404,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 			key = getAbsoluteGlob(folder, key);
 
 			if (typeof value === 'boolean' && value) {
-				globArgs.push(key);
+				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {
 				if (!siblingClauses) {
 					siblingClauses = {};
@@ -440,14 +424,21 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolutePathKey = paths.isAbsolute(key) ?
+	let absolute = paths.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
 
-	const root = paths.getRoot(folder);
+	absolute = strings.rtrim(absolute, '\\');
+	absolute = strings.rtrim(absolute, '/');
+
+	return absolute;
+}
+
+export function fixDriveC(path: string): string {
+	const root = paths.getRoot(path);
 	return root.toLowerCase() === 'c:/' ?
-		absolutePathKey.replace(/^c:[/\\]/i, '/') :
-		absolutePathKey;
+		path.replace(/^c:[/\\]/i, '/') :
+		path;
 }
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {

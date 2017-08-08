@@ -11,6 +11,5 @@
 	"genericSaveError": "Échec d'enregistrement de '{0}' ({1}).",
 	"staleSaveError": "Échec de l'enregistrement de '{0}' : le contenu sur disque est plus récent. Cliquez sur **Comparer** pour comparer votre version à celle située sur le disque.",
 	"compareChanges": "Comparer",
-	"saveConflictDiffLabel": "{0} (sur le disque) ↔ {1} (dans {2}) - Résoudre le conflit d'enregistrement",
-	"userGuide": "Utilisez les actions de la barre d'outils de l'éditeur pour **annuler** vos modifications, ou pour **remplacer** le contenu sur disque par le contenu incluant vos changements"
+	"saveConflictDiffLabel": "{0} (sur le disque) ↔ {1} (dans {2}) - Résoudre le conflit d'enregistrement"
 }

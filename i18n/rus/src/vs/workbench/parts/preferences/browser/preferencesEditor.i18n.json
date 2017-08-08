@@ -11,5 +11,7 @@
 	"noSettingsFound": "Нет результатов",
 	"oneSettingFound": "Один соответствующий параметр",
 	"settingsFound": "Соответствующих параметров: {0}",
+	"fileEditorWithInputAriaLabel": "{0}. Редактор текстовых файлов.",
+	"fileEditorAriaLabel": "Редактор текстовых файлов.",
 	"preferencesAriaLabel": "Параметры по умолчанию. Текстовый редактор только для чтения."
 }

@@ -7,7 +7,5 @@
 	"openFolderFirst": "Aprire prima una cartella per creare le impostazioni dell'area di lavoro",
 	"emptyKeybindingsHeader": "Inserire i tasti di scelta rapida in questo file per sovrascrivere i valori predefiniti",
 	"defaultKeybindings": "Tasti di scelta rapida predefiniti",
-	"emptySettingsHeader": "Inserire le impostazioni in questo file per sovrascrivere quelle predefinite",
-	"emptySettingsHeader1": "Inserire le impostazioni in questo file per sovrascrivere quelle utente e predefinite.",
 	"fail.createSettings": "Non è possibile creare '{0}' ({1})."
 }

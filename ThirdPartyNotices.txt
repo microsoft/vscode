@@ -1,3 +1,5 @@
+===================BEGIN GENERATOR LOG
+===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
@@ -13,7 +15,7 @@ This project incorporates components from the projects listed below. The origina
 6.	atom/language-objective-c (https://github.com/atom/language-objective-c)
 7.	atom/language-sass version 0.52.0 (https://github.com/atom/language-sass)
 8.	atom/language-xml (https://github.com/atom/language-xml)
-9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
+9.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
 10.	chjj-marked version 0.3.6 (https://github.com/npmcomponent/chjj-marked)
 11.	chriskempson/tomorrow-theme (https://github.com/chriskempson/tomorrow-theme)
 12.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
@@ -22,45 +24,46 @@ This project incorporates components from the projects listed below. The origina
 15.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
 16.	demyte/language-cshtml (https://github.com/demyte/language-cshtml)
 17.	dotnet/csharp-tmLanguage version 0.1.0 (https://github.com/dotnet/csharp-tmLanguage)
-18.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-19.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-20.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
-21.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
-22.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-23.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-24.	language-docker (https://github.com/moby/moby)
-25.	language-go version 0.39.0 (https://github.com/atom/language-go)
-26.	language-less (https://github.com/atom/language-less)
-27.	language-php (https://github.com/atom/language-php)
-28.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
-29.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
-30.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-31.	octicons-code version 3.1.0 (https://octicons.github.com)
-32.	octicons-font version 3.1.0 (https://octicons.github.com)
-33.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
-34.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-35.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
-36.	sublimehq/Packages (https://github.com/sublimehq/Packages)
-37.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
-38.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-39.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-40.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-41.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-42.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-43.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-44.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-45.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-46.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-47.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-48.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
-49.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-50.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
-51.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-52.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
-53.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
-54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-56.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+18.	expand-abbreviation version 0.5.8 (https://github.com/emmetio/expand-abbreviation)
+19.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+20.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+21.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
+22.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
+23.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
+24.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
+25.	language-docker (https://github.com/moby/moby)
+26.	language-go version 0.39.0 (https://github.com/atom/language-go)
+27.	language-less (https://github.com/atom/language-less)
+28.	language-php (https://github.com/atom/language-php)
+29.	language-rust version 0.4.9 (https://github.com/zargony/atom-language-rust)
+30.	MagicStack/MagicPython (https://github.com/MagicStack/MagicPython)
+31.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
+32.	octicons-code version 3.1.0 (https://octicons.github.com)
+33.	octicons-font version 3.1.0 (https://octicons.github.com)
+34.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
+35.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
+36.	string_scorer version 0.1.20 (https://github.com/joshaven/string_score)
+37.	sublimehq/Packages (https://github.com/sublimehq/Packages)
+38.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
+39.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+40.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+41.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+42.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+43.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+44.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+45.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+46.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+47.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+48.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+49.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
+50.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+51.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
+52.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+53.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+54.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
+55.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+56.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+57.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
@@ -607,6 +610,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 =========================================
 END OF dotnet/csharp-tmLanguage NOTICES AND INFORMATION
+
+%% expand-abbreviation NOTICES AND INFORMATION BEGIN HERE
+=========================================
+MIT License
+
+Copyright (c) 2017 Emmet.io
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+=========================================
+END OF expand-abbreviation NOTICES AND INFORMATION
 
 %% freebroccolo/atom-language-swift NOTICES AND INFORMATION BEGIN HERE
 =========================================

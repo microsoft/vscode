@@ -50,6 +50,14 @@ export class RGBA {
 		}
 		return c | 0;
 	}
+
+	public toString(): string {
+		if (this.a === 255) {
+			return `rgb(${this.r}, ${this.g}, ${this.b})`;
+		}
+
+		return `rgba(${this.r}, ${this.g}, ${this.b}, ${(this.a / 255).toFixed(2)})`;
+	}
 }
 
 /**
@@ -100,6 +108,17 @@ export class HSLA {
 			return 1.0;
 		}
 		return n;
+	}
+
+	public toString() {
+		const s = (this.s * 100).toFixed(2);
+		const l = (this.l * 100).toFixed(2);
+
+		if (this.a === 1) {
+			return `hsl(${this.h}, ${s}%, ${l}%)`;
+		}
+
+		return `hsla(${this.h}, ${s}%, ${l}%, ${this.a.toFixed(2)})`;
 	}
 }
 
@@ -295,6 +314,49 @@ export class Color {
 		return new Color(hsla2rgba(hsla));
 	}
 
+	/**
+	 *	Creates a color from HSV values
+	 *	hue [0..360)
+	 *	saturation [0..1]
+	 *	value [0..1]
+	 */
+	public static fromHSV(hue: number, saturation: number, value: number, opacity: number = 255, parseErrorColor = Color.red) {
+		if (hue < 0 || hue >= 360 || saturation < 0 || saturation > 1 || value < 0 || value > 1) {
+			return parseErrorColor;
+		}
+
+		const c = value * saturation;
+		const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+		const m = value - c;
+
+		let [red, green, blue] = [0, 0, 0];
+		if (hue < 60) {
+			red = c;
+			green = x;
+		} else if (hue < 120) {
+			red = x;
+			green = c;
+		} else if (hue < 180) {
+			green = c;
+			blue = x;
+		} else if (hue < 240) {
+			green = x;
+			blue = c;
+		} else if (hue < 300) {
+			red = x;
+			blue = c;
+		} else if (hue < 360) {
+			red = c;
+			blue = x;
+		}
+
+		red = (red + m) * 255;
+		green = (green + m) * 255;
+		blue = (blue + m) * 255;
+
+		return Color.fromRGBA(new RGBA(red, green, blue, opacity));
+	}
+
 	private readonly rgba: RGBA;
 
 	private constructor(arg: RGBA) {
@@ -333,6 +395,43 @@ export class Color {
 		const lum1 = this.getLuminosity();
 		const lum2 = another.getLuminosity();
 		return lum1 > lum2 ? (lum1 + 0.05) / (lum2 + 0.05) : (lum2 + 0.05) / (lum1 + 0.05);
+	}
+
+	public getHue(): number {
+		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
+		const cmax = Math.max(r, g, b);
+		const cmin = Math.min(r, g, b);
+		const delta = cmax - cmin;
+		let hue;
+
+		if (delta === 0) {
+			hue = 0;
+		} else if (cmax === r) {
+			hue = 60 * (((g - b) / delta) % 6);
+		} else if (cmax === g) {
+			hue = 60 * (((b - r) / delta) + 2);
+		} else {
+			hue = 60 * (((r - g) / delta) + 4);
+		}
+
+		if (hue < 0) {
+			hue += 360;
+		}
+		return hue;
+	}
+
+	public getSaturation(): number {
+		const [r, g, b] = [this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255];
+		const cmax = Math.max(r, g, b);
+		const cmin = Math.min(r, g, b);
+		if (cmax === 0) {
+			return 0;
+		}
+		return (cmax - cmin) / cmax;
+	}
+
+	public getValue(): number {
+		return Math.max(this.rgba.r / 255, this.rgba.g / 255, this.rgba.b / 255);
 	}
 
 	/**
@@ -386,6 +485,7 @@ export class Color {
 		return this.rgba.a === 0;
 	}
 
+
 	public opposite(): Color {
 		return new Color(new RGBA(
 			255 - this.rgba.r,
@@ -393,6 +493,26 @@ export class Color {
 			255 - this.rgba.b,
 			this.rgba.a
 		));
+	}
+
+	public blend(c: Color): Color {
+		const color = c.toRGBA();
+
+		// Convert to 0..1 opacity
+		const thisA = this.rgba.a / 255;
+		const colorA = color.a / 255;
+
+		let a = thisA + colorA * (1 - thisA);
+		if (a < 1.0e-6) {
+			return Color.transparent;
+		}
+
+		const r = this.rgba.r * thisA / a + color.r * colorA * (1 - thisA) / a;
+		const g = this.rgba.g * thisA / a + color.g * colorA * (1 - thisA) / a;
+		const b = this.rgba.b * thisA / a + color.b * colorA * (1 - thisA) / a;
+		a *= 255;
+
+		return new Color(new RGBA(r, g, b, a));
 	}
 
 	public toString(): string {

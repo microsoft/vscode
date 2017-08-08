@@ -98,8 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
 
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', (uri) => showPreview(cspArbiter, uri, false)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
@@ -168,6 +168,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.refreshPreview', (resource: string | undefined) => {
+		if (resource) {
+			const source = vscode.Uri.parse(resource);
+			contentProvider.update(source);
+		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+		} else if (!vscode.window.activeTextEditor) {
+			// update all generated md documents
+			for (const document of vscode.workspace.textDocuments) {
+				if (document.uri.scheme === 'markdown') {
+					contentProvider.update(document.uri);
+				}
+			}
+		}
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {
 		vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", resources.join(', ')));
 	}));
@@ -206,7 +222,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 
-function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
+function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vscode.Uri, sideBySide: boolean = false) {
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -228,7 +244,10 @@ function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`,
-		{ allowScripts: true, allowSvgs: true });
+		{
+			allowScripts: true,
+			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
+		});
 
 	if (telemetryReporter) {
 		telemetryReporter.sendTelemetryEvent('openPreview', {

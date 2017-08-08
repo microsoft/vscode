@@ -16,7 +16,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
 		let isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let excludedLanguages = emmetConfig['exlcudeLanguages'] ? emmetConfig['exlcudeLanguages'] : [];
+		let excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
 		let syntax = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
 
 		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {

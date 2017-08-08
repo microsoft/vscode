@@ -6,6 +6,7 @@
 {
 	"tag at": "Étiquette à {0}",
 	"remote branch at": "Branche distante à {0}",
+	"create branch": "$(plus) Créer nouvelle branche",
 	"repourl": "URL du dépôt",
 	"parent": "Répertoire parent",
 	"cloning": "Clonage du dépôt git...",

@@ -10,5 +10,6 @@
 	"invalid.type": "設定すると、'configuration.type' は 'オブジェクトに設定されなければなりません",
 	"invalid.title": "'configuration.title' は、文字列である必要があります",
 	"vscode.extension.contributes.defaultConfiguration": "言語ごとに既定のエディター構成の設定を提供します。",
-	"invalid.properties": "'configuration.properties' は、オブジェクトである必要があります"
+	"invalid.properties": "'configuration.properties' は、オブジェクトである必要があります",
+	"workspaceConfig.settings.description": "ワークスペースの設定"
 }

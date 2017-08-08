@@ -18,6 +18,11 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { ActionBarContributor } from 'vs/workbench/browser/actions';
+import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export const TERMINAL_PICKER_PREFIX = 'term ';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -607,18 +612,19 @@ export class RenameTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ITerminalService private terminalService: ITerminalService
+		@IQuickOpenService protected quickOpenService: IQuickOpenService,
+		@ITerminalService protected terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
+	public run(terminal?: TerminalEntry): TPromise<any> {
+		const terminalInstance = terminal ? this.terminalService.getInstanceFromIndex(parseInt(terminal.getLabel().split(':')[0], 10) - 1) : this.terminalService.getActiveInstance();
 		if (!terminalInstance) {
 			return TPromise.as(void 0);
 		}
 		return this.quickOpenService.input({
+			value: terminalInstance.title,
 			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
 		}).then(name => {
 			if (name) {
@@ -659,5 +665,69 @@ export class HideTerminalFindWidgetAction extends Action {
 
 	public run(): TPromise<any> {
 		return TPromise.as(this.terminalService.hideFindWidget());
+	}
+}
+
+
+export class QuickOpenActionTermContributor extends ActionBarContributor {
+
+	constructor(
+		@ITerminalService private terminalService: ITerminalService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	public getActions(context: any): IAction[] {
+		let actions: Action[] = [];
+		if (context.element instanceof TerminalEntry) {
+			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
+		}
+		return actions;
+	}
+
+	public hasActions(context: any): boolean {
+		return true;
+	}
+}
+
+export class QuickOpenTermAction extends Action {
+
+	public static ID = 'workbench.action.quickOpenTerm';
+	public static LABEL = nls.localize('quickOpenTerm', "Terminal: Switch Active Terminal");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		return this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null);
+	}
+}
+
+export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
+
+	constructor(
+		id: string, label: string,
+		private terminal: TerminalEntry,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@ITerminalService terminalService: ITerminalService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(id, label, quickOpenService, terminalService);
+		this.class = 'quick-open-terminal-configure';
+	}
+
+	public run(): TPromise<any> {
+		super.run(this.terminal)
+			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
+			.then(() => TPromise.timeout(50))
+			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return TPromise.as(null);
 	}
 }

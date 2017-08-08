@@ -65,6 +65,8 @@
 	display: none;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row:hover > .resource-group > .actions,
+.scm-viewlet .monaco-list .monaco-list-row:hover > .resource > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,

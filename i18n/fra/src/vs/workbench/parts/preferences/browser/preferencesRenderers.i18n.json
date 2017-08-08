@@ -6,7 +6,6 @@
 {
 	"errorInvalidConfiguration": "Impossible d'écrire les paramètres. Corrigez les erreurs/avertissements présents dans le fichier, puis réessayez.",
 	"defaultSettingsTitle": "Paramètres par défaut",
-	"defaultSettingsMessage": "Placer vos paramètres dans le fichier à droite pour un remplacement.",
 	"noSettingsFound": "Aucun paramètre.",
 	"editTtile": "Modifier",
 	"replaceDefaultValue": "Remplacer dans les paramètres",

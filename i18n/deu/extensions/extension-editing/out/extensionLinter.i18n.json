@@ -7,6 +7,5 @@
 	"httpsRequired": "Für Bilder muss das HTTPS-Protokoll verwendet werden.",
 	"svgsNotValid": "SVGs sind keine gültige Bildquelle.",
 	"embeddedSvgsNotValid": "Eingebettete SVGs sind keine gültige Bildquelle.",
-	"dataUrlsNotValid": "Daten-URLs sind keine gültige Bildquelle.",
-	"relativeUrlRequiresHttpsRepository": "Relative Bild-URLs erfordern ein Repository mit dem HTTPS-Protokoll in der Datei \"package.json\"."
+	"dataUrlsNotValid": "Daten-URLs sind keine gültige Bildquelle."
 }

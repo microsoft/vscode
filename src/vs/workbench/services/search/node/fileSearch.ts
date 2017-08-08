@@ -12,6 +12,7 @@ import fs = require('fs');
 import path = require('path');
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import scorer = require('vs/base/common/scorer');
 import objects = require('vs/base/common/objects');
@@ -63,7 +64,7 @@ export class FileWalker {
 	private cmdForkResultTime: number;
 	private cmdResultCount: number;
 
-	private folderExcludePatterns: Map<string, glob.ParsedExpression>;
+	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression;
 
 	private walkedPaths: { [path: string]: boolean; };
@@ -87,7 +88,7 @@ export class FileWalker {
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
-		this.folderExcludePatterns = new Map<string, glob.ParsedExpression>();
+		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
 			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
@@ -103,7 +104,7 @@ export class FileWalker {
 					}
 				});
 
-			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression, { trimForExclusions: true }));
+			this.folderExcludePatterns.set(folderQuery.folder, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, folderQuery.folder));
 		});
 	}
 
@@ -280,8 +281,8 @@ export class FileWalker {
 	 */
 	public spawnFindCmd(folderQuery: IFolderSearch) {
 		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
-		const basenames = glob.getBasenameTerms(excludePattern);
-		const pathTerms = glob.getPathTerms(excludePattern);
+		const basenames = excludePattern.getBasenameTerms();
+		const pathTerms = excludePattern.getPathTerms();
 		let args = ['-L', '.'];
 		if (basenames.length || pathTerms.length) {
 			args.push('-not', '(', '(');
@@ -413,7 +414,7 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern.test(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
 					continue;
 				}
 
@@ -521,7 +522,7 @@ export class FileWalker {
 
 			// Check exclude pattern
 			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder)(currentRelativePath, file, () => siblings)) {
+			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, () => siblings)) {
 				return clb(null, undefined);
 			}
 
@@ -669,5 +670,72 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 
 	public cancel(): void {
 		this.walker.cancel();
+	}
+}
+
+/**
+ * This class exists to provide one interface on top of two ParsedExpressions, one for absolute expressions and one for relative expressions.
+ * The absolute and relative expressions don't "have" to be kept separate, but this keeps us from having to path.join every single
+ * file searched, it's only used for a text search with a searchPath
+ */
+class AbsoluteAndRelativeParsedExpression {
+	private absoluteParsedExpr: glob.ParsedExpression;
+	private relativeParsedExpr: glob.ParsedExpression;
+
+	constructor(expr: glob.IExpression, private root: string) {
+		this.init(expr);
+	}
+
+	/**
+	 * Split the IExpression into its absolute and relative components, and glob.parse them separately.
+	 */
+	private init(expr: glob.IExpression): void {
+		let absoluteGlobExpr: glob.IExpression;
+		let relativeGlobExpr: glob.IExpression;
+		Object.keys(expr)
+			.filter(key => expr[key])
+			.forEach(key => {
+				if (path.isAbsolute(key)) {
+					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
+					absoluteGlobExpr[key] = true;
+				} else {
+					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
+					relativeGlobExpr[key] = true;
+				}
+			});
+
+		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
+		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
+	}
+
+	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {
+		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, siblingsFn)) ||
+			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, siblingsFn));
+	}
+
+	public getBasenameTerms(): string[] {
+		const basenameTerms = [];
+		if (this.absoluteParsedExpr) {
+			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
+		}
+
+		if (this.relativeParsedExpr) {
+			basenameTerms.push(...glob.getBasenameTerms(this.relativeParsedExpr));
+		}
+
+		return basenameTerms;
+	}
+
+	public getPathTerms(): string[] {
+		const pathTerms = [];
+		if (this.absoluteParsedExpr) {
+			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
+		}
+
+		if (this.relativeParsedExpr) {
+			pathTerms.push(...glob.getPathTerms(this.relativeParsedExpr));
+		}
+
+		return pathTerms;
 	}
 }

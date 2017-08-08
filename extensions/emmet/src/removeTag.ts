@@ -28,7 +28,7 @@ export function removeTag() {
 		rangesToRemove = rangesToRemove.concat(getRangeToRemove(editor, rootNode, selection, indentInSpaces));
 	});
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		rangesToRemove.forEach(range => {
 			editBuilder.replace(range, '');
 		});
@@ -48,9 +48,6 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 
-	if (!openRange.contains(selection.start) && !closeRange.contains(selection.start)) {
-		return [];
-	}
 	let ranges = [openRange];
 	if (closeRange) {
 		for (let i = openRange.start.line + 1; i <= closeRange.start.line; i++) {

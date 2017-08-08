@@ -146,8 +146,8 @@ export function toCanonicalName(enc: string): string {
 			return 'utf-16le';
 		case 'utf16be':
 			return 'utf-16be';
-		case 'big5hkcs':
-			return 'big5-hkcs';
+		case 'big5hkscs':
+			return 'big5-hkscs';
 		case 'eucjp':
 			return 'euc-jp';
 		case 'euckr':

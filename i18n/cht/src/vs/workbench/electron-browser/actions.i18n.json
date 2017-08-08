@@ -19,6 +19,7 @@
 	"reloadWindow": "重新載入視窗",
 	"switchWindowPlaceHolder": "選取要切換的視窗",
 	"current": "目前視窗",
+	"close": "關閉視窗",
 	"switchWindow": "切換視窗...",
 	"quickSwitchWindow": "快速切換視窗...",
 	"workspaces": "工作區",
