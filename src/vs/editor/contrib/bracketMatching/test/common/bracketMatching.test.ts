@@ -14,23 +14,23 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/common/bracketMatching';
 
 suite('bracket matching', () => {
-	test('issue #183: jump to matching bracket position', () => {
-		class BracketMode extends MockMode {
+	class BracketMode extends MockMode {
 
-			private static _id = new LanguageIdentifier('bracketMode', 3);
+		private static _id = new LanguageIdentifier('bracketMode', 3);
 
-			constructor() {
-				super(BracketMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
-						['{', '}'],
-						['[', ']'],
-						['(', ')'],
-					]
-				}));
-			}
+		constructor() {
+			super(BracketMode._id);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')'],
+				]
+			}));
 		}
+	}
 
+	test('issue #183: jump to matching bracket position', () => {
 		let mode = new BracketMode();
 		let model = Model.createFromString('var x = (3 + (5-7)) + ((5+3)+5);', undefined, mode.getLanguageIdentifier());
 
@@ -62,27 +62,8 @@ suite('bracket matching', () => {
 	});
 
 	test('Jump to next bracket', () => {
-		class BracketMode extends MockMode {
-
-			private static _id = new LanguageIdentifier('bracketMode', 3);
-
-			constructor() {
-				super(BracketMode._id);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					brackets: [
-						['{', '}'],
-						['[', ']'],
-						['(', ')'],
-					],
-					comments: {
-						blockComment: ['/*', '*/']
-					}
-				}));
-			}
-		}
-
 		let mode = new BracketMode();
-		let model = Model.createFromString('var x = (3 + (5-7)); /* test () comment */ x();', undefined, mode.getLanguageIdentifier());
+		let model = Model.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
 
 		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
@@ -97,13 +78,13 @@ suite('bracket matching', () => {
 			assert.deepEqual(editor.getPosition(), new Position(1, 18));
 
 			// skip brackets in comments
-			editor.setPosition(new Position(1, 27));
+			editor.setPosition(new Position(1, 21));
 			bracketMatchingController.jumpToBracket();
-			assert.deepEqual(editor.getPosition(), new Position(1, 45));
+			assert.deepEqual(editor.getPosition(), new Position(1, 23));
 			bracketMatchingController.jumpToBracket();
-			assert.deepEqual(editor.getPosition(), new Position(1, 46));
+			assert.deepEqual(editor.getPosition(), new Position(1, 24));
 			bracketMatchingController.jumpToBracket();
-			assert.deepEqual(editor.getPosition(), new Position(1, 45));
+			assert.deepEqual(editor.getPosition(), new Position(1, 23));
 
 			bracketMatchingController.dispose();
 		});
