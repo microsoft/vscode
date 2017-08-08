@@ -451,7 +451,7 @@ export default class Webview {
 	}
 
 	public showFind() {
-		this._webviewFindWidget.reveal();
+		this._webviewFindWidget.reveal(true);
 	}
 
 	public hideFind() {

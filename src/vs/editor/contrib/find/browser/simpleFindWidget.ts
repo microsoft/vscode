@@ -15,6 +15,7 @@ import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/the
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { SimpleButton } from './findWidget';
+import { Delayer } from 'vs/base/common/async';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -32,6 +33,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected _findInputFocused: IContextKey<boolean>;
 
 	protected _findHistory: HistoryNavigator<string>;
+	protected _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private _contextViewService: IContextViewService,
@@ -44,22 +46,22 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		this._findHistory = new HistoryNavigator<string>();
+		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.onInputChanged();
+			this._delayedUpdateHistory();
 		});
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
 				this.find(false);
-				this._findHistory.add(this._findInput.getValue());
 				e.preventDefault();
 				return;
 			}
 
 			if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
 				this.find(true);
-				this._findHistory.add(this._findInput.getValue());
 				e.preventDefault();
 				return;
 			}
@@ -137,6 +139,16 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getValue();
 	}
 
+	protected _delayedUpdateHistory() {
+		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
+	}
+
+	protected _updateHistory() {
+		if (this.inputValue) {
+			this._findHistory.add(this._findInput.getValue());
+		}
+	}
+
 	public updateTheme(theme?: ITheme): void {
 		let inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
@@ -157,12 +169,12 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
-	public reveal(initialInput?: string): void {
+	public reveal(focusInput: boolean, initialInput?: string): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (this._isVisible) {
+		if (this._isVisible && focusInput) {
 			this._findInput.select();
 			return;
 		}
@@ -177,7 +189,9 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 			setTimeout(() => {
 				dom.removeClass(this._domNode, 'noanimation');
-				this._findInput.select();
+				if (focusInput) {
+					this._findInput.select();
+				}
 			}, 200);
 		}, 0);
 	}

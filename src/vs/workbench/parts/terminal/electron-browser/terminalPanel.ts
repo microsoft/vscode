@@ -164,9 +164,9 @@ export class TerminalPanel extends Panel {
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
-			this._findWidget.reveal(activeInstance.selection);
+			this._findWidget.reveal(true, activeInstance.selection);
 		} else {
-			this._findWidget.reveal();
+			this._findWidget.reveal(true);
 		}
 	}
 

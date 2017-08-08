@@ -23,6 +23,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
+			if (!this._isVisible) {
+				this.reveal(false);
+			}
 			if (previous) {
 				instance.findPrevious(val);
 			} else {
