@@ -46,6 +46,7 @@ suite('bracket matching', () => {
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 9));
 
+			// start on opening bracket
 			editor.setPosition(new Position(1, 23));
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 31));
@@ -85,6 +86,11 @@ suite('bracket matching', () => {
 			assert.deepEqual(editor.getPosition(), new Position(1, 24));
 			bracketMatchingController.jumpToBracket();
 			assert.deepEqual(editor.getPosition(), new Position(1, 23));
+
+			// do not break if no brackets are available
+			editor.setPosition(new Position(1, 26));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 26));
 
 			bracketMatchingController.dispose();
 		});
