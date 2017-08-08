@@ -39,11 +39,11 @@
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.22.0",
-    "vscode-ripgrep": "joaomoreno/vscode-ripgrep#64a2f0530fd9099de2cb1026a61e0a31b05e983d",
+    "vscode-ripgrep": "0.0.25",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.15",
-    "yauzl": "2.3.1"
+    "yauzl": "2.8.0"
   },
   "devDependencies": {
     "7zip": "0.0.6",
