@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Color, RGBA, HSLA, isValidHexColor } from 'vs/base/common/color';
+import { Color, RGBA, HSLA } from 'vs/base/common/color';
 
 suite('Color', () => {
 
@@ -112,36 +112,6 @@ suite('Color', () => {
 		assertParseColor('#CFA8', new RGBA(204, 255, 170, 136));
 	});
 
-	test('isValidHexColor', function () {
-		// invalid
-		assert.equal(isValidHexColor(null), false);
-		assert.equal(isValidHexColor(''), false);
-		assert.equal(isValidHexColor('#'), false);
-		assert.equal(isValidHexColor('#0102030'), false);
-
-		// somewhat valid
-		assert.equal(isValidHexColor('#FFFFG0'), false);
-		assert.equal(isValidHexColor('#FFFFg0'), false);
-		assert.equal(isValidHexColor('#-FFF00'), false);
-
-		// valid
-		assert.equal(isValidHexColor('#000000'), true);
-		assert.equal(isValidHexColor('#010203'), true);
-		assert.equal(isValidHexColor('#040506'), true);
-		assert.equal(isValidHexColor('#070809'), true);
-		assert.equal(isValidHexColor('#0a0A0a'), true);
-		assert.equal(isValidHexColor('#0b0B0b'), true);
-		assert.equal(isValidHexColor('#0c0C0c'), true);
-		assert.equal(isValidHexColor('#0d0D0d'), true);
-		assert.equal(isValidHexColor('#0e0E0e'), true);
-		assert.equal(isValidHexColor('#0f0F0f'), true);
-		assert.equal(isValidHexColor('#a0A0a0'), true);
-		assert.equal(isValidHexColor('#FFFFFF'), true);
-
-		assert.equal(isValidHexColor('#CFA'), true);
-		assert.equal(isValidHexColor('#CFAF'), true);
-	});
-
 	test('isLighterColor', function () {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
@@ -183,49 +153,26 @@ suite('Color', () => {
 	});
 
 	test('luminosity', function () {
-		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getLuminosity());
+		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getRelativeLuminance());
 
-		assert.deepEqual(0.2126, new Color(new RGBA(255, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7152, new Color(new RGBA(0, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0722, new Color(new RGBA(0, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.2126, new Color(new RGBA(255, 0, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.7152, new Color(new RGBA(0, 255, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.0722, new Color(new RGBA(0, 0, 255, 255)).getRelativeLuminance());
 
-		assert.deepEqual(0.9278, new Color(new RGBA(255, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7874, new Color(new RGBA(0, 255, 255, 255)).getLuminosity());
-		assert.deepEqual(0.2848, new Color(new RGBA(255, 0, 255, 255)).getLuminosity());
+		assert.deepEqual(0.9278, new Color(new RGBA(255, 255, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.7874, new Color(new RGBA(0, 255, 255, 255)).getRelativeLuminance());
+		assert.deepEqual(0.2848, new Color(new RGBA(255, 0, 255, 255)).getRelativeLuminance());
 
-		assert.deepEqual(0.5271, new Color(new RGBA(192, 192, 192, 255)).getLuminosity());
+		assert.deepEqual(0.5271, new Color(new RGBA(192, 192, 192, 255)).getRelativeLuminance());
 
-		assert.deepEqual(0.2159, new Color(new RGBA(128, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0459, new Color(new RGBA(128, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.2003, new Color(new RGBA(128, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.1544, new Color(new RGBA(0, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0615, new Color(new RGBA(128, 0, 128, 255)).getLuminosity());
-		assert.deepEqual(0.17, new Color(new RGBA(0, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 255)).getLuminosity());
-	});
-
-	test('contrast', function () {
-		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getLuminosity());
-
-		assert.deepEqual(0.2126, new Color(new RGBA(255, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7152, new Color(new RGBA(0, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0722, new Color(new RGBA(0, 0, 255, 255)).getLuminosity());
-
-		assert.deepEqual(0.9278, new Color(new RGBA(255, 255, 0, 255)).getLuminosity());
-		assert.deepEqual(0.7874, new Color(new RGBA(0, 255, 255, 255)).getLuminosity());
-		assert.deepEqual(0.2848, new Color(new RGBA(255, 0, 255, 255)).getLuminosity());
-
-		assert.deepEqual(0.5271, new Color(new RGBA(192, 192, 192, 255)).getLuminosity());
-
-		assert.deepEqual(0.2159, new Color(new RGBA(128, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0459, new Color(new RGBA(128, 0, 0, 255)).getLuminosity());
-		assert.deepEqual(0.2003, new Color(new RGBA(128, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.1544, new Color(new RGBA(0, 128, 0, 255)).getLuminosity());
-		assert.deepEqual(0.0615, new Color(new RGBA(128, 0, 128, 255)).getLuminosity());
-		assert.deepEqual(0.17, new Color(new RGBA(0, 128, 128, 255)).getLuminosity());
-		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 255)).getLuminosity());
+		assert.deepEqual(0.2159, new Color(new RGBA(128, 128, 128, 255)).getRelativeLuminance());
+		assert.deepEqual(0.0459, new Color(new RGBA(128, 0, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.2003, new Color(new RGBA(128, 128, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.1544, new Color(new RGBA(0, 128, 0, 255)).getRelativeLuminance());
+		assert.deepEqual(0.0615, new Color(new RGBA(128, 0, 128, 255)).getRelativeLuminance());
+		assert.deepEqual(0.17, new Color(new RGBA(0, 128, 128, 255)).getRelativeLuminance());
+		assert.deepEqual(0.0156, new Color(new RGBA(0, 0, 128, 255)).getRelativeLuminance());
 	});
 
 	test('blending', function () {
@@ -234,5 +181,4 @@ suite('Color', () => {
 		assert.deepEqual(new Color(new RGBA(122, 122, 122, 178.5)).blend(new Color(new RGBA(243, 34, 43))), new Color(new RGBA(158, 95, 98)));
 		assert.deepEqual(new Color(new RGBA(0, 0, 0, 147.9)).blend(new Color(new RGBA(255, 255, 255, 84.15))), new Color(new RGBA(49, 49, 49, 182)));
 	});
-
 });
