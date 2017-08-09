@@ -5,23 +5,16 @@
 
 import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Color, RGBA } from "vs/base/common/color";
-import { ColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
+import { IColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
 import { IModel } from "vs/editor/common/editorCommon";
 import { Range, IRange } from "vs/editor/common/core/range";
-
-export type AdvancedColorPickerFormatter = { opaqueFormatter: ColorFormatter; transparentFormatter: ColorFormatter; };
-export type ColorPickerFormatter = ColorFormatter | AdvancedColorPickerFormatter;
-
-export function isAdvancedFormatter(formatter: ColorPickerFormatter): formatter is AdvancedColorPickerFormatter {
-	return !!(formatter as any).transparentFormatter;
-}
 
 export class ColorPickerModel {
 	public widget: ColorPickerWidget;
 
 	public saturationSelection: ISaturationState;
 	public originalColor: string;
-	public colorFormatters: ColorPickerFormatter[];
+	public formatters: IColorFormatter[];
 	public saturation: number; // [0-1]
 	public value: number; // [0-1]
 
@@ -30,25 +23,25 @@ export class ColorPickerModel {
 	private _opacity: number;
 	private _hue: number;
 
-	private _opaqueFormatter: ColorFormatter;
-	private _transparentFormatter: ColorFormatter;
+	private _formatter: IColorFormatter;
 
 	private _colorRange: Range;
 	private _colorModelIndex: number;
 
 	constructor(
-		originalColor: string, color: Color,
-		opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter,
-		availableFormatters: ColorFormatter[],
+		originalColor: string,
+		color: Color,
+		formatter: IColorFormatter,
+		availableFormatters: IColorFormatter[],
 		private editorModel: IModel,
 		range: IRange
 	) {
-		this.colorFormatters = [];
+		this.formatters = [];
 		this._colorModelIndex = 0;
 
 		this.originalColor = originalColor;
-		this._opaqueFormatter = opaqueFormatter;
-		this.colorFormatters = availableFormatters;
+		this.formatters = availableFormatters;
+		this._formatter = formatter;
 		this.color = color;
 		this.hue = color.hsla.h;
 		this.saturation = color.hsla.s;
@@ -66,12 +59,10 @@ export class ColorPickerModel {
 		this.saturation = color.hsla.s;
 		this.value = color.hsva.v;
 
-		if (this._opacity === 1) {
-			this.selectedColorString = this._opaqueFormatter.toString(this._color);
-		} else if (this._transparentFormatter) {
-			this.selectedColorString = this._transparentFormatter.toString(this._color);
-		} else { //no transparent formatter defined for this mode. select another
+		if (!this._formatter.canFormatColor(color)) {
 			this.nextColorMode();
+		} else {
+			this.selectedColorString = this._formatter.formatColor(this._color);
 		}
 	}
 
@@ -132,21 +123,16 @@ export class ColorPickerModel {
 
 	public nextColorMode() {
 		this._colorModelIndex++;
-		if (this._colorModelIndex === this.colorFormatters.length) {
+		if (this._colorModelIndex === this.formatters.length) {
 			this._colorModelIndex = 0;
 		}
 
-		const formatter = this.colorFormatters[this._colorModelIndex];
-		if (isAdvancedFormatter(formatter)) {
-			this._transparentFormatter = formatter.transparentFormatter;
-			this._opaqueFormatter = formatter.opaqueFormatter;
-			this.selectedColorString = this._opacity === 1 ? this._opaqueFormatter.toString(this._color) : this._transparentFormatter.toString(this._color);
-		} else if (!this._transparentFormatter || this._opacity === 1) {
-			this._transparentFormatter = null;
-			this._opaqueFormatter = formatter;
-			this.selectedColorString = this._opaqueFormatter.toString(this._color);
-		} else {
+		this._formatter = this.formatters[this._colorModelIndex];
+
+		if (!this._formatter.canFormatColor(this._color)) {
 			this.nextColorMode();
+		} else {
+			this.selectedColorString = this._formatter.formatColor(this._color);
 		}
 	}
 }

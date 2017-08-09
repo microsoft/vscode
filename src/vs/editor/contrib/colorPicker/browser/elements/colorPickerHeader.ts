@@ -27,7 +27,7 @@ export class ColorPickerHeader extends Disposable {
 		this.drawOriginalColorBox();
 
 		dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => {
-			if (this.model.colorFormatters.length === 0) {
+			if (this.model.formatters.length === 0) {
 				return;
 			}
 			this.model.nextColorMode();

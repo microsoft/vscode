@@ -25,7 +25,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { IColorFormatter, ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as lifecycle from 'vs/base/common/lifecycle';
 const $ = dom.$;
@@ -160,6 +160,12 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
+}
+
+function createColorFormatter(format: IColorFormat): IColorFormatter {
+	return typeof format === 'string'
+		? new ColorFormatter(format)
+		: new CombinedColorFormatter(new ColorFormatter(format.opaque), new ColorFormatter(format.transparent));
 }
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
@@ -337,35 +343,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				let opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter;
-				if (typeof msg.format === 'string') {
-					opaqueFormatter = new ColorFormatter(msg.format);
-				} else {
-					opaqueFormatter = new ColorFormatter(msg.format.opaque);
-					transparentFormatter = new ColorFormatter(msg.format.transparent);
-				}
-
-				let availableFormatters: ColorFormatter[] = [];
-				if (msg.availableFormats) {
-					msg.availableFormats.forEach(format => {
-						let colorPickerFormatter;
-						if (typeof format === 'string') {
-							colorPickerFormatter = new ColorFormatter(format);
-						} else {
-							colorPickerFormatter = {
-								opaqueFormatter: new ColorFormatter(format.opaque),
-								transparentFormatter: new ColorFormatter(format.transparent)
-							};
-						}
-						availableFormatters.push(colorPickerFormatter);
-					});
-				}
-
+				const formatter = createColorFormatter(msg.format);
+				const availableFormatters = msg.availableFormats.map(format => createColorFormatter(format));
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
 				const color = new Color(rgba);
-
-				const model = new ColorPickerModel(rgba.toString(), color, opaqueFormatter, transparentFormatter, availableFormatters, this._editor.getModel(), msg.range);
+				const model = new ColorPickerModel(rgba.toString(), color, formatter, availableFormatters, this._editor.getModel(), msg.range);
 				const widget = this._register(new ColorPickerWidget(model, this._editor));
 				model.widget = widget;
 
