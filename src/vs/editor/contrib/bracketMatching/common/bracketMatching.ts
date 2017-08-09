@@ -114,11 +114,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
-		const selection = this._editor.getSelection();
-		if (!selection.isEmpty()) {
-			return;
-		}
-
 		let newSelections = this._editor.getSelections().map(selection => {
 			const position = selection.getStartPosition();
 
