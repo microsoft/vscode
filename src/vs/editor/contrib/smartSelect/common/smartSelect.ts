@@ -9,8 +9,9 @@ import * as arrays from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
@@ -163,13 +164,14 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 }
 
+
 @editorAction
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
 			id: 'editor.action.smartSelect.grow',
-			label: nls.localize('smartSelect.grow', "Expand Select"),
-			alias: 'Expand Select',
+			label: nls.localize('smartSelect.grow', "Expand Selection"),
+			alias: 'Expand Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
@@ -185,8 +187,8 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Select"),
-			alias: 'Shrink Select',
+			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
+			alias: 'Shrink Selection',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
@@ -194,5 +196,86 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
 			}
 		});
+	}
+}
+
+@editorAction
+class SelectBracketAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.expandSelectionToBrackets',
+			label: nls.localize('smartSelect.expandSelectionToBrackets', "Expand Selection To Brackets"),
+			alias: 'Expand Selection To Brackets',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SLASH
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const selection = editor.getSelection();
+		if (!selection.isEmpty()) {
+			return;
+		}
+
+		const originalPosition = selection.getStartPosition();
+
+		// find previous open bracket with no match
+		let prevBracket = null;
+		let currentPosition = new Position(originalPosition.lineNumber, originalPosition.column);
+		let setCount = 0;
+		do {
+			prevBracket = model.findPrevBracket(currentPosition);
+			if (prevBracket) {
+				currentPosition = new Position(prevBracket.range.startLineNumber, prevBracket.range.startColumn);
+				!prevBracket.isOpen ? setCount++ : setCount--;
+			}
+		} while (prevBracket && !(prevBracket.isOpen && setCount < 0));
+
+		// find next closed bracket with no match
+		let nextBracket = null;
+		currentPosition = new Position(originalPosition.lineNumber, originalPosition.column);
+		setCount = 0;
+		do {
+			nextBracket = model.findNextBracket(currentPosition);
+			if (nextBracket) {
+				currentPosition = new Position(nextBracket.range.endLineNumber, nextBracket.range.endColumn);
+				nextBracket.isOpen ? setCount++ : setCount--;
+			}
+		} while (nextBracket && (nextBracket.isOpen && setCount < 0));
+
+		// check validity of prev and next brackets
+		if (!prevBracket && !nextBracket) {
+			return;
+		}
+
+		// pick the outermost set of brackets
+		const matchPrev = prevBracket ? model.matchBracket(new Position(prevBracket.range.startLineNumber, prevBracket.range.startColumn)) : null;
+		const matchNext = nextBracket ? model.matchBracket(new Position(nextBracket.range.startLineNumber, nextBracket.range.startColumn)) : null;
+		let bracketsToSelect = null;
+		if (!matchPrev) {
+			bracketsToSelect = matchNext;
+		} else if (!matchNext) {
+			bracketsToSelect = matchPrev;
+		} else if (!new Position(matchPrev[1].endLineNumber, matchPrev[1].endColumn)
+			.isBefore(new Position(matchNext[0].endLineNumber, matchNext[0].endColumn))) {
+				bracketsToSelect = matchPrev;
+		} else {
+			bracketsToSelect = matchNext;
+		}
+
+		// select the brackets
+		editor.setSelection(new Range(
+			bracketsToSelect[0].endLineNumber,
+			bracketsToSelect[0].endColumn,
+			bracketsToSelect[1].startLineNumber,
+			bracketsToSelect[1].startColumn));
 	}
 }
