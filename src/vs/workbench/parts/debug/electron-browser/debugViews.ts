@@ -72,8 +72,11 @@ export class VariablesView extends CollapsibleView {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				if (stackFrame) {
 					return stackFrame.getScopes().then(scopes => {
-						if (scopes.length > 0 && !scopes[0].expensive) {
-							return this.tree.expand(scopes[0]);
+						var expandIfNotExpensive = (scope) => {
+							return !scope.expensive && this.tree.expand(scope);
+						};
+						if (scopes.length > 0) {
+							scopes.forEach(expandIfNotExpensive);
 						}
 						return undefined;
 					});
