@@ -96,6 +96,10 @@
 	image-rendering: pixelated;
 }
 
+.colorpicker-body .strip.grabbing {
+	cursor: -webkit-grabbing;
+}
+
 .colorpicker-body .slider {
 	position: absolute;
 	top: 0;

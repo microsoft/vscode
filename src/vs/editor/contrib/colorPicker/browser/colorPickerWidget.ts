@@ -83,9 +83,11 @@ export class ColorPickerBody extends Disposable {
 		this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
 	}
 
-	private onDidHueChange(h: number): void {
+	private onDidHueChange(value: number): void {
 		const hsva = this.model.color.hsva;
-		this.model.color = new Color(new HSVA(h * 360, hsva.s, hsva.v, hsva.a));
+		const h = (1 - value) * 360;
+
+		this.model.color = new Color(new HSVA(h === 360 ? 0 : h, hsva.s, hsva.v, hsva.a));
 	}
 
 	layout(): void {
@@ -225,6 +227,7 @@ abstract class Strip extends Disposable {
 	private onMouseDown(e: MouseEvent): void {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		const origin = dom.getDomNodePagePosition(this.domNode);
+		dom.addClass(this.domNode, 'grabbing');
 
 		if (e.target !== this.slider) {
 			this.onDidChangeTop(e.offsetY);
@@ -235,6 +238,7 @@ abstract class Strip extends Disposable {
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);
+			dom.removeClass(this.domNode, 'grabbing');
 		}, true);
 	}
 
@@ -283,7 +287,7 @@ class HueStrip extends Strip {
 	}
 
 	protected getValue(color: Color): number {
-		return color.hsva.h / 360;
+		return 1 - (color.hsva.h / 360);
 	}
 }
 
