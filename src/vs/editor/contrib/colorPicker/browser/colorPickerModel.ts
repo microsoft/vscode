@@ -149,38 +149,6 @@ export class ColorPickerModel {
 			this.nextColorMode();
 		}
 	}
-
-	public getHueColor(hue: number): Color {
-		const hh = hue / 60;
-		const X = 1 - Math.abs(hh % 2 - 1);
-		let r = 0, g = 0, b = 0;
-
-		if (hh >= 0 && hh < 1) {
-			r = 1;
-			g = X;
-		} else if (hh >= 1 && hh < 2) {
-			r = X;
-			g = 1;
-		} else if (hh >= 2 && hh < 3) {
-			g = 1;
-			b = X;
-		} else if (hh >= 3 && hh < 4) {
-			g = X;
-			b = 1;
-		} else if (hh >= 4 && hh < 5) {
-			r = X;
-			b = 1;
-		} else {
-			r = 1;
-			b = X;
-		}
-
-		r = Math.round(r * 255);
-		g = Math.round(g * 255);
-		b = Math.round(b * 255);
-
-		return new Color(new RGBA(r, g, b));
-	}
 }
 
 export class ISaturationState {
