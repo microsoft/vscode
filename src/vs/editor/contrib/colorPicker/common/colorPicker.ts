@@ -3,25 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from "vs/base/common/winjs.base";
-import { ColorProviderRegistry, IColorRange } from "vs/editor/common/modes";
-import { asWinJsPromise } from "vs/base/common/async";
-import { onUnexpectedExternalError } from "vs/base/common/errors";
-import { IReadOnlyModel } from "vs/editor/common/editorCommon";
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { flatten } from 'vs/base/common/arrays';
 
 export function getColors(model: IReadOnlyModel): TPromise<IColorRange[]> {
-	let colorInfo: IColorRange[] = [];
+	const providers = ColorProviderRegistry.ordered(model).reverse();
+	const promises = providers.map(p => asWinJsPromise(token => p.provideColorRanges(model, token)));
 
-	// ask all providers for colors in parallel
-	const promises = ColorProviderRegistry.ordered(model).reverse().map(provider => {
-		return asWinJsPromise(token => provider.provideColorRanges(model, token)).then(result => {
-			if (Array.isArray(result)) {
-				colorInfo = colorInfo.concat(result);
-			}
-		}, onUnexpectedExternalError);
-	});
-
-	return TPromise.join(promises).then(() => {
-		return colorInfo;
-	});
+	return TPromise.join(promises)
+		.then(ranges => flatten(ranges.filter(r => Array.isArray(r))));
 }
