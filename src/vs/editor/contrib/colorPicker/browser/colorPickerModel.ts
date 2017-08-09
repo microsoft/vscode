@@ -11,7 +11,6 @@ import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorForma
 export class ColorPickerModel {
 
 	widget: ColorPickerWidget;
-	saturationSelection: ISaturationState;
 	originalColor: Color;
 	formatters: IColorFormatter[];
 	saturation: number; // [0-1]
@@ -19,7 +18,6 @@ export class ColorPickerModel {
 
 	private _color: Color;
 	private _opacity: number;
-	private _hue: number;
 
 	private _formatter: IColorFormatter;
 	get formatter(): IColorFormatter { return this._formatter; }
@@ -47,7 +45,6 @@ export class ColorPickerModel {
 		this.formatters = availableFormatters;
 		this._formatter = formatter;
 		this._color = color;
-		this.hue = color.hsla.h;
 		this.saturation = color.hsla.s;
 		this.value = color.hsva.v;
 	}
@@ -77,17 +74,6 @@ export class ColorPickerModel {
 		return this._color;
 	}
 
-	set hue(hue: number) {
-		this._hue = hue;
-		if (this.widget && this.widget.body) {
-			this.widget.body.saturationBox.fillSaturationBox();
-		}
-	}
-
-	get hue(): number {
-		return this._hue;
-	}
-
 	set opacity(opacity: number) {
 		this._opacity = opacity;
 
@@ -109,9 +95,4 @@ export class ColorPickerModel {
 
 		this._onDidChangeFormatter.fire(this._formatter);
 	}
-}
-
-export class ISaturationState {
-	x: number;
-	y: number;
 }

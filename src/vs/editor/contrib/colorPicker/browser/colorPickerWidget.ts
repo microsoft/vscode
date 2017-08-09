@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./colorPicker';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { ColorPickerModel, ISaturationState } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { isWindows } from 'vs/base/common/platform';
-import { Color, RGBA, HSVA } from 'vs/base/common/color';
+import { Color, HSVA } from 'vs/base/common/color';
 
 const $ = dom.$;
 const MOUSE_DRAG_RESET_DISTANCE = 140;
@@ -49,10 +50,9 @@ export class ColorPickerHeader extends Disposable {
 }
 
 export class ColorPickerBody extends Disposable {
+
 	saturationBox: SaturationBox;
-
 	private domNode: HTMLElement;
-
 	private hueSlider: Slider;
 	private opacitySlider: Slider;
 	private hueStrip: HTMLElement;
@@ -65,12 +65,20 @@ export class ColorPickerBody extends Disposable {
 		this.domNode = $('.colorpicker-body');
 		dom.append(container, this.domNode);
 
-		this.drawSaturationBox();
+		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
+		this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
+
+
 		this.drawOpacityStrip();
 		this.drawHueStrip();
 
 		this.registerListeners();
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+	}
+
+	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
+		const hsva = this.model.color.hsva;
+		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
 
 	private onDidChangeColor(): void {
@@ -90,11 +98,6 @@ export class ColorPickerBody extends Disposable {
 	private registerListeners(): void {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 
-		// Saturation box listener
-		this._register(dom.addDisposableListener(this.saturationBox.domNode, dom.EventType.MOUSE_DOWN, e => {
-			this.saturationListener(e, monitor);
-		}));
-
 		// Hue and opacity strips listener
 		this._register(dom.addDisposableListener(this.hueStrip, dom.EventType.MOUSE_DOWN, e => {
 			this.stripListener(this.hueStrip, e, monitor);
@@ -102,38 +105,6 @@ export class ColorPickerBody extends Disposable {
 		this._register(dom.addDisposableListener(this.opacityStrip, dom.EventType.MOUSE_DOWN, e => {
 			this.stripListener(this.opacityStrip, e, monitor);
 		}));
-	}
-
-	private saturationListener(e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>): void {
-		if (e.button !== 0) { // Only left click is allowed
-			return;
-		}
-
-		const updateModel = (x: number, y: number) => {
-			const { r, g, b } = this.saturationBox.extractColor(x, y).rgba;
-			this.model.color = new Color(new RGBA(r, g, b, this.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
-			this.saturationBox.focusSaturationSelection({ x: x, y: y });
-		};
-
-		let newSaturationX, newSaturationY;
-		if (e.target !== this.saturationBox.saturationSelection) {
-			newSaturationX = e.offsetX;
-			newSaturationY = e.offsetY;
-			updateModel(newSaturationX, newSaturationY);
-		} else { // If clicked on the selection circle
-			newSaturationX = this.model.saturationSelection.x;
-			newSaturationY = this.model.saturationSelection.y;
-		}
-
-		const initialMousePosition = e.clientY;
-		const initialMouseOrthogonalPosition = e.clientX;
-		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-			const deltaX = mouseMoveData.posx - initialMouseOrthogonalPosition;
-			const deltaY = mouseMoveData.posy - initialMousePosition;
-			const x = newSaturationX + deltaX;
-			const y = newSaturationY + deltaY;
-			updateModel(x, y);
-		}, () => null);
 	}
 
 	private stripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>) {
@@ -150,7 +121,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = () => {
 			if (slider === this.hueSlider) {
-				this.model.hue = this.calculateSliderHue(slider);
+				// this.model.hue = this.calculateSliderHue(slider);
 			} else if (slider === this.opacitySlider) {
 				this.model.opacity = this.calculateOpacity(slider);
 			}
@@ -167,7 +138,7 @@ export class ColorPickerBody extends Disposable {
 			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 				slider.top = 0;
 				if (slider === this.hueSlider) {
-					this.model.hue = 0;
+					// this.model.hue = 0;
 				} else if (slider === this.opacitySlider) {
 					this.model.opacity = 1;
 				}
@@ -180,10 +151,6 @@ export class ColorPickerBody extends Disposable {
 		}, () => {
 			strip.style.cursor = '-webkit-grab';
 		});
-	}
-
-	private drawSaturationBox(): void {
-		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
 	}
 
 	private drawOpacityStrip(): void {
@@ -207,144 +174,108 @@ export class ColorPickerBody extends Disposable {
 		this.hueSlider.top = (this.hueStrip.offsetHeight - this.hueSlider.domNode.offsetHeight) * (this.model.color.hsla.h / 359);
 	}
 
-	private calculateSliderHue(slider: Slider): number {
-		const hueNormalizedHeight = this.hueStrip.offsetHeight - slider.domNode.offsetHeight;
-		return (1 - ((hueNormalizedHeight - slider.top) / hueNormalizedHeight)) * 359;
-	}
-
 	private calculateOpacity(slider: Slider): number {
 		const opacityNormalizedHeight = this.opacityStrip.offsetHeight - slider.domNode.offsetHeight;
 		return (opacityNormalizedHeight - slider.top) / opacityNormalizedHeight;
 	}
 }
 
-export class SaturationBox {
-	domNode: HTMLElement;
-	saturationSelection: HTMLElement;
+export class SaturationBox extends Disposable {
 
-	private saturationCanvas: HTMLCanvasElement;
-	private saturationCtx: CanvasRenderingContext2D;
+	private domNode: HTMLElement;
+	private selection: HTMLElement;
+	private canvas: HTMLCanvasElement;
+	private width: number;
+	private height: number;
 
-	private whiteGradient: CanvasGradient;
-	private blackGradient: CanvasGradient;
+	private _onDidChange = new Emitter<{ s: number, v: number }>();
+	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
 	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+		super();
+
 		this.domNode = $('.saturation-wrap');
 		dom.append(container, this.domNode);
 
 		// Create canvas, draw selected color
-		this.saturationCanvas = document.createElement('canvas');
-		this.saturationCanvas.className = 'saturation-box';
-		dom.append(this.domNode, this.saturationCanvas);
+		this.canvas = document.createElement('canvas');
+		this.canvas.className = 'saturation-box';
+		dom.append(this.domNode, this.canvas);
 
 		// Add selection circle
-		this.saturationSelection = $('.saturation-selection');
-		dom.append(this.domNode, this.saturationSelection);
+		this.selection = $('.saturation-selection');
+		dom.append(this.domNode, this.selection);
+
+		this.layout();
+
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
+	}
+
+	private onMouseDown(e: MouseEvent): void {
+		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		const origin = dom.getDomNodePagePosition(this.domNode);
+
+		if (e.target !== this.selection) {
+			this.onDidChangePosition(e.offsetX, e.offsetY);
+		}
+
+		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+
+		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+			mouseUpListener.dispose();
+			monitor.stopMonitoring(true);
+		}, true);
+	}
+
+	private onDidChangePosition(left: number, top: number): void {
+		const s = Math.max(0, Math.min(1, left / this.width));
+		const v = Math.max(0, Math.min(1, 1 - (top / this.height)));
+
+		this.paintSelection(s, v);
+		this._onDidChange.fire({ s, v });
 	}
 
 	layout(): void {
-		const actualW = this.domNode.offsetWidth * this.pixelRatio,
-			actualH = this.domNode.offsetHeight * this.pixelRatio;
+		this.width = this.domNode.offsetWidth;
+		this.height = this.domNode.offsetHeight;
+		this.canvas.width = this.width * this.pixelRatio;
+		this.canvas.height = this.height * this.pixelRatio;
+		this.paint();
 
-		this.saturationCanvas.width = actualW;
-		this.saturationCanvas.height = actualH;
-
-		this.saturationCtx = this.saturationCanvas.getContext('2d');
-		this.saturationCtx.rect(0, 0, actualW, actualH);
-
-		// Create black and white gradients on top
-		const ctx2 = document.createElement('canvas').getContext('2d');
-
-		this.whiteGradient = ctx2.createLinearGradient(0, 0, actualW, 0);
-		this.whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-		this.whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
-		this.blackGradient = ctx2.createLinearGradient(0, 0, 0, actualH);
-		this.blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-		this.blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
-
-		this.fillSaturationBox();
-
-		const saturation = this.model.saturation * this.saturationCanvas.clientWidth;
-		const selectionHeight = this.model.value * this.saturationCanvas.clientHeight;
-		const value = selectionHeight === 0 ? this.saturationCanvas.clientHeight : this.saturationCanvas.clientHeight - selectionHeight;
-		this.focusSaturationSelection({ x: saturation, y: value });
+		const hsva = this.model.color.hsva;
+		this.paintSelection(hsva.s, hsva.v);
 	}
 
-	fillSaturationBox(): void {
-		this.saturationCtx.fillStyle = Color.Format.CSS.format(this.calculateHueColor(this.model.hue));
-		this.saturationCtx.fill();
-		this.saturationCtx.fillStyle = this.whiteGradient;
-		this.saturationCtx.fill();
-		this.saturationCtx.fillStyle = this.blackGradient;
-		this.saturationCtx.fill();
+	private paint(): void {
+		const hsva = this.model.color.hsva;
+		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
+		const ctx = this.canvas.getContext('2d');
 
-		// Update selected color if saturation selection was beforehand
-		if (this.model.saturationSelection) {
-			const newColor = new Color(new HSVA(this.model.hue, this.model.saturation, this.model.value, this.model.opacity * 255));
-			this.model.color = newColor;
-		}
+		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
+		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+		const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+		blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+
+		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
+		ctx.fillStyle = Color.Format.CSS.format(saturatedColor);
+		ctx.fill();
+		ctx.fillStyle = whiteGradient;
+		ctx.fill();
+		ctx.fillStyle = blackGradient;
+		ctx.fill();
 	}
 
-	focusSaturationSelection(state: ISaturationState): void {
-		let x: number = state.x, y: number = state.y;
-		if (x < 0) {
-			x = 0;
-		} else if (x > this.domNode.offsetWidth) {
-			x = this.domNode.offsetWidth;
-		}
-		if (y < 0) {
-			y = 0;
-		} else if (y > this.domNode.offsetHeight) {
-			y = this.domNode.offsetHeight;
-		}
-
-		this.saturationSelection.style.left = x + 'px';
-		this.saturationSelection.style.top = y + 'px';
-		this.model.saturationSelection = { x: x, y: y };
+	private paintSelection(s: number, v: number): void {
+		this.selection.style.left = `${s * this.width}px`;
+		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
 
-	extractColor(offsetX: number, offsetY: number): Color {
-		const opacityX = 1 - (offsetX / this.domNode.offsetWidth);
-		const opacityY = offsetY / this.domNode.offsetHeight;
-
-		const whiteGradientColor = new Color(new RGBA(255, 255, 255, opacityX * 255));
-		const blackGradientColor = new Color(new RGBA(0, 0, 0, opacityY * 255));
-
-		const gradientsMix = blackGradientColor.blend(whiteGradientColor);
-		return gradientsMix.blend(this.calculateHueColor(this.model.hue));
-	}
-
-	private calculateHueColor(hue: number): Color {
-		const hh = hue / 60;
-		const X = 1 - Math.abs(hh % 2 - 1);
-		let r = 0, g = 0, b = 0;
-
-		if (hh >= 0 && hh < 1) {
-			r = 1;
-			g = X;
-		} else if (hh >= 1 && hh < 2) {
-			r = X;
-			g = 1;
-		} else if (hh >= 2 && hh < 3) {
-			g = 1;
-			b = X;
-		} else if (hh >= 3 && hh < 4) {
-			g = X;
-			b = 1;
-		} else if (hh >= 4 && hh < 5) {
-			r = X;
-			b = 1;
-		} else {
-			r = 1;
-			b = X;
-		}
-
-		r = Math.round(r * 255);
-		g = Math.round(g * 255);
-		b = Math.round(b * 255);
-
-		return new Color(new RGBA(r, g, b));
+	private onDidChangeColor(): void {
+		this.paint();
 	}
 }
 
