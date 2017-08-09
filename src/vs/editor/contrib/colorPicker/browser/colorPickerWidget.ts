@@ -49,11 +49,10 @@ export class ColorPickerHeader extends Disposable {
 
 export class ColorPickerBody extends Disposable {
 
-	saturationBox: SaturationBox;
 	private domNode: HTMLElement;
-	private hueSlider: Slider;
-	private opacityStrip: OpacityStrip;
-	private hueStrip: HTMLElement;
+	private saturationBox: SaturationBox;
+	private hueStrip: Strip;
+	private opacityStrip: Strip;
 
 	constructor(private container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
@@ -69,9 +68,9 @@ export class ColorPickerBody extends Disposable {
 		this._register(this.opacityStrip);
 		this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
 
-		this.drawHueStrip();
-
-		this.registerListeners();
+		this.hueStrip = new HueStrip(this.domNode, this.model);
+		this._register(this.hueStrip);
+		this._register(this.hueStrip.onDidChange(this.onDidHueChange, this));
 	}
 
 	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
@@ -84,80 +83,19 @@ export class ColorPickerBody extends Disposable {
 		this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
 	}
 
+	private onDidHueChange(h: number): void {
+		const hsva = this.model.color.hsva;
+		this.model.color = new Color(new HSVA(h * 360, hsva.s, hsva.v, hsva.a));
+	}
+
 	layout(): void {
 		this.saturationBox.layout();
 		this.opacityStrip.layout();
-	}
-
-	private registerListeners(): void {
-		// const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-
-		// Hue and opacity strips listener
-		// this._register(dom.addDisposableListener(this.hueStrip, dom.EventType.MOUSE_DOWN, e => {
-		// 	this.stripListener(this.hueStrip, e, monitor);
-		// }));
-		// this._register(dom.addDisposableListener(this.opacityStrip, dom.EventType.MOUSE_DOWN, e => {
-		// 	this.stripListener(this.opacityStrip, e, monitor);
-		// }));
-	}
-
-	// private stripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>) {
-	// 	if (e.button !== 0) { // Only left click is allowed
-	// 		return;
-	// 	}
-	// 	const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
-	// 	const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
-
-	// 	// Update slider position if clicked on a strip itself
-	// 	if (e.target === this.hueStrip || e.target === this.opacityStrip) {
-	// 		slider.top = e.offsetY;
-	// 	}
-
-	// 	const updateModel = () => {
-	// 		if (slider === this.hueSlider) {
-	// 			// this.model.hue = this.calculateSliderHue(slider);
-	// 		} else if (slider === this.opacitySlider) {
-	// 			this.model.opacity = this.calculateOpacity(slider);
-	// 		}
-	// 	};
-	// 	updateModel();
-
-	// 	const initialMousePosition = e.clientY;
-	// 	const initialMouseOrthogonalPosition = e.clientX;
-	// 	const initialSliderTop = slider.top;
-	// 	monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-	// 		strip.style.cursor = '-webkit-grabbing';
-	// 		// Do not move slider on Windows if it's outside of movable bounds
-	// 		const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-	// 		if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-	// 			slider.top = 0;
-	// 			if (slider === this.hueSlider) {
-	// 				// this.model.hue = 0;
-	// 			} else if (slider === this.opacitySlider) {
-	// 				this.model.opacity = 1;
-	// 			}
-	// 			return;
-	// 		}
-
-	// 		const mouseDelta = mouseMoveData.posy - initialMousePosition;
-	// 		slider.top = initialSliderTop + mouseDelta;
-	// 		updateModel();
-	// 	}, () => {
-	// 		strip.style.cursor = '-webkit-grab';
-	// 	});
-	// }
-
-	private drawHueStrip(): void {
-		this.hueStrip = $('.strip.hue-strip');
-		dom.append(this.domNode, this.hueStrip);
-
-		this.hueSlider = new Slider(this.hueStrip);
-		dom.append(this.hueStrip, this.hueSlider.domNode);
-		this.hueSlider.top = (this.hueStrip.offsetHeight - this.hueSlider.domNode.offsetHeight) * (this.model.color.hsla.h / 359);
+		this.hueStrip.layout();
 	}
 }
 
-export class SaturationBox extends Disposable {
+class SaturationBox extends Disposable {
 
 	private domNode: HTMLElement;
 	private selection: HTMLElement;
@@ -256,37 +194,7 @@ export class SaturationBox extends Disposable {
 	}
 }
 
-class Slider {
-
-	domNode: HTMLElement;
-	private _top: number;
-
-	private _onDidChange = new Emitter<number>();
-	readonly onDidChange: Event<number> = this._onDidChange.event;
-
-	constructor(private strip: HTMLElement) {
-		this.domNode = $('.slider');
-		this._top = 0;
-	}
-
-	get top() {
-		return this._top;
-	}
-
-	// Sets style.top in 'px'
-	set top(top: number) {
-		if (top < 0) {
-			top = 0;
-		} else if (top > this.strip.offsetHeight - this.domNode.offsetHeight) {
-			top = this.strip.offsetHeight - this.domNode.offsetHeight;
-		}
-
-		this.domNode.style.top = top + 'px';
-		this._top = top;
-	}
-}
-
-class OpacityStrip extends Disposable {
+abstract class Strip extends Disposable {
 
 	protected domNode: HTMLElement;
 	protected overlay: HTMLElement;
@@ -298,32 +206,20 @@ class OpacityStrip extends Disposable {
 
 	constructor(container: HTMLElement, protected model: ColorPickerModel) {
 		super();
-		this.domNode = dom.append(container, $('.strip.opacity-strip'));
+		this.domNode = dom.append(container, $('.strip'));
 		this.overlay = dom.append(this.domNode, $('.overlay'));
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.layout();
 	}
 
 	layout(): void {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
-		this.render(this.model.color);
-	}
 
-	private onDidChangeColor(color: Color): void {
-		this.render(color);
-	}
-
-	render(color: Color): void {
-		const { r, g, b } = color.rgba;
-		const opaque = new Color(new RGBA(r, g, b, 255));
-		const transparent = new Color(new RGBA(r, g, b, 0));
-
-		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
-		this.onDidChangeValue(color.hsva.a);
+		const value = this.getValue(this.model.color);
+		this.updateSliderPosition(value);
 	}
 
 	private onMouseDown(e: MouseEvent): void {
@@ -345,12 +241,49 @@ class OpacityStrip extends Disposable {
 	private onDidChangeTop(top: number): void {
 		const value = Math.max(0, Math.min(1, 1 - (top / this.height)));
 
-		this.onDidChangeValue(value);
+		this.updateSliderPosition(value);
 		this._onDidChange.fire(value);
 	}
 
-	private onDidChangeValue(value: number): void {
+	private updateSliderPosition(value: number): void {
 		this.slider.style.top = `${(1 - value) * this.height}px`;
+	}
+
+	protected abstract getValue(color: Color): number;
+}
+
+class OpacityStrip extends Strip {
+
+	constructor(container: HTMLElement, model: ColorPickerModel) {
+		super(container, model);
+		dom.addClass(this.domNode, 'opacity-strip');
+
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+		this.onDidChangeColor(this.model.color);
+	}
+
+	private onDidChangeColor(color: Color): void {
+		const { r, g, b } = color.rgba;
+		const opaque = new Color(new RGBA(r, g, b, 255));
+		const transparent = new Color(new RGBA(r, g, b, 0));
+
+		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
+	}
+
+	protected getValue(color: Color): number {
+		return color.hsva.a;
+	}
+}
+
+class HueStrip extends Strip {
+
+	constructor(container: HTMLElement, model: ColorPickerModel) {
+		super(container, model);
+		dom.addClass(this.domNode, 'hue-strip');
+	}
+
+	protected getValue(color: Color): number {
+		return color.hsva.h / 360;
 	}
 }
 
