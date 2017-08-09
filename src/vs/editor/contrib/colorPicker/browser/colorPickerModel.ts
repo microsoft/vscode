@@ -52,7 +52,7 @@ export class ColorPickerModel {
 		this.color = color;
 		this.hue = color.hsla.h;
 		this.saturation = color.hsla.s;
-		this.value = color.getValue();
+		this.value = color.hsva.v;
 		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
@@ -64,7 +64,7 @@ export class ColorPickerModel {
 			this._opacity = alpha / 255;
 		}
 		this.saturation = color.hsla.s;
-		this.value = color.getValue();
+		this.value = color.hsva.v;
 
 		if (this._opacity === 1) {
 			this.selectedColorString = this._opaqueFormatter.toString(this._color);

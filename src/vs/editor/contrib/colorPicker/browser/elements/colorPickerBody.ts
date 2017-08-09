@@ -9,7 +9,7 @@ import { Disposable } from "vs/base/common/lifecycle";
 import { ColorPickerModel, ISaturationState } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from "vs/base/browser/globalMouseMoveMonitor";
 import { isWindows } from "vs/base/common/platform";
-import { Color, RGBA } from "vs/base/common/color";
+import { Color, RGBA, HSVA } from "vs/base/common/color";
 const $ = dom.$;
 const MOUSE_DRAG_RESET_DISTANCE = 140;
 
@@ -240,7 +240,7 @@ export class SaturationBox {
 
 		// Update selected color if saturation selection was beforehand
 		if (this.model.saturationSelection) {
-			const newColor = Color.fromHSV(this.model.hue, this.model.saturation, this.model.value, this.model.opacity * 255);
+			const newColor = new Color(new HSVA(this.model.hue, this.model.saturation, this.model.value, this.model.opacity * 255));
 			this.model.color = newColor;
 		}
 	}
