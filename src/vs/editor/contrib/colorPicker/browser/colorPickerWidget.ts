@@ -11,11 +11,9 @@ import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { isWindows } from 'vs/base/common/platform';
-import { Color, HSVA } from 'vs/base/common/color';
+import { Color, RGBA, HSVA } from 'vs/base/common/color';
 
 const $ = dom.$;
-const MOUSE_DRAG_RESET_DISTANCE = 140;
 
 export class ColorPickerHeader extends Disposable {
 
@@ -54,10 +52,8 @@ export class ColorPickerBody extends Disposable {
 	saturationBox: SaturationBox;
 	private domNode: HTMLElement;
 	private hueSlider: Slider;
-	private opacitySlider: Slider;
+	private opacityStrip: OpacityStrip;
 	private hueStrip: HTMLElement;
-	private opacityStrip: HTMLElement;
-	private opacityOverlay: HTMLElement;
 
 	constructor(private container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
@@ -66,14 +62,16 @@ export class ColorPickerBody extends Disposable {
 		dom.append(container, this.domNode);
 
 		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
+		this._register(this.saturationBox);
 		this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 
+		this.opacityStrip = new OpacityStrip(this.domNode, this.model);
+		this._register(this.opacityStrip);
+		this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
 
-		this.drawOpacityStrip();
 		this.drawHueStrip();
 
 		this.registerListeners();
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 	}
 
 	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
@@ -81,89 +79,73 @@ export class ColorPickerBody extends Disposable {
 		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
 
-	private onDidChangeColor(): void {
-		const { r, g, b } = this.model.color.rgba;
-		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
+	private onDidOpacityChange(a: number): void {
+		const hsva = this.model.color.hsva;
+		this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
 	}
 
 	layout(): void {
 		this.saturationBox.layout();
-	}
-
-	fillOpacityOverlay(color: Color): void {
-		const { r, g, b } = color.rgba;
-		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
+		this.opacityStrip.layout();
 	}
 
 	private registerListeners(): void {
-		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		// const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 
 		// Hue and opacity strips listener
-		this._register(dom.addDisposableListener(this.hueStrip, dom.EventType.MOUSE_DOWN, e => {
-			this.stripListener(this.hueStrip, e, monitor);
-		}));
-		this._register(dom.addDisposableListener(this.opacityStrip, dom.EventType.MOUSE_DOWN, e => {
-			this.stripListener(this.opacityStrip, e, monitor);
-		}));
+		// this._register(dom.addDisposableListener(this.hueStrip, dom.EventType.MOUSE_DOWN, e => {
+		// 	this.stripListener(this.hueStrip, e, monitor);
+		// }));
+		// this._register(dom.addDisposableListener(this.opacityStrip, dom.EventType.MOUSE_DOWN, e => {
+		// 	this.stripListener(this.opacityStrip, e, monitor);
+		// }));
 	}
 
-	private stripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>) {
-		if (e.button !== 0) { // Only left click is allowed
-			return;
-		}
-		const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
-		const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
+	// private stripListener(element: HTMLElement, e: MouseEvent, monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>) {
+	// 	if (e.button !== 0) { // Only left click is allowed
+	// 		return;
+	// 	}
+	// 	const slider = element === this.hueStrip ? this.hueSlider : this.opacitySlider;
+	// 	const strip = element === this.hueStrip ? this.hueStrip : this.opacityStrip;
 
-		// Update slider position if clicked on a strip itself
-		if (e.target === this.hueStrip || e.target === this.opacityStrip) {
-			slider.top = e.offsetY;
-		}
+	// 	// Update slider position if clicked on a strip itself
+	// 	if (e.target === this.hueStrip || e.target === this.opacityStrip) {
+	// 		slider.top = e.offsetY;
+	// 	}
 
-		const updateModel = () => {
-			if (slider === this.hueSlider) {
-				// this.model.hue = this.calculateSliderHue(slider);
-			} else if (slider === this.opacitySlider) {
-				this.model.opacity = this.calculateOpacity(slider);
-			}
-		};
-		updateModel();
+	// 	const updateModel = () => {
+	// 		if (slider === this.hueSlider) {
+	// 			// this.model.hue = this.calculateSliderHue(slider);
+	// 		} else if (slider === this.opacitySlider) {
+	// 			this.model.opacity = this.calculateOpacity(slider);
+	// 		}
+	// 	};
+	// 	updateModel();
 
-		const initialMousePosition = e.clientY;
-		const initialMouseOrthogonalPosition = e.clientX;
-		const initialSliderTop = slider.top;
-		monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
-			strip.style.cursor = '-webkit-grabbing';
-			// Do not move slider on Windows if it's outside of movable bounds
-			const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
-			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-				slider.top = 0;
-				if (slider === this.hueSlider) {
-					// this.model.hue = 0;
-				} else if (slider === this.opacitySlider) {
-					this.model.opacity = 1;
-				}
-				return;
-			}
+	// 	const initialMousePosition = e.clientY;
+	// 	const initialMouseOrthogonalPosition = e.clientX;
+	// 	const initialSliderTop = slider.top;
+	// 	monitor.startMonitoring(standardMouseMoveMerger, (mouseMoveData: IStandardMouseMoveEventData) => {
+	// 		strip.style.cursor = '-webkit-grabbing';
+	// 		// Do not move slider on Windows if it's outside of movable bounds
+	// 		const mouseOrthogonalDelta = Math.abs(mouseMoveData.posx - initialMouseOrthogonalPosition);
+	// 		if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
+	// 			slider.top = 0;
+	// 			if (slider === this.hueSlider) {
+	// 				// this.model.hue = 0;
+	// 			} else if (slider === this.opacitySlider) {
+	// 				this.model.opacity = 1;
+	// 			}
+	// 			return;
+	// 		}
 
-			const mouseDelta = mouseMoveData.posy - initialMousePosition;
-			slider.top = initialSliderTop + mouseDelta;
-			updateModel();
-		}, () => {
-			strip.style.cursor = '-webkit-grab';
-		});
-	}
-
-	private drawOpacityStrip(): void {
-		this.opacityStrip = $('.strip.opacity-strip');
-		dom.append(this.domNode, this.opacityStrip);
-		this.opacityOverlay = $('.opacity-overlay');
-		this.onDidChangeColor();
-		dom.append(this.opacityStrip, this.opacityOverlay);
-
-		this.opacitySlider = new Slider(this.opacityStrip);
-		this.opacitySlider.top = this.model.opacity === 1 ? 0 : this.opacityStrip.offsetHeight * (1 - this.model.opacity);
-		dom.append(this.opacityStrip, this.opacitySlider.domNode);
-	}
+	// 		const mouseDelta = mouseMoveData.posy - initialMousePosition;
+	// 		slider.top = initialSliderTop + mouseDelta;
+	// 		updateModel();
+	// 	}, () => {
+	// 		strip.style.cursor = '-webkit-grab';
+	// 	});
+	// }
 
 	private drawHueStrip(): void {
 		this.hueStrip = $('.strip.hue-strip');
@@ -172,11 +154,6 @@ export class ColorPickerBody extends Disposable {
 		this.hueSlider = new Slider(this.hueStrip);
 		dom.append(this.hueStrip, this.hueSlider.domNode);
 		this.hueSlider.top = (this.hueStrip.offsetHeight - this.hueSlider.domNode.offsetHeight) * (this.model.color.hsla.h / 359);
-	}
-
-	private calculateOpacity(slider: Slider): number {
-		const opacityNormalizedHeight = this.opacityStrip.offsetHeight - slider.domNode.offsetHeight;
-		return (opacityNormalizedHeight - slider.top) / opacityNormalizedHeight;
 	}
 }
 
@@ -284,6 +261,9 @@ class Slider {
 	domNode: HTMLElement;
 	private _top: number;
 
+	private _onDidChange = new Emitter<number>();
+	readonly onDidChange: Event<number> = this._onDidChange.event;
+
 	constructor(private strip: HTMLElement) {
 		this.domNode = $('.slider');
 		this._top = 0;
@@ -303,6 +283,74 @@ class Slider {
 
 		this.domNode.style.top = top + 'px';
 		this._top = top;
+	}
+}
+
+class OpacityStrip extends Disposable {
+
+	protected domNode: HTMLElement;
+	protected overlay: HTMLElement;
+	protected slider: HTMLElement;
+	private height: number;
+
+	private _onDidChange = new Emitter<number>();
+	readonly onDidChange: Event<number> = this._onDidChange.event;
+
+	constructor(container: HTMLElement, protected model: ColorPickerModel) {
+		super();
+		this.domNode = dom.append(container, $('.strip.opacity-strip'));
+		this.overlay = dom.append(this.domNode, $('.overlay'));
+		this.slider = dom.append(this.domNode, $('.slider'));
+		this.slider.style.top = `0px`;
+
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+		this.layout();
+	}
+
+	layout(): void {
+		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
+		this.render(this.model.color);
+	}
+
+	private onDidChangeColor(color: Color): void {
+		this.render(color);
+	}
+
+	render(color: Color): void {
+		const { r, g, b } = color.rgba;
+		const opaque = new Color(new RGBA(r, g, b, 255));
+		const transparent = new Color(new RGBA(r, g, b, 0));
+
+		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
+		this.onDidChangeValue(color.hsva.a);
+	}
+
+	private onMouseDown(e: MouseEvent): void {
+		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		const origin = dom.getDomNodePagePosition(this.domNode);
+
+		if (e.target !== this.slider) {
+			this.onDidChangeTop(e.offsetY);
+		}
+
+		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+
+		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+			mouseUpListener.dispose();
+			monitor.stopMonitoring(true);
+		}, true);
+	}
+
+	private onDidChangeTop(top: number): void {
+		const value = Math.max(0, Math.min(1, 1 - (top / this.height)));
+
+		this.onDidChangeValue(value);
+		this._onDidChange.fire(value);
+	}
+
+	private onDidChangeValue(value: number): void {
+		this.slider.style.top = `${(1 - value) * this.height}px`;
 	}
 }
 

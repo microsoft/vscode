@@ -104,7 +104,7 @@
 	height: 5px;
 }
 
-.colorpicker-body .opacity-strip .opacity-overlay {
+.colorpicker-body .strip .overlay {
 	height: 150px;
 	pointer-events: none;
 }
