@@ -214,6 +214,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
+			// Pretend here we touched the text area, as the `input` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._textArea.setIgnoreSelectionChangeTime('received input event');
+
 			if (this._isDoingComposition) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				if (browser.isChromev56) {
@@ -254,6 +258,10 @@ export class TextAreaInput extends Disposable {
 		// --- Clipboard operations
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
+			// Pretend here we touched the text area, as the `cut` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._textArea.setIgnoreSelectionChangeTime('received cut event');
+
 			this._ensureClipboardGetsEditorSelection(e);
 			this._asyncTriggerCut.schedule();
 		}));
@@ -263,6 +271,10 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._textArea.setIgnoreSelectionChangeTime('received paste event');
+
 			if (ClipboardEventUtils.canUseTextData(e)) {
 				const pastePlainText = ClipboardEventUtils.getTextData(e);
 				if (pastePlainText !== '') {
@@ -281,6 +293,62 @@ export class TextAreaInput extends Disposable {
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => this._setHasFocus(true)));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => this._setHasFocus(false)));
+
+
+		// See https://github.com/Microsoft/vscode/issues/27216
+		// When using a Braille display, it is possible for users to reposition the
+		// system caret. This is reflected in Chrome as a `selectionchange` event.
+		//
+		// The `selectionchange` event appears to be emitted under numerous other circumstances,
+		// so it is quite a challenge to distinguish a `selectionchange` coming in from a user
+		// using a Braille display from all the other cases.
+		//
+		// The problems with the `selectionchange` event are:
+		//  * the event is emitted when the textarea is focused programmatically -- textarea.focus()
+		//  * the event is emitted when the selection is changed in the textarea programatically -- textarea.setSelectionRange(...)
+		//  * the event is emitted when the value of the textarea is changed programmatically -- textarea.value = '...'
+		//  * the event is emitted when tabbing into the textarea
+		//  * the event is emitted asynchronously (sometimes with a delay as high as a few tens of ms)
+		//  * the event sometimes comes in bursts for a single logical textarea operation
+
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+		let previousSelectionChangeEventTime = 0;
+		this._register(dom.addDisposableListener(document, 'selectionchange', (e) => {
+			if (!this._hasFocus) {
+				return;
+			}
+			if (this._isDoingComposition) {
+				return;
+			}
+			if (!browser.isChrome || !platform.isWindows) {
+				// Support only for Chrome on Windows until testing happens on other browsers + OS configurations
+				return;
+			}
+
+			const now = Date.now();
+
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+
+			const delta2 = now - this._textArea.getIgnoreSelectionChangeTime();
+			this._textArea.resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the textarea
+				// => ignore it, since we caused it
+				return;
+			}
+
+			// TODO: React here to the new text area selection
+			// console.warn('!!!!!!!' + Date.now() + ':: RECEIVED selectionchange');
+			// console.log(this._textArea.getSelectionStart(), this._textArea.getSelectionEnd());
+			// console.log(this._textAreaState.selectionStart, this._textAreaState.selectionEnd);
+		}));
 	}
 
 	public dispose(): void {
@@ -405,10 +473,24 @@ class ClipboardEventUtils {
 class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	private readonly _actual: FastDomNode<HTMLTextAreaElement>;
+	private _ignoreSelectionChangeTime: number;
 
 	constructor(_textArea: FastDomNode<HTMLTextAreaElement>) {
 		super();
 		this._actual = _textArea;
+		this._ignoreSelectionChangeTime = 0;
+	}
+
+	public setIgnoreSelectionChangeTime(reason: string): void {
+		this._ignoreSelectionChangeTime = Date.now();
+	}
+
+	public getIgnoreSelectionChangeTime(): number {
+		return this._ignoreSelectionChangeTime;
+	}
+
+	public resetSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = 0;
 	}
 
 	public getValue(): string {
@@ -423,6 +505,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			return;
 		}
 		// console.log('reason: ' + reason + ', current value: ' + textArea.value + ' => new value: ' + value);
+		this.setIgnoreSelectionChangeTime('setValue');
 		textArea.value = value;
 	}
 
@@ -450,6 +533,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused) {
 			// No need to focus, only need to change the selection range
+			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.setSelectionRange(selectionStart, selectionEnd);
 			return;
 		}
@@ -458,6 +542,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		// Here, we try to undo the browser's desperate reveal.
 		try {
 			const scrollState = dom.saveParentsScrollTop(textArea);
+			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.focus();
 			textArea.setSelectionRange(selectionStart, selectionEnd);
 			dom.restoreParentsScrollTop(textArea, scrollState);
