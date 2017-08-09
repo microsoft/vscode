@@ -7,54 +7,57 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
-import { IModel } from 'vs/editor/common/editorCommon';
-import { Range, IRange } from 'vs/editor/common/core/range';
 
 export class ColorPickerModel {
-	public widget: ColorPickerWidget;
 
-	public saturationSelection: ISaturationState;
-	public originalColor: Color;
-	public formatters: IColorFormatter[];
-	public saturation: number; // [0-1]
-	public value: number; // [0-1]
+	widget: ColorPickerWidget;
+	saturationSelection: ISaturationState;
+	originalColor: Color;
+	formatters: IColorFormatter[];
+	saturation: number; // [0-1]
+	value: number; // [0-1]
 
 	private _color: Color;
-	private _selectedColor: string;
 	private _opacity: number;
 	private _hue: number;
 
 	private _formatter: IColorFormatter;
+	get formatter(): IColorFormatter { return this._formatter; }
 
-	private _colorRange: Range;
-	private _colorModelIndex: number;
+	private formatterIndex: number;
 
 	private _onDidChangeColor = new Emitter<Color>();
 	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
+	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
+	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
+
 	constructor(
 		color: Color,
 		formatter: IColorFormatter,
-		availableFormatters: IColorFormatter[],
-		private editorModel: IModel,
-		range: IRange
+		availableFormatters: IColorFormatter[]
 	) {
-		this.formatters = [];
-		this._colorModelIndex = 0;
+		if (availableFormatters.length === 0) {
+			throw new Error('Color picker needs formats');
+		}
+
+		this.formatterIndex = 0;
 
 		this.originalColor = color;
 		this.formatters = availableFormatters;
 		this._formatter = formatter;
-		this.color = color;
+		this._color = color;
 		this.hue = color.hsla.h;
 		this.saturation = color.hsla.s;
 		this.value = color.hsva.v;
-		this._colorRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
-	public set color(color: Color) {
+	set color(color: Color) {
+		if (this._color.equals(color)) {
+			return;
+		}
+
 		this._color = color;
-		this._onDidChangeColor.fire(color);
 
 		const alpha = color.rgba.a;
 		if (!this._opacity) {
@@ -64,84 +67,51 @@ export class ColorPickerModel {
 		this.value = color.hsva.v;
 
 		if (!this._formatter.canFormatColor(color)) {
-			this.nextColorMode();
-		} else {
-			this.selectedColorString = this._formatter.formatColor(this._color);
+			this.selectNextColorFormat();
 		}
+
+		this._onDidChangeColor.fire(color);
 	}
 
-	public get color(): Color {
+	get color(): Color {
 		return this._color;
 	}
 
-	public set selectedColorString(colorString: string) {
-		if (this._selectedColor === colorString) {
-			return;
-		}
-		this._selectedColor = colorString;
-
-		if (this.widget && this.widget.body) {
-			this.widget.body.fillOpacityOverlay(this._color);
-
-			this.editorModel.pushEditOperations([], [{
-				identifier: null,
-				range: this._colorRange,
-				text: colorString,
-				forceMoveMarkers: false
-			}], () => []);
-
-			this._colorRange = this._colorRange.setEndPosition(this._colorRange.endLineNumber, this._colorRange.startColumn + colorString.length);
-		}
-	}
-
-	public get selectedColorString() {
-		return this._selectedColor;
-	}
-
-	public set hue(hue: number) {
+	set hue(hue: number) {
 		this._hue = hue;
 		if (this.widget && this.widget.body) {
 			this.widget.body.saturationBox.fillSaturationBox();
 		}
 	}
 
-	public get hue(): number {
+	get hue(): number {
 		return this._hue;
 	}
 
-	public set opacity(opacity: number) {
+	set opacity(opacity: number) {
 		this._opacity = opacity;
 
 		const rgba = this._color.rgba;
 		this.color = new Color(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
 	}
 
-	public get opacity(): number {
+	get opacity(): number {
 		return this._opacity;
 	}
 
-	public nextColorMode() {
-		if (this.formatters.length === 0) {
-			return;
-		}
-
-		this._colorModelIndex++;
-
-		if (this._colorModelIndex === this.formatters.length) {
-			this._colorModelIndex = 0;
-		}
-
-		this._formatter = this.formatters[this._colorModelIndex];
+	selectNextColorFormat(): void {
+		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
+		this._formatter = this.formatters[this.formatterIndex];
 
 		if (!this._formatter.canFormatColor(this._color)) {
-			this.nextColorMode();
-		} else {
-			this.selectedColorString = this._formatter.formatColor(this._color);
+			return this.selectNextColorFormat();
 		}
+
+		this._onDidChangeFormatter.fire(this._formatter);
 	}
 }
 
 export class ISaturationState {
-	public x: number;
-	public y: number;
+	x: number;
+	y: number;
 }

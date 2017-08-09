@@ -32,14 +32,19 @@ export class ColorPickerHeader extends Disposable {
 		const colorBox = dom.append(this.domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
 
-		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.nextColorMode()));
+		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorFormat()));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
-		this.onDidChangeColor(this.model.color);
+		this._register(model.onDidChangeFormatter(this.onDidChangeFormatter, this));
+		this.onDidChangeColor();
 	}
 
-	private onDidChangeColor(color: Color) {
-		this.pickedColorNode.textContent = this.model.selectedColorString;
+	private onDidChangeColor(): void {
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.color);
+		this.onDidChangeFormatter();
+	}
+
+	private onDidChangeFormatter(): void {
+		this.pickedColorNode.textContent = this.model.formatter.formatColor(this.model.color);
 	}
 }
 
@@ -65,6 +70,12 @@ export class ColorPickerBody extends Disposable {
 		this.drawHueStrip();
 
 		this.registerListeners();
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+	}
+
+	private onDidChangeColor(): void {
+		const { r, g, b } = this.model.color.rgba;
+		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
 	}
 
 	layout(): void {
@@ -179,7 +190,7 @@ export class ColorPickerBody extends Disposable {
 		this.opacityStrip = $('.strip.opacity-strip');
 		dom.append(this.domNode, this.opacityStrip);
 		this.opacityOverlay = $('.opacity-overlay');
-		this.fillOpacityOverlay(this.model.color);
+		this.onDidChangeColor();
 		dom.append(this.opacityStrip, this.opacityOverlay);
 
 		this.opacitySlider = new Slider(this.opacityStrip);
