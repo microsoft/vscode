@@ -22,9 +22,9 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { isColorDecorationOptions } from 'vs/editor/contrib/colorPicker/common/color';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { Color, RGBA } from 'vs/base/common/color';
 import * as lifecycle from 'vs/base/common/lifecycle';
@@ -87,8 +87,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
+		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
+		let didFindColor = false;
 
 		const result = lineDecorations.map(d => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
@@ -99,14 +101,13 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
+			const colorRange = colorDetector.getColorRange(d.range.getStartPosition());
 
-			// TOOD@Joao
-			const options = d.options as any;
-			const extraOptions = options && options.extraOptions;
+			if (!didFindColor && colorRange) {
+				didFindColor = true;
 
-			if (isColorDecorationOptions(extraOptions)) {
-				const { color, format, availableFormats } = extraOptions;
-				return new ColorHover(range, color, format, availableFormats);
+				const { color, format, availableFormats } = colorRange;
+				return new ColorHover(d.range, color, format, availableFormats);
 			} else {
 				if (!hasHoverContent(d.options.hoverMessage)) {
 					return null;
