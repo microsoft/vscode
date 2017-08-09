@@ -95,6 +95,9 @@ export class QuickKillTerminalAction extends Action {
 		if (terminal) {
 			terminal.dispose();
 		}
+		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		}
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
