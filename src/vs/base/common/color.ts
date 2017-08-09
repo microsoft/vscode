@@ -255,9 +255,6 @@ export class HSVA {
 
 export class Color {
 
-	/**
-	 * Creates a color from a hex string (#RRGGBB or #RRGGBBAA).
-	 */
 	static fromHex(hex: string): Color {
 		return Color.Format.CSS.parseHex(hex) || Color.red;
 	}
