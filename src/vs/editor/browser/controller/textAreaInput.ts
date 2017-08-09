@@ -5,6 +5,8 @@
 'use strict';
 
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -37,7 +39,7 @@ export interface ITextAreaInputHost {
 	getPlainTextToCopy(): string;
 	getHTMLToCopy(): string;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
-	// deduceEditorPosition(anchor: Position, delta: number, lineFeedCnt: number): Position;
+	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
 
 /**
@@ -79,6 +81,9 @@ export class TextAreaInput extends Disposable {
 
 	private _onCompositionEnd = this._register(new Emitter<void>());
 	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+
+	private _onSelectionChangeRequest = this._register(new Emitter<Selection>());
+	public onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
 
 	// ---
 
@@ -363,16 +368,18 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			// const newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
-			// const newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
+			const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
+			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0], _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
 
-			// // TODO: React here to the new text area selection
-			// console.warn('!!!!!!!' + Date.now() + ':: RECEIVED selectionchange');
-			// console.log(this._textArea.getSelectionStart(), this._textArea.getSelectionEnd());
-			// console.log(this._textAreaState.selectionStart, this._textAreaState.selectionEnd);
-			// console.log(this._textAreaState.selectionStartPosition, this._textAreaState.selectionEndPosition);
-			// console.log(newSelectionStartPosition);
-			// console.log(newSelectionEndPosition);
+			const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
+			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0], _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
+
+			const newSelection = new Selection(
+				newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
+				newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
+			);
+
+			this._onSelectionChangeRequest.fire(newSelection);
 		}));
 	}
 

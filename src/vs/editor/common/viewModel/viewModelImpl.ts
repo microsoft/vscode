@@ -440,6 +440,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.validatePosition(position);
 	}
 
+	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
+		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
+		if (this.model.getEOL().length === 2) {
+			// This model uses CRLF, so the delta must take that into account
+			if (deltaOffset < 0) {
+				deltaOffset -= lineFeedCnt;
+			} else {
+				deltaOffset += lineFeedCnt;
+			}
+		}
+
+		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
+		const resultOffset = modelAnchorOffset + deltaOffset;
+		return this.model.getPositionAt(resultOffset);
+	}
+
 	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
 		let newLineCharacter = this.model.getEOL();
 
