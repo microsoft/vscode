@@ -349,11 +349,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
 				const color = new Color(rgba);
 				const model = new ColorPickerModel(rgba.toString(), color, formatter, availableFormatters, this._editor.getModel(), msg.range);
-				const widget = this._register(new ColorPickerWidget(model, this._editor));
-				model.widget = widget;
+				const widget = this._register(new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio));
 
+				// TODO@Joao woot
+				model.widget = widget;
 				this._colorPicker = widget;
-				fragment.appendChild(widget.getDomNode());
 			}
 		});
 

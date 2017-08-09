@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { Disposable } from "vs/base/common/lifecycle";
 import { ColorPickerModel, ISaturationState } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from "vs/base/browser/globalMouseMoveMonitor";
@@ -17,7 +16,6 @@ export class ColorPickerBody extends Disposable {
 	public saturationBox: SaturationBox;
 
 	private domNode: HTMLElement;
-	private pixelRatio: number;
 
 	private hueSlider: Slider;
 	private opacitySlider: Slider;
@@ -25,13 +23,11 @@ export class ColorPickerBody extends Disposable {
 	private opacityStrip: HTMLElement;
 	private opacityOverlay: HTMLElement;
 
-	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel) {
+	constructor(private container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
-		this.pixelRatio = this.widget.editor.getConfiguration().pixelRatio;
-
 		this.domNode = $('.colorpicker-body');
-		dom.append(widget.getDomNode(), this.domNode);
+		dom.append(container, this.domNode);
 
 		this.drawSaturationBox();
 		this.drawOpacityStrip();
@@ -69,7 +65,7 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = (x: number, y: number) => {
 			const { r, g, b } = this.saturationBox.extractColor(x, y).rgba;
-			this.widget.model.color = new Color(new RGBA(r, g, b, this.widget.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
+			this.model.color = new Color(new RGBA(r, g, b, this.model.opacity * 255)); // TODO@Michel store opacity in [0-255] instead
 			this.saturationBox.focusSaturationSelection({ x: x, y: y });
 		};
 
@@ -79,8 +75,8 @@ export class ColorPickerBody extends Disposable {
 			newSaturationY = e.offsetY;
 			updateModel(newSaturationX, newSaturationY);
 		} else { // If clicked on the selection circle
-			newSaturationX = this.widget.model.saturationSelection.x;
-			newSaturationY = this.widget.model.saturationSelection.y;
+			newSaturationX = this.model.saturationSelection.x;
+			newSaturationY = this.model.saturationSelection.y;
 		}
 
 		const initialMousePosition = e.clientY;
@@ -108,9 +104,9 @@ export class ColorPickerBody extends Disposable {
 
 		const updateModel = () => {
 			if (slider === this.hueSlider) {
-				this.widget.model.hue = this.calculateSliderHue(slider);
+				this.model.hue = this.calculateSliderHue(slider);
 			} else if (slider === this.opacitySlider) {
-				this.widget.model.opacity = this.calculateOpacity(slider);
+				this.model.opacity = this.calculateOpacity(slider);
 			}
 		};
 		updateModel();
@@ -125,9 +121,9 @@ export class ColorPickerBody extends Disposable {
 			if (isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 				slider.top = 0;
 				if (slider === this.hueSlider) {
-					this.widget.model.hue = 0;
+					this.model.hue = 0;
 				} else if (slider === this.opacitySlider) {
-					this.widget.model.opacity = 1;
+					this.model.opacity = 1;
 				}
 				return;
 			}

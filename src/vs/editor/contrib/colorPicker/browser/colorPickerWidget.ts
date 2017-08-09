@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./colorPicker';
-import { ICodeEditor } from "vs/editor/browser/editorBrowser";
 import { Widget } from "vs/base/browser/ui/widget";
 import * as dom from 'vs/base/browser/dom';
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
@@ -14,6 +13,7 @@ import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPic
 const $ = dom.$;
 
 export class ColorPickerWidget extends Widget {
+
 	private static ID = 'editor.contrib.colorPickerWidget';
 
 	private domNode: HTMLElement;
@@ -22,10 +22,12 @@ export class ColorPickerWidget extends Widget {
 
 	public visible: boolean = false;
 
-	constructor(public model: ColorPickerModel, public editor: ICodeEditor) {
+	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
+
 		this._register(onDidChangeZoomLevel(() => this.layout()));
 		this.domNode = $('.editor-widget.colorpicker-widget');
+		container.appendChild(this.domNode);
 	}
 
 	public layout(): void {
@@ -33,8 +35,8 @@ export class ColorPickerWidget extends Widget {
 			return;
 		}
 
-		this.header = new ColorPickerHeader(this, this.model);
-		this.body = new ColorPickerBody(this, this.model);
+		this.header = new ColorPickerHeader(this.domNode, this.model);
+		this.body = new ColorPickerBody(this.domNode, this.model, this.pixelRatio);
 
 		this.visible = true;
 	}
@@ -51,9 +53,5 @@ export class ColorPickerWidget extends Widget {
 
 	public getId(): string {
 		return ColorPickerWidget.ID;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this.domNode;
 	}
 }

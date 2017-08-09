@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
 import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
 import { Disposable } from "vs/base/common/lifecycle";
 import { Button } from "vs/base/browser/ui/button/button";
@@ -17,11 +16,11 @@ export class ColorPickerHeader extends Disposable {
 	private domNode: HTMLElement;
 	private pickedColorNode: HTMLElement;
 
-	constructor(private widget: ColorPickerWidget, private model: ColorPickerModel) {
+	constructor(container: HTMLElement, private model: ColorPickerModel) {
 		super();
 
 		this.domNode = $('.colorpicker-header');
-		dom.append(widget.getDomNode(), this.domNode);
+		dom.append(container, this.domNode);
 
 		this.drawPickedColorBox();
 		this.drawOriginalColorBox();
