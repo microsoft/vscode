@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { Color, RGBA } from "vs/base/common/color";
-import { IColorFormatter } from "vs/editor/contrib/colorPicker/common/colorFormatter";
-import { IModel } from "vs/editor/common/editorCommon";
-import { Range, IRange } from "vs/editor/common/core/range";
+import Event, { Emitter } from 'vs/base/common/event';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { Color, RGBA } from 'vs/base/common/color';
+import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
 
 export class ColorPickerModel {
 	public widget: ColorPickerWidget;
 
 	public saturationSelection: ISaturationState;
-	public originalColor: string;
+	public originalColor: Color;
 	public formatters: IColorFormatter[];
 	public saturation: number; // [0-1]
 	public value: number; // [0-1]
@@ -28,8 +29,10 @@ export class ColorPickerModel {
 	private _colorRange: Range;
 	private _colorModelIndex: number;
 
+	private _onDidChangeColor = new Emitter<Color>();
+	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
+
 	constructor(
-		originalColor: string,
 		color: Color,
 		formatter: IColorFormatter,
 		availableFormatters: IColorFormatter[],
@@ -39,7 +42,7 @@ export class ColorPickerModel {
 		this.formatters = [];
 		this._colorModelIndex = 0;
 
-		this.originalColor = originalColor;
+		this.originalColor = color;
 		this.formatters = availableFormatters;
 		this._formatter = formatter;
 		this.color = color;
@@ -51,6 +54,7 @@ export class ColorPickerModel {
 
 	public set color(color: Color) {
 		this._color = color;
+		this._onDidChangeColor.fire(color);
 
 		const alpha = color.rgba.a;
 		if (!this._opacity) {
@@ -76,8 +80,7 @@ export class ColorPickerModel {
 		}
 		this._selectedColor = colorString;
 
-		if (this.widget && this.widget.header && this.widget.body) {
-			this.widget.header.updatePickedColor();
+		if (this.widget && this.widget.body) {
 			this.widget.body.fillOpacityOverlay(this._color);
 
 			this.editorModel.pushEditOperations([], [{
@@ -111,10 +114,6 @@ export class ColorPickerModel {
 
 		const rgba = this._color.rgba;
 		this.color = new Color(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
-
-		if (this.widget.header) {
-			this.widget.header.updatePickedColor();
-		}
 	}
 
 	public get opacity(): number {
@@ -122,7 +121,12 @@ export class ColorPickerModel {
 	}
 
 	public nextColorMode() {
+		if (this.formatters.length === 0) {
+			return;
+		}
+
 		this._colorModelIndex++;
+
 		if (this._colorModelIndex === this.formatters.length) {
 			this._colorModelIndex = 0;
 		}

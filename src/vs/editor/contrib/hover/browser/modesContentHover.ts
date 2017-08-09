@@ -348,7 +348,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
 				const color = new Color(rgba);
-				const model = new ColorPickerModel(rgba.toString(), color, formatter, availableFormatters, this._editor.getModel(), msg.range);
+				const model = new ColorPickerModel(color, formatter, availableFormatters, this._editor.getModel(), msg.range);
 				const widget = this._register(new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio));
 
 				// TODO@Joao woot

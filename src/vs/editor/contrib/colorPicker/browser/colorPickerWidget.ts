@@ -27,33 +27,19 @@ export class ColorPickerHeader extends Disposable {
 		this.domNode = $('.colorpicker-header');
 		dom.append(container, this.domNode);
 
-		this.drawPickedColorBox();
-		this.drawOriginalColorBox();
+		this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
 
-		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => {
-			if (this.model.formatters.length === 0) {
-				return;
-			}
-			this.model.nextColorMode();
-		}));
+		const colorBox = dom.append(this.domNode, $('.original-color'));
+		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
+
+		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.nextColorMode()));
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
+		this.onDidChangeColor(this.model.color);
 	}
 
-	updatePickedColor() {
+	private onDidChangeColor(color: Color) {
 		this.pickedColorNode.textContent = this.model.selectedColorString;
-		this.pickedColorNode.style.backgroundColor = this.model.color.toString();
-	}
-
-	private drawPickedColorBox() {
-		this.pickedColorNode = $('.picked-color');
-		this.pickedColorNode.style.backgroundColor = this.model.color.toString();
-		this.pickedColorNode.textContent = this.model.selectedColorString;
-		dom.append(this.domNode, this.pickedColorNode);
-	}
-
-	private drawOriginalColorBox() {
-		let colorBox = $('.original-color');
-		colorBox.style.backgroundColor = this.model.originalColor;
-		dom.append(this.domNode, colorBox);
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.color);
 	}
 }
 
@@ -382,7 +368,6 @@ export class ColorPickerWidget extends Widget {
 
 	private static ID = 'editor.contrib.colorPickerWidget';
 
-	header: ColorPickerHeader;
 	body: ColorPickerBody;
 
 	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number) {
@@ -393,10 +378,10 @@ export class ColorPickerWidget extends Widget {
 		const element = $('.editor-widget.colorpicker-widget');
 		container.appendChild(element);
 
-		this.header = new ColorPickerHeader(element, this.model);
+		const header = new ColorPickerHeader(element, this.model);
 		this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
 
-		this._register(this.header);
+		this._register(header);
 		this._register(this.body);
 	}
 
