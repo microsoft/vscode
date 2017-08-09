@@ -259,48 +259,21 @@ export class Color {
 		return Color.Format.CSS.parseHex(hex) || Color.red;
 	}
 
-	private _rgba: RGBA;
-	get rgba(): RGBA {
-		if (!this._rgba) {
-			if (this._hsla) {
-				this._rgba = HSLA.toRGBA(this.hsla);
-			} else {
-				this._rgba = HSVA.toRGBA(this.hsva);
-			}
-		}
-
-		return this._rgba;
-	}
-
-	private _hsla: HSLA;
-	get hsla(): HSLA {
-		if (!this._hsla) {
-			this._hsla = HSLA.fromRGBA(this.rgba);
-		}
-
-		return this._hsla;
-	}
-
-	private _hsva: HSVA;
-	get hsva(): HSVA {
-		if (!this._hsva) {
-			this._hsva = HSVA.fromRGBA(this.rgba);
-		}
-
-		return this._hsva;
-	}
+	readonly rgba: RGBA;
+	get hsla(): HSLA { return HSLA.fromRGBA(this.rgba); }
+	get hsva(): HSVA { return HSVA.fromRGBA(this.rgba); }
 
 	constructor(arg: RGBA | HSLA | HSVA) {
 		if (!arg) {
 			throw new Error('Color needs a value');
-		}
-
-		if (arg instanceof RGBA) {
-			this._rgba = arg;
+		} else if (arg instanceof RGBA) {
+			this.rgba = arg;
 		} else if (arg instanceof HSLA) {
-			this._hsla = arg;
+			this.rgba = HSLA.toRGBA(arg);
+		} else if (arg instanceof HSVA) {
+			this.rgba = HSVA.toRGBA(arg);
 		} else {
-			this._hsva = arg;
+			throw new Error('Invalid color ctor argument');
 		}
 	}
 
@@ -507,7 +480,7 @@ export namespace Color {
 					return null;
 				}
 
-				if (color.rgba.a === 255) {
+				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}
 
