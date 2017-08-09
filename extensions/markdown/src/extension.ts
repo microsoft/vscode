@@ -168,6 +168,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.refreshPreview', (resource: string | undefined) => {
+		if (resource) {
+			const source = vscode.Uri.parse(resource);
+			contentProvider.update(source);
+		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+		} else if (!vscode.window.activeTextEditor) {
+			// update all generated md documents
+			for (const document of vscode.workspace.textDocuments) {
+				if (document.uri.scheme === 'markdown') {
+					contentProvider.update(document.uri);
+				}
+			}
+		}
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {
 		vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", resources.join(', ')));
 	}));

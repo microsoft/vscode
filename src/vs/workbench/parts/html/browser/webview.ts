@@ -358,7 +358,7 @@ export default class Webview {
 
 	public layout(): void {
 		const contents = (this._webview as any).getWebContents();
-		if (!contents) {
+		if (!contents || contents.isDestroyed()) {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();

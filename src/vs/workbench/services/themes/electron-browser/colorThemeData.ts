@@ -81,7 +81,7 @@ export class ColorThemeData implements IColorTheme {
 		for (let id in colors) {
 			let colorVal = colors[id];
 			if (typeof colorVal === 'string') {
-				let color = Color.fromHex(colorVal, null);
+				let color = Color.fromHex(colorVal);
 				if (color) {
 					this.customColorMap[id] = color;
 				}
@@ -140,7 +140,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
 		for (let key in this.colorMap) {
-			content.colors[key] = this.colorMap[key].toRGBAHex(true);
+			content.colors[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
 		return JSON.stringify(content, null, '\t');
 	}
@@ -148,7 +148,7 @@ export class ColorThemeData implements IColorTheme {
 	toStorageData() {
 		let colorMapData = {};
 		for (let key in this.colorMap) {
-			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
 		// no need to persist custom colors, they will be taken from the settings
 		return JSON.stringify({
@@ -257,7 +257,7 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
-						let colorHex = Color.fromHex(colors[colorId], null);
+						let colorHex = Color.fromHex(colors[colorId]);
 						if (colorHex) { // ignore invalid colors
 							resultColors[colorId] = colorHex;
 						}
@@ -322,8 +322,8 @@ function _sanitizeTokenColors(theme: ColorThemeData) {
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
 	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
 	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
-	defaultRule.settings.foreground = foreground.toRGBAHex();
-	defaultRule.settings.background = background.toRGBAHex();
+	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
+	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;
 }
 

@@ -14,6 +14,7 @@
 	],
 	"activationEvents": [
 		"onLanguage:markdown",
+		"onCommand:markdown.refreshPreview",
 		"onCommand:markdown.showPreview",
 		"onCommand:markdown.showPreviewToSide",
 		"onCommand:markdown.showSource",
@@ -72,6 +73,11 @@
 				}
 			},
 			{
+				"command": "markdown.refreshPreview",
+				"title": "%markdown.refreshPreview.title%",
+				"category": "Markdown"
+			},
+			{
 				"command": "markdown.showPreviewSecuritySelector",
 				"title": "%markdown.showPreviewSecuritySelector.title%",
 				"category": "Markdown"
@@ -89,6 +95,10 @@
 					"command": "markdown.showSource",
 					"when": "resourceScheme == markdown",
 					"group": "navigation"
+				},
+				{
+					"command": "markdown.refreshPreview",
+					"when": "resourceScheme == markdown"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",

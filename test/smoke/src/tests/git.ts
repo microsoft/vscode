@@ -29,10 +29,10 @@ export function testGit() {
 
 		it('verifies current changes are picked up by Git viewlet', async function () {
 			const changesCount = await git.getScmIconChanges();
-			assert.equal(changesCount, 1);
+			assert.equal(changesCount, 2);
 			await git.openGitViewlet();
 			assert.ok(await git.verifyScmChange('app.js'), 'app.js change does not appear in SCM viewlet.');
-			//assert.ok(await git.verifyScmChange('launch.json'), 'launch.json change does not appear in SCM viewlet.');
+			assert.ok(await git.verifyScmChange('launch.json'), 'launch.json change does not appear in SCM viewlet.');
 		});
 
 		it(`verifies 'app.js' diff viewer changes`, async function () {

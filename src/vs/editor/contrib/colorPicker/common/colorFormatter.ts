@@ -49,25 +49,25 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 
 		switch (variable) {
 			case 'red':
-				absoluteValue = normalize(color.toRGBA().r, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.r, min, max, RGBA_ENDRANGE);
 				break;
 			case 'green':
-				absoluteValue = normalize(color.toRGBA().g, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.g, min, max, RGBA_ENDRANGE);
 				break;
 			case 'blue':
-				absoluteValue = normalize(color.toRGBA().b, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.b, min, max, RGBA_ENDRANGE);
 				break;
 			case 'alpha':
-				absoluteValue = normalize(color.toRGBA().a, min, max, RGBA_ENDRANGE);
+				absoluteValue = normalize(color.rgba.a, min, max, RGBA_ENDRANGE);
 				break;
 			case 'hue':
-				absoluteValue = normalize(color.toHSLA().h, min, max, HSL_HUERANGE);
+				absoluteValue = normalize(color.hsla.h, min, max, HSL_HUERANGE);
 				break;
 			case 'saturation':
-				absoluteValue = normalize(color.toHSLA().s, min, max, HSL_ENDRANGE);
+				absoluteValue = normalize(color.hsla.s, min, max, HSL_ENDRANGE);
 				break;
 			case 'luminosity':
-				absoluteValue = normalize(color.toHSLA().l, min, max, HSL_ENDRANGE);
+				absoluteValue = normalize(color.hsla.l, min, max, HSL_ENDRANGE);
 				break;
 		}
 
@@ -97,45 +97,54 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 	};
 }
 
-export class ColorFormatter {
-	/*
-		Variables
-		- red
-		- green
-		- blue
-		- hue
-		- saturation
-		- luminosity
-		- alpha
+export interface IColorFormatter {
+	canFormatColor(color: Color): boolean;
+	formatColor(color: Color): string;
+}
 
-		Number formats
-		- decimal - d
-		- float - f
-		- hex - x X
-
-		Number ranges
-		- 0-1
-		- 0-255
-		- 0-100
-		- arbitrary
-
-		Examples
-		"{red}" - 123
-		"{red:d}" - 123
-		"{red:x}" - af
-		"{red:X}" - AF
-		"{red:d[0-255]}" - AF
-		"{red:x[0-255]}" - AF
-		"{red:X[0-1024]}" - FEFE
-		"{red:2f}" - 123.51
-		"{red:1f}" - 123.5
-		"{red:2f[0-1]}" - 1.23
-
-		- default format: decimal
-		- default range: 0-255
-	*/
+/**
+ *
+ * Color Formatter
+ *
+ * Variables
+ * - red
+ * - green
+ * - blue
+ * - hue
+ * - saturation
+ * - luminosity
+ * - alpha
+ *
+ * Number formats
+ * - decimal - d
+ * - float - f
+ * - hex - x X
+ *
+ * Number ranges
+ * - 0 - 1
+ * - 0 - 255
+ * - 0 - 100
+ * - arbitrary
+ *
+ * Examples
+ * "{red}" - 123
+ * "{red:d}" - 123
+ * "{red:x}" - af
+ * "{red:X}" - AF
+ * "{red:d[0-255]}" - AF
+ * "{red:x[0-255]}" - AF
+ * "{red:X[0-1024]}" - FEFE
+ * "{red:2f}" - 123.51
+ * "{red:1f}" - 123.5
+ * "{red:2f[0-1]}" - 1.23
+ *
+ * - default format: decimal
+ * 	- default range: 0 - 255
+ */
+export class ColorFormatter implements IColorFormatter {
 
 	private tree: Node[] = [];
+	private supportsAlpha = false;
 
 	// Group 0: variable
 	// Group 1: decimal digits
@@ -165,6 +174,9 @@ export class ColorFormatter {
 			if (!variable) {
 				throw new Error(`${variable} is not defined.`);
 			}
+
+			this.supportsAlpha = this.supportsAlpha || (variable === 'alpha');
+
 			const decimals = parseInt(match[2]);
 			const type = match[3];
 			const startRange = parseInt(match[4]);
@@ -179,12 +191,24 @@ export class ColorFormatter {
 		this.tree.push(createLiteralNode(format.substring(startIndex, format.length)));
 	}
 
-	public toString(color: Color): string {
-		let colorString = [];
-		this.tree.forEach(node => {
-			colorString.push(node(color));
-		});
+	canFormatColor(color: Color): boolean {
+		return color.isOpaque() || this.supportsAlpha;
+	}
 
-		return colorString.join('');
+	formatColor(color: Color): string {
+		return this.tree.map(node => node(color)).join('');
+	}
+}
+
+export class CombinedColorFormatter implements IColorFormatter {
+
+	constructor(private opaqueFormatter: IColorFormatter, private transparentFormatter: IColorFormatter) { }
+
+	canFormatColor(color: Color): boolean {
+		return true;
+	}
+
+	formatColor(color: Color): string {
+		return color.isOpaque() ? this.opaqueFormatter.formatColor(color) : this.transparentFormatter.formatColor(color);
 	}
 }

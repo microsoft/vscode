@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColor, IColorFormat } from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { flatten } from 'vs/base/common/arrays';
 
-export interface IColorDecorationExtraOptions {
-	readonly color: IColor;
-	readonly format: IColorFormat;
-	readonly availableFormats: IColorFormat[];
-}
+export function getColors(model: IReadOnlyModel): TPromise<IColorRange[]> {
+	const providers = ColorProviderRegistry.ordered(model).reverse();
+	const promises = providers.map(p => asWinJsPromise(token => p.provideColorRanges(model, token)));
 
-export function isColorDecorationOptions(options: any): options is IColorDecorationExtraOptions {
-	return !!(options && (options as any).color);
+	return TPromise.join(promises)
+		.then(ranges => flatten(ranges.filter(r => Array.isArray(r))));
 }

@@ -1031,12 +1031,12 @@ export class Color {
 		if (!alpha) {
 			alpha = 1;
 		}
-		const color = CommonColor.fromHSLA(new HSLA(hue, saturation, luminosity, alpha)).toRGBA();
+		const color = new CommonColor(new HSLA(hue, saturation, luminosity, alpha)).rgba;
 		return new Color(color.r, color.g, color.b, color.a / 255);
 	}
 
 	static fromHex(hex: string): Color {
-		const color = CommonColor.fromHex(hex).toRGBA();
+		const color = CommonColor.fromHex(hex).rgba;
 		return new Color(color.r, color.g, color.b, color.a / 255);
 	}
 }

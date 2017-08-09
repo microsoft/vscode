@@ -24,6 +24,7 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Color } from 'vs/base/common/color';
 
 export class SelectColorThemeAction extends Action {
 
@@ -189,7 +190,7 @@ class GenerateColorThemeAction extends Action {
 		colorRegistry.getColors().map(c => {
 			let color = theme.getColor(c.id, false);
 			if (color) {
-				resultingColors[c.id] = color.toRGBAHex(true);
+				resultingColors[c.id] = Color.Format.CSS.formatHexA(color, true);
 			}
 		});
 		let contents = JSON.stringify({

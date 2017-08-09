@@ -31,7 +31,7 @@ export interface IColorTheme extends ITheme {
 	readonly extensionData: ExtensionData;
 	readonly description?: string;
 	readonly isLoaded: boolean;
-	readonly tokenColors?: ITokenColorizationRule[];
+	readonly tokenColors: ITokenColorizationRule[];
 }
 
 export interface IColorMap {
