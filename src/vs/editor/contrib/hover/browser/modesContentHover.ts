@@ -365,10 +365,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const colorListener = model.onDidChangeColor(updateEditorModel);
 				const formatterListener = model.onDidChangeFormatter(updateEditorModel);
 
-				// TODO@Joao woot
-				model.widget = widget;
 				this._colorPicker = widget;
-
 				this.renderDisposable = combinedDisposable([colorListener, formatterListener, widget]);
 			}
 		});

@@ -4,49 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { Color, RGBA } from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 
 export class ColorPickerModel {
 
-	widget: ColorPickerWidget;
-	originalColor: Color;
-	formatters: IColorFormatter[];
-	saturation: number; // [0-1]
-	value: number; // [0-1]
-
+	readonly originalColor: Color;
 	private _color: Color;
-	private _opacity: number;
 
-	private _formatter: IColorFormatter;
-	get formatter(): IColorFormatter { return this._formatter; }
-
-	private formatterIndex: number;
-
-	private _onDidChangeColor = new Emitter<Color>();
-	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
-
-	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
-	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
-
-	constructor(
-		color: Color,
-		formatter: IColorFormatter,
-		availableFormatters: IColorFormatter[]
-	) {
-		if (availableFormatters.length === 0) {
-			throw new Error('Color picker needs formats');
-		}
-
-		this.formatterIndex = 0;
-
-		this.originalColor = color;
-		this.formatters = availableFormatters;
-		this._formatter = formatter;
-		this._color = color;
-		this.saturation = color.hsla.s;
-		this.value = color.hsva.v;
+	get color(): Color {
+		return this._color;
 	}
 
 	set color(color: Color) {
@@ -56,13 +23,6 @@ export class ColorPickerModel {
 
 		this._color = color;
 
-		const alpha = color.rgba.a;
-		if (!this._opacity) {
-			this._opacity = alpha / 255;
-		}
-		this.saturation = color.hsla.s;
-		this.value = color.hsva.v;
-
 		if (!this._formatter.canFormatColor(color)) {
 			this.selectNextColorFormat();
 		}
@@ -70,19 +30,27 @@ export class ColorPickerModel {
 		this._onDidChangeColor.fire(color);
 	}
 
-	get color(): Color {
-		return this._color;
-	}
+	private _formatter: IColorFormatter;
+	get formatter(): IColorFormatter { return this._formatter; }
 
-	set opacity(opacity: number) {
-		this._opacity = opacity;
+	private formatterIndex = 0;
+	readonly formatters: IColorFormatter[];
 
-		const rgba = this._color.rgba;
-		this.color = new Color(new RGBA(rgba.r, rgba.g, rgba.b, opacity * 255));
-	}
+	private _onDidChangeColor = new Emitter<Color>();
+	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
-	get opacity(): number {
-		return this._opacity;
+	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
+	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
+
+	constructor(color: Color, formatter: IColorFormatter, availableFormatters: IColorFormatter[]) {
+		if (availableFormatters.length === 0) {
+			throw new Error('Color picker needs formats');
+		}
+
+		this.originalColor = color;
+		this.formatters = availableFormatters;
+		this._formatter = formatter;
+		this._color = color;
 	}
 
 	selectNextColorFormat(): void {
