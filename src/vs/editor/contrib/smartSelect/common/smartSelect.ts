@@ -9,8 +9,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
+import { ICommonCodeEditor, IEditorContribution, IFoundBracket } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
@@ -221,51 +220,61 @@ class SelectBracketAction extends EditorAction {
 		}
 
 		const selection = editor.getSelection();
-		if (!selection.isEmpty()) {
+		const originalStartPosition = selection.getStartPosition();
+		const originalEndPosition = selection.getEndPosition();
+
+		// quick check to see if we can avoid a full bracket search
+		let matchPrev = model.matchBracket(originalStartPosition);
+		let matchNext = model.matchBracket(originalEndPosition);
+		if (matchPrev && matchNext &&
+			matchPrev[0].equalsRange(matchNext[1]) &&
+			!matchPrev[0].getStartPosition().equals(originalStartPosition)) {
+			editor.setSelection(new Range(
+				matchPrev[0].startLineNumber,
+				matchPrev[0].startColumn,
+				matchPrev[1].endLineNumber,
+				matchPrev[1].endColumn));
 			return;
 		}
 
-		const originalPosition = selection.getStartPosition();
-
-		// find previous open bracket with no match
-		let prevBracket = null;
-		let currentPosition = new Position(originalPosition.lineNumber, originalPosition.column);
+		// find previous open bracket with no matching bracket from the start of the selection
+		let prevBracket: IFoundBracket = null;
+		let currentPosition = originalStartPosition.clone();
 		let setCount = 0;
 		do {
 			prevBracket = model.findPrevBracket(currentPosition);
 			if (prevBracket) {
-				currentPosition = new Position(prevBracket.range.startLineNumber, prevBracket.range.startColumn);
+				currentPosition = prevBracket.range.getStartPosition();
 				!prevBracket.isOpen ? setCount++ : setCount--;
 			}
-		} while (prevBracket && !(prevBracket.isOpen && setCount < 0));
+		} while (prevBracket && setCount >= 0);
 
-		// find next closed bracket with no match
-		let nextBracket = null;
-		currentPosition = new Position(originalPosition.lineNumber, originalPosition.column);
+		// find next closed bracket with no matching bracket from the end of the selection
+		let nextBracket: IFoundBracket = null;
+		currentPosition = originalEndPosition.clone();
 		setCount = 0;
 		do {
 			nextBracket = model.findNextBracket(currentPosition);
 			if (nextBracket) {
-				currentPosition = new Position(nextBracket.range.endLineNumber, nextBracket.range.endColumn);
+				currentPosition = nextBracket.range.getEndPosition();
 				nextBracket.isOpen ? setCount++ : setCount--;
 			}
-		} while (nextBracket && (nextBracket.isOpen && setCount < 0));
+		} while (nextBracket && setCount >= 0);
 
-		// check validity of prev and next brackets
+		// check validity of previous and next brackets
 		if (!prevBracket && !nextBracket) {
 			return;
 		}
 
 		// pick the outermost set of brackets
-		const matchPrev = prevBracket ? model.matchBracket(new Position(prevBracket.range.startLineNumber, prevBracket.range.startColumn)) : null;
-		const matchNext = nextBracket ? model.matchBracket(new Position(nextBracket.range.startLineNumber, nextBracket.range.startColumn)) : null;
-		let bracketsToSelect = null;
+		matchPrev = prevBracket ? model.matchBracket(prevBracket.range.getStartPosition()) : null;
+		matchNext = nextBracket ? model.matchBracket(nextBracket.range.getStartPosition()) : null;
+		let bracketsToSelect: [Range, Range] = null;
 		if (!matchPrev) {
 			bracketsToSelect = matchNext;
 		} else if (!matchNext) {
 			bracketsToSelect = matchPrev;
-		} else if (!new Position(matchPrev[1].endLineNumber, matchPrev[1].endColumn)
-			.isBefore(new Position(matchNext[0].endLineNumber, matchNext[0].endColumn))) {
+		} else if (!matchPrev[1].getEndPosition().isBefore(matchNext[0].getEndPosition())) {
 				bracketsToSelect = matchPrev;
 		} else {
 			bracketsToSelect = matchNext;
