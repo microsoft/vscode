@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Argomenti della riga di comando da usare nel terminale Linux.",
 	"terminal.integrated.shell.osx": "Percorso della shell usata dal terminale in OS X.",
 	"terminal.integrated.shellArgs.osx": "Argomenti della riga di comando da usare nel terminale OS X.",
-	"terminal.integrated.shell.windows": "Percorso della shell usata dal terminale in Windows. Quando si usano le shell incluse in Windows (cmd, PowerShell o Bash in Ubuntu), preferire C:\\Windows\\sysnative rispetto a C:\\Windows\\System32 per usare le versioni a 64 bit.",
 	"terminal.integrated.shellArgs.windows": "Argomenti della riga di comando da usare nel terminale Windows.",
 	"terminal.integrated.rightClickCopyPaste": "Se impostata, impedirà la visualizzazione del menu di scelta rapida quando si fa clic con il pulsante destro del mouse all'interno del terminale, ma eseguirà il comando Copia in presenza di una selezione e il comando Incolla in assenza di una selezione.",
 	"terminal.integrated.fontFamily": "Controlla la famiglia di caratteri del terminale. L'impostazione predefinita è il valore di editor.fontFamily.",

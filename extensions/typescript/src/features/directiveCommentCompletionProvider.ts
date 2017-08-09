@@ -56,7 +56,7 @@ export class DirectiveCommentCompletionProvider implements CompletionItemProvide
 			return directives.map(directive => {
 				const item = new CompletionItem(directive.value, CompletionItemKind.Snippet);
 				item.detail = directive.description;
-				item.range = new Range(position.line, Math.max(0, position.character - match[1].length), position.line, position.character);
+				item.range = new Range(position.line, Math.max(0, position.character - (match[1] ? match[1].length : 0)), position.line, position.character);
 				return item;
 			});
 		}

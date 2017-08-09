@@ -38,5 +38,11 @@
 	"openEditorsVisible": "Açık Editörler bölmesinde gösterilen düzenleyici sayısı. Bölmeyi gizlemek için 0 olarak ayarlayın.",
 	"dynamicHeight": "Açık düzenleyiciler bölümü yüksekliğinin öge sayısına göre dinamik olarak uyarlanıp uyarlanmayacağını denetler.",
 	"autoReveal": "Gezginin dosyaları açarken, onları otomatik olarak ortaya çıkartmasını ve seçmesini denetler.",
-	"enableDragAndDrop": "Gezgeinin sürükle bırak ile dosyaları ve klasörleri taşımaya izin verip vermeyeceğini denetler."
+	"enableDragAndDrop": "Gezgeinin sürükle bırak ile dosyaları ve klasörleri taşımaya izin verip vermeyeceğini denetler.",
+	"sortOrder.default": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
+	"sortOrder.mixed": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar ve klasörler iç içe bulunur.",
+	"sortOrder.filesFirst": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar klasörlerden önce görüntülenir.",
+	"sortOrder.type": "Dosya ve klasörler uzantılarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
+	"sortOrder.modified": "Dosya ve klasörler son değiştirilme tarihine göre, azalan düzende sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
+	"sortOrder": "Dosyaların ve klasörlerin gezginde nasıl sıralanacağını denetler."
 }

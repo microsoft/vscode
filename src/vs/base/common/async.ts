@@ -112,14 +112,14 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new Promise((c, e, p) => {
+				this.queuedPromise = new TPromise((c, e, p) => {
 					this.activePromise.then(onComplete, onComplete, p).done(c);
 				}, () => {
 					this.activePromise.cancel();
 				});
 			}
 
-			return new Promise((c, e, p) => {
+			return new TPromise((c, e, p) => {
 				this.queuedPromise.then(c, e, p);
 			}, () => {
 				// no-op
@@ -128,7 +128,7 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.activePromise.done((result: any) => {
 				this.activePromise = null;
 				c(result);
@@ -194,7 +194,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((c) => {
+			this.completionPromise = new TPromise((c) => {
 				this.onSuccess = c;
 			}, () => {
 				// no-op
@@ -640,11 +640,11 @@ export class RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): Promise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new Promise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)), () => null);
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)), () => null);
 }

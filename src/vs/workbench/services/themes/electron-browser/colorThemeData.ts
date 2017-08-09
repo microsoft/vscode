@@ -46,10 +46,10 @@ export class ColorThemeData implements IColorTheme {
 	get tokenColors(): ITokenColorizationRule[] {
 		// Add the custom colors after the theme colors
 		// so that they will override them
-		return this.themeTokenColors.concat(this.customTokenColors || []);
+		return this.themeTokenColors.concat(this.customTokenColors);
 	}
-	themeTokenColors?: ITokenColorizationRule[];
-	customTokenColors?: ITokenColorizationRule[];
+	themeTokenColors: ITokenColorizationRule[] = [];
+	customTokenColors: ITokenColorizationRule[] = [];
 	isLoaded: boolean;
 	path?: string;
 	extensionData: ExtensionData;
@@ -81,14 +81,14 @@ export class ColorThemeData implements IColorTheme {
 		for (let id in colors) {
 			let colorVal = colors[id];
 			if (typeof colorVal === 'string') {
-				let color = Color.fromHex(colorVal, null);
+				let color = Color.fromHex(colorVal);
 				if (color) {
 					this.customColorMap[id] = color;
 				}
 			}
 		}
-		if (this.tokenColors) {
-			updateDefaultRuleSettings(this.tokenColors[0], this);
+		if (this.themeTokenColors && this.themeTokenColors.length) {
+			updateDefaultRuleSettings(this.themeTokenColors[0], this);
 		}
 	}
 
@@ -140,7 +140,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
 		for (let key in this.colorMap) {
-			content.colors[key] = this.colorMap[key].toRGBAHex(true);
+			content.colors[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
 		return JSON.stringify(content, null, '\t');
 	}
@@ -148,14 +148,15 @@ export class ColorThemeData implements IColorTheme {
 	toStorageData() {
 		let colorMapData = {};
 		for (let key in this.colorMap) {
-			colorMapData[key] = this.colorMap[key].toRGBAHex(true);
+			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
+		// no need to persist custom colors, they will be taken from the settings
 		return JSON.stringify({
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
 			selector: this.id.split(' ').join('.'), // to not break old clients
-			tokenColors: this.tokenColors,
+			themeTokenColors: this.themeTokenColors,
 			extensionData: this.extensionData,
 			colorMap: colorMapData
 		});
@@ -190,13 +191,17 @@ export function fromStorageData(input: string): ColorThemeData {
 		let data = JSON.parse(input);
 		let theme = new ColorThemeData();
 		for (let key in data) {
-			if (key !== 'colorMap') {
-				theme[key] = data[key];
-			} else {
-				let colorMapData = data[key];
-				for (let id in colorMapData) {
-					theme.colorMap[id] = Color.fromHex(colorMapData[id]);
-				}
+			switch (key) {
+				case 'colorMap':
+					let colorMapData = data[key];
+					for (let id in colorMapData) {
+						theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+					}
+					break;
+				case 'themeTokenColors':
+				case 'id': case 'label': case 'settingsId': case 'extensionData':
+					theme[key] = data[key];
+					break;
 			}
 		}
 		return theme;
@@ -252,7 +257,7 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
-						let colorHex = Color.fromHex(colors[colorId], null);
+						let colorHex = Color.fromHex(colors[colorId]);
 						if (colorHex) { // ignore invalid colors
 							resultColors[colorId] = colorHex;
 						}
@@ -317,8 +322,8 @@ function _sanitizeTokenColors(theme: ColorThemeData) {
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
 	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
 	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
-	defaultRule.settings.foreground = foreground.toRGBAHex();
-	defaultRule.settings.background = background.toRGBAHex();
+	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
+	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;
 }
 

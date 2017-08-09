@@ -69,6 +69,7 @@ import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
+import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
@@ -86,7 +87,6 @@ import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
-import 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 

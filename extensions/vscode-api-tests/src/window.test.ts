@@ -24,6 +24,15 @@ suite('window namespace tests', () => {
 		});
 	});
 
+	test('editor, opened via resource', () => {
+		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
+		return window.showTextDocument(uri).then((editor) => {
+			const active = window.activeTextEditor;
+			assert.ok(active);
+			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
+		});
+	});
+
 	// test('editor, UN-active text editor', () => {
 	// 	assert.equal(window.visibleTextEditors.length, 0);
 	// 	assert.ok(window.activeTextEditor === undefined);
@@ -372,20 +381,5 @@ suite('window namespace tests', () => {
 
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
-	});
-
-	test('terminal, listening to onData should report data from the pty process', done => {
-		const terminal = window.createTerminal();
-		let fromPty = '';
-		let isFinished = false;
-		(<any>terminal).onData(data => {
-			// The text could be split over multiple callbacks
-			fromPty += data;
-			if (!isFinished && fromPty.indexOf('test') >= 0) {
-				isFinished = true;
-				done();
-			}
-		});
-		terminal.sendText('test', false);
 	});
 });

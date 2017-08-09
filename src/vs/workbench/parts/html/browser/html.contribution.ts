@@ -18,9 +18,17 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { HtmlZoneController } from './htmlEditorZone';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { MenuRegistry } from "vs/platform/actions/common/actions";
+import { WebviewElement } from "vs/workbench/parts/html/browser/webview";
+import { IExtensionsWorkbenchService } from "vs/workbench/parts/extensions/common/extensions";
+
+function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
+		.filter(c => c instanceof HtmlPreviewPart && c.model)
+		.map(e => e as HtmlPreviewPart)
+		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+}
 
 // --- Register Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
@@ -30,47 +38,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands
-
-interface HtmlZoneParams {
-	editorPosition: EditorPosition;
-	lineNumber: number;
-	resource: URI;
-}
-
-let warn = true;
-
-CommandsRegistry.registerCommand('_workbench.htmlZone', function (accessor: ServicesAccessor, params: HtmlZoneParams) {
-
-	if (warn) {
-		console.warn(`'_workbench.htmlZone' is an EXPERIMENTAL feature and therefore subject to CHANGE and REMOVAL without notice.`);
-		warn = false;
-	}
-
-	let codeEditor: ICommonCodeEditor;
-	for (const editor of accessor.get(IWorkbenchEditorService).getVisibleEditors()) {
-		if (editor.position === params.editorPosition) {
-			const control = editor.getControl();
-			if (isCommonCodeEditor(control)) {
-				codeEditor = control;
-			}
-		}
-	}
-
-	if (!codeEditor) {
-		console.warn('NO matching editor found');
-		return undefined;
-	}
-
-	const textModelResolverService = accessor.get(ITextModelService);
-
-	return textModelResolverService.createModelReference(params.resource).then(ref => {
-		const model = ref.object;
-		const contents = model.textEditorModel.getValue();
-		ref.dispose();
-
-		HtmlZoneController.getInstance(codeEditor).addZone(params.lineNumber, contents);
-	});
-});
 
 const defaultPreviewHtmlOptions: HtmlInputOptions = {
 	allowScripts: true,
@@ -99,9 +66,13 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		}
 	}
 
+	const inputOptions = (Object as any).assign({}, options || defaultPreviewHtmlOptions);
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	inputOptions.svgWhiteList = extensionsWorkbenchService.allowedBadgeProviders;
+
 	// Otherwise, create new input and open it
 	if (!input) {
-		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, options || defaultPreviewHtmlOptions);
+		input = accessor.get(IInstantiationService).createInstance(HtmlInput, label, '', uri, inputOptions);
 	} else {
 		input.setName(label); // make sure to use passed in label
 	}
@@ -111,14 +82,51 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		.then(editor => true);
 });
 
-CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', (accessor: ServicesAccessor, resource: URI | string, message: any) => {
-	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	const activePreviews = accessor.get(IWorkbenchEditorService).getVisibleEditors()
-		.filter(c => c instanceof HtmlPreviewPart && c.model)
-		.map(e => e as HtmlPreviewPart)
-		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.fsPath === uri.fsPath);
+CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function (
+	accessor: ServicesAccessor,
+	resource: URI | string,
+	message: any
+) {
+	const activePreviews = getActivePreviewsForResource(accessor, resource);
 	for (const preview of activePreviews) {
 		preview.sendMessage(message);
 	}
 	return activePreviews.length > 0;
+});
+
+CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', function (
+	accessor: ServicesAccessor,
+	resource: URI | string,
+	options: HtmlInputOptions
+) {
+
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	const inputOptions: HtmlInputOptions = options;
+	const allowedBadgeProviders = extensionsWorkbenchService.allowedBadgeProviders;
+	inputOptions.svgWhiteList = allowedBadgeProviders;
+
+	const uri = resource instanceof URI ? resource : URI.parse(resource);
+	const activePreviews = getActivePreviewsForResource(accessor, resource);
+	for (const preview of activePreviews) {
+		if (preview.input && preview.input instanceof HtmlInput) {
+			const input = accessor.get(IInstantiationService).createInstance(HtmlInput, preview.input.getName(), '', uri, options);
+			preview.setInput(input);
+		}
+	}
+});
+
+CommandsRegistry.registerCommand('_webview.openDevTools', function () {
+	const elements = document.querySelectorAll('webview.ready');
+	for (let i = 0; i < elements.length; i++) {
+		try {
+			(elements.item(i) as WebviewElement).openDevTools();
+		} catch (e) {
+			console.error(e);
+		}
+	}
+});
+
+MenuRegistry.addCommand({
+	id: '_webview.openDevTools',
+	title: localize('devtools.webview', "Developer: Webview Tools")
 });

@@ -118,7 +118,7 @@ export class VariablesView extends CollapsibleView {
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
-			if (!this.tree.getContentHeight()) {
+			if (!this.tree.getContentHeight() || sf.explicit) {
 				this.onFocusStackFrameScheduler.schedule(0);
 			} else {
 				this.onFocusStackFrameScheduler.schedule();
@@ -360,8 +360,9 @@ export class CallStackView extends CollapsibleView {
 		}
 
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const thread = this.debugService.getViewModel().focusedThread;
 		const process = this.debugService.getViewModel().focusedProcess;
-		if (!stackFrame) {
+		if (!thread) {
 			if (!process) {
 				this.tree.clearSelection();
 				return TPromise.as(null);
@@ -371,8 +372,11 @@ export class CallStackView extends CollapsibleView {
 			return this.tree.reveal(process);
 		}
 
-		const thread = stackFrame.thread;
 		return this.tree.expandAll([thread.process, thread]).then(() => {
+			if (!stackFrame) {
+				return TPromise.as(null);
+			}
+
 			this.tree.setSelection([stackFrame]);
 			return this.tree.reveal(stackFrame);
 		});

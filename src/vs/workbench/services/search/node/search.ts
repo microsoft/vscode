@@ -12,6 +12,7 @@ import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'v
 export interface IFolderSearch {
 	folder: string;
 	excludePattern?: IExpression;
+	includePattern?: IExpression;
 	fileEncoding?: string;
 }
 
@@ -28,7 +29,6 @@ export interface IRawSearch {
 	maxFilesize?: number;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
-	searchPaths?: string[];
 }
 
 export interface IRawSearchService {

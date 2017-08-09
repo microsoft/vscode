@@ -131,9 +131,11 @@ async function doesAssetExist(blobService: azure.BlobService, quality: string, b
 }
 
 async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, file: string): Promise<void> {
-	const blobOptions = {
-		contentType: mime.lookup(file),
-		cacheControl: 'max-age=31536000, public'
+	const blobOptions: azure.BlobService.CreateBlockBlobRequestOptions = {
+		contentSettings: {
+			contentType: mime.lookup(file),
+			cacheControl: 'max-age=31536000, public'
+		}
 	};
 
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
@@ -177,6 +179,9 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY'], `${storageAccount}.blob.core.chinacloudapi.cn`)
 		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+
+	// mooncake is fussy and far away, this is needed!
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
 
 	await Promise.all([
 		assertContainer(blobService, quality),

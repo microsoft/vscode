@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Vervollständigen Sie Funktionen mit deren Parametersignatur.",
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
 	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6 und einen Neustart nach der Änderung.",
-	"typescript.check.tscVersion": "Überprüfen, ob sich ein global installierter TypeScript-Compiler (z. B. tsc) vom verwendeten TypeScript-Sprachdienst unterscheidet.",
 	"typescript.tsserver.log": "Aktiviert die Protokollierung des TS-Servers in eine Datei. Mithilfe der Protokolldatei lassen sich Probleme beim TS-Server diagnostizieren. Die Protokolldatei kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.tsserver.trace": "Aktiviert die Ablaufverfolgung von an den TS-Server gesendeten Nachrichten. Mithilfe der Ablaufverfolgung lassen sich Probleme beim TS-Server diagnostizieren. Die Ablaufverfolgung kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",
@@ -28,6 +27,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern. Erfordert TypeScript 2.3.0 oder höher.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für Vorlagenzeichenfolgen. Erfordert TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für JSX-Ausdrücke. Erfordert TypeScript >= 2.0.6.",
+	"format.insertSpaceAfterTypeAssertion": "Definiert die Verarbeitung von Leerzeichen nach Typassertionen in TypeScript. Erfordert TypeScript >= 2.4.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Definiert, ob eine öffnende geschweifte Klammer für Funktionen in eine neue Zeile eingefügt wird.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Definiert, ob eine öffnende geschweifte Klammer für Kontrollblöcke in eine neue Zeile eingefügt wird.",
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren.",
@@ -44,5 +44,7 @@
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
 	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
 	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
-	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n"
+	"typescript.tsc.autoDetect": "Steuert, ob die automatische Erkennung von tsc-Tasks aktiviert oder deaktiviert ist.\n",
+	"typescript.problemMatchers.tsc.label": "TypeScript-Probleme",
+	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)"
 }

@@ -35,7 +35,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 				for (let key in settings) {
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
-						let color = Color.fromHex(settings[key], null);
+						let color = Color.fromHex(settings[key]);
 						if (color) {
 							for (let colorId of mappings) {
 								resultColors[colorId] = color;
@@ -66,7 +66,7 @@ addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
 addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
-addSettingMapping('caret', editorColorRegistry.editorCursor);
+addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
 addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
 addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
 

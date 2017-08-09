@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/make.tmbundle/commit/1a1827da81e20fdce56e2658451340c070ca44b7",
 	"fileTypes": [
 		"Makefile",
 		"makefile",

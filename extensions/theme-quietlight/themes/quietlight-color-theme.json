@@ -497,7 +497,7 @@
 		"inputValidation.warningBorder": "#ffe055",
 		"inputValidation.errorBackground": "#ffeaea",
 		"inputValidation.errorBorder": "#f1897f",
-		"errorForeground": "#ffeaea",
+		"errorForeground": "#f1897f",
 		"badge.background": "#705697AA",
 		"progressBar.background": "#705697"
 	}

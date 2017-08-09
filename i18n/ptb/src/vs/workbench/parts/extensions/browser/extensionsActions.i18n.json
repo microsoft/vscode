@@ -37,6 +37,7 @@
 	"reload": "&&Recarregar Janela",
 	"toggleExtensionsViewlet": "Mostrar Extensões",
 	"installExtensions": "Instalar Extensões",
+	"showEnabledExtensions": "Mostrar extensões habilitadas",
 	"showInstalledExtensions": "Mostrar Extensões Instaladas",
 	"showDisabledExtensions": "Mostrar Extensões Desabilitadas",
 	"clearExtensionsInput": "Limpar Entrada de Extensões",

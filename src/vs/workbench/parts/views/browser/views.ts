@@ -48,7 +48,7 @@ export interface IViewOptions {
 
 export interface IViewConstructorSignature {
 
-	new (options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
+	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
 
 }
 
@@ -638,7 +638,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
-				label: nls.localize('removeView', "Remove from {0}", this.getTitle()),
+				label: nls.localize('removeView', "Remove from Side Bar"),
 				enabled: true,
 				run: () => this.toggleViewVisibility(view.id)
 			}]),
@@ -654,7 +654,13 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
 			// Checks in cache so that view do not jump. See #29609
-			return this.viewsStates.size === 1;
+			let visibleViewsCount = 0;
+			this.viewsStates.forEach(viewState => {
+				if (!viewState.isHidden) {
+					visibleViewsCount++;
+				}
+			});
+			return visibleViewsCount === 1;
 		}
 		return true;
 	}

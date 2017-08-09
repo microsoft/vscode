@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "复合的名称。在启动配置下拉菜单中显示。",
 	"app.launch.json.compounds.configurations": "将作为此复合的一部分启动的配置名称。",
 	"debugNoType": "不可省略调试适配器“类型”，其类型必须是“字符串”。",
-	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。",
-	"selectDebug": "选择环境"
+	"selectDebug": "选择环境",
+	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。"
 }

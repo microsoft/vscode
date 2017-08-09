@@ -69,5 +69,7 @@
 	"emptyFileNameError": "必须提供文件或文件夹名。",
 	"fileNameExistsError": "此位置已存在文件或文件夹 **{0}**。请选择其他名称。",
 	"invalidFileNameError": "名称 **{0}** 作为文件或文件夹名无效。请选择其他名称。",
-	"filePathTooLongError": "名称 **{0}** 导致路径太长。请选择更短的名称。"
+	"filePathTooLongError": "名称 **{0}** 导致路径太长。请选择更短的名称。",
+	"compareWithSaved": "比较活动与已保存的文件",
+	"modifiedLabel": "{0} (磁盘上) ↔ {1}"
 }

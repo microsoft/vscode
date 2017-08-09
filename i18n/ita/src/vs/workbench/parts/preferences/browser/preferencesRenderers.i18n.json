@@ -6,6 +6,7 @@
 {
 	"errorInvalidConfiguration": "Impossibile scrivere nelle impostazioni. Correggere eventuali errori o avvisi nel file e riprovare.",
 	"defaultSettingsTitle": "Impostazioni predefinite",
+	"noSettingsFound": "Non sono state trovate impostazioni.",
 	"editTtile": "Modifica",
 	"replaceDefaultValue": "Sostituisci nelle impostazioni",
 	"copyDefaultValue": "Copia nelle impostazioni",

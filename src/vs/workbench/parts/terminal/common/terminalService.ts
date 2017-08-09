@@ -134,6 +134,10 @@ export abstract class TerminalService implements ITerminalService {
 		return this.terminalInstances[this._getIndexFromId(terminalId)];
 	}
 
+	public getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
+		return this.terminalInstances[terminalIndex];
+	}
+
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}

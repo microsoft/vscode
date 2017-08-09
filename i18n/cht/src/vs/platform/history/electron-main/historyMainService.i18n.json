@@ -6,6 +6,6 @@
 {
 	"newWindow": "開新視窗",
 	"newWindowDesc": "開啟新視窗",
-	"recentFolders": "最近使用的資料夾",
+	"recentFolders": "最近使用的工作區",
 	"folderDesc": "{0} {1}"
 }

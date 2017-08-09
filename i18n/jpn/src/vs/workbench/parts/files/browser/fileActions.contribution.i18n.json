@@ -6,6 +6,6 @@
 {
 	"filesCategory": "ファイル",
 	"revealInSideBar": "サイド バーに表示",
-	"acceptLocalChanges": "ローカルでの変更を使ってディスクの内容を上書きします",
-	"revertLocalChanges": "ローカルでの変更を破棄してディスクの内容に戻します"
+	"acceptLocalChanges": "変更を使用してディスクの内容を上書き",
+	"revertLocalChanges": "変更を破棄してディスク上の内容に戻る"
 }

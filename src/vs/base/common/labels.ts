@@ -296,3 +296,11 @@ export function template(template: string, values: { [key: string]: string | ISe
 		return true;
 	}).map(segment => segment.value).join('');
 }
+
+export function mnemonicButtonLabel(label: string): string {
+	if (!platform.isWindows) {
+		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
+	}
+
+	return label.replace(/&&/g, '&');
+}

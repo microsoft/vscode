@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorInfo } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -110,13 +110,13 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 						let range = ranges[i];
 						let text = document.getText(range);
 						let value = <string>JSON.parse(text);
-						let color = hex2CSSColor(value);
-						if (color) {
+						let c = Color.fromHex(value);
+						if (c) {
 							decorations.push(<DecorationOptions>{
 								range: range,
 								renderOptions: {
 									before: {
-										backgroundColor: color
+										backgroundColor: `rgba(${c.red}, ${c.green}, ${c.blue}, ${c.alpha})`
 									}
 								}
 							});
@@ -131,35 +131,27 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	return Disposable.from(...disposables);
 }
 
-const colorPattern = /^#[0-9A-Fa-f]{3,8}$/;
+const ColorFormat_HEX = {
+	opaque: '#{red:X}{green:X}{blue:X}',
+	transparent: '#{red:X}{green:X}{blue:X}{alpha:X}'
+};
 
-function hex2CSSColor(hex: string): string {
-	if (!hex || !colorPattern.test(hex)) {
-		return null;
-	}
+export class ColorProvider implements DocumentColorProvider {
 
-	if (hex.length === 4 || hex.length === 7) {
-		// #RGB or #RRGGBB format
-		return hex;
+	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
+
+	async provideDocumentColors(document: TextDocument): Promise<ColorInfo[]> {
+		const ranges = await this.decoratorProvider(document.uri.toString());
+		const result = [];
+		for (let range of ranges) {
+			let text = document.getText(range);
+			let value = <string>JSON.parse(text);
+			let color = Color.fromHex(value);
+			if (color) {
+				let r = new Range(range.start.line, range.start.character + 1, range.end.line, range.end.character - 1);
+				result.push(new ColorInfo(r, color, ColorFormat_HEX, [ColorFormat_HEX]));
+			}
+		}
+		return result;
 	}
-	if (hex.length === 5) {
-		// #RGBA format
-		let val = parseInt(hex.substr(1), 16);
-		let r = (val >> 12) & 0xF;
-		let g = (val >> 8) & 0xF;
-		let b = (val >> 4) & 0xF;
-		let a = val & 0xF;
-		return `rgba(${r + r * 16}, ${g + g * 16}, ${b + b + 16}, ${+(a / 16).toFixed(2)})`;
-	}
-	if (hex.length === 9) {
-		// #RRGGBBAA format
-		let val = parseInt(hex.substr(1), 16);
-		let r = (val >> 24) & 0xFF;
-		let g = (val >> 16) & 0xFF;
-		let b = (val >> 8) & 0xFF;
-		let a = val & 0xFF;
-		return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(2)})`;
-	}
-	return null;
 }
-

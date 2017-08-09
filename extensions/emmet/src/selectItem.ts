@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, parse } from './util';
+import { validate, parseDocument } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 import { isStyleSheet } from 'vscode-emmet-helper';
@@ -27,7 +27,7 @@ export function fetchSelectItem(direction: string): void {
 		prevItem = prevItemHTML;
 	}
 
-	let rootNode = parse(editor.document);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

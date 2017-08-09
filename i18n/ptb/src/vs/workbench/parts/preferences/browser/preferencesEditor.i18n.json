@@ -11,5 +11,7 @@
 	"noSettingsFound": "Nenhum resultado",
 	"oneSettingFound": "1 Configuração correspondente",
 	"settingsFound": "{0} Configurações correspondentes",
+	"fileEditorWithInputAriaLabel": "{0}. Editor de Arquivo de Texto.",
+	"fileEditorAriaLabel": "Editor de Arquivo de Texto",
 	"preferencesAriaLabel": "Preferências padrão. Editor de texto somente leitura."
 }

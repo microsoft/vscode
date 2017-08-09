@@ -15,6 +15,7 @@ import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybindin
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { ILogService } from "vs/platform/log/common/log";
 
 export class KeyboardLayoutMonitor {
 
@@ -95,11 +96,12 @@ export class KeybindingsResolver {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private windowsService: IWindowsMainService,
+		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
 		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
 	}

@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Los argumentos de la línea de comandos que se usarán en el terminal de Linux.",
 	"terminal.integrated.shell.osx": "La ruta de acceso del shell que el terminal usa en OS X.",
 	"terminal.integrated.shellArgs.osx": "Los argumentos de la línea de comandos que se usarán en el terminal de OS X.",
-	"terminal.integrated.shell.windows": "Ruta de acceso del shell que el terminal utiliza en Windows. Cuando se usan shells incluidos en Windows (cmd, PowerShell o Bash en Ubuntu), se recomienda C:\\Windows\\sysnative en lugar de C:\\Windows\\System32 para usar las versiones de 64 bits.",
 	"terminal.integrated.shellArgs.windows": "Argumentos de la línea de comandos que se usan cuando se utiliza el terminal Windows.",
 	"terminal.integrated.rightClickCopyPaste": "Si está configurado, impedirá que el menú contextual aparezca al hacer clic con el botón derecho dentro del terminal; en su lugar, copiará si hay una selección y pegará si no hay ninguna selección.",
 	"terminal.integrated.fontFamily": "Controla la familia de fuentes del terminal, que está establecida de manera predeterminada en el valor de editor.fontFamily.",

@@ -24,7 +24,6 @@
       {
         "id": "html",
         "extensions": [
-          ".rhtml",
           ".html",
           ".htm",
           ".shtml",
@@ -35,7 +34,8 @@
           ".aspx",
           ".jshtm",
           ".volt",
-          ".ejs"
+          ".ejs",
+          ".rhtml"
         ],
         "aliases": [
           "HTML",

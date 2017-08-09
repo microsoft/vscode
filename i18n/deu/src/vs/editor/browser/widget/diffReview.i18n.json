@@ -6,5 +6,10 @@
 {
 	"label.close": "Schließen",
 	"header": "Unterschied von {0} zu {1}: Original {2}, {3} Zeilen, Geändert {4}, {5} Zeilen",
-	"blankLine": "leer"
+	"blankLine": "leer",
+	"equalLine": "Original {0}, geändert {1}: {2}",
+	"insertLine": "+ geändert {0}: {1}",
+	"deleteLine": "- Original {0}: {1}",
+	"editor.action.diffReview.next": "Zum nächsten Unterschied wechseln",
+	"editor.action.diffReview.prev": "Zum vorherigen Unterschied wechseln"
 }

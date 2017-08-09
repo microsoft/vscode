@@ -176,7 +176,8 @@ export enum SortBy {
 	PublisherName = 3,
 	InstallCount = 4,
 	PublishedDate = 5,
-	AverageRating = 6
+	AverageRating = 6,
+	WeightedRating = 12
 }
 
 export enum SortOrder {

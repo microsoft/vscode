@@ -26,7 +26,7 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/browser/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
@@ -440,7 +440,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return threadService.sync().then(() => {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
-				let [first, second] = value;
+				let [first, second] = value as Hover[];
 				assert.equal(first.contents[0], 'registered second');
 				assert.equal(second.contents[0], 'registered first');
 			});
@@ -650,10 +650,29 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
-				assert.equal(first.command.title, 'Testing1');
-				assert.equal(first.command.id, 'test1');
-				assert.equal(second.command.title, 'Testing2');
-				assert.equal(second.command.id, 'test2');
+				assert.equal(first.title, 'Testing1');
+				assert.equal(first.id, 'test1');
+				assert.equal(second.title, 'Testing2');
+				assert.equal(second.id, 'test2');
+			});
+		});
+	});
+
+	test('Cannot read property \'id\' of undefined, #29469', function () {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [
+					undefined,
+					null,
+					<vscode.Command>{ command: 'test', title: 'Testing' }
+				];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
 			});
 		});
 	});
@@ -1052,7 +1071,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 
@@ -1071,7 +1090,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 

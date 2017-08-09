@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as arrays from 'vs/base/common/arrays';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -39,10 +38,21 @@ export class QuickFixOracle {
 	}
 
 	trigger(type: 'manual' | 'auto'): void {
-		let range = this._rangeAtPosition();
-		if (!range) {
-			range = this._editor.getSelection();
+
+		// get selection from marker or current word
+		// unless the selection is non-empty and manually
+		// requesting code actions
+		let selection = this._editor.getSelection();
+		let range = this._getActiveMarkerOrWordRange();
+		if (type === 'manual' && !selection.isEmpty()) {
+			range = selection;
 		}
+
+		// empty selection somewhere in nowhere
+		if (!range) {
+			range = selection;
+		}
+
 		this._signalChange({
 			type,
 			range,
@@ -64,7 +74,7 @@ export class QuickFixOracle {
 	}
 
 	private _onCursorChange(): void {
-		const range = this._rangeAtPosition();
+		const range = this._getActiveMarkerOrWordRange();
 		if (!Range.equalsRange(this._currentRange, range)) {
 			this._currentRange = range;
 			this._signalChange({
@@ -76,48 +86,28 @@ export class QuickFixOracle {
 		}
 	}
 
-	private _rangeAtPosition(): Range {
+	private _getActiveMarkerOrWordRange(): Range {
 
-		// (1) check with non empty selection
 		const selection = this._editor.getSelection();
-		if (!selection.isEmpty()) {
-			return selection;
-		}
-
-		// (2) check with diagnostics markers
-		const marker = this._markerAtPosition();
-		if (marker) {
-			return Range.lift(marker);
-		}
-
-		// (3) check with word
-		return this._wordAtPosition();
-	}
-
-	private _markerAtPosition(): IMarker {
-
-		const position = this._editor.getPosition();
-		const { uri } = this._editor.getModel();
-		const markers = this._markerService.read({ resource: uri }).sort(Range.compareRangesUsingStarts);
-
-		let idx = arrays.findFirst(markers, marker => marker.endLineNumber >= position.lineNumber);
-		while (idx < markers.length && markers[idx].endLineNumber >= position.lineNumber) {
-			const marker = markers[idx];
-			if (Range.containsPosition(marker, position)) {
-				return marker;
-			}
-			idx++;
-		}
-		return undefined;
-	}
-
-	private _wordAtPosition(): Range {
-		const pos = this._editor.getPosition();
 		const model = this._editor.getModel();
-		const info = model.getWordAtPosition(pos);
-		if (info) {
-			return new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn);
+
+		// (1) return marker that contains a (empty/non-empty) selection
+		for (const marker of this._markerService.read({ resource: model.uri })) {
+			const range = Range.lift(marker);
+			if (range.containsRange(selection)) {
+				return range;
+			}
 		}
+
+		// (2) return range of current word
+		if (selection.isEmpty()) {
+			const pos = selection.getStartPosition();
+			const info = model.getWordAtPosition(pos);
+			if (info) {
+				return new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn);
+			}
+		}
+
 		return undefined;
 	}
 }
@@ -126,7 +116,7 @@ export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
 	range: Range;
 	position: Position;
-	fixes: TPromise<CodeAction[]>;
+	fixes: TPromise<Command[]>;
 }
 
 export class QuickFixModel {

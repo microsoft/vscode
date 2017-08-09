@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "파일 감시를 통해 트리거되는 감시되는 작업이 시작됨을 나타내는 정규식입니다.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "이 속성은 사용되지 않습니다. 대신 감시 속성을 사용하세요.",
 	"LegacyProblemMatcherSchema.watchedEnd": "감시되는 작업이 종료됨을 나타내는 정규식입니다.",
-	"ProblemMatcherExtPoint": "문제 선택기를 제공합니다."
+	"NamedProblemMatcherSchema.name": "참조를 위한 문제 선택기의 이름입니다.",
+	"NamedProblemMatcherSchema.label": "사람이 읽을 수 있는 문제 일치기의 레이블입니다.",
+	"ProblemMatcherExtPoint": "문제 선택기를 제공합니다.",
+	"msCompile": "Microsoft 컴파일러 문제",
+	"lessCompile": "문제 적게 보기",
+	"gulp-tsc": "Gulp TSC 문제",
+	"jshint": "JSHint 문제",
+	"jshint-stylish": "JSHint 스타일 문제",
+	"eslint-compact": "ESLint 컴팩트 문제",
+	"eslint-stylish": "ESLint 스타일 문제",
+	"go": "이동 문제"
 }

@@ -15,6 +15,8 @@
 	"enablePreviewFromQuickOpen": "Steuert, ob geöffnete Editoren aus Quick Open als Vorschau angezeigt werden. Vorschau-Editoren werden wiederverwendet, bis sie gespeichert werden (z. B. über Doppelklicken oder Bearbeiten).",
 	"editorOpenPositioning": "Steuert, wo Editoren geöffnet werden. Wählen Sie \"Links\" oder \"Rechts\" aus, um Editoren links oder rechts vom aktuellen aktiven Editor zu öffnen. Wählen Sie \"Erster\" oder \"Letzter\" aus, um Editoren unabhängig vom aktuell aktiven Editor zu öffnen.",
 	"revealIfOpen": "Steuert, ob ein geöffneter Editor in einer der sichtbaren Gruppen angezeigt wird. Ist diese Option deaktiviert, wird ein Editor vorzugsweise in der aktuell aktiven Editorgruppe geöffnet. Ist diese Option aktiviert, wird ein bereits geöffneter Editor angezeigt und nicht in der aktuell aktiven Editorgruppe erneut geöffnet. In einigen Fällen wird diese Einstellung ignoriert, z. B. wenn das Öffnen eines Editors in einer bestimmten Gruppe oder neben der aktuell aktiven Gruppe erzwungen wird.",
+	"commandHistory": "Steuert, ob die Anzahl zuletzt verwendeter Befehle im Verlauf für die Befehlspalette gespeichert wird. Legen Sie diese Option auf 0 fest, um den Befehlsverlauf zu deaktivieren.",
+	"preserveInput": "Steuert, ob die letzte typisierte Eingabe in die Befehlspalette beim nächsten Öffnen wiederhergestellt wird.",
 	"closeOnFocusLost": "Steuert, ob Quick Open automatisch geschlossen werden soll, sobald das Feature den Fokus verliert.",
 	"openDefaultSettings": "Steuert, ob beim Öffnen der Einstellungen auch ein Editor geöffnet wird, der alle Standardeinstellungen anzeigt.",
 	"sideBarLocation": "Steuert die Position der Seitenleiste. Diese kann entweder links oder rechts von der Workbench angezeigt werden.",
@@ -32,8 +34,11 @@
 	"window.openFoldersInNewWindow.default": "Ordner werden in einem neuen Fenster geöffnet, sofern kein Ordner innerhalb der Anwendung ausgewählt wird (z. B. über das Dateimenü).",
 	"openFoldersInNewWindow": "Steuert, ob Ordner in einem neuen Fenster geöffnet werden oder das letzte aktive Fenster ersetzen.\n- default: Die Ordner werden in einem neuen Fenster geöffnet, sofern kein Ordner innerhalb der Anwendung ausgewählt wird (z. B. über das Dateimenü).\n- on: Die Ordner werden in einem neuen Fenster geöffnet.\n- off: Die Ordner ersetzen das letzte aktive Fenster.\nIn einigen Fällen wird diese Einstellung unter Umständen ignoriert (z. B. bei der Befehlszeilenoption \"-new-window\" oder \"-reuse-window\").",
 	"window.reopenFolders.all": "Alle Fenster erneut öffnen.",
+	"window.reopenFolders.one": "Das letzte aktive Fenster erneut öffnen. ",
+	"window.reopenFolders.none": "Fenster nie erneut öffnen und immer mit einem leeren Fenster beginnen.",
 	"restoreFullscreen": "Steuert, ob ein Fenster im Vollbildmodus wiederhergestellt wird, wenn es im Vollbildmodus beendet wurde.",
 	"zoomLevel": "Passen Sie den Zoomfaktor des Fensters an. Die ursprüngliche Größe ist 0. Jede Inkrementierung nach oben (z. B. 1) oder unten (z. B. -1) stellt eine Vergrößerung bzw. Verkleinerung um 20 % dar. Sie können auch Dezimalwerte eingeben, um den Zoomfaktor genauer anzupassen.",
+	"title": "Steuert den Fenstertitel basierend auf dem aktiven Editor. Variablen werden abhängig vom Kontext ersetzt:\n${activeEditorShort}: z. B. meineDatei.txt\n${activeEditorMedium}: z. B. meinOrdner/meineDatei.txt\n${activeEditorLong}: z. B. /Users/Development/meinProjekt/meinOrdner/meineDatei.txt\n${folderName}: z. B. \nmeinOrdner${folderPath}: z. B. /Users/Development/meinOrdner\n${rootName}: z. B. meinOrdner1, meinOrdner2, meinOrdner3\n${rootPath}: z. B. /Users/Development/meinArbeitsbereich\n${appName}: z. B. VS Code\n${dirty}: ein Änderungsindikator, wenn der aktive Editor geändert wurde\n${separator}: ein bedingtes Trennzeichen (\" - \"), das nur angezeigt wird, wenn es zwischen Variablen mit Werten steht",
 	"window.newWindowDimensions.default": "Öffnet neue Fenster in der Mitte des Bildschirms.",
 	"window.newWindowDimensions.inherit": "Öffnet neue Fenster mit den gleichen Abmessungen wie das letzte aktive Fenster.",
 	"window.newWindowDimensions.maximized": "Öffnet neue Fenster maximiert.",
@@ -54,7 +59,5 @@
 	"zenMode.hideTabs": "Steuert, ob die Workbench-Registerkarten durch Aktivieren des Zen-Modus ebenfalls ausgeblendet werden.",
 	"zenMode.hideStatusBar": "Steuert, ob die Statusleiste im unteren Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
 	"zenMode.hideActivityBar": "Steuert, ob die Aktivitätsleiste im linken Bereich der Workbench durch Aktivieren des Zen-Modus ebenfalls ausgeblendet wird.",
-	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde.",
-	"workspaceConfigurationTitle": "Arbeitsbereich",
-	"files.exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren."
+	"zenMode.restore": "Steuert, ob ein Fenster im Zen-Modus wiederhergestellt werden soll, wenn es im Zen-Modus beendet wurde."
 }

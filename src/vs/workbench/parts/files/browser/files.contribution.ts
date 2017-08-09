@@ -174,7 +174,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
-			'scope': ConfigurationScope.FOLDER,
+			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
 				'anyOf': [
 					{
@@ -204,13 +204,13 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
-			'scope': ConfigurationScope.FOLDER
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files"),
-			'scope': ConfigurationScope.FOLDER
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.eol': {
 			'type': 'string',
@@ -226,14 +226,14 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
 			'overridable': true,
-			'scope': ConfigurationScope.FOLDER
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
 			'overridable': true,
-			'scope': ConfigurationScope.FOLDER
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.autoSave': {
 			'type': 'string',
@@ -256,7 +256,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
 			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
-			'scope': ConfigurationScope.FOLDER
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': {
 			'type': 'string',

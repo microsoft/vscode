@@ -25,6 +25,7 @@ export function evaluateMathExpression() {
 				const result = String(evaluate(stream, true));
 				editBuilder.replace(new vscode.Range(stream.pos, pos), result);
 			} catch (err) {
+				vscode.window.showErrorMessage('Could not evaluate expression');
 				// Ignore error since most likely it’s because of non-math expression
 				console.warn('Math evaluation error', err);
 			}

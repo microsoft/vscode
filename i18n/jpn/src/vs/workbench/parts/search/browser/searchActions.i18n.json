@@ -9,13 +9,13 @@
 	"focusNextInputBox": "次の入力ボックスにフォーカス",
 	"focusPreviousInputBox": "前の入力ボックスにフォーカス",
 	"replaceInFiles": "複数のファイルで置換",
-	"findInFolder": "フォルダー内を検索",
+	"findInWorkspace": "ワークスペース内を検索...",
+	"findInFolder": "フォルダー内を検索...",
 	"RefreshAction.label": "最新の情報に更新",
 	"ClearSearchResultsAction.label": "検索結果のクリア",
 	"FocusNextSearchResult.label": "次の検索結果にフォーカス",
 	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",
 	"RemoveAction.label": "削除",
 	"file.replaceAll.label": "すべて置換",
-	"match.replace.label": "置換",
-	"ConfigureGlobalExclusionsAction.label": "設定を開く"
+	"match.replace.label": "置換"
 }

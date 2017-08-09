@@ -5,25 +5,20 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-declare interface WebviewElement extends HTMLElement {
+export declare interface WebviewElement extends HTMLElement {
 	src: string;
-	autoSize: 'on';
 	preload: string;
-	contextIsolation: boolean;
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
 	getWebContents(): any;
@@ -52,22 +47,6 @@ export interface FoundInPageResults {
 	selectionArea: any;
 }
 
-CommandsRegistry.registerCommand('_webview.openDevTools', function () {
-	const elements = document.querySelectorAll('webview.ready');
-	for (let i = 0; i < elements.length; i++) {
-		try {
-			(<WebviewElement>elements.item(i)).openDevTools();
-		} catch (e) {
-			console.error(e);
-		}
-	}
-});
-
-MenuRegistry.addCommand({
-	id: '_webview.openDevTools',
-	title: localize('devtools.webview', "Developer: Webview Tools")
-});
-
 type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
 
 export interface WebviewOptions {
@@ -83,7 +62,6 @@ export default class Webview {
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
-	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
@@ -99,19 +77,18 @@ export default class Webview {
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
-
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
-		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
-		this._webview.contextIsolation = true;
+		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Webview.index++}`);
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
-		this._webview.setAttribute('partition', `webview${Webview.index++}`);
+
+		this._webview.style.flex = '0 1';
+		this._webview.style.width = '0';
+		this._webview.style.height = '0';
+		this._webview.style.outline = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -145,6 +122,7 @@ export default class Webview {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
 						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -156,6 +134,7 @@ export default class Webview {
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
 						if (uri && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -184,9 +163,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-set-content') {
-					this._webview.style.opacity = '';
-					let [stats] = event.args;
-					this._onDidLoadContent.fire({ stats });
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
 					this.layout();
 					return;
 				}
@@ -220,7 +199,6 @@ export default class Webview {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
-
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
@@ -229,7 +207,6 @@ export default class Webview {
 
 	dispose(): void {
 		this._onDidClickLink.dispose();
-		this._onDidLoadContent.dispose();
 		this._disposables = dispose(this._disposables);
 
 		if (this._webview.parentElement) {
@@ -241,10 +218,6 @@ export default class Webview {
 
 	get onDidClickLink(): Event<URI> {
 		return this._onDidClickLink.event;
-	}
-
-	get onDidLoadContent(): Event<{ stats: any }> {
-		return this._onDidLoadContent.event;
 	}
 
 	get onDidScroll(): Event<{ scrollYPercentage: number }> {
@@ -287,6 +260,12 @@ export default class Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
+	}
+
+	private onDidBlockSvg() {
+		this.sendMessage({
+			name: 'vscode-did-block-svg'
+		});
 	}
 
 	style(theme: ITheme): void {
@@ -379,7 +358,7 @@ export default class Webview {
 
 	public layout(): void {
 		const contents = (this._webview as any).getWebContents();
-		if (!contents) {
+		if (!contents || contents.isDestroyed()) {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();

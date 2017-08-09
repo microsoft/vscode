@@ -9,7 +9,7 @@ import * as path from 'path';
 import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { activateColorDecorations } from "./colorDecorators";
+import { activateColorDecorations, ColorProvider } from "./colorDecorators";
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -95,6 +95,8 @@ export function activate(context: ExtensionContext) {
 		};
 		disposable = activateColorDecorations(colorRequestor, { json: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
+
+		context.subscriptions.push(languages.registerColorProvider('json', new ColorProvider(colorRequestor)));
 	});
 
 	// Push the disposable to the context's subscriptions so that the
@@ -125,6 +127,7 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 						}
 						if (fileMatch[0] === '%') {
 							fileMatch = fileMatch.replace(/%APP_SETTINGS_HOME%/, '/User');
+							fileMatch = fileMatch.replace(/%APP_WORKSPACES_HOME%/, '/Workspaces');
 						} else if (fileMatch.charAt(0) !== '/' && !fileMatch.match(/\w+:\/\//)) {
 							fileMatch = '/' + fileMatch;
 						}

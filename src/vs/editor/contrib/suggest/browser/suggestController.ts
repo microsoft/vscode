@@ -21,6 +21,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { ISuggestSupport } from 'vs/editor/common/modes';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Context as SuggestContext } from './suggest';
@@ -210,8 +211,8 @@ export class SuggestController implements IEditorContribution {
 		alert(msg);
 	}
 
-	triggerSuggest(): void {
-		this._model.trigger(false, false);
+	triggerSuggest(onlyFrom?: ISuggestSupport[]): void {
+		this._model.trigger(false, false, onlyFrom);
 		this._editor.revealLine(this._editor.getPosition().lineNumber);
 		this._editor.focus();
 	}

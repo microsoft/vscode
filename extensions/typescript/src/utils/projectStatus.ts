@@ -24,6 +24,7 @@ interface ProjectHintedMap {
 const fileLimit = 500;
 
 class ExcludeHintItem {
+	public configFileName?: string;
 	private _item: vscode.StatusBarItem;
 	private _client: ITypescriptServiceClient;
 	private _currentHint: Hint;
@@ -133,24 +134,14 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 			item.show();
 			const configFileName = body.projectName;
 			if (configFileName) {
+				item.configFileName = configFileName;
 				vscode.window.showWarningMessage<LargeProjectMessageItem>(item.getCurrentHint().message,
 					{
 						title: localize('large.label', "Configure Excludes"),
 						index: 0
 					}).then(selected => {
-						if (!selected || selected.index !== 0) {
-							return;
-						}
-						if (!isImplicitProjectConfigFile(configFileName)) {
-							vscode.workspace.openTextDocument(configFileName)
-								.then(vscode.window.showTextDocument);
-						} else {
-							const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
-							if (root) {
-								openOrCreateConfigFile(
-									configFileName.match(/tsconfig\.?.*\.json/) !== null,
-									root);
-							}
+						if (selected && selected.index === 0) {
+							onConfigureExcludesSelected(client, configFileName);
 						}
 					});
 			}
@@ -158,11 +149,28 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 	});
 }
 
+function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFileName: string) {
+	if (!isImplicitProjectConfigFile(configFileName)) {
+		vscode.workspace.openTextDocument(configFileName)
+			.then(vscode.window.showTextDocument);
+	} else {
+		const root = client.getWorkspaceRootForResource(vscode.Uri.file(configFileName));
+		if (root) {
+			openOrCreateConfigFile(
+				configFileName.match(/tsconfig\.?.*\.json/) !== null,
+				root);
+		}
+	}
+}
+
 export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
 	const toDispose: vscode.Disposable[] = [];
 
-	let item = new ExcludeHintItem(client);
+	const item = new ExcludeHintItem(client);
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
+		if (item.configFileName) {
+			onConfigureExcludesSelected(client, item.configFileName);
+		}
 		let { message } = item.getCurrentHint();
 		return vscode.window.showInformationMessage(message);
 	}));
