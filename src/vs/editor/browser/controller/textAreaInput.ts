@@ -37,6 +37,7 @@ export interface ITextAreaInputHost {
 	getPlainTextToCopy(): string;
 	getHTMLToCopy(): string;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
+	// deduceEditorPosition(anchor: Position, delta: number, lineFeedCnt: number): Position;
 }
 
 /**
@@ -344,10 +345,34 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			// TODO: React here to the new text area selection
+			if (!this._textAreaState.selectionStartPosition || !this._textAreaState.selectionEndPosition) {
+				// Cannot correlate a position in the textarea with a position in the editor...
+				return;
+			}
+
+			const newValue = this._textArea.getValue();
+			if (this._textAreaState.value !== newValue) {
+				// Cannot correlate a position in the textarea with a position in the editor...
+				return;
+			}
+
+			const newSelectionStart = this._textArea.getSelectionStart();
+			const newSelectionEnd = this._textArea.getSelectionEnd();
+			if (this._textAreaState.selectionStart === newSelectionStart && this._textAreaState.selectionEnd === newSelectionEnd) {
+				// Nothing to do...
+				return;
+			}
+
+			// const newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
+			// const newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
+
+			// // TODO: React here to the new text area selection
 			// console.warn('!!!!!!!' + Date.now() + ':: RECEIVED selectionchange');
 			// console.log(this._textArea.getSelectionStart(), this._textArea.getSelectionEnd());
 			// console.log(this._textAreaState.selectionStart, this._textAreaState.selectionEnd);
+			// console.log(this._textAreaState.selectionStartPosition, this._textAreaState.selectionEndPosition);
+			// console.log(newSelectionStartPosition);
+			// console.log(newSelectionEndPosition);
 		}));
 	}
 
