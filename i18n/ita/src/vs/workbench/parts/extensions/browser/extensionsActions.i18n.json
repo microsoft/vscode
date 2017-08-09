@@ -37,6 +37,7 @@
 	"reload": "&&Ricarica finestra",
 	"toggleExtensionsViewlet": "Mostra estensioni",
 	"installExtensions": "Installa estensioni",
+	"showEnabledExtensions": "Mostra estensioni abilitate",
 	"showInstalledExtensions": "Mostra estensioni installate",
 	"showDisabledExtensions": "Mostra estensioni disabilitate",
 	"clearExtensionsInput": "Cancella input estensioni",

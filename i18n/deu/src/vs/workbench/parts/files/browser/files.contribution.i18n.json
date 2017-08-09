@@ -38,5 +38,11 @@
 	"openEditorsVisible": "Die Anzahl der Editoren, die im Bereich \"Geöffnete Editoren\" angezeigt werden. Legen Sie diesen Wert auf 0 fest, um den Bereich auszublenden.",
 	"dynamicHeight": "Steuert, ob sich die Höhe des Abschnitts \"Geöffnete Editoren\" dynamisch an die Anzahl der Elemente anpassen soll.",
 	"autoReveal": "Steuert, ob der Explorer Dateien beim Öffnen automatisch anzeigen und auswählen soll.",
-	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag  Drop zulassen soll."
+	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag  Drop zulassen soll.",
+	"sortOrder.default": "Dateien und Verzeichnisse werden in alphabetischer Reihenfolge nach Namen sortiert. Verzeichnisse werden vor Dateien angezeigt.",
+	"sortOrder.mixed": "Dateien und Verzeichnisse werden in alphabetischer Reihenfolge nach Namen sortiert. Dateien und Verzeichnisse werden vermischt angezeigt.",
+	"sortOrder.filesFirst": "Dateien und Verzeichnisse werden in alphabetischer Reihenfolge nach Namen sortiert. Dateien werden vor Verzeichnissen angezeigt.",
+	"sortOrder.type": "Dateien und Verzeichnisse werden in alphabetischer Reihenfolge nach Erweiterungen sortiert. Verzeichnisse werden vor Dateien angezeigt.",
+	"sortOrder.modified": "Dateien und Verzeichnisse werden in absteigender Reihenfolge nach dem Datum der letzten Änderung sortiert. Verzeichnisse werden vor Dateien angezeigt.",
+	"sortOrder": "Steuert die Sortierung von Dateien und Verzeichnissen im Explorer."
 }

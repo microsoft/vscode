@@ -35,5 +35,6 @@
 	"workbench.action.terminal.rename": "Renomear",
 	"workbench.action.terminal.rename.prompt": "Digite o nome do terminal",
 	"workbench.action.terminal.focusFindWidget": "Focalizar Ferramenta de Pesquisa",
-	"workbench.action.terminal.hideFindWidget": "Ocultar Ferramenta de Pesquisa"
+	"workbench.action.terminal.hideFindWidget": "Ocultar Ferramenta de Pesquisa",
+	"quickOpenTerm": "Trocar o terminal ativo"
 }

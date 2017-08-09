@@ -6,9 +6,22 @@
 {
 	"openFolder": "Abrir carpeta...",
 	"openFileFolder": "Abrir...",
+	"reload": "&&Recargar",
 	"cancel": "Cancelar",
+	"newWorkspaceFormExisting": "Nueva área de trabajo a partir de una existente...",
+	"select": "&&Seleccionar",
+	"selectWorkspace": "Seleccionar carpetas para el área de trabajo",
+	"addSupported": "Para abrir varias carpetas, es necesario recargar la ventana.",
 	"addFolderToWorkspace": "Agregar carpeta al área de trabajo...",
+	"add": "&& Agregar",
 	"addFolderToWorkspaceTitle": "Agregar carpeta al área de trabajo",
 	"removeFolderFromWorkspace": "Quitar carpeta del área de trabajo",
-	"save": "&&Guardar"
+	"saveWorkspaceAsAction": "Guardar área de trabajo como...",
+	"saveEmptyWorkspaceNotSupported": "Abra un área de trabajo antes de guardar.",
+	"saveNotSupported": "Para guardar el área de trabajo, es necesario recargar la ventana.",
+	"save": "&&Guardar",
+	"saveWorkspace": "Guardar área de trabajo",
+	"openWorkspaceAction": "Abrir área de trabajo...",
+	"newWorkspace": "Nueva área de trabajo...",
+	"openWorkspaceConfigFile": "Abrir archivo de configuración del área de trabajo"
 }

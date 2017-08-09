@@ -24,5 +24,12 @@
 	"command.incrementNumberByOneTenth": "Incremento de 0.1",
 	"command.decrementNumberByOneTenth": "Decrementar por 0.1",
 	"command.incrementNumberByTen": "Incremento de 10",
-	"command.decrementNumberByTen": "Decrementar por 10"
+	"command.decrementNumberByTen": "Decrementar por 10",
+	"emmetSyntaxProfiles": "Definir o perfil para a sintaxe especificada ou usar seu próprio perfil com regras específicas.",
+	"emmetExclude": "Uma matriz de línguagens onde abreviaturas emmet não devem ser expandidas.",
+	"emmetExtensionsPath": "Caminho para uma pasta que contém perfis de emmet, trechos de código e preferências. Somente perfis são honrados do caminho de extensões quando emmet.useNewEmmet estiver definida como true.'",
+	"emmetShowExpandedAbbreviation": "Mostra abreviaturas emmet expandidas como sugestões.\nA opção \"inMarkupAndStylesheetFilesOnly\" aplica-se a html, haml, jade, slim, xml, xsl, css, scss, sass, less e stylus.\nA opção \"always\" se aplica a todas as partes do arquivo independentemente de marcação/css.",
+	"emmetShowAbbreviationSuggestions": "Mostra possíveis abreviaturas emmet como sugestões. Não aplicável em folhas de estilo ou quando emmet.showExpandedAbbreviation é definido como \"nunca\".",
+	"emmetIncludeLanguages": "Habilita as abreviaturas do emmet em idiomas que não são suportados por padrão. Adicione um mapeamento aqui entre a linguagem e a linguagem emmet suportada.\n Por exemplo: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetVariables": "Variáveis a serem usadas em trechos de código emmet"
 }

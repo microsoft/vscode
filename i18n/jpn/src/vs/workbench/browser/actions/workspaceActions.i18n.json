@@ -8,6 +8,7 @@
 	"openFileFolder": "開く...",
 	"reload": "再読み込み(&&R)",
 	"cancel": "キャンセル",
+	"newWorkspaceFormExisting": "既存を元に新しいワークスペース...",
 	"select": "選択(&&S)",
 	"selectWorkspace": "ワークスペースのフォルダーを選択",
 	"addSupported": "複数のフォルダーを開くには、ウィンドウの再読み込みが必要です。",

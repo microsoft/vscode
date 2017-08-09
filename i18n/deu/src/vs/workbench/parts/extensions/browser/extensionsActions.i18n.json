@@ -37,6 +37,7 @@
 	"reload": "Fenster &&erneut laden",
 	"toggleExtensionsViewlet": "Erweiterungen anzeigen",
 	"installExtensions": "Erweiterungen installieren",
+	"showEnabledExtensions": "Aktivierte Erweiterungen anzeigen",
 	"showInstalledExtensions": "Installierte Erweiterungen anzeigen",
 	"showDisabledExtensions": "Deaktivierte Erweiterungen anzeigen",
 	"clearExtensionsInput": "Extensioneingabe löschen",

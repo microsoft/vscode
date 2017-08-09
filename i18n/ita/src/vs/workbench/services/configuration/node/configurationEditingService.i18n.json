@@ -7,10 +7,16 @@
 	"open": "Apri impostazioni",
 	"close": "Chiudi",
 	"saveAndRetry": "Salva le impostazioni e riprova",
+	"errorUnknownKey": "Impossibile scrivere {0} perché {1} non è una configurazione registrata.",
+	"errorInvalidFolderConfiguration": "Impossibile scrivere nella cartella impostazioni perché {0} non supporta l'ambito di risorsa della cartella.",
+	"errorInvalidUserTarget": "Impossibile scrivere le impostazioni utente perché {0} non supporta l'ambito globale.",
+	"errorInvalidFolderTarget": "Impossibile scrivere nella cartella impostazioni perché non viene fornita alcuna risorsa.",
+	"errorNoWorkspaceOpened": "Impossibile scrivere su {0} poiché nessuna area di lavoro è aperta. Si prega di aprire un'area di lavoro e riprovare.",
 	"errorInvalidConfiguration": "Impossibile scrivere nelle impostazioni. Si prega di aprire  **Impostazioni utente** per correggere eventuali errori o avvisi nel file e riprovare.",
 	"errorInvalidConfigurationWorkspace": "Impossibile scrivere in impostazioni. Si prega di aprire **Impostazioni area di lavoro** per correggere eventuali errori o avvisi nel file e riprovare.",
 	"errorConfigurationFileDirty": "Impossibile scrivere nelle impostazioni perché il file è stato modificato ma non salvato. Si prega di salvare il file **impostazioni utente** e riprovare.",
 	"errorConfigurationFileDirtyWorkspace": "Non è possibile scrivere in impostazioni perché il file è stato modificato ma non salvato. Salvare il file delle **Impostazioni area di lavoro** e riprovare.",
 	"userTarget": "Impostazioni utente",
-	"workspaceTarget": "Impostazioni area di lavoro"
+	"workspaceTarget": "Impostazioni area di lavoro",
+	"folderTarget": "Impostazioni della cartella"
 }

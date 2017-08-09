@@ -69,5 +69,7 @@
 	"emptyFileNameError": "Debe especificarse un nombre de archivo o carpeta.",
 	"fileNameExistsError": "Ya existe el archivo o carpeta **{0}** en esta ubicación. Elija un nombre diferente.",
 	"invalidFileNameError": "El nombre **{0}** no es válido para el archivo o la carpeta. Elija un nombre diferente.",
-	"filePathTooLongError": "El nombre **{0}** da como resultado una ruta de acceso demasiado larga. Elija un nombre más corto."
+	"filePathTooLongError": "El nombre **{0}** da como resultado una ruta de acceso demasiado larga. Elija un nombre más corto.",
+	"compareWithSaved": "Comparar el archivo activo con el guardado",
+	"modifiedLabel": "{0} (en disco) ↔ {1}"
 }

@@ -43,5 +43,6 @@
 	"sortOrder.mixed": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont imbriquées dans des répertoires.",
 	"sortOrder.filesFirst": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont affichés avant les répertoires.",
 	"sortOrder.type": "Fichiers et répertoires sont triés par leurs extensions, dans l’ordre alphabétique. Les répertoires sont affichés avant les fichiers.",
-	"sortOrder.modified": "Fichiers et répertoires sont triés par date de dernière modification, dans l’ordre décroissant. Les répertoires sont affichés avant les fichiers."
+	"sortOrder.modified": "Fichiers et répertoires sont triés par date de dernière modification, dans l’ordre décroissant. Les répertoires sont affichés avant les fichiers.",
+	"sortOrder": "Contrôle le mode de tri des fichiers et des répertoires dans l’explorateur."
 }

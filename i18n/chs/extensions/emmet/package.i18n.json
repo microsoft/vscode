@@ -7,6 +7,8 @@
 	"command.removeTag": "移除标签",
 	"command.updateTag": "更新标签",
 	"command.matchTag": "转至匹配对",
+	"command.balanceIn": "平衡(向内)",
+	"command.balanceOut": "平衡(向外)",
 	"command.prevEditPoint": "转到上一编辑点",
 	"command.nextEditPoint": "转到下一编辑点",
 	"command.mergeLines": "合并行",
@@ -22,5 +24,12 @@
 	"command.incrementNumberByOneTenth": "增加 0.1",
 	"command.decrementNumberByOneTenth": "减少 0.1",
 	"command.incrementNumberByTen": "增加 10",
-	"command.decrementNumberByTen": "减少 10"
+	"command.decrementNumberByTen": "减少 10",
+	"emmetSyntaxProfiles": "为指定的语法定义配置文件或使用带有特定规则的配置文件。",
+	"emmetExclude": "不应展开 Emmet 缩写的语言数组。",
+	"emmetExtensionsPath": "包含 Emmet 配置文件、片段和首选项的文件夹路径。当 emmet.useNewEmmet 设置为 true 时，只有配置文件才服从于扩展路径。",
+	"emmetShowExpandedAbbreviation": "显示扩展的 Emmet 缩写作为建议。\n\"inMarkupAndStylesheetFilesOnly\" 选项适用于 html、haml、jade、slim、xml、xsl、css、scss、sass、less 和 stylus。\n\"always\" 选项适用于 markup/css 文件的所有部分。",
+	"emmetShowAbbreviationSuggestions": "显示可能的 Emmet 缩写作为建议。在风格表中或将 emmet.showExpandedAbbreviation 设置为 \"never\" 时不适用。",
+	"emmetIncludeLanguages": "启用使用默认不支持的语言的 Emmet 缩写。在此添加该语言与支持 Emmet 的语言之间的映射。示例: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetVariables": "要用于 Emmet 代码片段的变量"
 }

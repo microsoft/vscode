@@ -9,6 +9,8 @@
 	"workbench.action.terminal.kill.short": "Termina il terminale",
 	"workbench.action.terminal.copySelection": "Copia selezione",
 	"workbench.action.terminal.selectAll": "Seleziona tutto",
+	"workbench.action.terminal.deleteWordLeft": "Elimina parola a sinistra",
+	"workbench.action.terminal.deleteWordRight": "Elimina la parola a destra",
 	"workbench.action.terminal.new": "Crea nuovo terminale integrato",
 	"workbench.action.terminal.new.short": "Nuovo terminale",
 	"workbench.action.terminal.focus": "Sposta stato attivo su terminale",
@@ -33,5 +35,6 @@
 	"workbench.action.terminal.rename": "Rinomina",
 	"workbench.action.terminal.rename.prompt": "Immettere il nome del terminale",
 	"workbench.action.terminal.focusFindWidget": "Stato attivo su widget Trova",
-	"workbench.action.terminal.hideFindWidget": "Nascondi widget Trova"
+	"workbench.action.terminal.hideFindWidget": "Nascondi widget Trova",
+	"quickOpenTerm": "Cambia terminale attivo"
 }

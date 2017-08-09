@@ -36,6 +36,7 @@
 	"navigateNext": "Suivant",
 	"navigatePrevious": "Précédent",
 	"reopenClosedEditor": "Rouvrir l'éditeur fermé",
+	"clearRecentFiles": "Effacer les fichiers récemment ouverts",
 	"showEditorsInFirstGroup": "Afficher les éditeurs du premier groupe",
 	"showEditorsInSecondGroup": "Afficher les éditeurs du deuxième groupe",
 	"showEditorsInThirdGroup": "Afficher les éditeurs du troisième groupe",

@@ -28,5 +28,6 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "Reemplaza los colores del tema de color actual",
 	"workbenchColors.deprecated": "Esta configuracion no es experimental y se ha cambiado de nombre a 'workbench.colorCustomizations'",
-	"workbenchColors.deprecatedDescription": "Utilice 'workbench.colorCustomizations' en su lugar"
+	"workbenchColors.deprecatedDescription": "Utilice 'workbench.colorCustomizations' en su lugar",
+	"editorColors": "Reemplaza los colores y el estilo de fuente del editor del tema de color seleccionado."
 }

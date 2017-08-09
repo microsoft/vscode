@@ -7,10 +7,16 @@
 	"open": "設定を開く",
 	"close": "閉じる",
 	"saveAndRetry": "設定を保存して再試行",
+	"errorUnknownKey": "{1} は登録済みの構成ではないため、{0} に書き込むことができません。",
+	"errorInvalidFolderConfiguration": "{0} はフォルダーのリソース スコープをサポートしていないため、フォルダー設定に書き込むことができません。",
+	"errorInvalidUserTarget": "{0} はグローバル スコープをサポートしていないため、ユーザー設定に書き込むことができません。",
+	"errorInvalidFolderTarget": "リソースが指定されていないため、フォルダー設定に書き込むことができません。",
+	"errorNoWorkspaceOpened": "開いているワークスペースがないため、{0} に書き込むことができません。最初にワークスペースを開いてから、もう一度お試しください。",
 	"errorInvalidConfiguration": "設定を書き込めません。**User Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorInvalidConfigurationWorkspace": "設定を書き込めません。**Workspace Settings** を開いて、ファイル内のエラー/警告を修正してからもう一度お試しください。",
 	"errorConfigurationFileDirty": "ファイルが変更されているため、設定を書き込めません。**User Settings** ファイルを保存してから、もう一度お試しください。",
 	"errorConfigurationFileDirtyWorkspace": "ファイルが変更されているため、設定を書き込めません。**Workspace Settings** ファイルを保存してから、もう一度お試しください。",
 	"userTarget": "ユーザー設定",
-	"workspaceTarget": "ワークスペースの設定"
+	"workspaceTarget": "ワークスペースの設定",
+	"folderTarget": "フォルダーの設定"
 }

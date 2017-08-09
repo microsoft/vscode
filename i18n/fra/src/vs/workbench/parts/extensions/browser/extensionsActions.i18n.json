@@ -37,6 +37,7 @@
 	"reload": "&&Recharger la fenêtre",
 	"toggleExtensionsViewlet": "Afficher les extensions",
 	"installExtensions": "Installer les extensions",
+	"showEnabledExtensions": "Afficher les Extensions activées",
 	"showInstalledExtensions": "Afficher les extensions installées",
 	"showDisabledExtensions": "Afficher les extensions désactivées",
 	"clearExtensionsInput": "Effacer l'entrée des extensions",

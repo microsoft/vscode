@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "Condición que se debe cumplir para mostrar esta vista",
 	"vscode.extension.contributes.views": "Aporta vistas al editor",
 	"views.explorer": "Vista del explorador",
+	"views.debug": "Vista de depuración",
 	"locationId.invalid": "`{0}` no es una ubicación de vista válida"
 }

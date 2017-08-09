@@ -35,5 +35,6 @@
 	"workbench.action.terminal.rename": "Yeniden Adlandır",
 	"workbench.action.terminal.rename.prompt": "Terminal adını girin",
 	"workbench.action.terminal.focusFindWidget": "Bulma Aracına Odakla",
-	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle"
+	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
+	"quickOpenTerm": "Aktif terminali değiştir"
 }

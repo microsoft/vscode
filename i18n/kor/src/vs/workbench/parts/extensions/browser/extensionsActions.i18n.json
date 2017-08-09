@@ -37,6 +37,7 @@
 	"reload": "창 다시 로드(&&R)",
 	"toggleExtensionsViewlet": "확장 표시",
 	"installExtensions": "확장 설치",
+	"showEnabledExtensions": "사용 확장자 표시",
 	"showInstalledExtensions": "설치된 확장 표시",
 	"showDisabledExtensions": "사용할 수 없는 확장 표시",
 	"clearExtensionsInput": "확장 입력 지우기",

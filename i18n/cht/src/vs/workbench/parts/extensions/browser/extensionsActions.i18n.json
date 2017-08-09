@@ -37,6 +37,7 @@
 	"reload": "重新載入視窗(&&R)",
 	"toggleExtensionsViewlet": "顯示擴充功能",
 	"installExtensions": "安裝擴充功能",
+	"showEnabledExtensions": "顯示啟用的延伸模組",
 	"showInstalledExtensions": "顯示安裝的擴充功能",
 	"showDisabledExtensions": "顯示停用的延伸模組",
 	"clearExtensionsInput": "清除擴充功能輸入",

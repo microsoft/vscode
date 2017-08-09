@@ -69,5 +69,7 @@
 	"emptyFileNameError": "È necessario specificare un nome file o un nome di cartella.",
 	"fileNameExistsError": "In questo percorso esiste già un file o una cartella **{0}**. Scegliere un nome diverso.",
 	"invalidFileNameError": "Il nome **{0}** non è valido per un nome file o un nome di cartella. Scegliere un nome diverso.",
-	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve."
+	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve.",
+	"compareWithSaved": "Confronta file attivo con file salvato",
+	"modifiedLabel": "{0} (su disco) ↔ {1}"
 }

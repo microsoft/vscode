@@ -6,5 +6,7 @@
 {
 	"terminal.background": "Die Hintergrundfarbe des Terminals, dies ermöglicht eine unterschiedliche Färbung des Terminals im Panel.",
 	"terminal.foreground": "Die Vordergrundfarbe des Terminal.",
+	"terminalCursor.foreground": "Die Vordergrundfarbe des Terminalcursors.",
+	"terminalCursor.background": "Die Hintergrundfarbe des Terminalcursors. Ermöglicht das Anpassen der Farbe eines Zeichens, das von einem Blockcursor überdeckt wird.",
 	"terminal.ansiColor": "\"{0}\": ANSI-Farbe im Terminal"
 }

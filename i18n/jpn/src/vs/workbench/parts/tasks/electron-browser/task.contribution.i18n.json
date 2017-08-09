@@ -26,6 +26,8 @@
 	"TaskService.noTestTask2": "テスト タスクが定義されていません。tasks.json ファイルでタスクに 'test' グループとしてマークを付けてください。",
 	"TaskServer.noTask": "実行が要求されたタスク {0} が見つかりません。",
 	"TaskService.attachProblemMatcher.continueWithout": "タスクの出力をスキャンせずに続行",
+	"TaskService.attachProblemMatcher.never": "今後このタスクの出力をスキャンしない",
+	"TaskService.attachProblemMatcher.learnMoreAbout": "タスク出力のスキャンについての詳細",
 	"selectProblemMatcher": "スキャンするタスク出力のエラーと警告の種類を選択",
 	"customizeParseErrors": "現在のタスクの構成にはエラーがあります。タスクをカスタマイズする前にエラーを修正してください。",
 	"moreThanOneBuildTask": "tasks.json で複数のビルド タスクが定義されています。最初のタスクのみを実行します。\\n",

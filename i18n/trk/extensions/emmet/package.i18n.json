@@ -24,5 +24,12 @@
 	"command.incrementNumberByOneTenth": "0.1 Arttır",
 	"command.decrementNumberByOneTenth": "0.1 Azalt",
 	"command.incrementNumberByTen": "10 Arttır",
-	"command.decrementNumberByTen": "10 Azalt"
+	"command.decrementNumberByTen": "10 Azalt",
+	"emmetSyntaxProfiles": "Belirtilen sentaks için profil tanımlayın veya kendi profilinizi belirli kurallarla kullanın.",
+	"emmetExclude": "Emmet kısaltmalarının genişletilmeyeceği bir diller dizisi.",
+	"emmetExtensionsPath": "Emmet profileri, parçacıkları ve tercihlerini içeren bir klasör yolu. emmet.useNewEmmet, 'true' olarak ayarlandığında, yalnızca profiller eklentiler yolundan kabul edilir.",
+	"emmetShowExpandedAbbreviation": "Genişletilmiş emmet kısaltmalarını öneriler olarak gösterir.\n\"inMarkupAndStylesheetFilesOnly\" seçeneği\" html, haml, jade, xml, xsl, css, scss, sass, less ve stylus'a uygulanır.\n\"always\" seçeneği işaretleme/css'den bağımsız olarak dosyanın tüm bölümlerine uygulanır.",
+	"emmetShowAbbreviationSuggestions": "Olası emmet kısaltmalarını öneriler olarak gösterir. Stil dosyalarında veya emmet.showExpandedAbbreviation, \"never\" olarak ayarlandığında uygulanamaz.",
+	"emmetIncludeLanguages": "Varsayılan olarak desteklenmeyen dillerde emmet kısaltmalarını etkinleştirin. Burada dil ile desteklenen emmet destekli dil arasında eşleme ekleyin.",
+	"emmetVariables": "Emmet parçacıklarında kullanılacak değişkenler"
 }

@@ -35,5 +35,6 @@
 	"workbench.action.terminal.rename": "名前変更",
 	"workbench.action.terminal.rename.prompt": "ターミナルの名前を入力してください",
 	"workbench.action.terminal.focusFindWidget": "検索ウィジェットにフォーカスする",
-	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする"
+	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
+	"quickOpenTerm": "アクティブなターミナルの切り替え"
 }

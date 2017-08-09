@@ -7,10 +7,16 @@
 	"open": "開啟設定",
 	"close": "關閉",
 	"saveAndRetry": "儲存設定並重啟",
+	"errorUnknownKey": "因為 {1} 非已註冊的組態，所以無法寫入至 {0}。",
+	"errorInvalidFolderConfiguration": "因為 {0} 不支援資料夾資源範圍，所以無法寫入至資料夾設定。",
+	"errorInvalidUserTarget": "因為 {0} 不支援全域範圍，所以無法寫入至使用者設定。",
+	"errorInvalidFolderTarget": "因為未提供資源，所以無法寫入至資料夾設定。",
+	"errorNoWorkspaceOpened": "因為未開啟工作區，所以無法寫入至 {0}。請先開啟工作區，再試一次。",
 	"errorInvalidConfiguration": "無法寫入設定.請開啟**使用者設定**並修正錯誤/警告後再試一次.",
 	"errorInvalidConfigurationWorkspace": "無法寫入設定.請開啟**工作區設定**並修正檔案中的錯誤/警告後再試一次.",
 	"errorConfigurationFileDirty": "無法寫入設定,因為檔案已變更.請儲存**使用者設定**後再試一次",
 	"errorConfigurationFileDirtyWorkspace": "無法寫入設定,因檔案已變更.請儲存**工作區設定**後再試一次.",
 	"userTarget": "使用者設定",
-	"workspaceTarget": "工作區設定"
+	"workspaceTarget": "工作區設定",
+	"folderTarget": "資料夾設定"
 }

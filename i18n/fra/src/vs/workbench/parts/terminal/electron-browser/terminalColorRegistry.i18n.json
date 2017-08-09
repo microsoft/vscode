@@ -6,5 +6,7 @@
 {
 	"terminal.background": "Couleur d'arrière-plan du terminal, permet d'appliquer au terminal une couleur différente de celle du panneau.",
 	"terminal.foreground": "Couleur de premier plan du terminal.",
+	"terminalCursor.foreground": "La couleur de premier plan du curseur du terminal.",
+	"terminalCursor.background": "La couleur d’arrière-plan du curseur terminal. Permet de personnaliser la couleur d’un caractère recouvert par un curseur de bloc.",
 	"terminal.ansiColor": "Couleur ansi '{0}' dans le terminal."
 }

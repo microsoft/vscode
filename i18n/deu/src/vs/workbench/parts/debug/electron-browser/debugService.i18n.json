@@ -20,5 +20,6 @@
 	"debugAnyway": "Trotzdem debuggen",
 	"noFolderWorkspaceDebugError": "Debuggen der aktiven Datei ist nicht möglich. Stellen Sie sicher, dass sie auf einem Datenträger gespeichert ist und dass Sie die Debugerweiterung für diesen Dateityp installiert haben.",
 	"NewLaunchConfig": "Richten Sie die Startkonfigurationsdatei für Ihre Anwendung ein. {0}",
-	"DebugTaskNotFound": "Der preLaunchTask \"{0}\" wurde nicht gefunden."
+	"DebugTaskNotFound": "Der preLaunchTask \"{0}\" wurde nicht gefunden.",
+	"differentTaskRunning": "Die Aufgabe \"{0}\" wird bereits ausgeführt. Die Aufgabe \"{1}\" vor dem Start kann nicht ausgeführt werden."
 }

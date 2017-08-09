@@ -37,6 +37,7 @@
 	"reload": "&&Перезагрузить окно",
 	"toggleExtensionsViewlet": "Показать расширения",
 	"installExtensions": "Установить расширения",
+	"showEnabledExtensions": "Показать включенные расширения",
 	"showInstalledExtensions": "Показать установленные расширения",
 	"showDisabledExtensions": "Показать отключенные расширения",
 	"clearExtensionsInput": "Очистить входные данные расширений",

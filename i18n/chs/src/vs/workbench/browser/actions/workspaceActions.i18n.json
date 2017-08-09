@@ -8,6 +8,7 @@
 	"openFileFolder": "打开...",
 	"reload": "重新加载(&&R)",
 	"cancel": "取消",
+	"newWorkspaceFormExisting": "从现有内容新建工作区...",
 	"select": "选择(&&S)",
 	"selectWorkspace": "选择文件夹作为工作区",
 	"addSupported": "需要重载窗口以打开多个文件夹。",

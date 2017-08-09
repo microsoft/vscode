@@ -35,5 +35,6 @@
 	"workbench.action.terminal.rename": "Átnevezés",
 	"workbench.action.terminal.rename.prompt": "Adja meg a terminál nevét!",
 	"workbench.action.terminal.focusFindWidget": "Váltás a keresőmodulra",
-	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése"
+	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése",
+	"quickOpenTerm": "Aktív terminál váltása"
 }

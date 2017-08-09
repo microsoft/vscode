@@ -28,5 +28,6 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "현재 선택한 색 테마에서 색을 재정의합니다.",
 	"workbenchColors.deprecated": "이 설정은 더 이상 실험적 설정이 아니며 이름이\n 'workbench.colorCustomizations'로 변경되었습니다.",
-	"workbenchColors.deprecatedDescription": "대신 'workbench.colorCustomizations'를 사용합니다."
+	"workbenchColors.deprecatedDescription": "대신 'workbench.colorCustomizations'를 사용합니다.",
+	"editorColors": "현재 선택된 색 테마에서 편집기 색상과 글꼴 스타일을 재정의합니다."
 }

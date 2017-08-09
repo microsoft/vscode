@@ -6,6 +6,7 @@
 {
 	"tag at": "{0}의 태그",
 	"remote branch at": "{0}에서 원격 분기",
+	"create branch": "$(plus) 새 분기 생성",
 	"repourl": "리포지토리 URL",
 	"parent": "부모 디렉터리",
 	"cloning": "Git 리포지토리를 복제하는 중...",

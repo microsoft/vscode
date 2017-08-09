@@ -69,5 +69,7 @@
 	"emptyFileNameError": "Es muss ein Datei- oder Ordnername angegeben werden.",
 	"fileNameExistsError": "Eine Datei oder ein Ordner **{0}** ist an diesem Ort bereits vorhanden. Wählen Sie einen anderen Namen.",
 	"invalidFileNameError": "Der Name **{0}** ist als Datei- oder Ordnername ungültig. Bitte wählen Sie einen anderen Namen aus.",
-	"filePathTooLongError": "Der Name **{0}** führt zu einem Pfad, der zu lang ist. Wählen Sie einen kürzeren Namen."
+	"filePathTooLongError": "Der Name **{0}** führt zu einem Pfad, der zu lang ist. Wählen Sie einen kürzeren Namen.",
+	"compareWithSaved": "Aktive Datei mit gespeicherter Datei vergleichen",
+	"modifiedLabel": "{0} (auf Datenträger) ↔ {1}"
 }

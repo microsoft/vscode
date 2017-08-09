@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "設定已經變更，必須重新啟動才會生效。",
 	"relaunchSettingDetail": "請按 [重新啟動] 按鈕以重新啟動 {0} 並啟用設定。",
 	"restart": "重新啟動",
+	"relaunchWorkspaceMessage": "必須重新載入延伸模組系統才可變更此工作區。",
 	"reload": "重新載入"
 }

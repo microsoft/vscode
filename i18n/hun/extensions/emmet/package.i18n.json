@@ -24,5 +24,12 @@
 	"command.incrementNumberByOneTenth": "Növelés 0,1-gyel",
 	"command.decrementNumberByOneTenth": "Csökkentés 0,1-gyel",
 	"command.incrementNumberByTen": "Növelés 10-zel",
-	"command.decrementNumberByTen": "Csökkentés 10-zel"
+	"command.decrementNumberByTen": "Csökkentés 10-zel",
+	"emmetSyntaxProfiles": "Konkrét szintaktika profiljának meghatározása vagy saját profil használata adott szabályokkal.",
+	"emmetExclude": "Azon nyelvek listája, ahol az Emmet-rövidítések ne legyenek kibontva.",
+	"emmetExtensionsPath": "Az Emmet-profilokat, -kódtöredékeket és -beállításokat tartalmazó mappa. Csak a profilok vannak használva a kiegészítőben, ha az emmet.useNewEmmet beállítás értéke true.",
+	"emmetShowExpandedAbbreviation": "Kibontott emmet-rövidítések megjelenítése javaslatként. Az \"inMarkupAndStylesheetFilesOnly\" beállítás csak a html, haml, jade, slim, xml, xsl, css, scss, sass, less és stylus típusú tartalmat jelenti. Az \"always\" beállítás a fájl összes részére vonatkozik a jelölőnyelvtől/css-től függetlenül.",
+	"emmetShowAbbreviationSuggestions": "A lehetséges emmet-rövidítések megjelenítése javaslatként. Nem használható a stíluslapokon vagy ha az emmet.showExpandedAbbreviation értéke \"never\".",
+	"emmetIncludeLanguages": "Emmet-rövidítések engedélyezése olyan nyelvek esetében, amelyek alapértelmezés szerint nem támogatottak. Egy megfeleltetést kell felvenni a nyelv és egy emmet által támogatott nyelv között.\nPl.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetVariables": "Az emmet-kódrészletekben használt változók"
 }

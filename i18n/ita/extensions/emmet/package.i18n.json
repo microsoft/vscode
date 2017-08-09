@@ -7,6 +7,8 @@
 	"command.removeTag": "Rimuovi Tag",
 	"command.updateTag": "Aggiorna tag",
 	"command.matchTag": "Vai alla coppia corrispondente",
+	"command.balanceIn": "Corrispondenza (interna)",
+	"command.balanceOut": "Corrispondenza (esterna)",
 	"command.prevEditPoint": "Vai al punto di modifica precedente",
 	"command.nextEditPoint": "Vai al punto di modifica successivo",
 	"command.mergeLines": "Esegui merge delle righe",
@@ -16,10 +18,18 @@
 	"command.toggleComment": "Attiva/Disattiva commento",
 	"command.evaluateMathExpression": "Valuta espressione matematica",
 	"command.updateImageSize": "Aggiorna dimensioni immagine",
+	"command.reflectCSSValue": "Ricopia il valore CSS",
 	"command.incrementNumberByOne": "Aumenta di 1",
 	"command.decrementNumberByOne": "Riduci di 1",
 	"command.incrementNumberByOneTenth": "Aumenta di 0,1",
 	"command.decrementNumberByOneTenth": "Riduci di 0,1",
 	"command.incrementNumberByTen": "Aumenta di 10",
-	"command.decrementNumberByTen": "Riduci di 10"
+	"command.decrementNumberByTen": "Riduci di 10",
+	"emmetSyntaxProfiles": "Consente di definire il profilo per la sintassi specificata oppure di usare un profilo personalizzato con regole specifiche.",
+	"emmetExclude": "Matrice di linguaggi in cui le abbreviazioni Emmet non devono essere espanse.",
+	"emmetExtensionsPath": "Percorso di una cartella contenente profili emmet, frammenti e preferenze . Quando emmet.useNewEmmet è impostato a true, solo i profili vengono gestiti dal percorso delle estensioni.",
+	"emmetShowExpandedAbbreviation": "Mostra le abbreviazioni emmet espanse come suggerimenti.\nL'opzione \"inMarkupAndStylesheetFilesOnly\" si applica a html, haml, jade, slim, xml, xsl, css, scss, sass, less e stylus.\nL'opzione \"sempre\" (always) si applica a tutte le parti del file indipendentemente dal markup/css.",
+	"emmetShowAbbreviationSuggestions": "Mostra possibili abbreviazioni emmet come suggerimenti. Non si applica a fogli di stile o quando emmet.showExpandedAbbreviation è impostata a \"mai\" (never).",
+	"emmetIncludeLanguages": "Abilita le abbreviazioni emmet in linguaggi che non sono normalmente supportati. Aggiungere un mapping tra il linguaggio ed il linguaggio supportato da emmet.\n Ad esempio: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetVariables": "Variabili da utilizzare nei frammenti di emmet"
 }

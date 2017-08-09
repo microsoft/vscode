@@ -6,6 +6,7 @@
 {
 	"tag at": "Tag in {0}",
 	"remote branch at": "Ramo remoto in {0}",
+	"create branch": "$(plus) Crea nuovo branch",
 	"repourl": "URL del repository",
 	"parent": "Directory padre",
 	"cloning": "Clonazione del repository GIT...",

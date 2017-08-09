@@ -10,6 +10,7 @@
 	"terminal.integrated.shellArgs.linux": "Linux-terminál esetén használt parancssori argumentumok.",
 	"terminal.integrated.shell.osx": "A terminál által használt shell elérési útja OS X-en.",
 	"terminal.integrated.shellArgs.osx": "OS X-terminál esetén használt parancssori argumentumok.",
+	"terminal.integrated.shell.windows": "A terminál által használt shell elérési útja Windowson. A Windows beépített shelljei (cmd, PowerShell vagy Bash on Ubuntu) használata esetén kell megadni.",
 	"terminal.integrated.shellArgs.windows": "Windows-terminál esetén használt parancssori argumentumok.",
 	"terminal.integrated.rightClickCopyPaste": "Ha be van állítva, megakadályozza a helyi menü megjelenését a terminálon történő jobb kattintás esetén. Helyette másol, ha van kijelölés, és beilleszt, ha nincs.",
 	"terminal.integrated.fontFamily": "Meghatározza a terminál betűtípusát. Alapértelmezett értéke az editor.fontFamily értéke.",

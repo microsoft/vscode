@@ -10,5 +10,6 @@
 	"copy": "Copia",
 	"paste": "Incolla",
 	"selectAll": "Seleziona tutto",
+	"confirmOpen": "Aprire le aree di lavoro {0}?",
 	"confirmOpenButton": "&&Apri"
 }
