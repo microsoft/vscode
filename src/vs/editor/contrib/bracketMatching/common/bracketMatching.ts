@@ -131,7 +131,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 				} else if (brackets[1].containsPosition(position)) {
 					newCursorPosition = brackets[0].getStartPosition();
 				}
-				} else {
+			} else {
 				// find the next bracket if the position isn't on a matching bracket
 				const nextBracket = model.findNextBracket(position);
 				if (nextBracket && nextBracket.range) {
