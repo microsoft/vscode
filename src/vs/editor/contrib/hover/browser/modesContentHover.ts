@@ -364,7 +364,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		if (this._colorPicker) {
 			this._colorPicker.layout();
-			this._colorPicker.layoutSaturationBox();
 		}
 
 		this._isChangingDecorations = true;

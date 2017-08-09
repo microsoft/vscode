@@ -30,15 +30,15 @@ export class ColorPickerHeader extends Disposable {
 		this.drawPickedColorBox();
 		this.drawOriginalColorBox();
 
-		dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => {
+		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => {
 			if (this.model.formatters.length === 0) {
 				return;
 			}
 			this.model.nextColorMode();
-		});
+		}));
 	}
 
-	public updatePickedColor() {
+	updatePickedColor() {
 		this.pickedColorNode.textContent = this.model.selectedColorString;
 		this.pickedColorNode.style.backgroundColor = this.model.color.toString();
 	}
@@ -58,7 +58,7 @@ export class ColorPickerHeader extends Disposable {
 }
 
 export class ColorPickerBody extends Disposable {
-	public saturationBox: SaturationBox;
+	saturationBox: SaturationBox;
 
 	private domNode: HTMLElement;
 
@@ -81,7 +81,11 @@ export class ColorPickerBody extends Disposable {
 		this.registerListeners();
 	}
 
-	public fillOpacityOverlay(color: Color): void {
+	layout(): void {
+		this.saturationBox.layout();
+	}
+
+	fillOpacityOverlay(color: Color): void {
 		const { r, g, b } = color.rgba;
 		this.opacityOverlay.style.background = `linear-gradient(to bottom, rgba(${r}, ${g}, ${b}, 1) 0%, rgba(${r}, ${g}, ${b}, 0) 100%)`;
 	}
@@ -182,7 +186,7 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	private drawSaturationBox(): void {
-		this.saturationBox = new SaturationBox(this.model, this.domNode, this.pixelRatio);
+		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
 	}
 
 	private drawOpacityStrip(): void {
@@ -215,12 +219,11 @@ export class ColorPickerBody extends Disposable {
 		const opacityNormalizedHeight = this.opacityStrip.offsetHeight - slider.domNode.offsetHeight;
 		return (opacityNormalizedHeight - slider.top) / opacityNormalizedHeight;
 	}
-
 }
 
 export class SaturationBox {
-	public domNode: HTMLElement;
-	public saturationSelection: HTMLElement;
+	domNode: HTMLElement;
+	saturationSelection: HTMLElement;
 
 	private saturationCanvas: HTMLCanvasElement;
 	private saturationCtx: CanvasRenderingContext2D;
@@ -228,9 +231,9 @@ export class SaturationBox {
 	private whiteGradient: CanvasGradient;
 	private blackGradient: CanvasGradient;
 
-	constructor(private model: ColorPickerModel, widgetNode: HTMLElement, private pixelRatio: number) {
+	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		this.domNode = $('.saturation-wrap');
-		dom.append(widgetNode, this.domNode);
+		dom.append(container, this.domNode);
 
 		// Create canvas, draw selected color
 		this.saturationCanvas = document.createElement('canvas');
@@ -242,7 +245,7 @@ export class SaturationBox {
 		dom.append(this.domNode, this.saturationSelection);
 	}
 
-	public layout(): void {
+	layout(): void {
 		const actualW = this.domNode.offsetWidth * this.pixelRatio,
 			actualH = this.domNode.offsetHeight * this.pixelRatio;
 
@@ -271,7 +274,7 @@ export class SaturationBox {
 		this.focusSaturationSelection({ x: saturation, y: value });
 	}
 
-	public fillSaturationBox(): void {
+	fillSaturationBox(): void {
 		this.saturationCtx.fillStyle = Color.Format.CSS.format(this.calculateHueColor(this.model.hue));
 		this.saturationCtx.fill();
 		this.saturationCtx.fillStyle = this.whiteGradient;
@@ -286,7 +289,7 @@ export class SaturationBox {
 		}
 	}
 
-	public focusSaturationSelection(state: ISaturationState): void {
+	focusSaturationSelection(state: ISaturationState): void {
 		let x: number = state.x, y: number = state.y;
 		if (x < 0) {
 			x = 0;
@@ -304,7 +307,7 @@ export class SaturationBox {
 		this.model.saturationSelection = { x: x, y: y };
 	}
 
-	public extractColor(offsetX: number, offsetY: number): Color {
+	extractColor(offsetX: number, offsetY: number): Color {
 		const opacityX = 1 - (offsetX / this.domNode.offsetWidth);
 		const opacityY = offsetY / this.domNode.offsetHeight;
 
@@ -349,7 +352,8 @@ export class SaturationBox {
 }
 
 class Slider {
-	public domNode: HTMLElement;
+
+	domNode: HTMLElement;
 	private _top: number;
 
 	constructor(private strip: HTMLElement) {
@@ -357,12 +361,12 @@ class Slider {
 		this._top = 0;
 	}
 
-	public get top() {
+	get top() {
 		return this._top;
 	}
 
 	// Sets style.top in 'px'
-	public set top(top: number) {
+	set top(top: number) {
 		if (top < 0) {
 			top = 0;
 		} else if (top > this.strip.offsetHeight - this.domNode.offsetHeight) {
@@ -378,42 +382,29 @@ export class ColorPickerWidget extends Widget {
 
 	private static ID = 'editor.contrib.colorPickerWidget';
 
-	private domNode: HTMLElement;
-	public header: ColorPickerHeader;
-	public body: ColorPickerBody;
-
-	public visible: boolean = false;
+	header: ColorPickerHeader;
+	body: ColorPickerBody;
 
 	constructor(container: Node, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));
-		this.domNode = $('.editor-widget.colorpicker-widget');
-		container.appendChild(this.domNode);
+
+		const element = $('.editor-widget.colorpicker-widget');
+		container.appendChild(element);
+
+		this.header = new ColorPickerHeader(element, this.model);
+		this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
+
+		this._register(this.header);
+		this._register(this.body);
 	}
 
-	public layout(): void {
-		if (this.visible) {
-			return;
-		}
-
-		this.header = new ColorPickerHeader(this.domNode, this.model);
-		this.body = new ColorPickerBody(this.domNode, this.model, this.pixelRatio);
-
-		this.visible = true;
-	}
-
-	public layoutSaturationBox(): void {
-		this.body.saturationBox.layout();
-	}
-
-	public dispose(): void {
-		this.visible = false;
-		this.domNode = null;
-		super.dispose();
-	}
-
-	public getId(): string {
+	getId(): string {
 		return ColorPickerWidget.ID;
+	}
+
+	layout(): void {
+		this.body.layout();
 	}
 }
