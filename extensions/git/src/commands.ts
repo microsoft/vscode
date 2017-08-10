@@ -167,12 +167,10 @@ export class CommandCenter {
 			return;
 		}
 
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
 		const opts: TextDocumentShowOptions = {
 			preserveFocus: true,
 			preview: preview,
-			viewColumn
+			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
 		const activeTextEditor = window.activeTextEditor;
@@ -388,6 +386,7 @@ export class CommandCenter {
 		}
 		else {
 			let resource: Resource | undefined = undefined;
+
 			if (arg instanceof Resource) {
 				resource = arg;
 			} else {
