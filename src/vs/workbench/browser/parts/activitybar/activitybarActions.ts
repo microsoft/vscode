@@ -241,7 +241,9 @@ export class ActivityActionItem extends BaseActionItem {
 				this.$badge.show();
 			}
 
-			this.$label.attr('aria-label', `${this.activity.name} - ${badge.getDescription()}`);
+			const description = badge.getDescription();
+			this.$label.attr('aria-label', `${this.activity.name} - ${description}`);
+			this.$label.title(description);
 		}
 	}
 
