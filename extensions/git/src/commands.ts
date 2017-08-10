@@ -156,7 +156,7 @@ export class CommandCenter {
 		await this._openResource(resource);
 	}
 
-	private async _openResource(resource: Resource): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -169,11 +169,9 @@ export class CommandCenter {
 
 		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
 
-		if (!left) {
-			return await commands.executeCommand<void>('vscode.open', right, viewColumn);
-		}
-
 		const opts: TextDocumentShowOptions = {
+			preserveFocus: true,
+			preview: preview,
 			viewColumn
 		};
 
@@ -181,6 +179,12 @@ export class CommandCenter {
 
 		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
 			opts.selection = activeTextEditor.selection;
+		}
+
+		if (!left) {
+			const document = await workspace.openTextDocument(right);
+			await window.showTextDocument(document, opts);
+			return;
 		}
 
 		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
@@ -297,14 +301,14 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(arg?: Resource | Uri): Promise<void> {
-		let uri: Uri | undefined;
+	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
 			if (arg.scheme === 'git') {
-				uri = Uri.file(fromGitUri(arg).path);
+				uris = [Uri.file(fromGitUri(arg).path)];
 			} else if (arg.scheme === 'file') {
-				uri = arg;
+				uris = [arg];
 			}
 		} else {
 			let resource = arg;
@@ -315,23 +319,34 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uri = resource.resourceUri;
+				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
 			}
 		}
 
-		if (!uri) {
+		if (!uris) {
 			return;
 		}
 
-		const activeTextEditor = window.activeTextEditor && window.activeTextEditor;
-		const isSameUri = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString();
-		const selections = activeTextEditor && activeTextEditor.selections;
-		const viewColumn = activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One;
+		const preview = uris.length === 1 ? true : false;
+		const activeTextEditor = window.activeTextEditor;
+		for (const uri of uris) {
+			// If the active editor matches the current uri, get its selection
+			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
+				? activeTextEditor.selections
+				: undefined;
 
-		await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+			const opts: TextDocumentShowOptions = {
+				preserveFocus: true,
+				preview: preview,
+				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+			};
 
-		if (isSameUri && selections && window.activeTextEditor) {
-			window.activeTextEditor.selections = selections;
+			const document = await workspace.openTextDocument(uri);
+			await window.showTextDocument(document, opts);
+
+			if (selections && window.activeTextEditor) {
+				window.activeTextEditor.selections = selections;
+			}
 		}
 	}
 
@@ -362,22 +377,36 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
-	async openChange(arg?: Resource | Uri): Promise<void> {
-		let resource: Resource | undefined = undefined;
+	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let resources: Resource[] | undefined = undefined;
 
-		if (arg instanceof Resource) {
-			resource = arg;
-		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(arg);
-		} else {
-			resource = this.getSCMResource();
+		if (arg instanceof Uri) {
+			const resource = this.getSCMResource(arg);
+			if (resource !== undefined) {
+				resources = [resource];
+			}
+		}
+		else {
+			let resource: Resource | undefined = undefined;
+			if (arg instanceof Resource) {
+				resource = arg;
+			} else {
+				resource = this.getSCMResource();
+			}
+
+			if (resource) {
+				resources = [...resourceStates as Resource[], resource];
+			}
 		}
 
-		if (!resource) {
+		if (!resources) {
 			return;
 		}
 
-		return await this._openResource(resource);
+		const preview = resources.length === 1 ? undefined : false;
+		for (const resource of resources) {
+			await this._openResource(resource, preview);
+		}
 	}
 
 	@command('git.stage')
