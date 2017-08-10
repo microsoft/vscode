@@ -3493,12 +3493,12 @@ suite('autoClosingPairs', () => {
 			let autoClosePositions = [
 				'var a =| [|];|',
 				'var b =| |`asd`;|',
-				'var c =| !\'asd!\';|',
+				'var c =| |\'asd!\';|',
 				'var d =| |"asd";|',
 				'var e =| /*3*/|	3;|',
 				'var f =| /**| 3 */3;|',
 				'var g =| (3+5);|',
-				'var h =| {| a:| !\'value!\'| |};|',
+				'var h =| {| a:| |\'value!\'| |};|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -3514,6 +3514,19 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+	test('issue #27937: Trying to add an item to the front of a list is cumbersome', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var arr = ["b", "c"];'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 12, '"', '""', `does not over type and will auto close`);
 		});
 		mode.dispose();
 	});

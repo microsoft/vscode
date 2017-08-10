@@ -410,6 +410,8 @@ export class TypeOperations {
 			return false;
 		}
 
+		const isEqualPair = (ch === config.autoClosingPairsClose[ch]);
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -424,9 +426,26 @@ export class TypeOperations {
 			if (afterCharacter !== ch) {
 				return false;
 			}
+
+			if (isEqualPair) {
+				const lineTextBeforeCursor = lineText.substr(0, position.column - 1);
+				const chCntBefore = this._countNeedlesInHaystack(lineTextBeforeCursor, ch);
+				if (chCntBefore % 2 === 0) {
+					return false;
+				}
+			}
 		}
 
 		return true;
+	}
+
+	private static _countNeedlesInHaystack(haystack: string, needle: string): number {
+		let cnt = 0;
+		let lastIndex = -1;
+		while ((lastIndex = haystack.indexOf(needle, lastIndex + 1)) !== -1) {
+			cnt++;
+		}
+		return cnt;
 	}
 
 	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
