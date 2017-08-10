@@ -213,9 +213,10 @@ export enum Operation {
 	Stage = 1 << 14,
 	GetCommitTemplate = 1 << 15,
 	DeleteBranch = 1 << 16,
-	Merge = 1 << 17,
-	Ignore = 1 << 18,
-	Tag = 1 << 19
+	RenameBranch = 1 << 17,
+	Merge = 1 << 18,
+	Ignore = 1 << 19,
+	Tag = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -461,6 +462,10 @@ export class Model implements Disposable {
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
+	}
+
+	async renameBranch(name: string): Promise<void> {
+		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
 	async merge(ref: string): Promise<void> {
