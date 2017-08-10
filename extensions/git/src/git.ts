@@ -677,6 +677,18 @@ export class Repository {
 		}
 	}
 
+	async tag(name: string, message: string, lightweight: boolean): Promise<void> {
+		let args = ['tag'];
+
+		if (lightweight) {
+			args.push(name);
+		} else {
+			args = args.concat(['-a', name, '-m', message]);
+		}
+
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -786,11 +798,15 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (setUpstream) {
 			args.push('-u');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {

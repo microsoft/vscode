@@ -214,7 +214,8 @@ export enum Operation {
 	GetCommitTemplate = 1 << 15,
 	DeleteBranch = 1 << 16,
 	Merge = 1 << 17,
-	Ignore = 1 << 18
+	Ignore = 1 << 18,
+	Tag = 1 << 19
 }
 
 // function getOperationName(operation: Operation): string {
@@ -465,6 +466,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async tag(name: string, message: string): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(name, message, false));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -507,6 +512,10 @@ export class Model implements Disposable {
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
+	}
+
+	async pushTags(remote?: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
 	@throttle

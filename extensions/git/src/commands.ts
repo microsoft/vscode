@@ -837,6 +837,31 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.createTag')
+	async createTag(): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: localize('tag name', "Tag name"),
+			prompt: localize('provide tag name', "Please provide a tag name"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const inputMessage = await window.showInputBox({
+			placeHolder: localize('tag message', "Message"),
+			prompt: localize('provide tag message', "Please provide a message"),
+			ignoreFocusOut: true
+		});
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		const message = inputMessage || name;
+		await this.model.tag(name, message);
+
+		window.showInformationMessage(localize('tag creation success', "Successfully created tag."));
+	}
+
 	@command('git.pullFrom')
 	async pullFrom(): Promise<void> {
 		const remotes = this.model.remotes;
@@ -901,6 +926,20 @@ export class CommandCenter {
 		}
 
 		await this.model.push();
+	}
+
+	@command('git.pushWithTags')
+	async pushWithTags(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		await this.model.pushTags();
+
+		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 	}
 
 	@command('git.pushTo')
