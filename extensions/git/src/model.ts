@@ -466,8 +466,8 @@ export class Model implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
-	async tag(name: string, message: string): Promise<void> {
-		await this.run(Operation.Tag, () => this.repository.tag(name, message, false));
+	async tag(name: string, message?: string): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}
 
 	async checkout(treeish: string): Promise<void> {

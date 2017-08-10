@@ -193,11 +193,6 @@
         "category": "Git"
       },
       {
-        "command": "git.showTags",
-        "title": "%command.showTags%",
-        "category": "Git"
-      },
-      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -360,10 +355,6 @@
         },
         {
           "command": "git.pullFrom",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
-        },
-        {
-          "command": "git.showTags",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {

@@ -677,13 +677,13 @@ export class Repository {
 		}
 	}
 
-	async tag(name: string, message: string, lightweight: boolean): Promise<void> {
+	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 
-		if (lightweight) {
-			args.push(name);
+		if (message) {
+			args = [...args, '-a', name, '-m', message];
 		} else {
-			args = args.concat(['-a', name, '-m', message]);
+			args = [...args, name];
 		}
 
 		await this.run(args);

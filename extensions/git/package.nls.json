@@ -25,7 +25,6 @@
 	"command.deleteBranch": "Delete Branch...",
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
-	"command.showTags": "Show Tags",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.pullFrom": "Pull from...",

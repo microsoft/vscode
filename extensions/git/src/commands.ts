@@ -851,15 +851,13 @@ export class CommandCenter {
 
 		const inputMessage = await window.showInputBox({
 			placeHolder: localize('tag message', "Message"),
-			prompt: localize('provide tag message', "Please provide a message"),
+			prompt: localize('provide tag message', "Please provide a message to annotate the tag"),
 			ignoreFocusOut: true
 		});
 
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		const message = inputMessage || name;
 		await this.model.tag(name, message);
-
-		window.showInformationMessage(localize('tag creation success', "Successfully created tag."));
 	}
 
 	@command('git.pullFrom')
