@@ -835,7 +835,7 @@ declare module monaco.editor {
 
 	/**
 	 * Get markers for owner ant/or resource
-	 * @returns {IMarkerData[]} list of markers
+	 * @returns {IMarker[]} list of markers
 	 * @param filter
 	 */
 	export function getModelMarkers(filter: {
