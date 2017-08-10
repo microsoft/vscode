@@ -277,7 +277,9 @@ export const GitErrorCodes = {
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
 	BranchNotFullyMerged: 'BranchNotFullyMerged',
-	NoRemoteReference: 'NoRemoteReference'
+	NoRemoteReference: 'NoRemoteReference',
+	InvalidBranchName: 'InvalidBranchName',
+	BranchAlreadyExists: 'BranchAlreadyExists'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -299,6 +301,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.BranchNotFullyMerged;
 	} else if (/Couldn\'t find remote ref/.test(stderr)) {
 		return GitErrorCodes.NoRemoteReference;
+	} else if (/A branch named '.+' already exists/.test(stderr)) {
+		return GitErrorCodes.BranchAlreadyExists;
+	} else if (/'.+' is not a valid branch name/.test(stderr)) {
+		return GitErrorCodes.InvalidBranchName;
 	}
 
 	return void 0;
@@ -664,6 +670,11 @@ export class Repository {
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		const args = ['branch', force ? '-D' : '-d', name];
+		await this.run(args);
+	}
+
+	async renameBranch(name: string): Promise<void> {
+		const args = ['branch', '-m', name];
 		await this.run(args);
 	}
 
