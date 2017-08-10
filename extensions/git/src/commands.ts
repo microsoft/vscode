@@ -196,6 +196,9 @@ export class CommandCenter {
 
 			case Status.MODIFIED:
 				return toGitUri(resource.resourceUri, '~');
+
+			case Status.DELETED_BY_THEM:
+				return toGitUri(resource.resourceUri, '');
 		}
 	}
 
@@ -208,6 +211,7 @@ export class CommandCenter {
 				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
+			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
 				return toGitUri(resource.resourceUri, 'HEAD');
 
@@ -223,6 +227,7 @@ export class CommandCenter {
 
 				return resource.resourceUri;
 
+			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
 		}
@@ -234,9 +239,12 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
 		}
 
