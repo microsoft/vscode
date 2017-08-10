@@ -290,6 +290,7 @@ export interface CommitOptions {
 	all?: boolean;
 	amend?: boolean;
 	signoff?: boolean;
+	signCommit?: boolean;
 }
 
 export class Model implements Disposable {
