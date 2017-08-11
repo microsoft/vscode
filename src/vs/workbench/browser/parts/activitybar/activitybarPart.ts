@@ -293,8 +293,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private updateViewletSwitcher() {
 		if (!this.viewletSwitcherBar) {
-			// We have not been rendered yet so there is nothing to update.
-			return;
+			return; // We have not been rendered yet so there is nothing to update.
 		}
 
 		let viewletsToShow = this.getPinnedViewlets();
@@ -311,7 +310,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
 		if (this.dimension) {
-			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			let availableHeight = this.dimension.height;
+			if (this.globalActionBar) {
+				availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTIVITY_ACTION_HEIGHT); // adjust for global actions showing
+			}
+
+			const maxVisible = Math.floor(availableHeight / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
 			overflows = viewletsToShow.length > maxVisible;
 
 			if (overflows) {

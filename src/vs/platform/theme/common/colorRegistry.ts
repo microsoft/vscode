@@ -248,8 +248,8 @@ export const editorActiveLinkForeground = registerColor('editorLink.activeForegr
 /**
  * Diff Editor Colors
  */
-export const defaultInsertColor = Color.fromRGBA(new RGBA(155, 185, 85, 255 * 0.2));
-export const defaultRemoveColor = Color.fromRGBA(new RGBA(255, 0, 0, 255 * 0.2));
+export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 255 * 0.2));
+export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 255 * 0.2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
 export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));

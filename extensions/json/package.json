@@ -15,7 +15,8 @@
     "compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
     "postinstall": "cd server && npm install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
+    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
+    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -46,7 +47,7 @@
       {
         "language": "json",
         "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage"
+        "path": "./syntaxes/JSON.tmLanguage.json"
       }
     ],
     "jsonValidation": [

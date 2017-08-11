@@ -3,34 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommonCodeEditor, IEditorContribution, IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getColors } from 'vs/editor/contrib/colorPicker/common/colorPicker';
-import { IRange } from 'vs/editor/common/core/range';
-import { IColorDecorationExtraOptions } from '../common/color';
+import { getColors } from 'vs/editor/contrib/colorPicker/common/color';
+import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 
 @editorContribution
-export class ColorPicker implements IEditorContribution {
-	private static ID: string = 'editor.contrib.colorPicker';
+export class ColorDetector implements IEditorContribution {
+
+	private static ID: string = 'editor.contrib.colorDetector';
 
 	static RECOMPUTE_TIME = 1000; // ms
 
-	private listenersToRemove: IDisposable[];
+	private listenersToRemove: IDisposable[] = [];
 	private computePromise: TPromise<void>;
 	private timeoutPromise: TPromise<void>;
 
-	private currentDecorations: string[];
+	private decorationsIds: string[] = [];
+	private colorRanges = new Map<string, IColorRange>();
 
 	constructor(private editor: ICodeEditor) {
-		this.currentDecorations = [];
-
-		this.listenersToRemove = [];
 		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
@@ -41,15 +38,15 @@ export class ColorPicker implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	public getId(): string {
-		return ColorPicker.ID;
+	getId(): string {
+		return ColorDetector.ID;
 	}
 
-	public static get(editor: ICommonCodeEditor): ColorPicker {
-		return editor.getContribution<ColorPicker>(this.ID);
+	static get(editor: ICommonCodeEditor): ColorDetector {
+		return editor.getContribution<ColorDetector>(this.ID);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.stop();
 	}
@@ -66,7 +63,7 @@ export class ColorPicker implements IEditorContribution {
 
 	private onChange(): void {
 		if (!this.timeoutPromise) {
-			this.timeoutPromise = TPromise.timeout(ColorPicker.RECOMPUTE_TIME);
+			this.timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
 			this.timeoutPromise.then(() => {
 				this.timeoutPromise = null;
 				this.beginCompute();
@@ -101,40 +98,37 @@ export class ColorPicker implements IEditorContribution {
 	}
 
 	private updateDecorations(colorInfos: IColorRange[]): void {
-		this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
-			let newDecorations: IModelDeltaDecoration[] = [];
+		const decorations = colorInfos.map(c => ({
+			range: {
+				startLineNumber: c.range.startLineNumber,
+				startColumn: c.range.startColumn,
+				endLineNumber: c.range.endLineNumber,
+				endColumn: c.range.endColumn
+			},
+			options: {}
+		}));
 
-			for (let c of colorInfos) {
-				const range: IRange = {
-					startLineNumber: c.range.startLineNumber,
-					startColumn: c.range.startColumn,
-					endLineNumber: c.range.endLineNumber,
-					endColumn: c.range.endColumn
-				};
+		const colorRanges = colorInfos.map(c => ({
+			range: c.range,
+			color: c.color,
+			formatters: c.formatters
+		}));
 
-				const extraOptions: IColorDecorationExtraOptions = {
-					color: c.color,
-					format: c.format,
-					availableFormats: c.availableFormats
-				};
+		this.decorationsIds = this.editor.deltaDecorations(this.decorationsIds, decorations);
 
-				// TODO@Joao
-				const options = { __extraOptions: extraOptions } as any;
+		this.colorRanges = new Map<string, IColorRange>();
+		this.decorationsIds.forEach((id, i) => this.colorRanges.set(id, colorRanges[i]));
+	}
 
-				newDecorations.push({ range, options });
-			}
+	getColorRange(position: Position): IColorRange | null {
+		const decorations = this.editor.getModel()
+			.getDecorationsInRange(Range.fromPositions(position, position))
+			.filter(d => this.colorRanges.has(d.id));
 
-			this.currentDecorations = changeAccessor.deltaDecorations(this.currentDecorations, newDecorations);
-		});
+		if (decorations.length === 0) {
+			return null;
+		}
+
+		return this.colorRanges.get(decorations[0].id);
 	}
 }
-
-
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	collector.addRule(`.monaco-editor .colorpicker-widget { background-color: ${widgetBackground}; }`);
-
-	const widgetBorder = theme.getColor(editorWidgetBorder);
-	collector.addRule(`.monaco-editor .colorpicker-widget { border: 1px solid ${widgetBorder}; }`);
-	collector.addRule(`.monaco-editor .colorpicker-header { border-bottom: 1px solid ${widgetBorder}; }`);
-});

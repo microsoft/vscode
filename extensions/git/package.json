@@ -153,6 +153,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitStagedAmend",
+        "title": "%command.commitStagedAmend%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
         "category": "Git"
@@ -160,6 +165,11 @@
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllAmend",
+        "title": "%command.commitAllAmend%",
         "category": "Git"
       },
       {
@@ -188,6 +198,11 @@
         "category": "Git"
       },
       {
+        "command": "git.createTag",
+        "title": "%command.createTag%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -210,6 +225,11 @@
       {
         "command": "git.pushTo",
         "title": "%command.pushTo%",
+        "category": "Git"
+      },
+      {
+        "command": "git.pushWithTags",
+        "title": "%command.pushWithTags%",
         "category": "Git"
       },
       {
@@ -308,11 +328,19 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -348,11 +376,19 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.createTag",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.push",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pushTo",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.pushWithTags",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -429,12 +465,22 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
@@ -677,6 +723,11 @@
         "git.enableSmartCommit": {
           "type": "boolean",
           "description": "%config.enableSmartCommit%",
+          "default": false
+        },
+        "git.enableCommitSigning": {
+          "type": "boolean",
+          "description": "%config.enableCommitSigning%",
           "default": false
         }
       }

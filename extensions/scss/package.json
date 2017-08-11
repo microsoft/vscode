@@ -1,61 +1,58 @@
 {
-	"name": "scss",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.json"
-	},
-	"contributes": {
-		"languages": [{
-			"id": "scss",
-			"aliases": ["Sass", "scss"],
-			"extensions": [".scss"],
-			"mimetypes": ["text/x-scss", "text/scss"],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "scss",
-			"scopeName": "source.css.scss",
-			"path": "./syntaxes/scss.json"
-		}],
-		"problemMatchers": [
-			{
-				"name": "node-sass",
-				"label": "Node Sass Compiler",
-				"owner": "node-sass",
-				"fileLocation": "absolute",
-				"pattern": [
-					{
-						"regexp": "^{$"
-					},
-					{
-						"regexp": "\\s*\"status\":\\s\\d+,"
-					},
-					{
-						"regexp": "\\s*\"file\":\\s\"(.*)\",",
-						"file": 1
-					},
-					{
-						"regexp": "\\s*\"line\":\\s(\\d+),",
-						"line": 1
-					},
-					{
-						"regexp": "\\s*\"column\":\\s(\\d+),",
-						"column": 1
-					},
-					{
-						"regexp": "\\s*\"message\":\\s\"(.*)\",",
-						"message": 1
-					},
-					{
-						"regexp": "\\s*\"formatted\":\\s(.*)"
-					},
-					{
-						"regexp": "^}$"
-					}
-				]
-			}
-		]
-	}
+    "name": "scss",
+    "version": "0.1.0",
+    "publisher": "vscode",
+    "engines": { "vscode": "*" },
+    "scripts": {
+        "update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.json"
+    },
+    "contributes": {
+        "languages": [{
+            "id": "scss",
+            "aliases": ["SCSS", "scss"],
+            "extensions": [".scss"],
+            "mimetypes": ["text/x-scss", "text/scss"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "scss",
+            "scopeName": "source.css.scss",
+            "path": "./syntaxes/scss.json"
+        }],
+        "problemMatchers": [{
+            "name": "node-sass",
+            "label": "Node Sass Compiler",
+            "owner": "node-sass",
+            "fileLocation": "absolute",
+            "pattern": [{
+                    "regexp": "^{$"
+                },
+                {
+                    "regexp": "\\s*\"status\":\\s\\d+,"
+                },
+                {
+                    "regexp": "\\s*\"file\":\\s\"(.*)\",",
+                    "file": 1
+                },
+                {
+                    "regexp": "\\s*\"line\":\\s(\\d+),",
+                    "line": 1
+                },
+                {
+                    "regexp": "\\s*\"column\":\\s(\\d+),",
+                    "column": 1
+                },
+                {
+                    "regexp": "\\s*\"message\":\\s\"(.*)\",",
+                    "message": 1
+                },
+                {
+                    "regexp": "\\s*\"formatted\":\\s(.*)"
+                },
+                {
+                    "regexp": "^}$"
+                }
+            ]
+        }]
+    }
 }

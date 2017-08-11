@@ -363,13 +363,14 @@ export class FoldingController implements IFoldingController {
 			if (!decRange) {
 				return;
 			}
+			let isLineHidden = line => line > decRange.startLineNumber && line <= decRange.endLineNumber;
 			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
-				if (Range.containsPosition(decRange, selection.getStartPosition())) {
+				if (isLineHidden(selection.getStartPosition().lineNumber)) {
 					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
 					updateSelections = true;
 				}
-				if (Range.containsPosition(decRange, selection.getEndPosition())) {
+				if (isLineHidden(selection.getEndPosition().lineNumber)) {
 					selections[i] = selection.setEndPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
 					updateSelections = true;
 				}

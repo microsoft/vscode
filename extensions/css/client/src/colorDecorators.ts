@@ -5,7 +5,7 @@
 'use strict';
 
 import * as parse from 'parse-color';
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorFormat, ColorInfo } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -135,30 +135,20 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 const CSSColorFormats = {
 	Hex: '#{red:X}{green:X}{blue:X}',
 	RGB: {
-		opaque: 'rgb({red}, {green}, {blue})',
-		transparent: 'rgba({red}, {green}, {blue}, {alpha:2f[0-1]})'
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
 	},
 	HSL: {
-		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%)',
-		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha:2f[0-1]})'
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
 	}
 };
-
-function detectFormat(value: string): ColorFormat {
-	if (/^rgb/i.test(value)) {
-		return CSSColorFormats.RGB;
-	} else if (/^hsl/i.test(value)) {
-		return CSSColorFormats.HSL;
-	} else {
-		return CSSColorFormats.Hex;
-	}
-}
 
 export class ColorProvider implements DocumentColorProvider {
 
 	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
 
-	async provideDocumentColors(document: TextDocument): Promise<ColorInfo[]> {
+	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
 		const ranges = await this.decoratorProvider(document.uri.toString());
 		const result = [];
 		for (let range of ranges) {
@@ -174,8 +164,7 @@ export class ColorProvider implements DocumentColorProvider {
 				}
 			}
 			if (color) {
-				const format = detectFormat(value);
-				result.push(new ColorInfo(range, color, format, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
+				result.push(new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
 			}
 		}
 		return result;

@@ -333,7 +333,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.type', 'Files and directories are sorted by their extensions, in alphabetical order. Directories are displayed before files.'),
 				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the way of sorting files and directories in the explorer.")
+			'description': nls.localize('sortOrder', "Controls sorting order of files and directories in the explorer.")
 		}
 	}
 });

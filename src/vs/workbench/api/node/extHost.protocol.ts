@@ -467,7 +467,6 @@ export abstract class ExtHostHeapServiceShape {
 }
 export interface IRawColorInfo {
 	color: [number, number, number, number | undefined];
-	format: number;
 	availableFormats: number[];
 	range: IRange;
 }

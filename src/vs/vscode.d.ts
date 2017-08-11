@@ -4678,7 +4678,7 @@ declare module 'vscode' {
 
 	/**
 	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
-	 * are equal which means there is notion of an active or master workspace folder.
+	 * are equal which means there is no notion of an active or master workspace folder.
 	 */
 	export interface WorkspaceFolder {
 

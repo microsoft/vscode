@@ -41,9 +41,9 @@ export class MinimapTokensColorTracker {
 		}
 		this._colors = [null];
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
-			this._colors[colorId] = colorMap[colorId].toRGBA();
+			this._colors[colorId] = colorMap[colorId].rgba;
 		}
-		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getLuminosity();
+		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = (backgroundLuminosity >= 0.5);
 		this._onDidChange.fire(void 0);
 	}

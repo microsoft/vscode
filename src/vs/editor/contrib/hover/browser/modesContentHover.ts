@@ -14,7 +14,7 @@ import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/ope
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColor, IColorFormat } from 'vs/editor/common/modes';
+import { HoverProviderRegistry, Hover, IColor, IColorFormatter } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
@@ -22,12 +22,11 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { ColorPickerModel } from "vs/editor/contrib/colorPicker/browser/colorPickerModel";
-import { ColorPickerWidget } from "vs/editor/contrib/colorPicker/browser/colorPickerWidget";
-import { isColorDecorationOptions } from 'vs/editor/contrib/colorPicker/common/color';
-import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { Color, RGBA } from 'vs/base/common/color';
-import * as lifecycle from 'vs/base/common/lifecycle';
+import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 const $ = dom.$;
 
 class ColorHover {
@@ -35,8 +34,7 @@ class ColorHover {
 	constructor(
 		public readonly range: IRange,
 		public readonly color: IColor,
-		public readonly format: IColorFormat,
-		public readonly availableFormats: IColorFormat[]
+		public readonly formatters: IColorFormatter[]
 	) { }
 }
 
@@ -87,8 +85,10 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
 		};
 
+		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
+		let didFindColor = false;
 
 		const result = lineDecorations.map(d => {
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
@@ -99,14 +99,13 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			}
 
 			const range = new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn);
+			const colorRange = colorDetector.getColorRange(d.range.getStartPosition());
 
-			// TOOD@Joao
-			const options = d.options as any;
-			const extraOptions = options && options.extraOptions;
+			if (!didFindColor && colorRange) {
+				didFindColor = true;
 
-			if (isColorDecorationOptions(extraOptions)) {
-				const { color, format, availableFormats } = extraOptions;
-				return new ColorHover(range, color, format, availableFormats);
+				const { color, formatters } = colorRange;
+				return new ColorHover(d.range, color, formatters);
 			} else {
 				if (!hasHoverContent(d.options.hoverMessage)) {
 					return null;
@@ -175,7 +174,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _modeService: IModeService;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget;
-	private toDispose: lifecycle.IDisposable[];
+
+	private renderDisposable: IDisposable = EmptyDisposable;
+	private toDispose: IDisposable[];
 
 	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -205,11 +206,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	dispose(): void {
+		this.renderDisposable.dispose();
+		this.renderDisposable = EmptyDisposable;
 		this._hoverOperation.cancel();
-		if (this._colorPicker) {
-			this._colorPicker.dispose();
-		}
-		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		super.dispose();
 	}
 
@@ -273,10 +273,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, []);
 		this._isChangingDecorations = false;
+		this.renderDisposable.dispose();
+		this.renderDisposable = EmptyDisposable;
 		this._colorPicker = null;
-		if (this._colorPicker) {
-			this._colorPicker.dispose();
-		}
 	}
 
 	isColorPickerVisible(): boolean {
@@ -297,6 +296,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	}
 
 	private _renderMessages(renderRange: Range, messages: HoverPart[]): void {
+		this.renderDisposable.dispose();
+		this._colorPicker = null;
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
@@ -336,40 +337,39 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				let opaqueFormatter: ColorFormatter, transparentFormatter: ColorFormatter;
-				if (typeof msg.format === 'string') {
-					opaqueFormatter = new ColorFormatter(msg.format);
-				} else {
-					opaqueFormatter = new ColorFormatter(msg.format.opaque);
-					transparentFormatter = new ColorFormatter(msg.format.transparent);
-				}
-
-				let availableFormatters: ColorFormatter[] = [];
-				if (msg.availableFormats) {
-					msg.availableFormats.forEach(format => {
-						let colorPickerFormatter;
-						if (typeof format === 'string') {
-							colorPickerFormatter = new ColorFormatter(format);
-						} else {
-							colorPickerFormatter = {
-								opaqueFormatter: new ColorFormatter(format.opaque),
-								transparentFormatter: new ColorFormatter(format.transparent)
-							};
-						}
-						availableFormatters.push(colorPickerFormatter);
-					});
-				}
-
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
-				const color = Color.fromRGBA(rgba);
+				const color = new Color(rgba);
 
-				const model = new ColorPickerModel(rgba.toString(), color, opaqueFormatter, transparentFormatter, availableFormatters, this._editor.getModel(), msg.range);
-				const widget = this._register(new ColorPickerWidget(model, this._editor));
-				model.widget = widget;
+				const formatters = [...msg.formatters];
+				const text = this._editor.getModel().getValueInRange(msg.range);
+
+				let formatterIndex = 0;
+
+				for (let i = 0; i < formatters.length; i++) {
+					if (text === formatters[i].format(color)) {
+						formatterIndex = i;
+						break;
+					}
+				}
+
+				const model = new ColorPickerModel(color, formatters, formatterIndex);
+				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
+
+				const editorModel = this._editor.getModel();
+				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
+
+				const updateEditorModel = () => {
+					const text = model.formatter.format(model.color);
+					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
+					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
+				};
+
+				const colorListener = model.onDidChangeColor(updateEditorModel);
+				const formatterListener = model.onDidChangeFormatter(updateEditorModel);
 
 				this._colorPicker = widget;
-				fragment.appendChild(widget.getDomNode());
+				this.renderDisposable = combinedDisposable([colorListener, formatterListener, widget]);
 			}
 		});
 
@@ -380,7 +380,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		if (this._colorPicker) {
 			this._colorPicker.layout();
-			this._colorPicker.layoutSaturationBox();
 		}
 
 		this._isChangingDecorations = true;

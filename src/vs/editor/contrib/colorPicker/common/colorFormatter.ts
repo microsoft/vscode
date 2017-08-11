@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from "vs/base/common/color";
+import { IColorFormatter } from 'vs/editor/common/modes';
+import { Color } from 'vs/base/common/color';
+
+function roundFloat(number: number, decimalPoints: number): number {
+	const decimal = Math.pow(10, decimalPoints);
+	return Math.round(number * decimal) / decimal;
+}
 
 interface Node {
 	(color: Color): string;
@@ -13,128 +19,66 @@ function createLiteralNode(value: string): Node {
 	return () => value;
 }
 
-const RGBA_ENDRANGE = 255;
-const HSL_HUERANGE = 360;
-const HSL_ENDRANGE = 1;
+function normalize(value: number, min: number, max: number): number {
+	return value * (max - min) + min;
+}
 
-function normalize(value: number, start?: number, end?: number, currentEndRange?: number): number {
-	let val = value;
-
-	if (start || end) {
-		// More safety checks
-		// if (!start) {
-		// 	throw new Error('Color format range defined is not correct. There is no range start.');
-		// }
-		// if (!end) {
-		// 	throw new Error('Color format range defined is not correct. There is no range end.');
-		// }
-		if (start > end) {
-			throw new Error('Color format range defined is not correct. Range start is bigger than end.');
-		}
-		if (start === end) {
-			throw new Error('Color format range defined is not correct. Range start is the same as end.');
-		}
-
-		const ratio = val / currentEndRange;
-		val = ratio * (end - start) + start;
+function getPropertyValue(color: Color, variable: string): number | undefined {
+	switch (variable) {
+		case 'red':
+			return color.rgba.r / 255;
+		case 'green':
+			return color.rgba.g / 255;
+		case 'blue':
+			return color.rgba.b / 255;
+		case 'alpha':
+			return color.rgba.a / 255;
+		case 'hue':
+			return color.hsla.h / 360;
+		case 'saturation':
+			return color.hsla.s;
+		case 'luminance':
+			return color.hsla.l;
+		default:
+			return undefined;
 	}
+}
 
-	return val;
-};
-
-function createPropertyNode(variable: string, fractionDigits: number, type: string, min: number, max: number): Node {
-
+function createPropertyNode(variable: string, fractionDigits: number, type: string, min: number | undefined, max: number | undefined): Node {
 	return color => {
-		let absoluteValue: number;
+		let value = getPropertyValue(color, variable);
 
-		switch (variable) {
-			case 'red':
-				absoluteValue = normalize(color.toRGBA().r, min, max, RGBA_ENDRANGE);
-				break;
-			case 'green':
-				absoluteValue = normalize(color.toRGBA().g, min, max, RGBA_ENDRANGE);
-				break;
-			case 'blue':
-				absoluteValue = normalize(color.toRGBA().b, min, max, RGBA_ENDRANGE);
-				break;
-			case 'alpha':
-				absoluteValue = normalize(color.toRGBA().a, min, max, RGBA_ENDRANGE);
-				break;
-			case 'hue':
-				absoluteValue = normalize(color.toHSLA().h, min, max, HSL_HUERANGE);
-				break;
-			case 'saturation':
-				absoluteValue = normalize(color.toHSLA().s, min, max, HSL_ENDRANGE);
-				break;
-			case 'luminosity':
-				absoluteValue = normalize(color.toHSLA().l, min, max, HSL_ENDRANGE);
-				break;
+		if (value === undefined) {
+			return '';
 		}
 
-		if (absoluteValue === undefined) {
-			throw new Error(`${variable} is not supported as a color format.`);
-		}
+		if (type === 'd') {
+			min = typeof min === 'number' ? min : 0;
+			max = typeof max === 'number' ? max : 255;
 
-		let value: number | string;
-		if (type === 'f') {
-			fractionDigits = fractionDigits ? fractionDigits : 2; // 2 is default
-			value = absoluteValue.toFixed(fractionDigits);
+			return (normalize(value, min, max) | 0).toString();
 		} else if (type === 'x' || type === 'X') {
-			value = normalize(absoluteValue, min, max, RGBA_ENDRANGE).toString(16);
+			min = typeof min === 'number' ? min : 0;
+			max = typeof max === 'number' ? max : 255;
 
-			if (value.length !== 2) {
-				value = '0' + value;
-			}
+			let result = normalize(value, min, max).toString(16);
+
 			if (type === 'X') {
-				value = value.toUpperCase();
+				result = result.toUpperCase();
 			}
-		} else { // also 'd'-case
-			value = absoluteValue.toFixed(0);
+
+			return result.length < 2 ? `0${result}` : result;
 		}
 
-
-		return value.toString();
+		min = typeof min === 'number' ? min : 0;
+		max = typeof max === 'number' ? max : 1;
+		return roundFloat(normalize(value, min, max), 2).toString();
 	};
 }
 
-export class ColorFormatter {
-	/*
-		Variables
-		- red
-		- green
-		- blue
-		- hue
-		- saturation
-		- luminosity
-		- alpha
+export class ColorFormatter implements IColorFormatter {
 
-		Number formats
-		- decimal - d
-		- float - f
-		- hex - x X
-
-		Number ranges
-		- 0-1
-		- 0-255
-		- 0-100
-		- arbitrary
-
-		Examples
-		"{red}" - 123
-		"{red:d}" - 123
-		"{red:x}" - af
-		"{red:X}" - AF
-		"{red:d[0-255]}" - AF
-		"{red:x[0-255]}" - AF
-		"{red:X[0-1024]}" - FEFE
-		"{red:2f}" - 123.51
-		"{red:1f}" - 123.5
-		"{red:2f[0-1]}" - 1.23
-
-		- default format: decimal
-		- default range: 0-255
-	*/
-
+	readonly supportsTransparency: boolean = false;
 	private tree: Node[] = [];
 
 	// Group 0: variable
@@ -145,10 +89,6 @@ export class ColorFormatter {
 	private static PATTERN = /{(\w+)(?::(\d*)(\w)+(?:\[(\d+)-(\d+)\])?)?}/g;
 
 	constructor(format: string) {
-		this.parse(format);
-	}
-
-	private parse(format: string): void {
 		let match = ColorFormatter.PATTERN.exec(format);
 		let startIndex = 0;
 
@@ -165,10 +105,13 @@ export class ColorFormatter {
 			if (!variable) {
 				throw new Error(`${variable} is not defined.`);
 			}
-			const decimals = parseInt(match[2]);
+
+			this.supportsTransparency = this.supportsTransparency || (variable === 'alpha');
+
+			const decimals = match[2] && parseInt(match[2]);
 			const type = match[3];
-			const startRange = parseInt(match[4]);
-			const endRange = parseInt(match[5]);
+			const startRange = match[4] && parseInt(match[4]);
+			const endRange = match[5] && parseInt(match[5]);
 
 			this.tree.push(createPropertyNode(variable, decimals, type, startRange, endRange));
 
@@ -179,12 +122,22 @@ export class ColorFormatter {
 		this.tree.push(createLiteralNode(format.substring(startIndex, format.length)));
 	}
 
-	public toString(color: Color): string {
-		let colorString = [];
-		this.tree.forEach(node => {
-			colorString.push(node(color));
-		});
+	format(color: Color): string {
+		return this.tree.map(node => node(color)).join('');
+	}
+}
 
-		return colorString.join('');
+export class CombinedColorFormatter implements IColorFormatter {
+
+	readonly supportsTransparency: boolean = true;
+
+	constructor(private opaqueFormatter: IColorFormatter, private transparentFormatter: IColorFormatter) {
+		if (!transparentFormatter.supportsTransparency) {
+			throw new Error('Invalid transparent formatter');
+		}
+	}
+
+	format(color: Color): string {
+		return color.isOpaque() ? this.opaqueFormatter.format(color) : this.transparentFormatter.format(color);
 	}
 }
