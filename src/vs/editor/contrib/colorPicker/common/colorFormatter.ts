@@ -60,8 +60,6 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;
 
-			console.log(value, min, max);
-
 			let result = normalize(value, min, max).toString(16);
 
 			if (type === 'X') {
@@ -84,7 +82,7 @@ export interface IColorFormatter {
 
 export class ColorFormatter implements IColorFormatter {
 
-	readonly supportsTransparency: boolean;
+	readonly supportsTransparency: boolean = false;
 	private tree: Node[] = [];
 
 	// Group 0: variable

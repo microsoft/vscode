@@ -135,12 +135,12 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 const CSSColorFormats = {
 	Hex: '#{red:X}{green:X}{blue:X}',
 	RGB: {
-		opaque: 'rgb({red}, {green}, {blue})',
-		transparent: 'rgba({red}, {green}, {blue}, {alpha:2f[0-1]})'
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
 	},
 	HSL: {
 		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
-		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha:2f[0-1]})'
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
 	}
 };
 
