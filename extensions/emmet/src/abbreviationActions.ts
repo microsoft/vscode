@@ -68,7 +68,12 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 	return abbreviationPromise.then(inputAbbreviation => {
 		if (!inputAbbreviation || !inputAbbreviation.trim() || !isAbbreviationValid(syntax, inputAbbreviation)) { return; }
 
-		let { abbreviation, filters } = extractAbbreviationFromText(inputAbbreviation);
+		let extractedResults = extractAbbreviationFromText(inputAbbreviation);
+		if (!extractedResults) {
+			return;
+		}
+
+		let { abbreviation, filters } = extractedResults;
 		let input: ExpandAbbreviationInput = {
 			syntax,
 			abbreviation,
@@ -103,8 +108,11 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			let { abbreviation, filters } = extractAbbreviationFromText(abbr);
-			return [rangeToReplace, abbreviation, filters];
+			let extractedResults = extractAbbreviationFromText(abbr);
+			if (extractedResults) {
+				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filters];
+			}
+			return [null, '', []];
 		}
 
 		const currentLine = editor.document.lineAt(position.line).text;
