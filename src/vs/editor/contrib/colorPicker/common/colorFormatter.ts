@@ -78,14 +78,14 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 }
 
 export interface IColorFormatter {
-	canFormat(color: Color): boolean;
+	readonly supportsTransparency: boolean;
 	format(color: Color): string;
 }
 
 export class ColorFormatter implements IColorFormatter {
 
+	readonly supportsTransparency: boolean;
 	private tree: Node[] = [];
-	private supportsAlpha = false;
 
 	// Group 0: variable
 	// Group 1: decimal digits
@@ -95,10 +95,6 @@ export class ColorFormatter implements IColorFormatter {
 	private static PATTERN = /{(\w+)(?::(\d*)(\w)+(?:\[(\d+)-(\d+)\])?)?}/g;
 
 	constructor(format: string) {
-		this.parse(format);
-	}
-
-	private parse(format: string): void {
 		let match = ColorFormatter.PATTERN.exec(format);
 		let startIndex = 0;
 
@@ -116,7 +112,7 @@ export class ColorFormatter implements IColorFormatter {
 				throw new Error(`${variable} is not defined.`);
 			}
 
-			this.supportsAlpha = this.supportsAlpha || (variable === 'alpha');
+			this.supportsTransparency = this.supportsTransparency || (variable === 'alpha');
 
 			const decimals = match[2] && parseInt(match[2]);
 			const type = match[3];
@@ -132,10 +128,6 @@ export class ColorFormatter implements IColorFormatter {
 		this.tree.push(createLiteralNode(format.substring(startIndex, format.length)));
 	}
 
-	canFormat(color: Color): boolean {
-		return color.isOpaque() || this.supportsAlpha;
-	}
-
 	format(color: Color): string {
 		return this.tree.map(node => node(color)).join('');
 	}
@@ -143,10 +135,12 @@ export class ColorFormatter implements IColorFormatter {
 
 export class CombinedColorFormatter implements IColorFormatter {
 
-	constructor(private opaqueFormatter: IColorFormatter, private transparentFormatter: IColorFormatter) { }
+	readonly supportsTransparency: boolean = true;
 
-	canFormat(color: Color): boolean {
-		return true;
+	constructor(private opaqueFormatter: IColorFormatter, private transparentFormatter: IColorFormatter) {
+		if (!transparentFormatter.supportsTransparency) {
+			throw new Error('Invalid transparent formatter');
+		}
 	}
 
 	format(color: Color): string {

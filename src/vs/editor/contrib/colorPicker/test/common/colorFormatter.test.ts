@@ -11,22 +11,26 @@ import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormat
 suite('ColorFormatter', () => {
 	test('empty formatter', () => {
 		const formatter = new ColorFormatter('');
+		assert.equal(formatter.supportsTransparency, false);
 
-		assert.equal(formatter.canFormat(Color.white), true);
 		assert.equal(formatter.format(Color.white), '');
-
-		assert.equal(formatter.canFormat(Color.transparent), false);
 		assert.equal(formatter.format(Color.transparent), '');
 	});
 
 	test('no placeholder', () => {
 		const formatter = new ColorFormatter('hello');
+		assert.equal(formatter.supportsTransparency, false);
 
-		assert.equal(formatter.canFormat(Color.white), true);
 		assert.equal(formatter.format(Color.white), 'hello');
-
-		assert.equal(formatter.canFormat(Color.transparent), false);
 		assert.equal(formatter.format(Color.transparent), 'hello');
+	});
+
+	test('supportsTransparency', () => {
+		const formatter = new ColorFormatter('hello');
+		assert.equal(formatter.supportsTransparency, false);
+
+		const transparentFormatter = new ColorFormatter('{alpha}');
+		assert.equal(transparentFormatter.supportsTransparency, true);
 	});
 
 	test('default number format is float', () => {

@@ -7,6 +7,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 
+function canFormat(formatter: IColorFormatter, color: Color): boolean {
+	return color.isOpaque() || formatter.supportsTransparency;
+}
+
 export class ColorPickerModel {
 
 	readonly originalColor: Color;
@@ -23,7 +27,7 @@ export class ColorPickerModel {
 
 		this._color = color;
 
-		if (!this.formatter.canFormat(color)) {
+		if (!canFormat(this.formatter, color)) {
 			this.selectNextColorFormat();
 		}
 
@@ -57,7 +61,7 @@ export class ColorPickerModel {
 	selectNextColorFormat(): void {
 		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
 
-		if (!this.formatter.canFormat(this._color)) {
+		if (!canFormat(this.formatter, this._color)) {
 			return this.selectNextColorFormat();
 		}
 
