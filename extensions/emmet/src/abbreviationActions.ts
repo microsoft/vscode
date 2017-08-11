@@ -166,7 +166,7 @@ export function expandEmmetAbbreviation(args) {
  */
 export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
 	if (!currentNode) {
-		return !isStyleSheet(syntax);
+		return !isStyleSheet(syntax) || (syntax === 'sass' || syntax === 'stylus');
 	}
 
 	if (isStyleSheet(syntax)) {
