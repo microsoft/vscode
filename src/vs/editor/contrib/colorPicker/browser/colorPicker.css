@@ -27,15 +27,15 @@
 .colorpicker-header .picked-color {
 	width: 216px;
 	text-align: center;
-	text-shadow: 0.5px 0.5px 0.5px black;
 	line-height: 20px;
 	cursor: pointer;
-}
-
-.colorpicker-header .picked-color {
+	color: white;
 	flex: 1;
 	text-align: center;
-	color: rgba(255, 255, 255, 1);
+}
+
+.colorpicker-header .picked-color.light {
+	color: black;
 }
 
 .colorpicker-header .original-color {
