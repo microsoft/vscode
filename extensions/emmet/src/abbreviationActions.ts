@@ -82,17 +82,17 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 
 }
 
-export function expandEmmetAbbreviation(args) {
+export function expandEmmetAbbreviation(args): Thenable<boolean> {
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax || !validate()) {
-		return Promise.resolve(false);
+		return fallbackTab();
 	}
 
 	const editor = vscode.window.activeTextEditor;
 
 	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
-		return Promise.resolve(false);
+		return fallbackTab();
 	}
 
 	let abbreviationList: ExpandAbbreviationInput[] = [];
@@ -153,10 +153,18 @@ export function expandEmmetAbbreviation(args) {
 		abbreviationList.push({ syntax, abbreviation, rangeToReplace, filters });
 	});
 
-	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame);
+	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
+		if (!success) {
+			return fallbackTab();
+		}
+	});
 }
 
-
+function fallbackTab(): Thenable<boolean> {
+	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
+		return vscode.commands.executeCommand('tab');
+	}
+}
 /**
  * Checks if given position is a valid location to expand emmet abbreviation.
  * Works only on html and css/less/scss syntax
@@ -200,6 +208,7 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
  * @param editor
  * @param expandAbbrList
  * @param insertSameSnippet
+ * @returns false if no snippet can be inserted.
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
@@ -217,6 +226,9 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace));
 			}
 		});
+		if (insertPromises.length === 0) {
+			return Promise.resolve(false);
+		}
 		return Promise.all(insertPromises).then(() => Promise.resolve(true));
 	}
 
