@@ -21,6 +21,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
@@ -28,7 +29,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	private _heapService: IHeapService;
 	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
-	private _colorFormatsMap: Map<number, modes.IColorFormat>;
+	private _formatters: Map<number, modes.IColorFormatter>;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -39,7 +40,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;
-		this._colorFormatsMap = new Map<number, modes.IColorFormat>();
+		this._formatters = new Map<number, modes.IColorFormatter>();
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -271,20 +272,16 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		const proxy = this._proxy;
-		const colorFormatsMap = this._colorFormatsMap;
 
 		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorRangeProvider>{
-			provideColorRanges: function (model, token) {
+			provideColorRanges: (model, token) => {
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
-					.then((colorInfos) => {
-						return colorInfos.map(c => {
-							let availableFormats: modes.IColorFormat[] = [];
+					.then(documentColors => {
+						return documentColors.map(documentColor => {
+							const formatters = documentColor.availableFormats
+								.map(f => this._formatters.get(f));
 
-							c.availableFormats.forEach(f => {
-								availableFormats.push(colorFormatsMap.get(f));
-							});
-
-							const [red, green, blue, alpha] = c.color;
+							const [red, green, blue, alpha] = documentColor.color;
 							const color = {
 								red: red / 255.0,
 								green: green / 255.0,
@@ -294,31 +291,32 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 							return {
 								color,
-								availableFormats: availableFormats,
-								range: c.range
+								formatters,
+								range: documentColor.range
 							};
 						});
 					});
 			}
 		});
-		return undefined;
+
+		return TPromise.as(null);
 	}
 
 	$registerColorFormats(formats: IColorFormatMap): TPromise<any> {
 		formats.forEach(f => {
 			const raw = f[1];
-			let format: modes.IColorFormat;
+			let formatter: modes.IColorFormatter;
+
 			if (typeof raw === 'string') {
-				format = raw;
+				formatter = new ColorFormatter(raw);
 			} else {
-				format = {
-					opaque: raw[0],
-					transparent: raw[1]
-				};
+				formatter = new CombinedColorFormatter(new ColorFormatter(raw[0]), new ColorFormatter(raw[1]));
 			}
-			this._colorFormatsMap.set(f[0], format);
+
+			this._formatters.set(f[0], formatter);
 		});
-		return undefined;
+
+		return TPromise.as(null);
 	}
 
 	// --- configuration

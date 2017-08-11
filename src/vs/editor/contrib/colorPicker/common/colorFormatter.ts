@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IColorFormatter } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
 
 function roundFloat(number: number, decimalPoints: number): number {
@@ -73,11 +74,6 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 		max = typeof max === 'number' ? max : 1;
 		return roundFloat(normalize(value, min, max), 2).toString();
 	};
-}
-
-export interface IColorFormatter {
-	readonly supportsTransparency: boolean;
-	format(color: Color): string;
 }
 
 export class ColorFormatter implements IColorFormatter {

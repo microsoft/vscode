@@ -5,7 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { IColorFormatter } from 'vs/editor/common/modes';
 
 function canFormat(formatter: IColorFormatter, color: Color): boolean {
 	return color.isOpaque() || formatter.supportsTransparency;

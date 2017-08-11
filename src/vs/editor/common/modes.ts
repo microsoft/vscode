@@ -679,12 +679,15 @@ export interface IColor {
 	readonly alpha: number;
 }
 
-// TODO@joao TODO@michel can we use a formatter here?
 /**
- * A color format.
+ * A color formatter.
  * @internal
  */
-export type IColorFormat = string | { opaque: string, transparent: string };
+
+export interface IColorFormatter {
+	readonly supportsTransparency: boolean;
+	format(color: Color): string;
+}
 
 /**
  * A color range is a range in a text model which represents a color.
@@ -705,7 +708,7 @@ export interface IColorRange {
 	/**
 	 * The available formats for this specific color.
 	 */
-	availableFormats: IColorFormat[];
+	formatters: IColorFormatter[];
 }
 
 /**
