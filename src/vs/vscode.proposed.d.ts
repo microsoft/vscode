@@ -193,12 +193,6 @@ declare module 'vscode' {
 		color: Color;
 
 		/**
-		 * The format in which this color is currently formatted.
-		 */
-		// TODO can we remove this?
-		format: ColorFormat;
-
-		/**
 		 * The other formats this color range supports the color to be formatted in.
 		 */
 		availableFormats: ColorFormat[];
@@ -211,7 +205,7 @@ declare module 'vscode' {
 		 * @param format The format in which this color is currently formatted.
 		 * @param availableFormats The other formats this color range supports the color to be formatted in.
 		 */
-		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
+		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
 	}
 
 	/**

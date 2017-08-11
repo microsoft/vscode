@@ -23,17 +23,15 @@ export class ColorPickerModel {
 
 		this._color = color;
 
-		if (!this._formatter.canFormatColor(color)) {
+		if (!this.formatter.canFormatColor(color)) {
 			this.selectNextColorFormat();
 		}
 
 		this._onDidChangeColor.fire(color);
 	}
 
-	private _formatter: IColorFormatter;
-	get formatter(): IColorFormatter { return this._formatter; }
+	get formatter(): IColorFormatter { return this.formatters[this.formatterIndex]; }
 
-	private formatterIndex = 0;
 	readonly formatters: IColorFormatter[];
 
 	private _onDidChangeColor = new Emitter<Color>();
@@ -42,25 +40,27 @@ export class ColorPickerModel {
 	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
 	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
 
-	constructor(color: Color, formatter: IColorFormatter, availableFormatters: IColorFormatter[]) {
+	constructor(color: Color, availableFormatters: IColorFormatter[], private formatterIndex: number) {
 		if (availableFormatters.length === 0) {
 			throw new Error('Color picker needs formats');
 		}
 
+		if (formatterIndex < 0 || formatterIndex >= availableFormatters.length) {
+			throw new Error('Formatter index out of bounds');
+		}
+
 		this.originalColor = color;
 		this.formatters = availableFormatters;
-		this._formatter = formatter;
 		this._color = color;
 	}
 
 	selectNextColorFormat(): void {
 		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
-		this._formatter = this.formatters[this.formatterIndex];
 
-		if (!this._formatter.canFormatColor(this._color)) {
+		if (!this.formatter.canFormatColor(this._color)) {
 			return this.selectNextColorFormat();
 		}
 
-		this._onDidChangeFormatter.fire(this._formatter);
+		this._onDidChangeFormatter.fire(this.formatter);
 	}
 }

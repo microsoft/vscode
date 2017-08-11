@@ -1045,16 +1045,11 @@ export class ColorRange {
 
 	color: Color;
 
-	format: IColorFormat;
-
 	availableFormats: IColorFormat[];
 
-	constructor(range: Range, color: Color, format: IColorFormat, availableFormats: IColorFormat[]) {
+	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
 		if (color && !(color instanceof Color)) {
 			throw illegalArgument('color');
-		}
-		if (format && (typeof format !== 'string') && !format.opaque && !format.transparent && typeof format.opaque !== 'string' && typeof format.transparent !== 'string') {
-			throw illegalArgument('format');
 		}
 		if (availableFormats && !Array.isArray(availableFormats)) {
 			throw illegalArgument('availableFormats');
@@ -1064,7 +1059,6 @@ export class ColorRange {
 		}
 		this.range = range;
 		this.color = color;
-		this.format = format;
 		this.availableFormats = availableFormats;
 	}
 }

@@ -706,12 +706,10 @@ class ColorProviderAdapter {
 			if (Array.isArray(colors)) {
 				const colorInfos: IRawColorInfo[] = [];
 				colors.forEach(ci => {
-					const format = getCachedId(ci.format);
 					const availableFormats = ci.availableFormats.map(f => getCachedId(f));
 
 					colorInfos.push({
 						color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha],
-						format: format,
 						availableFormats: availableFormats,
 						range: TypeConverters.fromRange(ci.range)
 					});

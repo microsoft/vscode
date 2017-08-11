@@ -111,7 +111,6 @@ export class ColorDetector implements IEditorContribution {
 		const colorRanges = colorInfos.map(c => ({
 			range: c.range,
 			color: c.color,
-			format: c.format,
 			availableFormats: c.availableFormats
 		}));
 

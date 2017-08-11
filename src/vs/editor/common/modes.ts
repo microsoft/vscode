@@ -702,9 +702,6 @@ export interface IColorRange {
 	 */
 	color: IColor;
 
-	// TODO@joao TODO@michel can we drop this?
-	format: IColorFormat;
-
 	/**
 	 * The available formats for this specific color.
 	 */

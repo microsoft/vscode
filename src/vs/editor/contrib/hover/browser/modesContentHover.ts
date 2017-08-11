@@ -35,7 +35,6 @@ class ColorHover {
 	constructor(
 		public readonly range: IRange,
 		public readonly color: IColor,
-		public readonly format: IColorFormat,
 		public readonly availableFormats: IColorFormat[]
 	) { }
 }
@@ -106,8 +105,8 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			if (!didFindColor && colorRange) {
 				didFindColor = true;
 
-				const { color, format, availableFormats } = colorRange;
-				return new ColorHover(d.range, color, format, availableFormats);
+				const { color, availableFormats } = colorRange;
+				return new ColorHover(d.range, color, availableFormats);
 			} else {
 				if (!hasHoverContent(d.options.hoverMessage)) {
 					return null;
@@ -345,12 +344,23 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				const formatter = createColorFormatter(msg.format);
-				const availableFormatters = msg.availableFormats.map(format => createColorFormatter(format));
 				const { red, green, blue, alpha } = msg.color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
 				const color = new Color(rgba);
-				const model = new ColorPickerModel(color, formatter, availableFormatters);
+
+				const availableFormatters = msg.availableFormats.map(format => createColorFormatter(format));
+				const text = this._editor.getModel().getValueInRange(msg.range);
+
+				let formatterIndex = 0;
+
+				for (let i = 0; i < availableFormatters.length; i++) {
+					if (text === availableFormatters[i].formatColor(color)) {
+						formatterIndex = i;
+						break;
+					}
+				}
+
+				const model = new ColorPickerModel(color, availableFormatters, formatterIndex);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
 
 				const editorModel = this._editor.getModel();

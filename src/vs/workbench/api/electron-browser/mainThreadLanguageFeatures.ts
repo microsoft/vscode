@@ -278,8 +278,8 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then((colorInfos) => {
 						return colorInfos.map(c => {
-							const format = colorFormatsMap.get(c.format);
 							let availableFormats: modes.IColorFormat[] = [];
+
 							c.availableFormats.forEach(f => {
 								availableFormats.push(colorFormatsMap.get(f));
 							});
@@ -294,7 +294,6 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 
 							return {
 								color,
-								format: format,
 								availableFormats: availableFormats,
 								range: c.range
 							};
