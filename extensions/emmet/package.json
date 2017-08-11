@@ -74,6 +74,11 @@
                     "type": "string",
                     "default": null,
                     "description": "%emmetExtensionsPath%"
+                },
+                "emmet.triggerExpansionOnTab": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%emmetTriggerExpansionOnTab%"
                 }
             }
         },
