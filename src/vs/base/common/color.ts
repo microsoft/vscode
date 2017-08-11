@@ -286,15 +286,15 @@ export class Color {
 	 * Returns the number in the set [0, 1]. O => Darkest Black. 1 => Lightest white.
 	 */
 	getRelativeLuminance(): number {
-		const R = Color._relativeLuminosityForComponent(this.rgba.r);
-		const G = Color._relativeLuminosityForComponent(this.rgba.g);
-		const B = Color._relativeLuminosityForComponent(this.rgba.b);
+		const R = Color._relativeLuminanceForComponent(this.rgba.r);
+		const G = Color._relativeLuminanceForComponent(this.rgba.g);
+		const B = Color._relativeLuminanceForComponent(this.rgba.b);
 		const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
 
 		return roundFloat(luminance, 4);
 	}
 
-	private static _relativeLuminosityForComponent(color: number): number {
+	private static _relativeLuminanceForComponent(color: number): number {
 		const c = color / 255;
 		return (c <= 0.03928) ? c / 12.92 : Math.pow(((c + 0.055) / 1.055), 2.4);
 	}
