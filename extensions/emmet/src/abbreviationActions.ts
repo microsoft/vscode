@@ -121,10 +121,13 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			}
 		}
 
+		// Dont try to expand abbreviations when cursor is before/after ; or : or in the middle of a word
 		// Fix for https://github.com/Microsoft/vscode/issues/1623 in new emmet
-		if (isStyleSheet(syntax)) {
+		if (isStyleSheet(syntax) && !/\s!$/.test(textTillPosition)) {
 			const charAtPosition = currentLine.substr(position.character, 1);
-			if (textTillPosition.endsWith(':') || (charAtPosition === ':')) {
+			if (textTillPosition.endsWith(':')
+				|| textTillPosition.endsWith(';')
+				|| (charAtPosition && !/\s/.test(charAtPosition))) {
 				return [null, '', []];
 			}
 		}
@@ -140,12 +143,11 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax;
+		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax);
 		if (!rangeToReplace) {
 			return;
 		}
 		if (!isAbbreviationValid(syntax, abbreviation)) {
-			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
 		}
 
