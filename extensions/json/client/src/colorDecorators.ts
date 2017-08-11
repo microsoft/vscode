@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorInfo } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -140,7 +140,7 @@ export class ColorProvider implements DocumentColorProvider {
 
 	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
 
-	async provideDocumentColors(document: TextDocument): Promise<ColorInfo[]> {
+	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
 		const ranges = await this.decoratorProvider(document.uri.toString());
 		const result = [];
 		for (let range of ranges) {
@@ -149,7 +149,7 @@ export class ColorProvider implements DocumentColorProvider {
 			let color = Color.fromHex(value);
 			if (color) {
 				let r = new Range(range.start.line, range.start.character + 1, range.end.line, range.end.character - 1);
-				result.push(new ColorInfo(r, color, ColorFormat_HEX, [ColorFormat_HEX]));
+				result.push(new ColorRange(r, color, ColorFormat_HEX, [ColorFormat_HEX]));
 			}
 		}
 		return result;

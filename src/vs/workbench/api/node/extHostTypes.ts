@@ -1040,7 +1040,7 @@ export class Color {
 
 export type IColorFormat = string | { opaque: string, transparent: string };
 
-export class ColorInfo {
+export class ColorRange {
 	range: Range;
 
 	color: Color;

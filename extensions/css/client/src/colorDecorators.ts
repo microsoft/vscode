@@ -5,7 +5,7 @@
 'use strict';
 
 import * as parse from 'parse-color';
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorFormat, ColorInfo } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorFormat, ColorRange } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -158,7 +158,7 @@ export class ColorProvider implements DocumentColorProvider {
 
 	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
 
-	async provideDocumentColors(document: TextDocument): Promise<ColorInfo[]> {
+	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
 		const ranges = await this.decoratorProvider(document.uri.toString());
 		const result = [];
 		for (let range of ranges) {
@@ -175,7 +175,7 @@ export class ColorProvider implements DocumentColorProvider {
 			}
 			if (color) {
 				const format = detectFormat(value);
-				result.push(new ColorInfo(range, color, format, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
+				result.push(new ColorRange(range, color, format, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
 			}
 		}
 		return result;

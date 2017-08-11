@@ -89,35 +89,146 @@ declare module 'vscode' {
 		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
 
+	/**
+	 * Represents a color in RGBA space.
+	 */
 	export class Color {
+
+		/**
+		 * The red component of this color in the range [0-1].
+		 */
 		readonly red: number;
+
+		/**
+		 * The green component of this color in the range [0-1].
+		 */
 		readonly green: number;
+
+		/**
+		 * The blue component of this color in the range [0-1].
+		 */
 		readonly blue: number;
-		readonly alpha?: number;
 
-		constructor(red: number, green: number, blue: number, alpha?: number);
+		/**
+		 * The alpha component of this color in the range [0-1].
+		 */
+		readonly alpha: number;
 
-		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
+		constructor(red: number, green: number, blue: number, alpha: number);
+
+		/**
+		 * Creates a color from the HSLA space.
+		 *
+		 * @param hue The hue component in the range [0-1].
+		 * @param saturation The saturation component in the range [0-1].
+		 * @param luminance The luminance component in the range [0-1].
+		 * @param alpha The alpha component in the range [0-1].
+		 */
+		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
+
+		// TODO: this isn't needed. this is a parsing util. remove
 		static fromHex(hex: string): Color;
 	}
 
+	/**
+	 * A color format is either a single format or a combination of two
+	 * formats: an opaque one and a transparent one. The format itself
+	 * is a string representation of how the color can be formatted. It
+	 * supports the use of placeholders, similar to how snippets work.
+	 * Each placeholder, surrounded by curly braces `{}`, requires a
+	 * variable name and can optionally specify a number format and range
+	 * for that variable's value.
+	 *
+	 * Supported variables:
+	 *  - `red`
+	 *  - `green`
+	 *  - `blue`
+	 *  - `hue`
+	 *  - `saturation`
+	 *  - `luminosity`
+	 *  - `alpha`
+	 *
+	 * Supported number formats:
+	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
+	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
+	 *  - `d`, decimal. Default range is `[0-255]`.
+	 *  - `h`, `H`, hexadecimal. Default range is `[00-FF]`.
+	 *
+	 * The default number format is float. The default number range is `[0-1]`.
+	 *
+	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
+	 * different formats would format it:
+	 *
+	 *  - CSS RGB
+	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
+	 *   - Output: `rgb(255, 127, 0)`
+	 *
+	 *  - CSS RGBA
+	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
+	 *   - Output: `rgba(255, 127, 0, 1)`
+	 *
+	 *  - CSS Hexadecimal
+	 *   - Format: `#{red:X}{green:X}{blue:X}`
+	 *   - Output: `#FF7F00`
+	 *
+	 *  - CSS HSLA
+	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha})`
+	 *   - Output: `hsla(30, 100%, 50%, 1)`
+	 */
 	export type ColorFormat = string | { opaque: string, transparent: string };
 
-	// TODO@Michel
-	export class ColorInfo {
+	/**
+	 * Represents a color range from a document.
+	 */
+	export class ColorRange {
+
+		/**
+		 * The range in the document where this color appers.
+		 */
 		range: Range;
 
+		/**
+		 * The actual color value for this color range.
+		 */
 		color: Color;
 
+		/**
+		 * The format in which this color is currently formatted.
+		 */
+		// TODO can we remove this?
 		format: ColorFormat;
 
+		/**
+		 * The other formats this color range supports the color to be formatted in.
+		 */
 		availableFormats: ColorFormat[];
 
+		/**
+		 * Creates a new color range.
+		 *
+		 * @param range The range the color appears in. Must not be empty.
+		 * @param color The value of the color.
+		 * @param format The format in which this color is currently formatted.
+		 * @param availableFormats The other formats this color range supports the color to be formatted in.
+		 */
 		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
 	}
 
+	/**
+	 * The document color provider defines the contract between extensions and feature of
+	 * picking and modifying colors in the editor.
+	 */
 	export interface DocumentColorProvider {
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
+
+		/**
+		 * Provide colors for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of [color ranges](#ColorRange) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
 	}
 
 	export namespace languages {
