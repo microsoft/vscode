@@ -198,8 +198,9 @@ function fallbackTab(): Thenable<boolean> {
  * @param position position to validate
  */
 export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
+	// Continue validation only if the file was parse-able and the currentNode has been found
 	if (!currentNode) {
-		return !isStyleSheet(syntax) || (syntax === 'sass' || syntax === 'stylus');
+		return true;
 	}
 
 	if (isStyleSheet(syntax)) {
