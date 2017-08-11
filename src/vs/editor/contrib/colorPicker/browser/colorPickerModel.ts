@@ -23,7 +23,7 @@ export class ColorPickerModel {
 
 		this._color = color;
 
-		if (!this.formatter.canFormatColor(color)) {
+		if (!this.formatter.canFormat(color)) {
 			this.selectNextColorFormat();
 		}
 
@@ -57,7 +57,7 @@ export class ColorPickerModel {
 	selectNextColorFormat(): void {
 		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
 
-		if (!this.formatter.canFormatColor(this._color)) {
+		if (!this.formatter.canFormat(this._color)) {
 			return this.selectNextColorFormat();
 		}
 

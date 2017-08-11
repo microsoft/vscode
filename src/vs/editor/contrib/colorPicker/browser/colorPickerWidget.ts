@@ -51,7 +51,7 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangeFormatter(): void {
-		this.pickedColorNode.textContent = this.model.formatter.formatColor(this.model.color);
+		this.pickedColorNode.textContent = this.model.formatter.format(this.model.color);
 	}
 }
 

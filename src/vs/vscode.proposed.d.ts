@@ -152,7 +152,7 @@ declare module 'vscode' {
 	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
 	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
 	 *  - `d`, decimal. Default range is `[0-255]`.
-	 *  - `h`, `H`, hexadecimal. Default range is `[00-FF]`.
+	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
 	 *
 	 * The default number format is float. The default number range is `[0-1]`.
 	 *
