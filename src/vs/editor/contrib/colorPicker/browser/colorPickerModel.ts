@@ -26,11 +26,7 @@ export class ColorPickerModel {
 		}
 
 		this._color = color;
-
-		if (!canFormat(this.formatter, color)) {
-			this.selectNextColorFormat();
-		}
-
+		this._checkFormat();
 		this._onDidChangeColor.fire(color);
 	}
 
@@ -59,10 +55,18 @@ export class ColorPickerModel {
 	}
 
 	selectNextColorFormat(): void {
-		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
+		this._checkFormat((this.formatterIndex + 1) % this.formatters.length);
+	}
 
-		if (!canFormat(this.formatter, this._color)) {
-			return this.selectNextColorFormat();
+	private _checkFormat(start = this.formatterIndex): void {
+		this.formatterIndex = start;
+
+		while (!canFormat(this.formatter, this._color)) {
+			this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
+
+			if (this.formatterIndex === start) {
+				return;
+			}
 		}
 
 		this._onDidChangeFormatter.fire(this.formatter);
