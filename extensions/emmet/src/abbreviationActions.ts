@@ -99,7 +99,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, isHtml: boolean): [vscode.Range, string, string[]] => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range, string, string[]] => {
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
@@ -107,11 +107,12 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			return [rangeToReplace, abbreviation, filters];
 		}
 
+		const currentLine = editor.document.lineAt(position.line).text;
+		const textTillPosition = currentLine.substr(0, position.character);
+
 		// Expand cases like <div to <div></div> explicitly
 		// else we will end up with <<div></div>
-		if (isHtml) {
-			const currentLine = editor.document.lineAt(position.line).text;
-			const textTillPosition = currentLine.substr(0, position.character);
+		if (syntax === 'html') {
 			let matches = textTillPosition.match(/<(\w+)$/);
 			if (matches) {
 				abbr = matches[1];
@@ -119,6 +120,15 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 				return [rangeToReplace, abbr, []];
 			}
 		}
+
+		// Fix for https://github.com/Microsoft/vscode/issues/1623 in new emmet
+		if (isStyleSheet(syntax)) {
+			const charAtPosition = currentLine.substr(position.character, 1);
+			if (textTillPosition.endsWith(':') || (charAtPosition === ':')) {
+				return [null, '', []];
+			}
+		}
+
 		let extractedResults = extractAbbreviation(editor.document, position);
 		if (!extractedResults) {
 			return [null, '', []];
@@ -130,7 +140,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax === 'html');
+		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax;
 		if (!rangeToReplace) {
 			return;
 		}
