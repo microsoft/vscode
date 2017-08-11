@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -383,6 +383,23 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
 
 		return { galleryExtensions, total };
+	}
+
+	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
+		if (!this.isEnabled()) {
+			return;
+		}
+
+		try {
+			const headers = await this.commonHTTPHeaders;
+			await this.requestService.request({
+				type: 'POST',
+				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+				headers
+			});
+		} catch (err) {
+			// noop
+		}
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {

@@ -17,7 +17,8 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
-	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
+	StatisticType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -223,9 +224,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
-		return this.doUninstall(localExtension.id)
+		return this.doUninstall(localExtension)
 			.then(() => this.filterOutUninstalled(dependecies))
-			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i.id))))
+			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i))))
 			.then(() => null);
 	}
 
@@ -304,7 +305,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
-		return this.preUninstallExtension(extension.id)
+		return this.preUninstallExtension(extension)
 			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.promptAndUninstall(extension, installed, force))
 			.then(() => this.postUninstallExtension(extension.id),
 			error => {
@@ -370,7 +371,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		if (dependents.length) {
 			return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 		}
-		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d))]).then(() => null);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -419,21 +420,22 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(extension)) !== -1);
 	}
 
-	private doUninstall(id: string): TPromise<void> {
-		return this.preUninstallExtension(id)
-			.then(() => this.uninstallExtension(id))
-			.then(() => this.postUninstallExtension(id),
+	private doUninstall(extension: ILocalExtension): TPromise<void> {
+		return this.preUninstallExtension(extension)
+			.then(() => this.uninstallExtension(extension.id))
+			.then(() => this.postUninstallExtension(extension.id),
 			error => {
-				this.postUninstallExtension(id, error);
+				this.postUninstallExtension(extension.id, error);
 				return TPromise.wrapError(error);
 			});
 	}
 
-	private preUninstallExtension(id: string): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, id);
+	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, extension.id);
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
-			.then(() => this._onUninstallExtension.fire(id));
+			.then(() => this._onUninstallExtension.fire(extension.id))
+			.then(() => this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall));
 	}
 
 	private uninstallExtension(id: string): TPromise<void> {
