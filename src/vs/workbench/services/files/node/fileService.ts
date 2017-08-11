@@ -348,43 +348,51 @@ export class FileService implements IFileService {
 
 				// 3.) check to add UTF BOM
 				return addBomPromise.then(addBom => {
-					let truncatePromise: TPromise<void>;
+					let writeFilePromise: TPromise<void>;
 
-					// Can't use 'w' for hidden files, so truncate and use 'r+' if the file exists
-					if (exists) {
-						truncatePromise = pfs.truncate(absolutePath, 0);
-					} else {
-						truncatePromise = TPromise.as(null);
+					// Write fast if we do UTF 8 without BOM
+					if (!addBom && encodingToWrite === encoding.UTF8) {
+						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
-					// 4.) check to truncate
-					return truncatePromise.then(() => {
-						let writeFilePromise: TPromise<void>;
+					// Otherwise use encoding lib
+					else {
+						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
+						writeFilePromise = pfs.writeFile(absolutePath, encoded);
+					}
 
-						// Write fast if we do UTF 8 without BOM
-						if (!addBom && encodingToWrite === encoding.UTF8) {
-							if (exists) {
+					// 4.) set contents
+					return writeFilePromise.then(() => {
+
+						// 5.) resolve
+						return this.resolve(resource);
+					}, error => {
+						// Can't use 'w' for hidden files, so truncate and use 'r+' if the file exists
+						if (!exists || error.code !== 'EPERM') {
+							throw error;
+						}
+
+						// 5.) truncate
+						return pfs.truncate(absolutePath, 0).then(() => {
+							let writeFilePromise: TPromise<void>;
+
+							// Write fast if we do UTF 8 without BOM
+							if (!addBom && encodingToWrite === encoding.UTF8) {
 								writeFilePromise = pfs.writeFile(absolutePath, value, { encoding: encoding.UTF8, mode: 0o666, flag: 'r+' });
-							} else {
-								writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 							}
-						}
 
-						// Otherwise use encoding lib
-						else {
-							const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-							if (exists) {
+							// Otherwise use encoding lib
+							else {
+								const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
 								writeFilePromise = pfs.writeFile(absolutePath, encoded, { mode: 0o666, flag: 'r+' });
-							} else {
-								writeFilePromise = pfs.writeFile(absolutePath, encoded);
 							}
-						}
 
-						// 5.) set contents
-						return writeFilePromise.then(() => {
+							// 6.) set contents
+							return writeFilePromise.then(() => {
 
-							// 6.) resolve
-							return this.resolve(resource);
+								// 7.) resolve
+								return this.resolve(resource);
+							});
 						});
 					});
 				});
