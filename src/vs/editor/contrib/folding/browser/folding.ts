@@ -430,6 +430,18 @@ export class FoldingController implements IFoldingController {
 		}
 	}
 
+	public foldAt( line: number ) {
+		let hasChanges = false;
+		let toFold: CollapsibleRegion[] = getCollapsibleRegionsToFoldAtLine(this.decorations, this.editor.getModel(), line, 1, true);
+		toFold.forEach(collapsibleRegion => this.editor.changeDecorations(changeAccessor => {
+			collapsibleRegion.setCollapsed(true, changeAccessor);
+			hasChanges = true;
+		}));
+		if (hasChanges) {
+			this.updateHiddenAreas(line);
+		}
+	}
+
 	public foldUnfoldRecursively(isFold: boolean): void {
 		let hasChanges = false;
 		let model = this.editor.getModel();
@@ -539,6 +551,7 @@ abstract class FoldingAction<T> extends EditorAction {
 interface FoldingArguments {
 	levels?: number;
 	direction?: 'up' | 'down';
+	line?: number;
 }
 
 function foldingArgumentsConstraint(args: any) {
@@ -648,7 +661,12 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
 		args = args ? args : { levels: 1, direction: 'up' };
-		foldingController.fold(args.levels || 1, args.direction === 'up');
+
+		if ( args && args.line ) {
+			foldingController.foldAt( args.line );
+		} else {
+			foldingController.fold(args.levels || 1, args.direction === 'up');
+		}
 	}
 }
 
