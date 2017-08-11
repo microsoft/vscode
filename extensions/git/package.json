@@ -153,6 +153,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitStagedAmend",
+        "title": "%command.commitStagedAmend%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
         "category": "Git"
@@ -160,6 +165,11 @@
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllAmend",
+        "title": "%command.commitAllAmend%",
         "category": "Git"
       },
       {
@@ -318,11 +328,19 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -447,12 +465,22 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },

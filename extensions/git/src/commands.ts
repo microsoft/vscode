@@ -734,6 +734,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput({ all: false, signoff: true });
 	}
 
+	@command('git.commitStagedAmend')
+	async commitStagedAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: false, amend: true });
+	}
+
 	@command('git.commitAll')
 	async commitAll(): Promise<void> {
 		await this.commitWithAnyInput({ all: true });
@@ -742,6 +747,11 @@ export class CommandCenter {
 	@command('git.commitAllSigned')
 	async commitAllSigned(): Promise<void> {
 		await this.commitWithAnyInput({ all: true, signoff: true });
+	}
+
+	@command('git.commitAllAmend')
+	async commitAllAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: true, amend: true });
 	}
 
 	@command('git.undoCommit')
