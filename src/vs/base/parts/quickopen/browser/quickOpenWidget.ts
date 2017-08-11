@@ -244,7 +244,8 @@ export class QuickOpenWidget implements IModelProvider {
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
 						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
-						keyboardSupport: this.options.keyboardSupport
+						keyboardSupport: this.options.keyboardSupport,
+						preventRootFocus: true
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
