@@ -66,7 +66,7 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			case 'saturation':
 				absoluteValue = normalize(color.hsla.s, min, max, HSL_ENDRANGE);
 				break;
-			case 'luminosity':
+			case 'luminance':
 				absoluteValue = normalize(color.hsla.l, min, max, HSL_ENDRANGE);
 				break;
 		}
@@ -112,7 +112,7 @@ export interface IColorFormatter {
  * - blue
  * - hue
  * - saturation
- * - luminosity
+ * - luminance
  * - alpha
  *
  * Number formats

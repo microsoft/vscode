@@ -50,7 +50,7 @@ suite('Color', () => {
 		assert.deepEqual(new HSLA(355, 0.875, 0.157, 1), Color.getDarkerColor(Color.fromHex('#770811'), Color.fromHex('#000c18'), 0.4).hsla);
 	});
 
-	test('luminosity', function () {
+	test('luminance', function () {
 		assert.deepEqual(0, new Color(new RGBA(0, 0, 0, 255)).getRelativeLuminance());
 		assert.deepEqual(1, new Color(new RGBA(255, 255, 255, 255)).getRelativeLuminance());
 

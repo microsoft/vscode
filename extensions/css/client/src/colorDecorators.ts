@@ -139,8 +139,8 @@ const CSSColorFormats = {
 		transparent: 'rgba({red}, {green}, {blue}, {alpha:2f[0-1]})'
 	},
 	HSL: {
-		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%)',
-		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha:2f[0-1]})'
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha:2f[0-1]})'
 	}
 };
 

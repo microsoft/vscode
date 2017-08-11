@@ -145,7 +145,7 @@ declare module 'vscode' {
 	 *  - `blue`
 	 *  - `hue`
 	 *  - `saturation`
-	 *  - `luminosity`
+	 *  - `luminance`
 	 *  - `alpha`
 	 *
 	 * Supported number formats:
@@ -172,7 +172,7 @@ declare module 'vscode' {
 	 *   - Output: `#FF7F00`
 	 *
 	 *  - CSS HSLA
-	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminosity:d[0-100]}%, {alpha})`
+	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
 	 *   - Output: `hsla(30, 100%, 50%, 1)`
 	 */
 	export type ColorFormat = string | { opaque: string, transparent: string };

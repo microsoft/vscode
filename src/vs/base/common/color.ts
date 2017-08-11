@@ -289,9 +289,9 @@ export class Color {
 		const R = Color._relativeLuminosityForComponent(this.rgba.r);
 		const G = Color._relativeLuminosityForComponent(this.rgba.g);
 		const B = Color._relativeLuminosityForComponent(this.rgba.b);
-		const luminosity = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+		const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
 
-		return roundFloat(luminosity, 4);
+		return roundFloat(luminance, 4);
 	}
 
 	private static _relativeLuminosityForComponent(color: number): number {
