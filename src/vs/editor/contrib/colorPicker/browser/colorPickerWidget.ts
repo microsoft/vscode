@@ -302,7 +302,7 @@ export class ColorPickerWidget extends Widget {
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));
 
-		const element = $('.editor-widget.colorpicker-widget');
+		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
 		const header = new ColorPickerHeader(element, this.model);
