@@ -85,14 +85,14 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 export function expandEmmetAbbreviation(args) {
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax || !validate()) {
-		return;
+		return Promise.resolve(false);
 	}
 
 	const editor = vscode.window.activeTextEditor;
 
 	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
-		return;
+		return Promise.resolve(false);
 	}
 
 	let abbreviationList: ExpandAbbreviationInput[] = [];
@@ -119,13 +119,21 @@ export function expandEmmetAbbreviation(args) {
 				return [rangeToReplace, abbr, []];
 			}
 		}
-		let { abbreviationRange, abbreviation, filters } = extractAbbreviation(editor.document, position);
+		let extractedResults = extractAbbreviation(editor.document, position);
+		if (!extractedResults) {
+			return [null, '', []];
+		}
+
+		let { abbreviationRange, abbreviation, filters } = extractedResults;
 		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filters];
 	};
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
 		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax === 'html');
+		if (!rangeToReplace) {
+			return;
+		}
 		if (!isAbbreviationValid(syntax, abbreviation)) {
 			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
@@ -195,7 +203,7 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
  */
 function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
-		return;
+		return Promise.resolve(false);
 	}
 
 	// Snippet to replace at multiple cursors are not the same
@@ -223,6 +231,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	if (expandedText) {
 		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
+	return Promise.resolve(false);
 }
 
 /**
