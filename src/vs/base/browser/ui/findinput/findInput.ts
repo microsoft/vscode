@@ -240,6 +240,7 @@ export class FindInput extends Widget {
 	public setRegex(value: boolean): void {
 		this.regex.checked = value;
 		this.setInputWidth();
+		this.validate();
 	}
 
 	public focusOnCaseSensitive(): void {
