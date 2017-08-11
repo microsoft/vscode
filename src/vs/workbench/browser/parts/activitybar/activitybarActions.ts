@@ -523,30 +523,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 		this.name = action.label;
 	}
 
-	protected updateStyles(): void {
-		const theme = this.themeService.getTheme();
-
-		// Label
-		if (this.$label) {
-			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-
-			this.$label.style('background-color', background ? background.toString() : null);
-		}
-	}
-
-	public render(container: HTMLElement): void {
-		super.render(container);
-
-		this.$label = $('a.action-label').attr({
-			tabIndex: '0',
-			role: 'button',
-			title: this.name,
-			class: this.cssClass
-		}).appendTo(this.builder);
-
-		this.updateStyles();
-	}
-
 	public showMenu(): void {
 		if (this.actions) {
 			dispose(this.actions);
