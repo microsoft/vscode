@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.16.0",
-  "electronVersion": "1.6.6",
+  "electronVersion": "1.7.4",
   "distro": "724097db097bfde7796fcca70aaac83ba80a95f8",
   "author": {
     "name": "Microsoft Corporation"
@@ -60,7 +60,7 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
-    "electron-mksnapshot": "1.6.0",
+    "electron-mksnapshot": "~1.7.0",
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
