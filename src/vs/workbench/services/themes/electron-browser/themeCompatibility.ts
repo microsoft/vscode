@@ -31,8 +31,9 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 				for (let key in settings) {
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
-						let color = Color.fromHex(settings[key]);
-						if (color) {
+						let colorHex = settings[key];
+						if (typeof colorHex === 'string') {
+							let color = Color.fromHex(colorHex);
 							for (let colorId of mappings) {
 								resultColors[colorId] = color;
 							}
