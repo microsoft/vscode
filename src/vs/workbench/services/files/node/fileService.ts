@@ -368,7 +368,7 @@ export class FileService implements IFileService {
 						return this.resolve(resource);
 					}, error => {
 						// Can't use 'w' for hidden files, so truncate and use 'r+' if the file exists
-						if (!exists || error.code !== 'EPERM') {
+						if (!exists || error.code !== 'EPERM' || !isWindows) {
 							throw error;
 						}
 
