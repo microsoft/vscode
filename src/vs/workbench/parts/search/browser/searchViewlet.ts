@@ -209,6 +209,7 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 				this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocussed);
 			});
 
@@ -232,6 +233,8 @@ export class SearchViewlet extends Viewlet {
 					});
 
 				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+				this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 				this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocussed);
 			});
 		}).getHTMLElement();
@@ -864,7 +867,7 @@ export class SearchViewlet extends Viewlet {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
 		if (workspace && resource) {
-			if (workspace.roots.length === 1) {
+			if (this.contextService.hasFolderWorkspace()) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
@@ -952,23 +955,54 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-
 		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+
+		const onQueryValidationError = (err: Error) => {
+			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
+			this.viewModel.searchResult.clear();
+		};
+
 		let query: ISearchQuery;
-		// try {
-		query = this.queryBuilder.text(content, folderResources, options);
-		// } catch (e) {
-		// 	// TODO@roblou show error popup
-		// }
-
-		this.onQueryTriggered(query, excludePatternText, includePatternText);
-
-		if (!preserveFocus) {
-			this.searchWidget.focus(false); // focus back to input field
+		try {
+			query = this.queryBuilder.text(content, folderResources, options);
+		} catch (err) {
+			onQueryValidationError(err);
 		}
+
+		this.validateQuery(query).then(() => {
+			this.onQueryTriggered(query, excludePatternText, includePatternText);
+
+			if (!preserveFocus) {
+				this.searchWidget.focus(false); // focus back to input field
+			}
+		}, onQueryValidationError);
+	}
+
+	private validateQuery(query: ISearchQuery): TPromise<void> {
+		// Validate folderQueries
+		const folderQueriesExistP =
+			query.folderQueries.map(fq => {
+				return this.fileService.existsFile(fq.folder);
+			});
+
+		return TPromise.join(folderQueriesExistP).then(existResults => {
+			const nonExistantFolders = existResults.map((exists, i) => ({ exists, query: query.folderQueries[i] }))
+				.filter(folderExists => !folderExists.exists);
+
+			if (nonExistantFolders.length) {
+				const nonExistantPath = nonExistantFolders[0].query.folder.fsPath;
+				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
+				return TPromise.wrapError(new Error(searchPathNotFoundError));
+			}
+
+			return undefined;
+		});
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePatternText: string, includePatternText: string): void {
+		this.inputPatternExcludes.onSearchSubmit();
+		this.inputPatternIncludes.onSearchSubmit();
+
 		this.viewModel.cancelSearch();
 
 		// Progress total is 100.0% for more progress bar granularity
@@ -1042,7 +1076,7 @@ export class SearchViewlet extends Viewlet {
 				} else if (hasExcludes) {
 					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
 				} else {
-					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions - ");
+					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and ignore files - ");
 				}
 
 				// Indicate as status to ARIA
@@ -1092,6 +1126,22 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
+				if (completed) {
+					$(p).span({
+						text: ' - '
+					});
+
+					$(p).a({
+						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
+						text: nls.localize('openSettings.learnMore', "Learn More")
+					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+						dom.EventHelper.stop(e, false);
+
+						window.open('https://go.microsoft.com/fwlink/?linkid=853977');
+					});
+				}
+
 				if (!this.contextService.hasWorkspace()) {
 					this.searchWithoutFolderMessage(div);
 				}
@@ -1115,6 +1165,7 @@ export class SearchViewlet extends Viewlet {
 				isDone = true;
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
+				this.viewModel.searchResult.clear();
 			}
 		};
 
@@ -1192,7 +1243,7 @@ export class SearchViewlet extends Viewlet {
 		const msgWasHidden = this.messages.isHidden();
 		if (fileCount > 0) {
 			const div = this.clearMessage();
-			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount, this.viewModel.searchResult.folderCount()) });
+			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
 			if (msgWasHidden) {
 				this.reLayout();
 			}
@@ -1201,37 +1252,15 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	private buildResultCountMessage(resultCount: number, fileCount: number, folderCount: number): string {
-		if (!this.contextService.hasMultiFolderWorkspace()) {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
-			} else {
-				return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
-			}
-		} else if (folderCount === 1) {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.folder.file.result', "{0} result in {1} file in {2} folder", resultCount, fileCount, folderCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.folder.files.result', "{0} result in {1} files in {2} folder", resultCount, fileCount, folderCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.folder.file.results', "{0} results in {1} file in {2} folder", resultCount, fileCount, folderCount);
-			} else {
-				return nls.localize('search.folder.files.results', "{0} results in {1} files in {2} folder", resultCount, fileCount, folderCount);
-			}
+	private buildResultCountMessage(resultCount: number, fileCount: number): string {
+		if (resultCount === 1 && fileCount === 1) {
+			return nls.localize('search.file.result', "{0} result in {1} file", resultCount, fileCount);
+		} else if (resultCount === 1) {
+			return nls.localize('search.files.result', "{0} result in {1} files", resultCount, fileCount);
+		} else if (fileCount === 1) {
+			return nls.localize('search.file.results', "{0} results in {1} file", resultCount, fileCount);
 		} else {
-			if (resultCount === 1 && fileCount === 1) {
-				return nls.localize('search.folders.file.result', "{0} result in {1} file in {2} folders", resultCount, fileCount, folderCount);
-			} else if (resultCount === 1) {
-				return nls.localize('search.folders.files.result', "{0} result in {1} files in {2} folders", resultCount, fileCount, folderCount);
-			} else if (fileCount === 1) {
-				return nls.localize('search.folders.file.results', "{0} results in {1} file in {2} folders", resultCount, fileCount, folderCount);
-			} else {
-				return nls.localize('search.folders.files.results', "{0} results in {1} files in {2} folders", resultCount, fileCount, folderCount);
-			}
+			return nls.localize('search.files.results', "{0} results in {1} files", resultCount, fileCount);
 		}
 	}
 

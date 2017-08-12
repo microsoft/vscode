@@ -100,16 +100,16 @@ suite('Snippet Variables Resolver', function () {
 
 	test('TextmateSnippet, resolve variable', function () {
 		const snippet = new SnippetParser().parse('"$TM_CURRENT_WORD"', true);
-		assert.equal(snippet.text, '""');
+		assert.equal(snippet.toString(), '""');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.text, '"this"');
+		assert.equal(snippet.toString(), '"this"');
 
 	});
 
 	test('TextmateSnippet, resolve variable with default', function () {
 		const snippet = new SnippetParser().parse('"${TM_CURRENT_WORD:foo}"', true);
-		assert.equal(snippet.text, '"foo"');
+		assert.equal(snippet.toString(), '"foo"');
 		snippet.resolveVariables(resolver);
-		assert.equal(snippet.text, '"this"');
+		assert.equal(snippet.toString(), '"this"');
 	});
 });

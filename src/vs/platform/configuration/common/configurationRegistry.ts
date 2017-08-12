@@ -53,7 +53,7 @@ export interface IConfigurationRegistry {
 }
 
 export enum ConfigurationScope {
-	WORKBENCH = 1,
+	WINDOW = 1,
 	RESOURCE
 }
 
@@ -158,7 +158,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		}
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WORKBENCH, overridable: boolean = false) {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false) {
 		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;

@@ -23,6 +23,7 @@
 	"statusBarVisibility": "控制 Workbench 底端狀態列的可視性。",
 	"activityBarVisibility": "控制活動列在 workbench 中的可見度。",
 	"closeOnFileDelete": "控制顯示檔案的編輯器是否應在其他處理序刪除或重新命名該檔案時自動關閉。若停用此選項，當發生前述狀況時，編輯器會保持開啟，並呈現已變更的狀態。請注意，從應用程式內刪除一律會關閉編輯器，但已變更的檔案在資料未儲存前一律不會關閉。",
+	"workbench.fontAliasing.none": "禁用字體平滑.文字將會顯示鋸齒狀與鋒利的邊緣.",
 	"swipeToNavigate": "利用三指水平撥動在開啟的檔案間瀏覽。",
 	"workbenchConfigurationTitle": "工作台",
 	"window.openFilesInNewWindow.on": "檔案會在新視窗中開啟",

@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "Colore di sfondo per il bordo intorno alla riga alla posizione del cursore.",
 	"rangeHighlight": "Colore di sfondo degli intervalli evidenziati, ad esempio dalle funzionalità Quick Open e Trova.",
 	"caret": "Colore del cursore dell'editor.",
+	"editorCursorBackground": "Colore di sfondo del cursore editor. Permette di personalizzare il colore di un carattere quando sovrapposto da un blocco cursore.",
 	"editorWhitespaces": "Colore dei caratteri di spazio vuoto nell'editor.",
 	"editorIndentGuides": "Colore delle guide per i rientri dell'editor.",
 	"editorLineNumbers": "Colore dei numeri di riga dell'editor.",

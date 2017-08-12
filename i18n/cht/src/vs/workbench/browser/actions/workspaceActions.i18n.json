@@ -7,8 +7,11 @@
 	"openFolder": "開啟資料夾...",
 	"openFileFolder": "開啟...",
 	"cancel": "取消",
+	"newWorkspaceFormExisting": "新的工作區從現有...",
 	"addFolderToWorkspace": "將資料夾新增到工作區...",
+	"add": "新增",
 	"addFolderToWorkspaceTitle": "將資料夾新增到工作區",
 	"removeFolderFromWorkspace": "將資料夾從工作區移除",
+	"saveWorkspaceAsAction": "另存工作區為...",
 	"save": "儲存(&&S)"
 }

@@ -49,7 +49,7 @@ export class Menu implements IMenu {
 			// subscribe to context changes
 			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
 				if (!keys) {
-					throw new Error(`Receiving bad onDidChangeContext-event form MenuId[${this._id.id}]`);
+					return;
 				}
 				for (let k of keys) {
 					if (keysFilter.has(k)) {

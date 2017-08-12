@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function splitJoinTag() {
@@ -13,28 +13,28 @@ export function splitJoinTag() {
 		return;
 	}
 
-	let rootNode = parseDocument(editor.document);
+	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			if (rangeToReplace && textToReplaceWith) {
-				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+			if (textEdit) {
+				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
-	let nodeToUpdate: Node = getNode(rootNode, selection.start);
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.TextEdit {
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
 
 	if (!nodeToUpdate) {
-		return [null, null];
+		return;
 	}
 
 	if (!nodeToUpdate.close) {
@@ -54,5 +54,5 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		textToReplaceWith = '/>';
 	}
 
-	return [rangeToReplace, textToReplaceWith];
+	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
 }

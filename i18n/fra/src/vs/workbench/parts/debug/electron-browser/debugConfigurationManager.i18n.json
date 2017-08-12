@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Nom du composé. Apparaît dans le menu déroulant de la configuration de lancement.",
 	"app.launch.json.compounds.configurations": "Noms des configurations qui sont lancées dans le cadre de ce composé.",
 	"debugNoType": "Le 'type' de l'adaptateur de débogage ne peut pas être omis. Il doit s'agir du type 'string'.",
-	"DebugConfig.failed": "Impossible de créer le fichier 'launch.json' dans le dossier '.vscode' ({0}).",
-	"selectDebug": "Sélectionner l'environnement"
+	"selectDebug": "Sélectionner l'environnement",
+	"DebugConfig.failed": "Impossible de créer le fichier 'launch.json' dans le dossier '.vscode' ({0})."
 }

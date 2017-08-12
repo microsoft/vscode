@@ -8,6 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
+import { first } from 'vs/base/common/arrays';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -310,7 +311,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			this.selectConfiguration(this.selectedLaunch);
+			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.selectedLaunch);
+			this.selectConfiguration(toSelect);
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
@@ -522,31 +524,43 @@ class Launch implements ILaunch {
 		const resource = this.uri;
 		let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => true, err =>
-			this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
+		return this.fileService.resolveContent(resource).then(content => content, err => {
+			return this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
 				.then(content => {
 					if (!content) {
-						return false;
+						return undefined;
 					}
 
 					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => true);
-				}))
-			.then(errorFree => {
-				if (!errorFree) {
-					return undefined;
+					return this.fileService.updateContent(resource, content).then(() => {
+						// convert string into IContent; see #32135
+						return { value: content };
+					});
+				});
+		}).then(content => {
+			if (!content) {
+				return undefined;
+			}
+			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+			let startLineNumber = 1;
+			for (let i = 0; i < index; i++) {
+				if (content.value.charAt(i) === '\n') {
+					startLineNumber++;
 				}
+			}
+			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-				return this.editorService.openEditor({
-					resource: resource,
-					options: {
-						forceOpen: true,
-						pinned: configFileCreated, // pin only if config file is created #8727
-						revealIfVisible: true
-					},
-				}, sideBySide);
-			}, (error) => {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
-			});
+			return this.editorService.openEditor({
+				resource: resource,
+				options: {
+					forceOpen: true,
+					selection,
+					pinned: configFileCreated, // pin only if config file is created #8727
+					revealIfVisible: true
+				},
+			}, sideBySide);
+		}, (error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+		});
 	}
 }

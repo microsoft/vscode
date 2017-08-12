@@ -240,8 +240,8 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground.toRGBHex()}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBHex()}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.foreground)}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.background)}</td>`;
 		result += `</tbody></table>`;
 
 		result += `<hr class="tokens-inspect-separator"/>`;

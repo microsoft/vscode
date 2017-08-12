@@ -37,6 +37,7 @@
 	"reload": "重载窗口(&&R)",
 	"toggleExtensionsViewlet": "显示扩展",
 	"installExtensions": "安装扩展",
+	"showEnabledExtensions": "显示启用的扩展",
 	"showInstalledExtensions": "显示已安装扩展",
 	"showDisabledExtensions": "显示已禁用的扩展",
 	"clearExtensionsInput": "清除扩展输入",

@@ -9,7 +9,6 @@
 	"focusNextInputBox": "Centrarse en el siguiente cuadro de entrada",
 	"focusPreviousInputBox": "Centrarse en el anterior cuadro de entrada",
 	"replaceInFiles": "Reemplazar en archivos",
-	"findInFolder": "Buscar en carpeta",
 	"RefreshAction.label": "Actualizar",
 	"ClearSearchResultsAction.label": "Borrar resultados de la búsqueda",
 	"FocusNextSearchResult.label": "Centrarse en el siguiente resultado de la búsqueda",

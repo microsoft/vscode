@@ -42,6 +42,14 @@
 	"search.files.result": "{1} 文件中有 {0} 个结果",
 	"search.file.results": "{1} 文件中有 {0} 个结果",
 	"search.files.results": "{1} 文件中有 {0} 个结果",
+	"search.folder.file.result": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folder.files.result": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folder.file.results": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folder.files.results": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folders.file.result": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folders.files.result": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folders.file.results": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
+	"search.folders.files.results": "{2} 个文件夹中的 {1} 个文件中有 {0} 个结果",
 	"searchWithoutFolder": "尚未打开文件夹。当前仅可搜索打开的文件夹 - ",
 	"openFolder": "打开文件夹"
 }

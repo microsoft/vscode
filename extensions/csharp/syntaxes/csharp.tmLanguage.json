@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/e7f564b60e08e6d8400d2512918c2ff5ccbf4cec",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/2f2152632650d427e99e261f093d52b807abc72d",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"fileTypes": [
@@ -3817,6 +3817,12 @@
 					"include": "#preprocessor-endregion"
 				},
 				{
+					"include": "#preprocessor-load"
+				},
+				{
+					"include": "#preprocessor-r"
+				},
+				{
 					"include": "#preprocessor-line"
 				},
 				{
@@ -3885,6 +3891,44 @@
 					"name": "string.unquoted.preprocessor.message.cs"
 				}
 			}
+		},
+		"preprocessor-load": {
+			"begin": "\\b(load)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.preprocessor.load.cs"
+				}
+			},
+			"end": "(?=$)",
+			"patterns": [
+				{
+					"match": "\\\"[^\"]*\\\"",
+					"captures": {
+						"0": {
+							"name": "string.quoted.double.cs"
+						}
+					}
+				}
+			]
+		},
+		"preprocessor-r": {
+			"begin": "\\b(r)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.preprocessor.r.cs"
+				}
+			},
+			"end": "(?=$)",
+			"patterns": [
+				{
+					"match": "\\\"[^\"]*\\\"",
+					"captures": {
+						"0": {
+							"name": "string.quoted.double.cs"
+						}
+					}
+				}
+			]
 		},
 		"preprocessor-region": {
 			"match": "\\b(region)\\b\\s*(.*)(?=$)",

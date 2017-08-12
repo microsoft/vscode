@@ -378,6 +378,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this.emit(TaskSystemEvents.Inactive, event);
+					// See https://github.com/Microsoft/vscode/issues/31965
+					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
+						exitCode = 1;
+					}
 					resolve({ exitCode });
 				});
 			});

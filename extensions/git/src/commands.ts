@@ -156,7 +156,7 @@ export class CommandCenter {
 		await this._openResource(resource);
 	}
 
-	private async _openResource(resource: Resource): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -167,20 +167,22 @@ export class CommandCenter {
 			return;
 		}
 
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
-		if (!left) {
-			return await commands.executeCommand<void>('vscode.open', right, viewColumn);
-		}
-
 		const opts: TextDocumentShowOptions = {
-			viewColumn
+			preserveFocus: true,
+			preview: preview,
+			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
 		const activeTextEditor = window.activeTextEditor;
 
 		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
 			opts.selection = activeTextEditor.selection;
+		}
+
+		if (!left) {
+			const document = await workspace.openTextDocument(right);
+			await window.showTextDocument(document, opts);
+			return;
 		}
 
 		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
@@ -194,6 +196,9 @@ export class CommandCenter {
 
 			case Status.MODIFIED:
 				return toGitUri(resource.resourceUri, '~');
+
+			case Status.DELETED_BY_THEM:
+				return toGitUri(resource.resourceUri, '');
 		}
 	}
 
@@ -206,6 +211,7 @@ export class CommandCenter {
 				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
+			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
 				return toGitUri(resource.resourceUri, 'HEAD');
 
@@ -221,6 +227,7 @@ export class CommandCenter {
 
 				return resource.resourceUri;
 
+			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
 		}
@@ -232,9 +239,12 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
 		}
 
@@ -297,14 +307,14 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(arg?: Resource | Uri): Promise<void> {
-		let uri: Uri | undefined;
+	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
 			if (arg.scheme === 'git') {
-				uri = Uri.file(fromGitUri(arg).path);
+				uris = [Uri.file(fromGitUri(arg).path)];
 			} else if (arg.scheme === 'file') {
-				uri = arg;
+				uris = [arg];
 			}
 		} else {
 			let resource = arg;
@@ -315,23 +325,34 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uri = resource.resourceUri;
+				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
 			}
 		}
 
-		if (!uri) {
+		if (!uris) {
 			return;
 		}
 
-		const activeTextEditor = window.activeTextEditor && window.activeTextEditor;
-		const isSameUri = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString();
-		const selections = activeTextEditor && activeTextEditor.selections;
-		const viewColumn = activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One;
+		const preview = uris.length === 1 ? true : false;
+		const activeTextEditor = window.activeTextEditor;
+		for (const uri of uris) {
+			// If the active editor matches the current uri, get its selection
+			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
+				? activeTextEditor.selections
+				: undefined;
 
-		await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+			const opts: TextDocumentShowOptions = {
+				preserveFocus: true,
+				preview: preview,
+				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+			};
 
-		if (isSameUri && selections && window.activeTextEditor) {
-			window.activeTextEditor.selections = selections;
+			const document = await workspace.openTextDocument(uri);
+			await window.showTextDocument(document, opts);
+
+			if (selections && window.activeTextEditor) {
+				window.activeTextEditor.selections = selections;
+			}
 		}
 	}
 
@@ -362,22 +383,37 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
-	async openChange(arg?: Resource | Uri): Promise<void> {
-		let resource: Resource | undefined = undefined;
+	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let resources: Resource[] | undefined = undefined;
 
-		if (arg instanceof Resource) {
-			resource = arg;
-		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(arg);
-		} else {
-			resource = this.getSCMResource();
+		if (arg instanceof Uri) {
+			const resource = this.getSCMResource(arg);
+			if (resource !== undefined) {
+				resources = [resource];
+			}
+		}
+		else {
+			let resource: Resource | undefined = undefined;
+
+			if (arg instanceof Resource) {
+				resource = arg;
+			} else {
+				resource = this.getSCMResource();
+			}
+
+			if (resource) {
+				resources = [...resourceStates as Resource[], resource];
+			}
 		}
 
-		if (!resource) {
+		if (!resources) {
 			return;
 		}
 
-		return await this._openResource(resource);
+		const preview = resources.length === 1 ? undefined : false;
+		for (const resource of resources) {
+			await this._openResource(resource, preview);
+		}
 	}
 
 	@command('git.stage')
@@ -600,6 +636,7 @@ export class CommandCenter {
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = this.model.indexGroup.resources.length === 0;
 		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
 
@@ -622,6 +659,9 @@ export class CommandCenter {
 		if (!opts) {
 			opts = { all: noStagedChanges };
 		}
+
+		// enable signing of commits if configurated
+		opts.signCommit = enableCommitSigning;
 
 		if (
 			// no changes
@@ -694,6 +734,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput({ all: false, signoff: true });
 	}
 
+	@command('git.commitStagedAmend')
+	async commitStagedAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: false, amend: true });
+	}
+
 	@command('git.commitAll')
 	async commitAll(): Promise<void> {
 		await this.commitWithAnyInput({ all: true });
@@ -702,6 +747,11 @@ export class CommandCenter {
 	@command('git.commitAllSigned')
 	async commitAllSigned(): Promise<void> {
 		await this.commitWithAnyInput({ all: true, signoff: true });
+	}
+
+	@command('git.commitAllAmend')
+	async commitAllAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: true, amend: true });
 	}
 
 	@command('git.undoCommit')
@@ -837,6 +887,29 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.createTag')
+	async createTag(): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: localize('tag name', "Tag name"),
+			prompt: localize('provide tag name', "Please provide a tag name"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const inputMessage = await window.showInputBox({
+			placeHolder: localize('tag message', "Message"),
+			prompt: localize('provide tag message', "Please provide a message to annotate the tag"),
+			ignoreFocusOut: true
+		});
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		const message = inputMessage || name;
+		await this.model.tag(name, message);
+	}
+
 	@command('git.pullFrom')
 	async pullFrom(): Promise<void> {
 		const remotes = this.model.remotes;
@@ -901,6 +974,20 @@ export class CommandCenter {
 		}
 
 		await this.model.push();
+	}
+
+	@command('git.pushWithTags')
+	async pushWithTags(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		await this.model.pushTags();
+
+		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 	}
 
 	@command('git.pushTo')

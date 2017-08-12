@@ -574,7 +574,7 @@ export class Repository {
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -612,7 +612,7 @@ export class Repository {
 		}
 	}
 
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean, signCommit?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (opts.all) {
@@ -625,6 +625,10 @@ export class Repository {
 
 		if (opts.signoff) {
 			args.push('--signoff');
+		}
+
+		if (opts.signCommit) {
+			args.push('-S');
 		}
 
 		try {
@@ -675,6 +679,18 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async tag(name: string, message?: string): Promise<void> {
+		let args = ['tag'];
+
+		if (message) {
+			args = [...args, '-a', name, '-m', message];
+		} else {
+			args = [...args, name];
+		}
+
+		await this.run(args);
 	}
 
 	async clean(paths: string[]): Promise<void> {
@@ -786,11 +802,15 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (setUpstream) {
 			args.push('-u');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {

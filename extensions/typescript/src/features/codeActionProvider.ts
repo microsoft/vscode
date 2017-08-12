@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window, ProviderResult } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -32,7 +32,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
-	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]> {
+	public async provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Promise<Command[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -41,6 +41,12 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		if (!file) {
 			return [];
 		}
+
+		const supportedActions = await this.getSupportedActionsForContext(context);
+		if (!supportedActions.size) {
+			return [];
+		}
+
 		let formattingOptions: FormattingOptions | undefined = undefined;
 		for (const editor of window.visibleTextEditors) {
 			if (editor.document.fileName === document.fileName) {
@@ -48,27 +54,23 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 				break;
 			}
 		}
+
 		const source: Source = {
 			uri: document.uri,
 			version: document.version,
 			range: range,
 			formattingOptions: formattingOptions
 		};
-		return this.getSupportedActionsForContext(context)
-			.then(supportedActions => {
-				if (!supportedActions.size) {
-					return [];
-				}
-				return this.client.execute('getCodeFixes', {
-					file: file,
-					startLine: range.start.line + 1,
-					endLine: range.end.line + 1,
-					startOffset: range.start.character + 1,
-					endOffset: range.end.character + 1,
-					errorCodes: Array.from(supportedActions)
-				} as Proto.CodeFixRequestArgs, token).then(response => response.body || []);
-			})
-			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
+		const args: Proto.CodeFixRequestArgs = {
+			file: file,
+			startLine: range.start.line + 1,
+			endLine: range.end.line + 1,
+			startOffset: range.start.character + 1,
+			endOffset: range.end.character + 1,
+			errorCodes: Array.from(supportedActions)
+		};
+		const response = await this.client.execute('getCodeFixes', args, token);
+		return (response.body || []).map(action => this.actionToEdit(source, action));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -110,38 +112,36 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		};
 	}
 
-	private onCodeAction(source: Source, workspaceEdit: WorkspaceEdit) {
-		workspace.applyEdit(workspaceEdit).then(success => {
-			if (!success) {
-				return Promise.reject<boolean>(false);
-			}
+	private async onCodeAction(source: Source, workspaceEdit: WorkspaceEdit): Promise<boolean> {
+		const success = workspace.applyEdit(workspaceEdit);
+		if (!success) {
+			return false;
+		}
 
-			let firstEdit: TextEdit | null = null;
-			for (const [uri, edits] of workspaceEdit.entries()) {
-				if (uri.fsPath === source.uri.fsPath) {
-					firstEdit = edits[0];
-					break;
-				}
+		let firstEdit: TextEdit | undefined = undefined;
+		for (const [uri, edits] of workspaceEdit.entries()) {
+			if (uri.fsPath === source.uri.fsPath) {
+				firstEdit = edits[0];
+				break;
 			}
+		}
 
-			if (!firstEdit) {
-				return true;
-			}
+		if (!firstEdit) {
+			return true;
+		}
 
-			const newLines = firstEdit.newText.match(/\n/g);
-			const editedRange = new Range(
-				firstEdit.range.start.line, 0,
-				firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
-			// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
-			// apply formatting to the source range until TS returns formatted results
-			return commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, source.formattingOptions || {}).then((edits: TextEdit[]) => {
-				if (!edits || !edits.length) {
-					return false;
-				}
-				const workspaceEdit = new WorkspaceEdit();
-				workspaceEdit.set(source.uri, edits);
-				return workspace.applyEdit(workspaceEdit);
-			});
-		});
+		const newLines = firstEdit.newText.match(/\n/g);
+		const editedRange = new Range(
+			firstEdit.range.start.line, 0,
+			firstEdit.range.end.line + 1 + (newLines ? newLines.length : 0), 0);
+		// TODO: Workaround for https://github.com/Microsoft/TypeScript/issues/12249
+		// apply formatting to the source range until TS returns formatted results
+		const edits = (await commands.executeCommand('vscode.executeFormatRangeProvider', source.uri, editedRange, source.formattingOptions || {})) as TextEdit[];
+		if (!edits || !edits.length) {
+			return false;
+		}
+		const formattingEdit = new WorkspaceEdit();
+		formattingEdit.set(source.uri, edits);
+		return workspace.applyEdit(formattingEdit);
 	}
 }

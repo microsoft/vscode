@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/php.cson",
+		"This file has been converted from https://github.com/roblourens/language-php/blob/vscode_1.15/grammars/php.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/9cb0db1e4fcb14532e93c873187406e6ba829af4",
+	"version": "https://github.com/roblourens/language-php/commit/91d50ab5f871ea2d11b4c511dc0b9a972e4ac5ce",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -154,20 +154,23 @@
 		"class-body": {
 			"patterns": [
 				{
-					"match": "(?xi)\n\\b(use)\\s+\n([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)*)\n(?=\\s*;)",
+					"match": "(?xi)\n\\b(use)\\s+\n([a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)*)\n(?=\\s*;)",
 					"name": "meta.use.php",
 					"captures": {
 						"1": {
 							"name": "keyword.other.use.php"
 						},
 						"2": {
-							"name": "support.class.php"
+							"patterns": [
+								{
+									"include": "#class-name"
+								}
+							]
 						},
 						"3": {
 							"patterns": [
 								{
-									"match": "(?i)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*",
-									"name": "support.class.php"
+									"include": "#class-name"
 								},
 								{
 									"match": ",",
@@ -193,16 +196,19 @@
 					"name": "meta.use.php",
 					"patterns": [
 						{
-							"match": "(?xi)\n([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)*)",
+							"match": "(?xi)\n([a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)*)",
 							"captures": {
 								"1": {
-									"name": "support.class.php"
+									"patterns": [
+										{
+											"include": "#class-name"
+										}
+									]
 								},
 								"2": {
 									"patterns": [
 										{
-											"match": "(?i)[a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*",
-											"name": "support.class.php"
+											"include": "#class-name"
 										},
 										{
 											"match": ",",

@@ -29,6 +29,7 @@ import Severity from 'vs/base/common/severity';
 import { ColorThemeData, fromStorageData, fromExtensionTheme, createUnloadedTheme } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -245,6 +246,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			themeData = createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
 		}
 		themeData.setCustomColors(this.colorCustomizations);
+		themeData.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, null, true);
 
@@ -452,7 +454,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
 		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
-			let background = newTheme.getColor(editorBackground).toRGBHex(); // only take RGB, its what is used in the initial CSS
+			let background = Color.Format.CSS.formatHex(newTheme.getColor(editorBackground)); // only take RGB, its what is used in the initial CSS
 			let data = { id: newTheme.id, background: background };
 			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify(data) });
 		}
@@ -891,7 +893,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 			let src = font.src.map(l => `url('${resolvePath(l.path)}') format('${l.format}')`).join(', ');
 			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weigth: ${font.weight}; font-style: ${font.style}; }`);
 		});
-		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
+		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
 	}
 
 	for (let defId in selectorByDefinitionId) {
@@ -996,9 +998,9 @@ const colorCustomizationsSchema: IJSONSchema = {
 	default: {},
 	defaultSnippets: [{
 		body: {
-			'statusBarBackground': '#666666',
-			'panelBackground': '#555555',
-			'sideBarBackground': '#444444'
+			'statusBar.background': '#666666',
+			'panel.background': '#555555',
+			'sideBar.background': '#444444'
 		}
 	}]
 };
@@ -1020,14 +1022,19 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-const tokenGroupSettings = {
-	anyOf: [
-		{
-			type: 'string',
-			format: 'color'
-		},
-		colorThemeSchema.tokenColorizationSettingSchema
-	]
+function tokenGroupSettings(description: string) {
+	return {
+		description,
+		default: '#FF0000',
+		anyOf: [
+			{
+				type: 'string',
+				format: 'color',
+				defaultSnippets: [{ body: '#FF0000' }]
+			},
+			colorThemeSchema.tokenColorizationSettingSchema
+		]
+	};
 };
 
 configurationRegistry.registerConfiguration({
@@ -1037,15 +1044,16 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[CUSTOM_EDITOR_COLORS_SETTING]: {
 			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
+			default: {},
 			properties: {
-				comments: tokenGroupSettings,
-				strings: tokenGroupSettings,
-				keywords: tokenGroupSettings,
-				numbers: tokenGroupSettings,
-				types: tokenGroupSettings,
-				functions: tokenGroupSettings,
-				variables: tokenGroupSettings,
-				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema
+				comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
+				strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
+				keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
+				numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
+				types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
+				functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
+				variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
+				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
 			}
 		}
 	}

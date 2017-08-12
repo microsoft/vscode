@@ -28,5 +28,6 @@
 	"iconThemeError": "文件图标主题未知或未安装。",
 	"workbenchColors": "覆盖当前所选颜色主题的颜色。",
 	"workbenchColors.deprecated": "该设置不再是实验性设置，并已重命名为“workbench.colorCustomizations”",
-	"workbenchColors.deprecatedDescription": "改用“workbench.colorCustomizations”"
+	"workbenchColors.deprecatedDescription": "改用“workbench.colorCustomizations”",
+	"editorColors": "覆盖当前所选颜色主题中的编辑器颜色和字体样式。"
 }

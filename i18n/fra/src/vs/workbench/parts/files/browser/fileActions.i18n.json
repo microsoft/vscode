@@ -69,5 +69,7 @@
 	"emptyFileNameError": "Un nom de fichier ou de dossier doit être fourni.",
 	"fileNameExistsError": "Un fichier ou dossier **{0}** existe déjà à cet emplacement. Choisissez un autre nom.",
 	"invalidFileNameError": "Le nom **{0}** est non valide en tant que nom de fichier ou de dossier. Choisissez un autre nom.",
-	"filePathTooLongError": "Le nom **{0}** correspond à un chemin d'accès trop long. Choisissez un nom plus court."
+	"filePathTooLongError": "Le nom **{0}** correspond à un chemin d'accès trop long. Choisissez un nom plus court.",
+	"compareWithSaved": "Compare le fichier actif avec celui enregistré",
+	"modifiedLabel": "{0} (sur le disque) ↔ {1}"
 }

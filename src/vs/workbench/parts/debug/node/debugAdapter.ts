@@ -40,10 +40,10 @@ export class Adapter {
 		}
 
 		const adapterExecutable = <IAdapterExecutable>{
-			command: this.getProgram(root),
+			command: this.getProgram(),
 			args: this.getAttributeBasedOnPlatform('args')
 		};
-		const runtime = this.getRuntime(root);
+		const runtime = this.getRuntime();
 		if (runtime) {
 			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
 			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
@@ -82,19 +82,17 @@ export class Adapter {
 			"Cannot determine executable for debug adapter '{0}'.", details.command)));
 	}
 
-	private getRuntime(root: uri): string {
+	private getRuntime(): string {
 		let runtime = this.getAttributeBasedOnPlatform('runtime');
 		if (runtime && runtime.indexOf('./') === 0) {
-			runtime = root ? this.configurationResolverService.resolve(root, runtime) : runtime;
 			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
 		}
 		return runtime;
 	}
 
-	private getProgram(root: uri): string {
+	private getProgram(): string {
 		let program = this.getAttributeBasedOnPlatform('program');
 		if (program) {
-			program = root ? this.configurationResolverService.resolve(root, program) : program;
 			program = paths.join(this.extensionDescription.extensionFolderPath, program);
 		}
 		return program;

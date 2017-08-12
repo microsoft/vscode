@@ -99,7 +99,7 @@ export class MoveLinesCommand implements ICommand {
 				let insertingText = movingLineText;
 
 				if (this.isAutoIndent(model, s)) {
-					let movingLineMatchResult = this.matchEnterRule(model, s.startLineNumber - 1, movingLineNumber, indentConverter, tabSize);
+					let movingLineMatchResult = this.matchEnterRule(model, indentConverter, tabSize, movingLineNumber, s.startLineNumber - 1);
 					// if s.startLineNumber - 1 matches onEnter rule, we still honor that.
 					if (movingLineMatchResult !== null) {
 						let oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
@@ -132,7 +132,7 @@ export class MoveLinesCommand implements ICommand {
 					// to s.startLineNumber
 					builder.addEditOperation(new Range(s.startLineNumber, 1, s.startLineNumber, 1), insertingText + '\n');
 
-					let ret = this.matchEnterRule(model, s.endLineNumber + 1, s.startLineNumber, indentConverter, tabSize);
+					let ret = this.matchEnterRule(model, indentConverter, tabSize, s.startLineNumber, s.startLineNumber, insertingText);
 					// check if the line being moved before matches onEnter rules, if so let's adjust the indentation by onEnter rules.
 					if (ret !== null) {
 						if (ret !== 0) {
@@ -187,7 +187,7 @@ export class MoveLinesCommand implements ICommand {
 						}
 					};
 
-					let ret = this.matchEnterRule(model, s.startLineNumber - 2, s.startLineNumber, indentConverter, tabSize);
+					let ret = this.matchEnterRule(model, indentConverter, tabSize, s.startLineNumber, s.startLineNumber - 2);
 					// check if s.startLineNumber - 2 matches onEnter rules, if so adjust the moving block by onEnter rules.
 					if (ret !== null) {
 						if (ret !== 0) {
@@ -238,23 +238,30 @@ export class MoveLinesCommand implements ICommand {
 		};
 	}
 
-	private matchEnterRule(model: ITokenizedModel, oneLineAbove: number, line: number, indentConverter: IIndentConverter, tabSize: number) {
-		while (oneLineAbove >= 1) {
+	private matchEnterRule(model: ITokenizedModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
+		let validPrecedingLine = oneLineAbove;
+		while (validPrecedingLine >= 1) {
 			// ship empty lines as empty lines just inherit indentation
-			let lineContent = model.getLineContent(oneLineAbove);
+			let lineContent;
+			if (validPrecedingLine === oneLineAbove && oneLineAboveText !== undefined) {
+				lineContent = oneLineAboveText;
+			} else {
+				lineContent = model.getLineContent(validPrecedingLine);
+			}
+
 			let nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineContent);
 			if (nonWhitespaceIdx >= 0) {
 				break;
 			}
-			oneLineAbove--;
+			validPrecedingLine--;
 		}
 
-		if (oneLineAbove < 1 || line > model.getLineCount()) {
+		if (validPrecedingLine < 1 || line > model.getLineCount()) {
 			return null;
 		}
 
-		let maxColumn = model.getLineMaxColumn(oneLineAbove);
-		let enter = LanguageConfigurationRegistry.getEnterAction(model, new Range(oneLineAbove, maxColumn, oneLineAbove, maxColumn));
+		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
+		let enter = LanguageConfigurationRegistry.getEnterAction(model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
 
 		if (enter) {
 			let enterPrefix = enter.indentation;

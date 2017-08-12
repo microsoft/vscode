@@ -52,11 +52,10 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof FolderMatch) {
 			return element.matches();
 		} else if (element instanceof SearchResult) {
-			if (this.includeFolderMatch) {
-				return element.folderMatches().filter(fm => !fm.isEmpty());
-			} else {
-				return element.matches();
-			}
+			const folderMatches = element.folderMatches();
+			return folderMatches.length > 2 ? // "Other files" + workspace folder = 2
+				folderMatches.filter(fm => !fm.isEmpty()) :
+				element.matches();
 		}
 
 		return [];

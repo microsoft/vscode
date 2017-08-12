@@ -21,27 +21,27 @@ import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
+import { V8Protocol } from 'vs/workbench/parts/debug/node/v8Protocol';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TerminalSupport } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
+export interface SessionExitedEvent extends debug.DebugEvent {
 	body: {
 		exitCode: number,
 		sessionId: string
 	};
 }
 
-export interface SessionTerminatedEvent extends DebugProtocol.TerminatedEvent {
+export interface SessionTerminatedEvent extends debug.DebugEvent {
 	body: {
 		restart?: boolean,
 		sessionId: string
 	};
 }
 
-export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
+export class RawDebugSession extends V8Protocol implements debug.ISession {
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
@@ -63,7 +63,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private _onDidCustomEvent: Emitter<DebugProtocol.Event>;
+	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
@@ -93,7 +93,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
+		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
 
@@ -129,7 +129,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this._onDidBreakpoint.event;
 	}
 
-	public get onDidCustomEvent(): Event<DebugProtocol.Event> {
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
 		return this._onDidCustomEvent.event;
 	}
 
@@ -191,12 +191,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		});
 	}
 
-	protected onEvent(event: DebugProtocol.Event): void {
-		if (event.body) {
-			event.body.sessionId = this.getId();
-		} else {
-			event.body = { sessionId: this.getId() };
-		}
+	protected onEvent(event: debug.DebugEvent): void {
+		event.sessionId = this.getId();
 
 		if (event.event === 'initialized') {
 			this.readyForBreakpoints = true;
@@ -271,6 +267,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
 		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
+			if (response && response.body && response.body.allThreadsContinued !== undefined) {
+				this.allThreadsContinued = response.body.allThreadsContinued;
+			}
 			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
 			return response;
 		});

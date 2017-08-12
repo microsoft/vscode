@@ -121,7 +121,7 @@ export enum ProcessState {
 }
 
 export interface IProcess extends ITreeElement {
-	name: string;
+	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
@@ -440,7 +440,6 @@ export interface ILaunch {
 	 */
 	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
-
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
@@ -450,6 +449,10 @@ export interface ILaunch {
 // Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+
+export interface DebugEvent extends DebugProtocol.Event {
+	sessionId?: string;
+}
 
 export interface IDebugService {
 	_serviceBrand: any;
@@ -477,7 +480,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on custom DAP events.
 	 */
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	onDidCustomEvent: Event<DebugEvent>;
 
 	/**
 	 * Gets the current configuration manager.

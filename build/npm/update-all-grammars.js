@@ -36,7 +36,7 @@ const extensions = [
 	'ini',
 	'java',
 	// 'javascript',  updated through JavaScript
-	// 'json', customized
+	'json',
 	'less',
 	'lua',
 	'make',

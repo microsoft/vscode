@@ -652,6 +652,76 @@ export interface LinkProvider {
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
+/**
+ * A color in RGBA format.
+ * @internal
+ */
+export interface IColor {
+
+	/**
+	 * The red component in the range [0-1].
+	 */
+	readonly red: number;
+
+	/**
+	 * The green component in the range [0-1].
+	 */
+	readonly green: number;
+
+	/**
+	 * The blue component in the range [0-1].
+	 */
+	readonly blue: number;
+
+	/**
+	 * The alpha component in the range [0-1].
+	 */
+	readonly alpha: number;
+}
+
+/**
+ * A color formatter.
+ * @internal
+ */
+
+export interface IColorFormatter {
+	readonly supportsTransparency: boolean;
+	format(color: Color): string;
+}
+
+/**
+ * A color range is a range in a text model which represents a color.
+ * @internal
+ */
+export interface IColorRange {
+
+	/**
+	 * The range within the model.
+	 */
+	range: IRange;
+
+	/**
+	 * The color represented in this range.
+	 */
+	color: IColor;
+
+	/**
+	 * The available formats for this specific color.
+	 */
+	formatters: IColorFormatter[];
+}
+
+/**
+ * A provider of colors for editor models.
+ * @internal
+ */
+export interface ColorRangeProvider {
+
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+}
 
 export interface IResourceEdit {
 	resource: URI;
@@ -765,6 +835,11 @@ export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<
  * @internal
  */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+
+/**
+ * @internal
+ */
+export const ColorProviderRegistry = new LanguageFeatureRegistry<ColorRangeProvider>();
 
 /**
  * @internal

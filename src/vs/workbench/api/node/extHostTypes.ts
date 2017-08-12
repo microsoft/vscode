@@ -7,6 +7,7 @@
 import * as crypto from 'crypto';
 
 import URI from 'vs/base/common/uri';
+import { Color as BaseColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
@@ -1010,6 +1011,55 @@ export class DocumentLink {
 		}
 		this.range = range;
 		this.target = target;
+	}
+}
+
+export class Color {
+	readonly red: number;
+	readonly green: number;
+	readonly blue: number;
+	readonly alpha: number;
+
+	constructor(red: number, green: number, blue: number, alpha: number) {
+		this.red = red;
+		this.green = green;
+		this.blue = blue;
+		this.alpha = alpha;
+	}
+
+	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
+		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
+		return new Color(color.r, color.g, color.b, color.a / 255);
+	}
+
+	static fromHex(hex: string): Color {
+		const color = BaseColor.fromHex(hex).rgba;
+		return new Color(color.r, color.g, color.b, color.a / 255);
+	}
+}
+
+export type IColorFormat = string | { opaque: string, transparent: string };
+
+export class ColorRange {
+	range: Range;
+
+	color: Color;
+
+	availableFormats: IColorFormat[];
+
+	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
+		if (color && !(color instanceof Color)) {
+			throw illegalArgument('color');
+		}
+		if (availableFormats && !Array.isArray(availableFormats)) {
+			throw illegalArgument('availableFormats');
+		}
+		if (!Range.isRange(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.color = color;
+		this.availableFormats = availableFormats;
 	}
 }
 

@@ -12,6 +12,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 export interface HtmlInputOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
+	svgWhiteList?: string[];
 }
 
 export function areHtmlInputOptionsEqual(left: HtmlInputOptions, right: HtmlInputOptions) {
@@ -27,13 +28,5 @@ export class HtmlInput extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(name, description, resource, textModelResolverService);
-	}
-
-	public matches(otherInput: any): boolean {
-		if (!super.matches(otherInput)) {
-			return false;
-		}
-
-		return otherInput instanceof HtmlInput && areHtmlInputOptionsEqual(this.options, otherInput.options);
 	}
 }

@@ -6,13 +6,12 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, getMergedExcludes } from 'vs/platform/search/common/search';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -60,8 +59,6 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		this.extendQuery(query);
-
 		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
 		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
@@ -153,45 +150,25 @@ export class SearchService implements ISearchService {
 	}
 
 	private matches(resource: uri, query: ISearchQuery): boolean {
-		const {
-			filePattern,
-			includePattern,
-		} = query;
-
 		// file pattern
-		if (filePattern) {
+		if (query.filePattern) {
 			if (resource.scheme !== 'file') {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
-			if (!scorer.matches(resource.fsPath, strings.stripWildcards(filePattern).toLowerCase())) {
+			if (!scorer.matches(resource.fsPath, strings.stripWildcards(query.filePattern).toLowerCase())) {
 				return false;
 			}
 		}
 
 		// includes
-		if (includePattern) {
+		if (query.includePattern) {
 			if (resource.scheme !== 'file') {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
-
-			if (!glob.match(includePattern, resource.fsPath)) {
-				return false;
-			}
 		}
 
-		// excludes
-
-		const allFolderExcludes = getMergedExcludes(query, /*absolutePaths=*/true);
-		if (resource.scheme !== 'file') {
-			return true; // e.g. untitled files can never be excluded with file patterns
-		}
-
-		if (glob.match(allFolderExcludes, resource.fsPath)) {
-			return false;
-		}
-
-		return true;
+		return pathIncludedInQuery(query, resource.fsPath);
 	}
 
 	public clearCache(cacheKey: string): TPromise<void> {

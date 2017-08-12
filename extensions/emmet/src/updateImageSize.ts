@@ -7,7 +7,7 @@
 
 'use strict';
 
-import { TextEditor, Range, Position, window } from 'vscode';
+import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
 import { isStyleSheet } from 'vscode-emmet-helper';
@@ -39,8 +39,8 @@ export function updateImageSize() {
 	return Promise.all(allUpdatesPromise).then((updates) => {
 		return editor.edit(builder => {
 			updates.forEach(update => {
-				update.forEach(([rangeToReplace, textToReplace]) => {
-					builder.replace(rangeToReplace, textToReplace);
+				update.forEach((textEdit: TextEdit) => {
+					builder.replace(textEdit.range, textEdit.newText);
 				});
 			});
 		});
@@ -50,7 +50,7 @@ export function updateImageSize() {
 /**
  * Updates image size of context tag of HTML model
  */
-function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<[Range, string][]> {
+function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	const src = getImageSrcHTML(getImageHTMLNode(editor, position));
 
 	if (!src) {
@@ -70,14 +70,14 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<[R
 		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
 
-function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<[Range, string][]> {
+function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	let getPropertyInsiderStyleTag = (editor) => {
 		const rootNode = parseDocument(editor.document);
 		const currentNode = <HtmlNode>getNode(rootNode, position);
 		if (currentNode && currentNode.name === 'style'
 			&& currentNode.open.end.isBefore(position)
 			&& currentNode.close.start.isAfter(position)) {
-			let buffer = new DocumentStreamReader(editor.document, currentNode.start, new Range(currentNode.start, currentNode.end));
+			let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new Range(currentNode.open.end, currentNode.close.start));
 			let rootNode = parseStylesheet(buffer);
 			const node = getNode(rootNode, position);
 			return (node && node.type === 'property') ? <Property>node : null;
@@ -87,14 +87,14 @@ function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promis
 	return updateImageSizeCSS(editor, position, getPropertyInsiderStyleTag);
 }
 
-function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise<[Range, string][]> {
+function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	return updateImageSizeCSS(editor, position, getImageCSSNode);
 }
 
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor, position) => Property): Promise<[Range, string][]> {
+function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor, position) => Property): Promise<TextEdit[]> {
 
 	const src = getImageSrcCSS(fetchNode(editor, position), position);
 
@@ -185,28 +185,28 @@ function getImageSrcCSS(node: Property, position: Position): string {
  * @param  {number}     width
  * @param  {number}     height
  */
-function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height: number): [Range, string][] {
+function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height: number): TextEdit[] {
 	const srcAttr = getAttribute(node, 'src');
 	const widthAttr = getAttribute(node, 'width');
 	const heightAttr = getAttribute(node, 'height');
 	const quote = getAttributeQuote(editor, srcAttr);
 	const endOfAttributes = node.attributes[node.attributes.length - 1].end;
 
-	let edits: [Range, string][] = [];
+	let edits: TextEdit[] = [];
 	let textToAdd = '';
 
 	if (!widthAttr) {
 		textToAdd += ` width=${quote}${width}${quote}`;
 	} else {
-		edits.push([new Range(widthAttr.value.start, widthAttr.value.end), String(width)]);
+		edits.push(new TextEdit(new Range(widthAttr.value.start, widthAttr.value.end), String(width)));
 	}
 	if (!heightAttr) {
 		textToAdd += ` height=${quote}${height}${quote}`;
 	} else {
-		edits.push([new Range(heightAttr.value.start, heightAttr.value.end), String(height)]);
+		edits.push(new TextEdit(new Range(heightAttr.value.start, heightAttr.value.end), String(height)));
 	}
 	if (textToAdd) {
-		edits.push([new Range(endOfAttributes, endOfAttributes), textToAdd]);
+		edits.push(new TextEdit(new Range(endOfAttributes, endOfAttributes), textToAdd));
 	}
 
 	return edits;
@@ -219,7 +219,7 @@ function updateHTMLTag(editor: TextEditor, node: HtmlNode, width: number, height
  * @param  {number}     width
  * @param  {number}     height
  */
-function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number): [Range, string][] {
+function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, height: number): TextEdit[] {
 	const rule = srcProp.parent;
 	const widthProp = getCssPropertyFromRule(rule, 'width');
 	const heightProp = getCssPropertyFromRule(rule, 'height');
@@ -228,24 +228,24 @@ function updateCSSNode(editor: TextEditor, srcProp: Property, width: number, hei
 	const separator = srcProp.separator || ': ';
 	const before = getPropertyDelimitor(editor, srcProp);
 
-	let edits: [Range, string][] = [];
+	let edits: TextEdit[] = [];
 	if (!srcProp.terminatorToken) {
-		edits.push([new Range(srcProp.end, srcProp.end), ';']);
+		edits.push(new TextEdit(new Range(srcProp.end, srcProp.end), ';'));
 	}
 
 	let textToAdd = '';
 	if (!widthProp) {
 		textToAdd += `${before}width${separator}${width}px;`;
 	} else {
-		edits.push([new Range(widthProp.valueToken.start, widthProp.valueToken.end), `${width}px`]);
+		edits.push(new TextEdit(new Range(widthProp.valueToken.start, widthProp.valueToken.end), `${width}px`));
 	}
 	if (!heightProp) {
 		textToAdd += `${before}height${separator}${height}px;`;
 	} else {
-		edits.push([new Range(heightProp.valueToken.start, heightProp.valueToken.end), `${height}px`]);
+		edits.push(new TextEdit(new Range(heightProp.valueToken.start, heightProp.valueToken.end), `${height}px`));
 	}
 	if (textToAdd) {
-		edits.push([new Range(srcProp.end, srcProp.end), textToAdd]);
+		edits.push(new TextEdit(new Range(srcProp.end, srcProp.end), textToAdd));
 	}
 
 	return edits;

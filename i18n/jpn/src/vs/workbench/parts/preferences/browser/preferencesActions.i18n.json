@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "キーボード ショートカットを開く",
 	"openGlobalKeybindingsFile": "キーボード ショートカット ファイルを開く",
 	"openWorkspaceSettings": "ワークスペース設定を開く",
+	"openFolderSettings": "フォルダーの設定を開く",
+	"pickFolder": "フォルダーの選択",
 	"configureLanguageBasedSettings": "言語固有の設定を構成します...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "言語の選択"

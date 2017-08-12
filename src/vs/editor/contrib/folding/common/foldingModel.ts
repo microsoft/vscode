@@ -106,7 +106,7 @@ export class CollapsibleRegion {
 		let maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
 		let visualRng = {
 			startLineNumber: newRange.startLineNumber,
-			startColumn: maxColumn - 1,
+			startColumn: maxColumn,
 			endLineNumber: newRange.startLineNumber,
 			endColumn: maxColumn
 		};

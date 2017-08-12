@@ -30,7 +30,7 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
 import { isLinux } from 'vs/base/common/platform';
@@ -40,6 +40,7 @@ import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkT
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 
 used();
 
@@ -56,18 +57,21 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService
 	) {
 		const enabled = isWelcomePageEnabled(configurationService);
-		if (enabled) {
+		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			TPromise.join([
 				backupFileService.hasBackups(),
 				partService.joinCreation()
 			]).then(([hasBackups]) => {
 				const activeInput = editorService.getActiveEditorInput();
 				if (!activeInput && !hasBackups) {
-					instantiationService.createInstance(WelcomePage);
+					return instantiationService.createInstance(WelcomePage)
+						.openEditor();
 				}
+				return undefined;
 			}).then(null, onUnexpectedError);
 		}
 	}
@@ -102,8 +106,9 @@ export class WelcomePageAction extends Action {
 	}
 
 	public run(): TPromise<void> {
-		this.instantiationService.createInstance(WelcomePage);
-		return null;
+		return this.instantiationService.createInstance(WelcomePage)
+			.openEditor()
+			.then(() => undefined);
 	}
 }
 
@@ -161,9 +166,13 @@ const keymapStrings: Strings = {
 	extensionNotFound: localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found."),
 };
 
+const welcomeInputTypeId = 'workbench.editors.welcomePageInput';
+
 class WelcomePage {
 
 	private disposables: IDisposable[] = [];
+
+	readonly editorInput: WalkThroughInput;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -185,20 +194,25 @@ class WelcomePage {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
-		this.create();
-	}
 
-	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
-		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
+		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page' })
 			});
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened, installedExtensions));
-		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
-			.then(null, onUnexpectedError);
+		this.editorInput = this.instantiationService.createInstance(WalkThroughInput, {
+			typeId: welcomeInputTypeId,
+			name: localize('welcome.title', "Welcome"),
+			resource,
+			telemetryFrom,
+			onReady: container => this.onReady(container, recentlyOpened, installedExtensions)
+		});
+	}
+
+	public openEditor() {
+		return this.editorService.openEditor(this.editorInput, { pinned: true }, Position.ONE);
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
@@ -470,6 +484,21 @@ class WelcomePage {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+
+export class WelcomeInputFactory implements IEditorInputFactory {
+
+	static ID = welcomeInputTypeId;
+
+	public serialize(editorInput: EditorInput): string {
+		return '{}';
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WalkThroughInput {
+		return instantiationService.createInstance(WelcomePage)
+			.editorInput;
 	}
 }
 

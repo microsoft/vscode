@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandAbbreviation, wrapWithAbbreviation } from '../abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
 
 const cssContents = `
 .boo {
@@ -44,6 +44,9 @@ const htmlContents = `
 		}
 	</style>
 	${bemFilterExample}
+	(ul>li.item$)*2
+	(ul>li.item$)*2+span
+	(div>dl>(dt+dd)*2)
 </body>
 `;
 
@@ -124,6 +127,18 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return testHtmlExpandAbbreviation(new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t\t\t<li class="item44"></li>\n\t\t\t<li class="item45"></li>\n\t\t</ul>');
 	});
 
+	test('Expand abbreviation with numbered repeaters in groups (HTML)', () => {
+		return testHtmlExpandAbbreviation(new Selection(17, 16, 17, 16), '(ul>li.item$)*2', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>');
+	});
+
+	test('Expand abbreviation with numbered repeaters in groups with sibling in the end (HTML)', () => {
+		return testHtmlExpandAbbreviation(new Selection(18, 21, 18, 21), '(ul>li.item$)*2+span', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>\n\t<span></span>');
+	});
+
+	test('Expand abbreviation with nested groups (HTML)', () => {
+		return testHtmlExpandAbbreviation(new Selection(19, 19, 19, 19), '(div>dl>(dt+dd)*2)', '<div>\n\t\t<dl>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t</dl>\n\t</div>');
+	});
+
 	test('Expand tag that is opened, but not closed (HTML)', () => {
 		return testHtmlExpandAbbreviation(new Selection(9, 6, 9, 6), '<div', '<div></div>');
 	});
@@ -135,7 +150,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	test('Expand css when inside style tag (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 			editor.selection = new Selection(13, 3, 13, 6);
-			let expandPromise = expandAbbreviation({ language: 'css' });
+			let expandPromise = expandEmmetAbbreviation({ language: 'css' });
 			if (!expandPromise) {
 				return Promise.resolve();
 			}
@@ -166,7 +181,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	test('Expand abbreviation (CSS)', () => {
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
 			editor.selection = new Selection(4, 1, 4, 4);
-			return expandAbbreviation(null).then(() => {
+			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), cssContents.replace('m10', 'margin: 10px;'));
 				return Promise.resolve();
 			});
@@ -181,8 +196,8 @@ suite('Tests for Wrap with Abbreviations', () => {
 	const multiCursors = [new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6)];
 	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
 	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33)];
-
-
+	
+	
 	test('Wrap with block element using multi cursor', () => {
 		return testWrapWithAbbreviation(multiCursors, 'div', wrapBlockElementExpected);
 	});
@@ -231,6 +246,53 @@ suite('Tests for Wrap with Abbreviations', () => {
 		return testWrapWithAbbreviation(multiCursorsWithFullLineSelection, 'ul>li', wrapMultiLineAbbrExpected);
 	});
 
+	test('Wrap individual lines with abbreviation', () => {
+	const contents = `
+	<ul class="nav main">
+		<li class="item1">img</li>
+		<li class="item2">hithere</li>
+	</ul>
+`;
+	const wrapIndividualLinesExpected = `
+	<ul class="nav main">
+		<ul>
+			<li class="hello1"><li class="item1">img</li></li>
+			<li class="hello2"><li class="item2">hithere</li></li>
+		</ul>
+	</ul>
+`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(2, 2, 3, 33)];
+			return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' }).then(() => {
+				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap individual lines with abbreviation and trim', () => {
+		const contents = `
+		<ul class="nav main">
+			• lorem ipsum
+			• lorem ipsum
+		</ul>
+	`;
+		const wrapIndividualLinesExpected = `
+		<ul class="nav main">
+			<ul>
+				<li class="hello1">lorem ipsum</li>
+				<li class="hello2">lorem ipsum</li>
+			</ul>
+		</ul>
+	`;
+			return withRandomFileEditor(contents, 'html', (editor, doc) => {
+				editor.selections = [new Selection(2, 3, 3, 16)];
+				return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' }).then(() => {
+					assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
+					return Promise.resolve();
+				});
+			});
+		});
 });
 
 
@@ -238,7 +300,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 		editor.selection = selection;
-		let expandPromise = expandAbbreviation(null);
+		let expandPromise = expandEmmetAbbreviation(null);
 		if (!expandPromise) {
 			if (!shouldFail) {
 				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);

@@ -9,7 +9,6 @@
 	"focusNextInputBox": "다음 입력 상자에 포커스",
 	"focusPreviousInputBox": "이전 입력 상자에 포커스",
 	"replaceInFiles": "파일에서 바꾸기",
-	"findInFolder": "폴더에서 찾기",
 	"RefreshAction.label": "새로 고침",
 	"ClearSearchResultsAction.label": "검색 결과 지우기",
 	"FocusNextSearchResult.label": "다음 검색 결과에 포커스",

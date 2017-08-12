@@ -13,7 +13,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
@@ -784,8 +784,21 @@ class EditSettingRenderer extends Disposable {
 	private getSettings(lineNumber: number): ISetting[] {
 		const configurationMap = this.getConfigurationsMap();
 		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
-			let jsonSchema: IJSONSchema = configurationMap[setting.key];
-			return jsonSchema && (this.isDefaultSettings() || jsonSchema.type === 'boolean' || jsonSchema.enum);
+			let configurationNode = configurationMap[setting.key];
+			if (configurationNode) {
+				if (this.isDefaultSettings()) {
+					return true;
+				}
+				if (configurationNode.type === 'boolean' || configurationNode.enum) {
+					if ((<SettingsEditorModel>this.masterSettingsModel).configurationTarget !== ConfigurationTarget.FOLDER) {
+						return true;
+					}
+					if (configurationNode.scope === ConfigurationScope.RESOURCE) {
+						return true;
+					}
+				}
+			}
+			return false;
 		});
 	}
 
@@ -834,7 +847,7 @@ class EditSettingRenderer extends Disposable {
 		});
 	}
 
-	private getConfigurationsMap(): { [qualifiedKey: string]: IJSONSchema } {
+	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
 		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	}
 
@@ -976,42 +989,40 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
+	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 	) {
 		super();
-		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
+		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
 	}
 
 	public render(): void {
-		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
-
+		const ranges: IRange[] = [];
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const folderKeys = this.configurationService.keys({ resource: this.workspaceSettingsEditorModel.uri }).folder;
-		const workbenchKeys = folderKeys.filter(key => configurationRegistry[key] && configurationRegistry[key].scope === ConfigurationScope.WORKBENCH);
-		if (workbenchKeys.length) {
-			const ranges: IRange[] = [];
-			for (const unsupportedKey of workbenchKeys) {
-				const setting = this.workspaceSettingsEditorModel.getPreference(unsupportedKey);
-				if (setting) {
-					ranges.push({
-						startLineNumber: setting.keyRange.startLineNumber,
-						startColumn: setting.keyRange.startColumn - 1,
-						endLineNumber: setting.valueRange.endLineNumber,
-						endColumn: setting.valueRange.endColumn
-					});
+		for (const settingsGroup of this.workspaceSettingsEditorModel.settingsGroups) {
+			for (const section of settingsGroup.sections) {
+				for (const setting of section.settings) {
+					if (configurationRegistry[setting.key] && configurationRegistry[setting.key].scope === ConfigurationScope.WINDOW) {
+						ranges.push({
+							startLineNumber: setting.keyRange.startLineNumber,
+							startColumn: setting.keyRange.startColumn - 1,
+							endLineNumber: setting.valueRange.endLineNumber,
+							endColumn: setting.valueRange.endColumn
+						});
+					}
 				}
 			}
-			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
 		}
+		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
 	}
 
 	private static _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
-		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be currently applied because it does not support the folder resource scope. Changing it might impact other workspaces.")
+		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
 	});
 
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {

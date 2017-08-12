@@ -2,6 +2,16 @@
   "name": "css",
   "version": "0.1.0",
   "dependencies": {
+    "color-convert": {
+      "version": "0.5.3",
+      "from": "color-convert@>=0.5.0 <0.6.0",
+      "resolved": "https://registry.npmjs.org/color-convert/-/color-convert-0.5.3.tgz"
+    },
+    "parse-color": {
+      "version": "1.0.0",
+      "from": "parse-color@latest",
+      "resolved": "https://registry.npmjs.org/parse-color/-/parse-color-1.0.0.tgz"
+    },
     "vscode-jsonrpc": {
       "version": "3.2.0",
       "from": "vscode-jsonrpc@>=3.2.0 <4.0.0",

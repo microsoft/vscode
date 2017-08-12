@@ -9,6 +9,7 @@
 	"saveAll": "Enregistrer tout",
 	"closeAllUnmodified": "Fermer les éléments non modifiés",
 	"closeAll": "Tout fermer",
+	"compareWithSaved": "Comparer avec celui enregistré",
 	"close": "Fermer",
 	"closeOthers": "Fermer les autres"
 }

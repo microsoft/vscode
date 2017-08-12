@@ -875,19 +875,21 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	findMatchingBracketUp(bracket: string, position: IPosition): Range;
 
-	// /**
-	//  * Find the first bracket in the model before `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	//  */
-	// findPrevBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 * @internal
+	 */
+	findPrevBracket(position: IPosition): IFoundBracket;
 
-	// /**
-	//  * Find the first bracket in the model after `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	//  */
-	// findNextBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 * @internal
+	 */
+	findNextBracket(position: IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,

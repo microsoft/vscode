@@ -8,7 +8,7 @@ import * as path from 'path';
 
 import { languages, window, commands, workspace, ExtensionContext } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
-import { activateColorDecorations } from './colorDecorators';
+import { activateColorDecorations, ColorProvider } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -34,7 +34,7 @@ export function activate(context: ExtensionContext) {
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: ['css', 'less', 'scss'],
+		documentSelector: ['css', 'scss', 'less'],
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
 		},
@@ -57,8 +57,9 @@ export function activate(context: ExtensionContext) {
 		let isDecoratorEnabled = (languageId: string) => {
 			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
 		};
-		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
-		context.subscriptions.push(disposable);
+
+		context.subscriptions.push(languages.registerColorProvider(['css', 'scss', 'less'], new ColorProvider(colorRequestor)));
+		context.subscriptions.push(activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled));
 	});
 
 	let indentationRules = {

@@ -970,14 +970,14 @@ class SimpleCheckbox extends Widget {
 	}
 }
 
-interface ISimpleButtonOpts {
+export interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: () => void;
 	onKeyDown: (e: IKeyboardEvent) => void;
 }
 
-class SimpleButton extends Widget {
+export class SimpleButton extends Widget {
 
 	private _opts: ISimpleButtonOpts;
 	private _domNode: HTMLElement;

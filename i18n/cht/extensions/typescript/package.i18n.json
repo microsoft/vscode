@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "使用其參數簽章完成函式。",
 	"typescript.tsdk.desc": "指定資料夾路徑，其中包含要使用的 tsserver 和 lib*.d.ts 檔案。",
 	"typescript.disableAutomaticTypeAcquisition": "停用自動類型取得。需要 TypeScript >= 2.0.6，並需要在變更後重新啟動。",
-	"typescript.check.tscVersion": "請檢查全域安裝 TypeScript 編譯器 (例如 tsc) 是否不同於使用的 TypeScript 語言服務。",
 	"typescript.tsserver.log": "允許 TS 伺服器記錄到檔案。此記錄可用來診斷 TS 伺服器問題。記錄可能包含檔案路徑、原始程式碼及您專案中可能具有敏感性的其他資訊。",
 	"typescript.tsserver.trace": "允許將訊息追蹤傳送到 TS 伺服器。此追蹤可用來診斷 TS 伺服器問題。追蹤可能包含檔案路徑、原始程式碼及您專案中可能具有敏感性的其他資訊。",
 	"typescript.validate.enable": "啟用/停用 TypeScript 驗證。",
