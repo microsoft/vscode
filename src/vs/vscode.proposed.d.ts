@@ -126,8 +126,12 @@ declare module 'vscode' {
 		 */
 		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
 
-		// TODO: this isn't needed. this is a parsing util. remove
-		static fromHex(hex: string): Color;
+		/**
+		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
+		 * <code>null</code> is returned if the string does not match one of the supported formats.
+		 * @param hex a string to parse
+		 */
+		static fromHex(hex: string): Color | null;
 	}
 
 	/**

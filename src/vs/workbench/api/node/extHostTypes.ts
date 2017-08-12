@@ -1032,9 +1032,13 @@ export class Color {
 		return new Color(color.r, color.g, color.b, color.a / 255);
 	}
 
-	static fromHex(hex: string): Color {
-		const color = BaseColor.fromHex(hex).rgba;
-		return new Color(color.r, color.g, color.b, color.a / 255);
+	static fromHex(hex: string): Color | null {
+		let baseColor = BaseColor.Format.CSS.parseHex(hex);
+		if (baseColor) {
+			const rgba = baseColor.rgba;
+			return new Color(rgba.r, rgba.g, rgba.b, rgba.a / 255);
+		}
+		return null;
 	}
 }
 
