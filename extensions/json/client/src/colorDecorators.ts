@@ -130,8 +130,8 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 }
 
 const ColorFormat_HEX = {
-	opaque: '#{red:X}{green:X}{blue:X}',
-	transparent: '#{red:X}{green:X}{blue:X}{alpha:X}'
+	opaque: '"#{red:X}{green:X}{blue:X}"',
+	transparent: '"#{red:X}{green:X}{blue:X}{alpha:X}"'
 };
 
 export class ColorProvider implements DocumentColorProvider {
@@ -144,7 +144,7 @@ export class ColorProvider implements DocumentColorProvider {
 		for (let range of ranges) {
 			let color = parseColorFromRange(document, range);
 			if (color) {
-				let r = new Range(range.start.line, range.start.character + 1, range.end.line, range.end.character - 1);
+				let r = new Range(range.start.line, range.start.character, range.end.line, range.end.character);
 				result.push(new ColorRange(r, color, [ColorFormat_HEX]));
 			}
 		}
