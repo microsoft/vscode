@@ -1203,6 +1203,11 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
 					if (active.same) {
+						if (task.singleInstanceOnly) {
+							this.restart(task);
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.singleInstanceOnly', 'Restarting \'{0}\'.', task._label));
+							return executeResult.promise;
+						}
 						if (active.background) {
 							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						} else {

@@ -225,6 +225,11 @@ export interface ConfigurationProperties {
 	isBackground?: boolean;
 
 	/**
+	 * Defines if the application can have only 1 active instance at a time.
+	 */
+	singleInstanceOnly?: boolean;
+
+	/**
 	 * Whether the task should prompt on close for confirmation if running.
 	 */
 	promptOnClose?: boolean;
@@ -361,6 +366,11 @@ export interface BaseTaskRunnerConfiguration {
 	 * Specifies whether a global command is a background task.
 	 */
 	isBackground?: boolean;
+
+	/**
+	 * Defines if the application can have only 1 active instance at a time.
+	 */
+	singleInstanceOnly?: boolean;
 
 	/**
 	 * Whether the task should prompt on close for confirmation if running.
@@ -1049,7 +1059,7 @@ namespace ConfigurationProperties {
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
 
 		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
-		{ property: 'promptOnClose' }, { property: 'dependsOn' },
+		{ property: 'promptOnClose' }, { property: 'dependsOn' }, { property: 'singleInstanceOnly' },
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
 	];
 
@@ -1069,6 +1079,9 @@ namespace ConfigurationProperties {
 		}
 		if (external.isBackground !== void 0) {
 			result.isBackground = !!external.isBackground;
+		}
+		if (external.singleInstanceOnly !== void 0) {
+			result.singleInstanceOnly = !!external.singleInstanceOnly;
 		}
 		if (external.promptOnClose !== void 0) {
 			result.promptOnClose = !!external.promptOnClose;
@@ -1265,6 +1278,9 @@ namespace CustomTask {
 		if (task.isBackground === void 0) {
 			task.isBackground = false;
 		}
+		if (task.singleInstanceOnly === void 0) {
+			task.singleInstanceOnly = false;
+		}
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
 		}
@@ -1288,6 +1304,7 @@ namespace CustomTask {
 		assignProperty(resultConfigProps, configuredProps, 'group');
 		assignProperty(resultConfigProps, configuredProps, 'isDefaultGroupEntry');
 		assignProperty(resultConfigProps, configuredProps, 'isBackground');
+		assignProperty(resultConfigProps, configuredProps, 'singleInstanceOnly');
 		assignProperty(resultConfigProps, configuredProps, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps, 'problemMatchers');
 		assignProperty(resultConfigProps, configuredProps, 'promptOnClose');
@@ -1298,6 +1315,7 @@ namespace CustomTask {
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
 		fillProperty(resultConfigProps, contributedConfigProps, 'isDefaultGroupEntry');
 		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
+		fillProperty(resultConfigProps, contributedConfigProps, 'singleInstanceOnly');
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
 		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
@@ -1739,6 +1757,7 @@ class ConfigurationParser {
 		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
 			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
+			let singleInstanceOnly = fileConfig.singleInstanceOnly ? !!fileConfig.singleInstanceOnly : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let task: Tasks.CustomTask = {
 				_id: context.uuidMap.getUUID(globals.command.name),
 				_source: Objects.assign({}, source, { config: { index: -1, element: fileConfig } }),
@@ -1754,6 +1773,7 @@ class ConfigurationParser {
 					suppressTaskName: true
 				},
 				isBackground: isBackground,
+				singleInstanceOnly: singleInstanceOnly,
 				problemMatchers: matchers
 			};
 			let value = GroupKind.from(fileConfig.group);

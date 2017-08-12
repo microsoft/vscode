@@ -175,6 +175,11 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
 			default: true
 		},
+		singleInstanceOnly: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.singleInstanceOnly', 'Whether the executed task can have only 1 active instance at a time.'),
+			default: false
+		},
 		promptOnClose: {
 			type: 'boolean',
 			description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),

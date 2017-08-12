@@ -1212,6 +1212,7 @@ export class Task implements vscode.Task {
 	private _problemMatchers: string[];
 	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
+	private _singleInstanceOnly: boolean;
 	private _source: string;
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
@@ -1232,6 +1233,7 @@ export class Task implements vscode.Task {
 			this._hasDefinedMatchers = false;
 		}
 		this._isBackground = false;
+		this._singleInstanceOnly = false;
 	}
 
 	get definition(): vscode.TaskDefinition {
@@ -1299,11 +1301,22 @@ export class Task implements vscode.Task {
 		return this._isBackground;
 	}
 
+	get singleInstanceOnly(): boolean {
+		return this._singleInstanceOnly;
+	}
+
 	set isBackground(value: boolean) {
 		if (value !== true && value !== false) {
 			value = false;
 		}
 		this._isBackground = value;
+	}
+
+	set singleInstanceOnly(value: boolean) {
+		if (value !== true && value !== false) {
+			value = false;
+		}
+		this._singleInstanceOnly = value;
 	}
 
 	get source(): string {
