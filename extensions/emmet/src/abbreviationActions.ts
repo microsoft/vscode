@@ -329,9 +329,5 @@ function getSyntaxFromArgs(args: any): string {
 		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);
 	}
 
-	// Final fallback to html
-	if (!syntax) {
-		syntax = getEmmetMode('html', excludedLanguages);
-	}
 	return syntax;
 }
