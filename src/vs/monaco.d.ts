@@ -1559,7 +1559,7 @@ declare module monaco.editor {
 		 */
 		getFullModelRange(): Range;
 		/**
-		 * Returns iff the model was disposed or not.
+		 * Returns if the model was disposed or not.
 		 */
 		isDisposed(): boolean;
 		/**
