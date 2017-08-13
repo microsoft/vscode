@@ -315,61 +315,49 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	public async updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
-		return this.checkFile(absolutePath, options).then(exists => {
-			let createParentsPromise: TPromise<boolean>;
-			if (exists) {
-				createParentsPromise = TPromise.as(null);
+		const exists = await this.checkFile(absolutePath, options);
+
+		// 2.) create parents as needed
+		if (!exists) {
+			await pfs.mkdirp(paths.dirname(absolutePath));
+		}
+
+		// 3.) check to add UTF BOM
+		const encodingToWrite = this.getEncoding(resource, options.encoding);
+		let addBom = false;
+
+		// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
+		if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
+			addBom = true;
+		}
+
+		// Existing UTF-8 file: check for options regarding BOM
+		else if (exists && encodingToWrite === encoding.UTF8) {
+			if (options.overwriteEncoding) {
+				addBom = false; // if we are to overwrite the encoding, we do not preserve it if found
 			} else {
-				createParentsPromise = pfs.mkdirp(paths.dirname(absolutePath));
+				addBom = await encoding.detectEncodingByBOM(absolutePath) === encoding.UTF8; // otherwise preserve it if found
 			}
+		}
 
-			// 2.) create parents as needed
-			return createParentsPromise.then(() => {
-				const encodingToWrite = this.getEncoding(resource, options.encoding);
-				let addBomPromise: TPromise<boolean> = TPromise.as(false);
+		// 4.) set contents
+		// Write fast if we do UTF 8 without BOM
+		if (!addBom && encodingToWrite === encoding.UTF8) {
+			await pfs.writeFile(absolutePath, value, encoding.UTF8);
+		}
 
-				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
-				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
-					addBomPromise = TPromise.as(true);
-				}
+		// Otherwise use encoding lib
+		else {
+			const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
+			await pfs.writeFile(absolutePath, encoded);
+		}
 
-				// Existing UTF-8 file: check for options regarding BOM
-				else if (exists && encodingToWrite === encoding.UTF8) {
-					if (options.overwriteEncoding) {
-						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
-					} else {
-						addBomPromise = encoding.detectEncodingByBOM(absolutePath).then(enc => enc === encoding.UTF8); // otherwise preserve it if found
-					}
-				}
-
-				// 3.) check to add UTF BOM
-				return addBomPromise.then(addBom => {
-					let writeFilePromise: TPromise<void>;
-
-					// Write fast if we do UTF 8 without BOM
-					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
-					}
-
-					// Otherwise use encoding lib
-					else {
-						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFile(absolutePath, encoded);
-					}
-
-					// 4.) set contents
-					return writeFilePromise.then(() => {
-
-						// 5.) resolve
-						return this.resolve(resource);
-					});
-				});
-			});
-		});
+		// 5.) resolve
+		return await this.resolve(resource);
 	}
 
 	public createFile(resource: uri, content: string = ''): TPromise<IFileStat> {
