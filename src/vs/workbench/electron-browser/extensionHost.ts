@@ -144,7 +144,7 @@ export class ExtensionHostProcessWorker {
 				// (i.e. extension host) is taken down in a brutal fashion by the OS
 				detached: !!isWindows,
 				execArgv: port
-					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
+					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--inspect-brk=' : '--inspect=') + port]
 					: undefined,
 				silent: true
 			};
