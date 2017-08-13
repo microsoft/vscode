@@ -430,7 +430,7 @@ export class FoldingController implements IFoldingController {
 		}
 	}
 
-	public foldAt( line: number ) {
+	public foldAt(line: number) {
 		let hasChanges = false;
 		let toFold: CollapsibleRegion[] = getCollapsibleRegionsToFoldAtLine(this.decorations, this.editor.getModel(), line, 1, true);
 		toFold.forEach(collapsibleRegion => this.editor.changeDecorations(changeAccessor => {
@@ -662,8 +662,8 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 	invoke(foldingController: FoldingController, editor: editorCommon.ICommonCodeEditor, args: FoldingArguments): void {
 		args = args ? args : { levels: 1, direction: 'up' };
 
-		if ( args && args.line ) {
-			foldingController.foldAt( args.line );
+		if (args && args.line >= 0) {
+			foldingController.foldAt(args.line);
 		} else {
 			foldingController.fold(args.levels || 1, args.direction === 'up');
 		}
