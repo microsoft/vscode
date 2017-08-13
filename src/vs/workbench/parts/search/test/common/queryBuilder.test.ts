@@ -294,7 +294,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					excludePattern: '**/*.js'
+					excludePattern: '*.js'
 				}
 			),
 			<ISearchQuery>{
@@ -302,7 +302,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(globalGlob('**/*.js')),
+				excludePattern: patternsToIExpression(globalGlob('*.js')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -313,7 +313,7 @@ suite('QueryBuilder', () => {
 				[ROOT_1_URI],
 				{
 					extraFileResources: [getUri('/foo/bar.js')],
-					includePattern: '**/*.txt'
+					includePattern: '*.txt'
 				}
 			),
 			<ISearchQuery>{
@@ -321,7 +321,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				includePattern: patternsToIExpression(globalGlob('**/*.txt')),
+				includePattern: patternsToIExpression(globalGlob('*.txt')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -346,6 +346,24 @@ suite('QueryBuilder', () => {
 				['a,,,b', ['a', 'b']],
 				['**/a,b/**', ['**/a', 'b/**']]
 			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
+		});
+
+		test('double-star patterns are normalized', () => {
+			function testLiteralIncludes(includePattern: string, expectedPattern: string): void {
+				assert.deepEqual(
+					queryBuilder.parseSearchPaths(includePattern),
+					<ISearchPathsResult>{
+						pattern: patternsToIExpression(expectedPattern)
+					},
+					includePattern);
+			}
+
+			[
+				['**/*.*', '{**/*.*/**,**/*.*}'],
+				['foo/**', '{**/foo/**,**/foo/**}'],
+				['**/**/foo', '{**/foo/**,**/foo}'],
+				['**/**', '{**,**}']
+			].forEach(([includePattern, expectedPattern]) => testLiteralIncludes(includePattern, expectedPattern));
 		});
 
 		function testIncludes(includePattern: string, expectedResult: ISearchPathsResult): void {
@@ -645,7 +663,8 @@ function cleanUndefinedQueryValues(q: any): void {
 }
 
 function globalGlob(str: string): string {
-	return `{**/${str}/**,**/${str}}`;
+	const globalGlob = `{**/${str}/**,**/${str}}`;
+	return globalGlob.replace(/\*\*([/\\]\*\*)+/g, '**');
 }
 
 function patternsToIExpression(...patterns: string[]): IExpression {
