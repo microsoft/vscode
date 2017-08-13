@@ -339,8 +339,6 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 
 	if (!options) {
 		options = { encoding: 'utf8', mode: 0o666, flag: 'w' };
-	} else if (typeof options === 'string') {
-		options = { encoding: <string>options, mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
