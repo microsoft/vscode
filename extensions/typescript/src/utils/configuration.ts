@@ -70,7 +70,7 @@ export class TypeScriptServiceConfiguration {
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
 			&& this.checkJs === other.checkJs
-			&& this.disableAutomaticTypeAcquisition == other.disableAutomaticTypeAcquisition;
+			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition;
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
