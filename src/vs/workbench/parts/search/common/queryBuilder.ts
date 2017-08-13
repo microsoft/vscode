@@ -106,7 +106,7 @@ export class QueryBuilder {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return strings.format('{**/{0}/**,**/{0}}', p); // convert foo to {foo/**,**/foo} to cover files and folders
+				return toGlobalGlob(p);
 			});
 
 		const result: ISearchPathsResult = {};
@@ -296,4 +296,12 @@ function splitGlobPattern(pattern: string): string[] {
 	return glob.splitGlobAware(pattern, ',')
 		.map(s => s.trim())
 		.filter(s => !!s.length);
+}
+
+/**
+ * Avoid double ** pattern, see https://github.com/Microsoft/vscode/issues/32325
+ */
+function toGlobalGlob(pattern: string): string {
+	const globalGlob = strings.format('{**/{0}/**,**/{0}}', pattern); // convert foo to {**/foo/**,**/foo} to cover files and folders
+	return globalGlob.replace(/\*\*([/\\]\*\*)+/g, '**');
 }
