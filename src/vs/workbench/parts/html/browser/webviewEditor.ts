@@ -11,10 +11,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { default as Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED } from './webview';
+import { default as Webview } from './webview';
 import { Builder } from 'vs/base/browser/builder';
 
 export interface HtmlPreviewEditorViewState {
@@ -48,44 +46,44 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(contextKeyService);
 		}
 	}
-
-	public showFind() {
-		if (this._webview) {
-			this._webview.showFind();
+	/*
+		public showFind() {
+			if (this._webview) {
+				this._webview.showFind();
+			}
 		}
-	}
 
-	public hideFind() {
-		if (this._webview) {
-			this._webview.hideFind();
+		public hideFind() {
+			if (this._webview) {
+				this._webview.hideFind();
+			}
 		}
-	}
 
-	public showNextFindTerm() {
-		if (this._webview) {
-			this._webview.showNextFindTerm();
+		public showNextFindTerm() {
+			if (this._webview) {
+				this._webview.showNextFindTerm();
+			}
 		}
-	}
 
-	public showPreviousFindTerm() {
-		if (this._webview) {
-			this._webview.showPreviousFindTerm();
+		public showPreviousFindTerm() {
+			if (this._webview) {
+				this._webview.showPreviousFindTerm();
+			}
 		}
-	}
 
 
-	public nextMatchFindWidget() {
-		if (this._webview) {
-			this._webview.nextMatchFindWidget();
+		public nextMatchFindWidget() {
+			if (this._webview) {
+				this._webview.nextMatchFindWidget();
+			}
 		}
-	}
 
-	public previousMatchFindWidget() {
-		if (this._webview) {
-			this._webview.previousMatchFindWidget();
+		public previousMatchFindWidget() {
+			if (this._webview) {
+				this._webview.previousMatchFindWidget();
+			}
 		}
-	}
-
+	 */
 	public updateStyles() {
 		super.updateStyles();
 		if (this._webview) {
@@ -112,7 +110,7 @@ abstract class WebViewEditorCommand extends Command {
 		return null;
 	}
 }
-
+/*
 class ShowWebViewEditorFindCommand extends WebViewEditorCommand {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = this.getWebViewEditor(accessor);
@@ -218,3 +216,4 @@ const showPreviousFindTermCommand = new ShowPreviousFindTermExtensionEditorFindC
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+ */

@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -149,6 +149,8 @@ export interface ITerminalService {
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
+
+	terminalFocusContextKey: IContextKey<boolean>;
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;

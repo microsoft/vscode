@@ -39,6 +39,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
+	public get terminalFocusContextKey(): IContextKey<boolean> { return this._terminalFocusContextKey; }
+
 	public abstract get configHelper(): ITerminalConfigHelper;
 
 	constructor(
@@ -121,6 +123,13 @@ export abstract class TerminalService implements ITerminalService {
 		if (wasActiveInstance) {
 			this._onActiveInstanceChanged.fire();
 		}
+	}
+
+	/**
+	 * getTerminalFocusContextKey
+	: */
+	public getTerminalFocusContextKey(): IContextKey<boolean> {
+		return this._terminalFocusContextKey;
 	}
 
 	public getActiveInstance(): ITerminalInstance {
@@ -213,6 +222,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract showPreviousFindTermFindWidget(): void;
 	public abstract nextMatchFindWidget(): void;
 	public abstract previousMatchFindWidget(): void;
+
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

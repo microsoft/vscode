@@ -26,7 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -52,8 +52,10 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { default as Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/html/browser/webview';
+// import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { default as Webview } from 'vs/workbench/parts/html/browser/webview';
+// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -190,6 +192,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private simpleFindWidgetService: ISimpleFindWidgetService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -334,43 +337,43 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.update();
 		super.changePosition(position);
 	}
-
-	showFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.showFind();
+	/*
+		showFind(): void {
+			if (this.activeWebview) {
+				this.activeWebview.showFind();
+			}
 		}
-	}
 
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
+		hideFind(): void {
+			if (this.activeWebview) {
+				this.activeWebview.hideFind();
+			}
 		}
-	}
 
-	showNextFindTerm(): void {
-		if (this.activeWebview) {
-			this.activeWebview.showNextFindTerm();
+		showNextFindTerm(): void {
+			if (this.activeWebview) {
+				this.activeWebview.showNextFindTerm();
+			}
 		}
-	}
 
-	showPreviousFindTerm(): void {
-		if (this.activeWebview) {
-			this.activeWebview.showPreviousFindTerm();
+		showPreviousFindTerm(): void {
+			if (this.activeWebview) {
+				this.activeWebview.showPreviousFindTerm();
+			}
 		}
-	}
 
-	public nextMatchFindWidget() {
-		if (this.activeWebview) {
-			this.activeWebview.nextMatchFindWidget();
+		public nextMatchFindWidget() {
+			if (this.activeWebview) {
+				this.activeWebview.nextMatchFindWidget();
+			}
 		}
-	}
 
-	public previousMatchFindWidget() {
-		if (this.activeWebview) {
-			this.activeWebview.previousMatchFindWidget();
+		public previousMatchFindWidget() {
+			if (this.activeWebview) {
+				this.activeWebview.previousMatchFindWidget();
+			}
 		}
-	}
-
+	 */
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -391,7 +394,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, this.contextKey, webViewOptions);
+				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, this.simpleFindWidgetService, this.contextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -836,6 +839,7 @@ abstract class ExtensionEditorCommand extends Command {
 	}
 }
 
+/*
 class ShowExtensionEditorFindCommand extends ExtensionEditorCommand {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const extensionEditor = this.getExtensionEditor(accessor);
@@ -865,7 +869,7 @@ const hideCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.hidefind',
 	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
 	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+		primary: KeyCode.Escape
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
@@ -942,3 +946,5 @@ const previousMatchFindCommand = new PreviousMatchExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(previousMatchFindCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+*/

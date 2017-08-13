@@ -760,7 +760,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		return TPromise.as(null);
 	}
 }
-
+/*
 export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
@@ -794,7 +794,7 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
 	}
 }
-
+ */
 export class NextMatchTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.nextMatchFindWidget';
