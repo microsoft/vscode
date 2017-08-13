@@ -124,9 +124,9 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
-export function writeFile(path: string, data: string, options?: string | { mode?: number; flag?: string; }): TPromise<void>;
-export function writeFile(path: string, data: NodeBuffer, options?: string | { mode?: number; flag?: string; }): TPromise<void>;
-export function writeFile(path: string, data: any, options?: string | { mode?: number; flag?: string; }): TPromise<void> {
+export function writeFile(path: string, data: string, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: NodeBuffer, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: any, options?: { mode?: number; flag?: string; }): TPromise<void> {
 	let queueKey = toQueueKey(path);
 
 	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
