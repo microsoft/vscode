@@ -134,17 +134,6 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			}
 		}
 
-		// Dont try to expand abbreviations when cursor is before/after ; or : or in the middle of a word
-		// Fix for https://github.com/Microsoft/vscode/issues/1623 in new emmet
-		if (isStyleSheet(syntax) && !/\s!$/.test(textTillPosition)) {
-			const charAtPosition = currentLine.substr(position.character, 1);
-			if (textTillPosition.endsWith(':')
-				|| textTillPosition.endsWith(';')
-				|| (charAtPosition && !/\s/.test(charAtPosition))) {
-				return [null, '', []];
-			}
-		}
-
 		let extractedResults = extractAbbreviation(editor.document, position);
 		if (!extractedResults) {
 			return [null, '', []];
