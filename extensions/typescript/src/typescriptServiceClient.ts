@@ -332,7 +332,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
 					args.push('--useSingleInferredProject');
-					if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
+					if (this.configuration.disableAutomaticTypeAcquisition) {
 						args.push('--disableAutomaticTypingAcquisition');
 					}
 				}
