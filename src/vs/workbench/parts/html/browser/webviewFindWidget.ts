@@ -6,19 +6,22 @@
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 import Webview from './webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService _simpleFindWidgetService: ISimpleFindWidgetService,
 		private webview: Webview,
 		private _findInputContextKey: RawContextKey<boolean>
 	) {
-		super(_contextViewService);
+		super(_contextViewService, _contextKeyService, _simpleFindWidgetService);
 
-		this._findInputFocused = _findInputContextKey.bindTo(this._contextKeyService);
+		// this._findInputFocused = _findInputContextKey.bindTo(this._contextKeyService);
+
 		this.find = this.find.bind(this);
 		this.hide = this.hide.bind(this);
 		this.onInputChanged = this.onInputChanged.bind(this);

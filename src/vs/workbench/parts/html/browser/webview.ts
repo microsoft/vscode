@@ -15,6 +15,8 @@ import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
+// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
 
 /**  A context key that is set when the find widget find input in WebViewEditor is focused. */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('webviewEditorFindWidgetInputFocused', undefined);
@@ -80,6 +82,7 @@ export default class Webview {
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService,
 		private _contextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
@@ -199,7 +202,8 @@ export default class Webview {
 			})
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED);
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this._simpleFindWidgetService, this, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED);
+		this._disposables.push(this._simpleFindWidgetService.register(this._webviewFindWidget, [this._contextKey]));
 		this._disposables.push(this._webviewFindWidget);
 
 		if (parent) {
@@ -449,28 +453,30 @@ export default class Webview {
 		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
 	}
+	/*
+		public showFind() {
+			this._webviewFindWidget.reveal(true);
+		}
 
-	public showFind() {
-		this._webviewFindWidget.reveal(true);
-	}
+		public hideFind() {
+			this._webviewFindWidget.hide();
+		}
 
-	public hideFind() {
-		this._webviewFindWidget.hide();
-	}
+		public showNextFindTerm() {
+			this._webviewFindWidget.showNextFindTerm();
+		}
 
-	public showNextFindTerm() {
-		this._webviewFindWidget.showNextFindTerm();
-	}
+		public showPreviousFindTerm() {
+			this._webviewFindWidget.showPreviousFindTerm();
+		}
 
-	public showPreviousFindTerm() {
-		this._webviewFindWidget.showPreviousFindTerm();
-	}
+		public nextMatchFindWidget(): void {
+			this._webviewFindWidget.find(false);
+		}
 
-	public nextMatchFindWidget(): void {
-		this._webviewFindWidget.find(false);
-	}
+		public previousMatchFindWidget(): void {
+			this._webviewFindWidget.find(true);
+		}
 
-	public previousMatchFindWidget(): void {
-		this._webviewFindWidget.find(true);
-	}
+	 */
 }
