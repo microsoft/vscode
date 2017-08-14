@@ -821,7 +821,7 @@ begin
     end;
 
     if not Result then begin
-      MsgBox('Please uninstall {#NameShort} ' + AltArch + 'bits before installing this ' + ThisArch + 'bits version.', mbInformation, MB_OK);
+      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
     end;
   end;
 end;
