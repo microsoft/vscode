@@ -8,7 +8,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IRemoteCom, createProxyProtocol } from 'vs/workbench/services/extensions/node/ipcRemoteCom';
 import { parse } from 'vs/base/common/marshalling';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';

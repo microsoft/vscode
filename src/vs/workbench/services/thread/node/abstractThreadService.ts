@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IManyHandler } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IManyHandler } from 'vs/workbench/services/extensions/node/ipcRemoteCom';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
 // declare var Proxy:any; // TODO@TypeScript

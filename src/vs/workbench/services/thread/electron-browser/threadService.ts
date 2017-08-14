@@ -7,8 +7,8 @@
 
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { IRemoteCom, createProxyProtocol } from 'vs/workbench/services/extensions/node/ipcRemoteCom';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';

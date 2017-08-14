@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { IRemoteCom } from 'vs/workbench/services/extensions/node/ipcRemoteCom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostThreadService extends AbstractThreadService implements IThreadService {

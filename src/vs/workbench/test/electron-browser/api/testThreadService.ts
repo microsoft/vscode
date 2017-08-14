@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
 export function OneGetThreadService(thing: any): IThreadService {
