@@ -54,7 +54,9 @@ export class ExtensionHostMain {
 		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
-		watchdog.start(10000);
+		if (!initData.environment.isExtensionDevelopmentDebug) {
+			watchdog.start(10000);
+		}
 	}
 
 	public start(): TPromise<void> {

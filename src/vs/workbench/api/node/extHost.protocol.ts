@@ -48,6 +48,7 @@ import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export interface IEnvironment {
+	isExtensionDevelopmentDebug: boolean;
 	enableProposedApiForAll: boolean;
 	enableProposedApiFor: string | string[];
 	appSettingsHome: string;

@@ -291,9 +291,10 @@ export class ExtensionHostProcessWorker {
 
 	private createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this.telemetryService.getTelemetryInfo(), this.extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
-			return <IInitData>{
+			let r: IInitData = {
 				parentPid: process.pid,
 				environment: {
+					isExtensionDevelopmentDebug: this.isExtensionDevelopmentDebug,
 					appSettingsHome: this.environmentService.appSettingsHome,
 					disableExtensions: this.environmentService.disableExtensions,
 					userExtensionsHome: this.environmentService.extensionsPath,
@@ -308,6 +309,7 @@ export class ExtensionHostProcessWorker {
 				configuration: this.configurationService.getConfigurationData(),
 				telemetryInfo
 			};
+			return r;
 		});
 	}
 
