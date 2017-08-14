@@ -345,7 +345,7 @@
 								},
 								{
 									"begin": "\\G",
-									"end": "(?i:(?=/?>|type(?=[\\s=])(?!\\s*=\\s*('|\"|)(text/(javascript|ecmascript|babel)|application/((x-)?javascript|ecmascript|babel)|module)[\\s\"'>])))",
+									"end": "(?i:(?=/?>|type(?=[\\s=])(?!\\s*=\\s*('|\"|)(text/(javascript|ecmascript|babel|ractive)|application/((x-)?javascript|ecmascript|babel)|module)[\\s\"'>])))",
 									"name": "meta.tag.metadata.script.html",
 									"patterns": [
 										{
