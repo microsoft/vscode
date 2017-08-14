@@ -32,7 +32,7 @@ import { MainThreadStorage } from './mainThreadStorage';
 import { MainThreadTelemetry } from './mainThreadTelemetry';
 import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
-import { MainProcessExtensionService } from './mainThreadExtensionService';
+import { MainProcessExtensionServiceAPI } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
 import { MainThreadTask } from './mainThreadTask';
 import { MainThreadSCM } from './mainThreadSCM';
@@ -93,15 +93,13 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
 		col.define(MainContext.MainThreadTask).set(create(MainThreadTask));
 		col.define(MainContext.MainThreadCredentials).set(create(MainThreadCredentials));
-		if (this.extensionService instanceof MainProcessExtensionService) {
-			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
-		}
+		col.define(MainContext.MainProcessExtensionService).set(create(MainProcessExtensionServiceAPI));
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		create(JSONValidationExtensionPoint);
+		create(JSONValidationExtensionPoint); // TODO@rehost: can survive an ext host restart
 		create(ColorExtensionPoint);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler); // TODO@rehost: can survive an ext host restart
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);
 	}

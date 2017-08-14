@@ -11,17 +11,20 @@ import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
-import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostExtensionServiceShape } from '../node/extHost.protocol';
+import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostContext, ExtHostExtensionServiceShape, MainProcessExtensionServiceShape } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { ExtensionHostProcessWorker } from "vs/workbench/electron-browser/extensionHost";
+import { MainThreadService } from "vs/workbench/services/thread/electron-browser/threadService";
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -50,17 +53,18 @@ function messageWithSource(msg: IMessage): string {
 
 const hasOwnProperty = Object.hasOwnProperty;
 
-export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> {
+export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> implements IThreadService {
 
 	private _proxy: ExtHostExtensionServiceShape;
 	private _isDev: boolean;
 	private _extensionsStatus: { [id: string]: IExtensionsStatus };
+	private _threadService: IThreadService;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		@IThreadService private readonly _threadService: IThreadService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -70,8 +74,12 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		super(false);
 		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
 
-		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
+
+		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker);
+		this._threadService = this._instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
+		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
+		extensionHostProcessWorker.start(this);
 
 		this.scanExtensions().done(extensionDescriptions => {
 			const disabledExtensions = [
@@ -88,6 +96,21 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		});
 	}
 
+	// ---- begin IThreadService
+
+	public get<T>(identifier: ProxyIdentifier<T>): T {
+		return this._threadService.get(identifier);
+	}
+
+	/**
+	 * Register instance.
+	 */
+	public set<T>(identifier: ProxyIdentifier<T>, value: T): void {
+		this._threadService.set(identifier, value);
+	}
+
+	// ---- end IThreadService
+
 	private _handleMessage(msg: IMessage) {
 
 		if (!this._extensionsStatus[msg.source]) {
@@ -95,7 +118,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		}
 		this._extensionsStatus[msg.source].messages.push(msg);
 
-		this.$localShowMessage(
+		this._localShowMessage(
 			msg.type, messageWithSource(msg),
 			this.environmentService.extensionDevelopmentPath === msg.source
 		);
@@ -108,7 +131,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		}
 	}
 
-	public $localShowMessage(severity: Severity, msg: string, useMessageService: boolean = this._isDev): void {
+	public _localShowMessage(severity: Severity, msg: string, useMessageService: boolean = this._isDev): void {
 		// Only show nasty intrusive messages if doing extension development
 		// and print all other messages to the console
 		if (useMessageService && (severity === Severity.Error || severity === Severity.Warning)) {
@@ -129,7 +152,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	}
 
 	protected _showMessage(severity: Severity, msg: string): void {
-		this.$localShowMessage(severity, msg);
+		this._localShowMessage(severity, msg);
 	}
 
 	protected _createFailedExtension(): ActivatedExtension {
@@ -180,11 +203,11 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		extensionPoint.acceptUsers(users);
 	}
 
-	public $onExtensionActivated(extensionId: string): void {
+	public _onExtensionActivated(extensionId: string): void {
 		this._activatedExtensions[extensionId] = new MainProcessSuccessExtension();
 	}
 
-	public $onExtensionActivationFailed(extensionId: string): void {
+	public _onExtensionActivationFailed(extensionId: string): void {
 		this._activatedExtensions[extensionId] = new MainProcessFailedExtension();
 	}
 
@@ -223,8 +246,31 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 			collector.error('', err);
 			return [];
 		}).then(extensions => {
-			collector.getMessages().forEach(entry => this.$localShowMessage(entry.type, this._isDev ? (entry.source ? '[' + entry.source + ']: ' : '') + entry.message : entry.message));
+			collector.getMessages().forEach(entry => this._localShowMessage(entry.type, this._isDev ? (entry.source ? '[' + entry.source + ']: ' : '') + entry.message : entry.message));
 			return extensions;
 		});
+	}
+}
+
+export class MainProcessExtensionServiceAPI extends MainProcessExtensionServiceShape {
+
+	private readonly _extensionService: MainProcessExtensionService;
+
+	constructor( @IExtensionService extensionService: IExtensionService) {
+		super();
+
+		if (extensionService instanceof MainProcessExtensionService) {
+			this._extensionService = extensionService;
+		}
+	}
+
+	$localShowMessage(severity: Severity, msg: string): void {
+		this._extensionService._localShowMessage(severity, msg);
+	}
+	$onExtensionActivated(extensionId: string): void {
+		this._extensionService._onExtensionActivated(extensionId);
+	}
+	$onExtensionActivationFailed(extensionId: string): void {
+		this._extensionService._onExtensionActivationFailed(extensionId);
 	}
 }
