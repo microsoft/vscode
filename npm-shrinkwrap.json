@@ -295,6 +295,11 @@
       "from": "native-keymap@1.2.4",
       "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.4.tgz"
     },
+    "native-watchdog": {
+      "version": "0.1.0",
+      "from": "native-watchdog@0.1.0",
+      "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.1.0.tgz"
+    },
     "node-pty": {
       "version": "0.6.9",
       "from": "node-pty@0.6.9",
