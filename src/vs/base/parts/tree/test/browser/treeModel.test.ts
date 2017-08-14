@@ -624,11 +624,15 @@ suite('TreeModel - Expansion', () => {
 					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 
 					model.collapseAll().done(() => {
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
+						model.addOneTimeListener('item:collapsed', () => {
+							model.addOneTimeListener('item:collapsed', () => {
+								assert(!model.isExpanded(SAMPLE.DEEP2.children[0]));
 
-						model.expand(SAMPLE.DEEP2.children[0]).done(() => {
-							assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-							done();
+								model.expand(SAMPLE.DEEP2.children[0]).done(() => {
+									assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+									done();
+								});
+							});
 						});
 					});
 				});
