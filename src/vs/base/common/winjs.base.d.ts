@@ -115,6 +115,11 @@ export declare class TPromise<V> {
 	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void);
 }
 
+export interface PPromiseJoinProgress {
+	Key: string;
+	Done: true;
+}
+
 // --- Generic promise with generic progress value
 export declare class PPromise<C, P> extends TPromise<C> {
 
@@ -132,8 +137,8 @@ export declare class PPromise<C, P> extends TPromise<C> {
 
 	public static as<V>(value: V): TPromise<V>;
 	public static timeout(delay: number): PPromise<void, void>;
-	public static join<C, P>(promises: PPromise<C, P>[]): PPromise<C, P[]>;
-	public static join<C, P>(promises: { [n: string]: PPromise<C, P> }): PPromise<{ [n: string]: C }, P>;
+	public static join<C, P>(promises: PPromise<C, P>[]): PPromise<C, PPromiseJoinProgress>;
+	public static join<C, P>(promises: { [n: string]: PPromise<C, P> }): PPromise<{ [n: string]: C }, PPromiseJoinProgress>;
 	public static any<C, P>(promises: PPromise<C, P>[]): PPromise<{ key: string; value: PPromise<C, P>; }, P>;
 	public static wrapError<V>(error: Error): TPromise<V>;
 }
