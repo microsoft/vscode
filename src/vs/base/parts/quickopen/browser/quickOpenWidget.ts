@@ -244,7 +244,8 @@ export class QuickOpenWidget implements IModelProvider {
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
 						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
-						keyboardSupport: this.options.keyboardSupport
+						keyboardSupport: this.options.keyboardSupport,
+						preventRootFocus: true
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
@@ -335,7 +336,15 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		this.applyStyles();
-
+		// Allows focus to switch to next/previous entry after tab into an actionbar item
+		DOM.addDisposableListener(this.treeContainer.getHTMLElement(), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+				DOM.EventHelper.stop(e, true);
+				this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
+				this.inputBox.inputElement.focus();
+			}
+		});
 		return this.builder.getHTMLElement();
 	}
 

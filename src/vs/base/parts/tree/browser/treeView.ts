@@ -444,7 +444,7 @@ export class TreeView extends HeightMap {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
-		this.domNode.tabIndex = 0;
+		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
 
