@@ -1104,13 +1104,14 @@ export class CommandCenter {
 
 	@command('git.stashPop')
 	async stashPop(): Promise<void> {
-		const noStashes = this.model.stashes.length === 0;
+		let stashes = await this.model.getStashes();
+		const noStashes = stashes.length === 0;
 		if (noStashes){
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
 			return;
 		}
 
-		const picks = this.model.stashes.map(r => { return { label: `#${r.id}:  ${r.description}`, description: "", derails: "", id: r.id }; });
+		const picks = stashes.map(r => { return { label: `#${r.id}:  ${r.description}`, description: "", derails: "", id: r.id }; });
 		const placeHolder = localize('pick stash', "Pick a stash");
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
@@ -1122,7 +1123,8 @@ export class CommandCenter {
 
 	@command('git.stashPopLatest')
 	async stashPopLatest(): Promise<void> {
-		const noStashes = this.model.stashes.length === 0;
+		let stashes = await this.model.getStashes();
+		const noStashes = stashes.length === 0;
 		if (noStashes){
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
 			return;

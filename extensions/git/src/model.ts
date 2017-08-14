@@ -346,11 +346,6 @@ export class Model implements Disposable {
 		return this._remotes;
 	}
 
-	private _stashes: Stash[] = [];
-	get stashes(): Stash[] {
-		return this._stashes;
-	}
-
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
@@ -365,7 +360,6 @@ export class Model implements Disposable {
 		this._HEAD = undefined;
 		this._refs = [];
 		this._remotes = [];
-		this._stashes = [];
 		this._mergeGroup = new MergeGroup();
 		this._indexGroup = new IndexGroup();
 		this._workingTreeGroup = new WorkingTreeGroup();
@@ -580,6 +574,10 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getStashes(): Promise<Stash[]> {
+		return await this.getStashes();
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		const run = async () => {
 			this._operations = this._operations.start(operation);
@@ -704,12 +702,11 @@ export class Model implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes, stashes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getStashes()]);
+		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
-		this._stashes = stashes;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];
