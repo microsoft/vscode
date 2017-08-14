@@ -57,7 +57,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	const commandCenter = new CommandCenter(git, modelRegistry, outputChannel, telemetryReporter);
 	const statusBarCommands = new StatusBarCommands(model);
-	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
+	const provider = new GitSCMProvider(model, statusBarCommands);
 	const contentProvider = new GitContentProvider(model);
 	const autoFetcher = new AutoFetcher(model);
 

@@ -16,7 +16,7 @@ const localize = nls.loadMessageBundle();
 class ModelPick implements QuickPickItem {
 	@memoize get label(): string { return path.basename(this.repositoryRoot.fsPath); }
 	@memoize get description(): string { return path.dirname(this.repositoryRoot.fsPath); }
-	constructor(protected repositoryRoot: Uri, public readonly model: Model) {}
+	constructor(protected repositoryRoot: Uri, public readonly model: Model) { }
 }
 
 export class ModelRegistry {

@@ -8,7 +8,6 @@
 import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
 import { Model, State, Status } from './model';
 import { StatusBarCommands } from './statusbar';
-import { CommandCenter } from './commands';
 import { mapEvent } from './util';
 import { toGitUri } from './uri';
 import * as nls from 'vscode-nls';
@@ -60,7 +59,6 @@ export class GitSCMProvider {
 
 	constructor(
 		private model: Model,
-		private commandCenter: CommandCenter,
 		private statusBarCommands: StatusBarCommands
 	) {
 		this._sourceControl = scm.createSourceControl('git', 'Git');
