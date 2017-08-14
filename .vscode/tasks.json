@@ -55,7 +55,8 @@
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
-			}
+			},
+			"problemMatcher": []
 		},
 		{
 			"type": "gulp",
