@@ -24,7 +24,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
-// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>

@@ -149,7 +149,6 @@ export interface ITerminalService {
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
-
 	terminalFocusContextKey: IContextKey<boolean>;
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
@@ -165,12 +164,7 @@ export interface ITerminalService {
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
-	focusFindWidget(): TPromise<void>;
-	hideFindWidget(): void;
-	showNextFindTermFindWidget(): void;
-	showPreviousFindTermFindWidget(): void;
-	nextMatchFindWidget(): void;
-	previousMatchFindWidget(): void;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;

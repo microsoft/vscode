@@ -14,14 +14,9 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
-// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
 
-/**  A context key that is set when the find widget find input in WebViewEditor is focused. */
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('webviewEditorFindWidgetInputFocused', undefined);
-/**  A context key that is set when the find widget find input in WebViewEditor is not focused. */
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -202,7 +197,8 @@ export default class Webview {
 			})
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this._simpleFindWidgetService, this, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED);
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this._simpleFindWidgetService, this);
+		// Register and add to disposables
 		this._disposables.push(this._simpleFindWidgetService.register(this._webviewFindWidget, [this._contextKey]));
 		this._disposables.push(this._webviewFindWidget);
 

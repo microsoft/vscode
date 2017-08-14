@@ -18,7 +18,8 @@ import { SimpleButton } from './findWidget';
 import { Delayer } from 'vs/base/common/async';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
-
+// We may need to add a ContextKey to track a focused widget (currently commands are executed within the action context)
+// ContextKey to track widget with focused input
 export const KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('simpleFindWidgetInputFocused', undefined);
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -27,30 +28,16 @@ const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
-interface ISimpleFindWidgetRegistry {
-	inputId: number;
-	// simpleFindWidget: SimpleFindWidget;
-	simpleFindWidgetPtr: Object;
-	findInputDOMNode: HTMLElement;
-}
-
 export abstract class SimpleFindWidget extends Widget {
 
 	protected _findInput: FindInput;
 	protected _domNode: HTMLElement;
 	protected _isVisible: boolean;
-	// protected _activeContextKey: IContextKey<boolean>;
-
 	protected _focusTracker: dom.IFocusTracker;
-
 	protected _findInputFocusTracker: dom.IFocusTracker;
 	protected _findInputFocused: IContextKey<boolean>;
-
 	protected _findHistory: HistoryNavigator<string>;
 	protected _updateHistoryDelayer: Delayer<void>;
-
-	private static _count: number = 0;
-	// private static _simpleFindWidgetRegistry: ISimpleFindWidgetRegistry[] = [];
 
 	constructor(
 		@IContextViewService private _contextViewService: IContextViewService,
@@ -64,22 +51,8 @@ export abstract class SimpleFindWidget extends Widget {
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 		}));
 
-		SimpleFindWidget._count++;
-
-		// var accessor: ServicesAccessor;
-		// const simpleFindWidgetService = accessor.get(ISimpleFindWidgetService) instanceof SimpleFindWidgetService;
-		// console.debug('Test ' + simpleFindWidgetService.getFindInputDOM());
-		// .getActiveSimpleFindWidget() as SimpleFindWidget;
-		console.debug('SFW ' + SimpleFindWidget._count);
-		// var simpleFindWidgetRegistryEntry: ISimpleFindWidgetRegistry;
-		// simpleFindWidgetRegistryEntry.inputId = SimpleFindWidget._count;
-		// simpleFindWidgetRegistryEntry.simpleFindWidget = this;
-		// simpleFindWidgetRegistryEntry.findInputDOMNode = this._findInput.domNode;
-
-		// SimpleFindWidget._simpleFindWidgetRegistry.push(simpleFindWidgetRegistryEntry);
-
+		// Find History with update delayer
 		this._findHistory = new HistoryNavigator<string>();
-
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this._findInputFocused = KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
@@ -166,13 +139,11 @@ export abstract class SimpleFindWidget extends Widget {
 	private _onFindInputFocusTrackerFocus() {
 		this._findInputFocused.set(true);
 		this._simpleFindWidgetService.setFocusedSimpleFindWidgetInput(this);
-		console.debug('find focused');
 	}
 
 	private _onFindInputFocusTrackerBlur() {
 		this._findInputFocused.reset();
 		this._simpleFindWidgetService.setFocusedSimpleFindWidgetInput(null);
-		console.debug('find blur');
 	}
 
 	protected get inputValue() {
@@ -209,6 +180,7 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
+	// Reveal is used to show widget and optionally focus on input
 	public reveal(focusInput: boolean, initialInput?: string): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
@@ -259,12 +231,12 @@ export abstract class SimpleFindWidget extends Widget {
 		}
 	}
 
+	// Allow subclass to provide find
 	public baseFind(previous: boolean) {
 		this.find(previous);
 	}
 
 }
-
 
 // theming
 registerThemingParticipant((theme, collector) => {

@@ -38,7 +38,6 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
-
 	public get terminalFocusContextKey(): IContextKey<boolean> { return this._terminalFocusContextKey; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
@@ -125,9 +124,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	/**
-	 * getTerminalFocusContextKey
-	: */
+	// ContextKey to match terminal with simpleFindWidget
 	public getTerminalFocusContextKey(): IContextKey<boolean> {
 		return this._terminalFocusContextKey;
 	}
@@ -215,14 +212,6 @@ export abstract class TerminalService implements ITerminalService {
 			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
 		}
 	}
-
-	public abstract focusFindWidget(): TPromise<void>;
-	public abstract hideFindWidget(): void;
-	public abstract showNextFindTermFindWidget(): void;
-	public abstract showPreviousFindTermFindWidget(): void;
-	public abstract nextMatchFindWidget(): void;
-	public abstract previousMatchFindWidget(): void;
-
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

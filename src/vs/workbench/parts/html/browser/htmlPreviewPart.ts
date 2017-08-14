@@ -26,7 +26,6 @@ import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
-// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.

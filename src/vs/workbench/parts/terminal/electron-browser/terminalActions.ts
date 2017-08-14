@@ -662,41 +662,6 @@ export class RenameTerminalAction extends Action {
 	}
 }
 
-export class FocusTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.focusFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.terminalService.focusFindWidget();
-	}
-}
-
-export class HideTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.hideFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.hideFindWidget());
-	}
-}
-
-
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
@@ -758,73 +723,5 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 			.then(() => TPromise.timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 		return TPromise.as(null);
-	}
-}
-/*
-export class ShowNextFindTermTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
-	public static LABEL = nls.localize('nextTerminalFindTerm', "Terminal: Show Next Search Term");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.showNextFindTermFindWidget());
-	}
-}
-
-export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
-	public static LABEL = nls.localize('previousTerminalFindTerm', "Terminal: Show Previous Search Term");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
-	}
-}
- */
-export class NextMatchTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.nextMatchFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.nextMatchFindWidget', "Terminal: Find Next Match");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.nextMatchFindWidget());
-	}
-}
-
-export class PreviousMatchTerminalFindWidgetAction extends Action {
-
-	public static ID = 'workbench.action.terminal.previousMatchFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.previousMatchFindWidget', "Terminal: Find Previous Match");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return TPromise.as(this.terminalService.previousMatchFindWidget());
 	}
 }

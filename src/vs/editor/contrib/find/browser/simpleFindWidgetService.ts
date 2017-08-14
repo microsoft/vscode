@@ -4,21 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
-// import * as nls from 'vs/nls';
-// import { Widget } from 'vs/base/browser/ui/widget';
-// import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-// import * as dom from 'vs/base/browser/dom';
-// import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-// import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-// import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-// import { HistoryNavigator } from 'vs/base/common/history';
-// import { SimpleButton } from './findWidget';
-// import { Delayer } from 'vs/base/common/async';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-// import { RunOnceScheduler } from 'vs/base/common/async';
 
+// This ContextKey is used to track if any simple find widgets have been instantiated and registered
+// We then can use this as the primary precondition for all (Simple)Find commands
+// The first key of contextKeys passed into registration is used to determine the current active client
 export const KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_ACTIVE = new RawContextKey<boolean>('simpleFindWidgetInputActive', undefined);
 
 export const ISimpleFindWidgetService = createDecorator<ISimpleFindWidgetService>('simpleFindWidgetService');
@@ -27,9 +19,8 @@ export interface ISimpleFindWidgetService {
 
 	_serviceBrand: any;
 
-	register(simpleFindWidget: SimpleFindWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable;
+	register(simpleFindWidget: SimpleFindWidget, contextKeys: (IContextKey<boolean>)[]): IDisposable;
 	getSimpleFindWidgetCount(): number;
-	getFindInputDOM(): number;
 	getActiveSimpleFindWidget(): SimpleFindWidget;
 	setFocusedSimpleFindWidgetInput(simpleFindWidget): void;
 	getFocusedSimpleFindWidgetInput(): SimpleFindWidget;
@@ -45,57 +36,46 @@ export const SimpleFindWidgetInputFocusContext = new RawContextKey<boolean>('sim
 
 interface IRegisteredSimpleFindWidget {
 	widget: SimpleFindWidget;
-	extraContextKeys?: (IContextKey<boolean>)[];
+	contextKeys: (IContextKey<boolean>)[];
 }
 
 export class SimpleFindWidgetService implements ISimpleFindWidgetService {
 
 	public _serviceBrand: any;
 	private _activeContextKey: IContextKey<boolean>;
-	private focusedSimpleFindWidgetInput: SimpleFindWidget;
-	private simpleFindWidgets: IRegisteredSimpleFindWidget[];
-
-	// private listFocusContext: IContextKey<boolean>;
-
-	// private focusChangeScheduler: RunOnceScheduler;
+	private _focusedSimpleFindWidgetInput: SimpleFindWidget;
+	private _simpleFindWidgets: IRegisteredSimpleFindWidget[];
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
-		console.debug('simple find widget service');
-		// this.listFocusContext = SimpleFindWidgetInputFocusContext.bindTo(contextKeyService);
-		this.focusedSimpleFindWidgetInput = null;
-		this.simpleFindWidgets = [];
-
+		this._focusedSimpleFindWidgetInput = null;
+		// Maintain instantiated SimpleFindWidgets list
+		// When all widgets are disposed we reset the active context key
+		this._simpleFindWidgets = [];
 		this._activeContextKey = KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_ACTIVE.bindTo(this._contextKeyService);
-
-		// this.focusChangeScheduler = new RunOnceScheduler(() => this.onFocusChange(), 50 /* delay until the focus/blur dust settles */);
 	}
 
-	public register(widget: SimpleFindWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
+	public register(widget: SimpleFindWidget, contextKeys: (IContextKey<boolean>)[]): IDisposable {
 
+		// Save registered simple widgets
+		// Use first context key to track parent owner of widget
+		const registeredSimpleFindWidget: IRegisteredSimpleFindWidget = { widget, contextKeys };
+		this._simpleFindWidgets.push(registeredSimpleFindWidget);
 
-
-		// Keep in our lists list
-		const registeredSimpleFindWidget: IRegisteredSimpleFindWidget = { widget, extraContextKeys };
-		this.simpleFindWidgets.push(registeredSimpleFindWidget);
-		console.debug('register SFW ' + this.simpleFindWidgets.length);
+		// Set ContextKey to track any active widget
 		this._activeContextKey.set(true);
 
-		const toDispose = [
-			// widget.onDOMFocus(() => this.focusChangeScheduler.schedule()),
-			// widget.onDOMBlur(() => this.focusChangeScheduler.schedule())
-		];
+		const toDispose = [];
 
-		// Remove list once disposed
+		// Remove SimpleFindWidget from list once disposed
 		toDispose.push({
 			dispose: () => {
-				this.simpleFindWidgets.splice(this.simpleFindWidgets.indexOf(registeredSimpleFindWidget), 1);
-				if (this.simpleFindWidgets.length === 0) {
+				this._simpleFindWidgets.splice(this._simpleFindWidgets.indexOf(registeredSimpleFindWidget), 1);
+				if (this._simpleFindWidgets.length === 0) {
+					// No more instantiated/active widgets, reset ContextKey
 					this._activeContextKey.reset();
-					console.debug('no active SFW');
 				}
-				console.debug('dispose SFW');
 			}
 		});
 
@@ -104,55 +84,46 @@ export class SimpleFindWidgetService implements ISimpleFindWidgetService {
 		};
 	}
 
+	// Track Widget with focused input
 	public setFocusedSimpleFindWidgetInput(simpleFindWidget): void {
-		this.focusedSimpleFindWidgetInput = simpleFindWidget;
-		console.debug('FindHimfocus');
+		this._focusedSimpleFindWidgetInput = simpleFindWidget;
 	}
 
 	public getFocusedSimpleFindWidgetInput(): SimpleFindWidget {
-		if (this.focusedSimpleFindWidgetInput === null) {
-			console.debug('is null');
+		if (this._focusedSimpleFindWidgetInput === null) {
+			// We may want to do something more here
 		}
-		return this.focusedSimpleFindWidgetInput;
+		return this._focusedSimpleFindWidgetInput;
 	}
+
 	public getSimpleFindWidgetCount(): number {
-		return this.simpleFindWidgets.length;
+		return this._simpleFindWidgets.length;
 	}
 
-	public getFindInputDOM(): number {
-
-		return 0;
-	}
-
+	// Get active widget using first registered context key or
+	// if an input is focused, return that widget
 	public getActiveSimpleFindWidget(): SimpleFindWidget {
 		var activeSimpleFindWidget: SimpleFindWidget = null;
 		var contextMatch = false;
-		for (let i = 0; i < this.simpleFindWidgets.length; i++) {
-			console.debug('Loop ' + i);
-			const contextKeys = this.simpleFindWidgets[i].extraContextKeys;
+		for (let i = 0; i < this._simpleFindWidgets.length; i++) {
+			const contextKeys = this._simpleFindWidgets[i].contextKeys;
 			for (let j = 0; j < contextKeys.length; j++) {
 				contextMatch = contextKeys[j].get();
-				console.debug('active context ' + contextMatch + '  ' + contextKeys.length);
 				if (!contextMatch || contextMatch === undefined) {
 					break;
 				}
 			}
 			if (contextMatch) {
-
-				activeSimpleFindWidget = this.simpleFindWidgets[i].widget;
-				console.debug('simple find widget : ' + activeSimpleFindWidget);
+				activeSimpleFindWidget = this._simpleFindWidgets[i].widget;
 				break;
 			}
-
 		}
-		// this._contextKeyService.getContext();
 		return activeSimpleFindWidget;
 	}
 
 	public hide(): void {
 		const activeSimpleFindWidget = this.getActiveSimpleFindWidget();
 		if (!!activeSimpleFindWidget) {
-			console.debug('service hide');
 			activeSimpleFindWidget.hide();
 		}
 	}
@@ -160,35 +131,31 @@ export class SimpleFindWidgetService implements ISimpleFindWidgetService {
 	public show(): void {
 		const activeSimpleFindWidget = this.getActiveSimpleFindWidget();
 		if (!!activeSimpleFindWidget) {
-			console.debug('service show');
 			activeSimpleFindWidget.reveal(true);
 		}
 	}
 
 	public find(previous: boolean): void {
-		// We have several possible states
-		if (!!this.focusedSimpleFindWidgetInput) {
-			this.focusedSimpleFindWidgetInput.baseFind(previous);
+		// We allow the subclass to use its find function
+		if (!!this._focusedSimpleFindWidgetInput) {
+			this._focusedSimpleFindWidgetInput.baseFind(previous);
 			return;
 		}
-
 		const activeSimpleFindWidget = this.getActiveSimpleFindWidget();
 		if (!!activeSimpleFindWidget) {
-			console.debug('service Find');
 			activeSimpleFindWidget.baseFind(previous);
 		}
 	}
 
 	public nextMatch(): void {
-		// We have several possible states
-		if (!!this.focusedSimpleFindWidgetInput) {
-			this.focusedSimpleFindWidgetInput.baseFind(false);
+		if (!!this._focusedSimpleFindWidgetInput) {
+			this._focusedSimpleFindWidgetInput.baseFind(false);
 		}
 	}
 
 	public previousMatch(): void {
-		if (!!this.focusedSimpleFindWidgetInput) {
-			this.focusedSimpleFindWidgetInput.baseFind(true);
+		if (!!this._focusedSimpleFindWidgetInput) {
+			this._focusedSimpleFindWidgetInput.baseFind(true);
 		}
 	}
 }

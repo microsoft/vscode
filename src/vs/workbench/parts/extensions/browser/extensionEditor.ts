@@ -24,7 +24,7 @@ import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/br
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -50,11 +50,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-// import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { default as Webview } from 'vs/workbench/parts/html/browser/webview';
-// import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/common/simpleFindWidgetService';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 /**  A context key that is set when an extension editor webview has focus. */
@@ -337,43 +333,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.update();
 		super.changePosition(position);
 	}
-	/*
-		showFind(): void {
-			if (this.activeWebview) {
-				this.activeWebview.showFind();
-			}
-		}
 
-		hideFind(): void {
-			if (this.activeWebview) {
-				this.activeWebview.hideFind();
-			}
-		}
-
-		showNextFindTerm(): void {
-			if (this.activeWebview) {
-				this.activeWebview.showNextFindTerm();
-			}
-		}
-
-		showPreviousFindTerm(): void {
-			if (this.activeWebview) {
-				this.activeWebview.showPreviousFindTerm();
-			}
-		}
-
-		public nextMatchFindWidget() {
-			if (this.activeWebview) {
-				this.activeWebview.nextMatchFindWidget();
-			}
-		}
-
-		public previousMatchFindWidget() {
-			if (this.activeWebview) {
-				this.activeWebview.previousMatchFindWidget();
-			}
-		}
-	 */
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -826,125 +786,3 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
-abstract class ExtensionEditorCommand extends Command {
-
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void;
-
-	protected getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
-
-/*
-class ShowExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
-		}
-	}
-}
-const showCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.showfind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class HideExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.hideFind();
-		}
-	}
-}
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyCode.Escape
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class ShowNextFindTermExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showNextFindTerm();
-		}
-	}
-}
-const showNextFindTermCommand = new ShowNextFindTermExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.find.shownextfindterm',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		kbExpr: KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED,
-		primary: KeyMod.Alt | KeyCode.DownArrow
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class ShowPreviousFindTermExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showPreviousFindTerm();
-		}
-	}
-}
-const showPreviousFindTermCommand = new ShowPreviousFindTermExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.find.showpreviousfindterm',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		kbExpr: KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_INPUT_FOCUSED,
-		primary: KeyMod.Alt | KeyCode.UpArrow
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-
-class NextMatchExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.nextMatchFindWidget();
-		}
-	}
-}
-const nextMatchFindCommand = new NextMatchExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.find.nextMatch',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyCode.F3,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(nextMatchFindCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class PreviousMatchExtensionEditorFindCommand extends ExtensionEditorCommand {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.previousMatchFindWidget();
-		}
-	}
-}
-const previousMatchFindCommand = new PreviousMatchExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.find.previousMatch',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.Shift | KeyCode.F3,
-		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(previousMatchFindCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-*/
