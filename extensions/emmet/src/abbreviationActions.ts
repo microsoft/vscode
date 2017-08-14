@@ -132,7 +132,11 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 				return [rangeToReplace, abbr, []];
 			}
 		}
+<<<<<<< HEAD
 		let extractedResults = extractAbbreviation(editor.document, position);
+=======
+		let extractedResults = extractAbbreviation(editor.document, position, false);
+>>>>>>> 1531c8d... lookahead not needed when running emmet expand #32478
 		if (!extractedResults) {
 			return [null, '', []];
 		}
