@@ -8,6 +8,7 @@ import winjs = require('vs/base/common/winjs.base');
 import marshalling = require('vs/base/common/marshalling');
 import errors = require('vs/base/common/errors');
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { LazyPromise } from "vs/workbench/services/extensions/node/lazyPromise";
 
 interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
@@ -37,109 +38,6 @@ class MessageFactory {
 			return `{"seq":"${req}","err":null}`;
 		}
 		return `{"seq":"${req}","err":${marshalling.stringify(errors.transformErrorForSerialization(err))}}`;
-	}
-}
-
-class LazyPromise {
-
-	private _onCancel: () => void;
-
-	private _actual: winjs.TPromise<any>;
-	private _actualOk: winjs.ValueCallback;
-	private _actualErr: winjs.ErrorCallback;
-
-	private _hasValue: boolean;
-	private _value: any;
-
-	private _hasErr: boolean;
-	private _err: any;
-
-	private _isCanceled: boolean;
-
-	constructor(onCancel: () => void) {
-		this._onCancel = onCancel;
-		this._actual = null;
-		this._actualOk = null;
-		this._actualErr = null;
-		this._hasValue = false;
-		this._value = null;
-		this._hasErr = false;
-		this._err = null;
-		this._isCanceled = false;
-	}
-
-	private _ensureActual(): winjs.TPromise<any> {
-		if (!this._actual) {
-			this._actual = new winjs.TPromise<any>((c, e) => {
-				this._actualOk = c;
-				this._actualErr = e;
-			}, this._onCancel);
-
-			if (this._hasValue) {
-				this._actualOk(this._value);
-			}
-
-			if (this._hasErr) {
-				this._actualErr(this._err);
-			}
-		}
-		return this._actual;
-	}
-
-	public resolveOk(value: any): void {
-		if (this._isCanceled || this._hasErr) {
-			return;
-		}
-
-		this._hasValue = true;
-		this._value = value;
-
-		if (this._actual) {
-			this._actualOk(value);
-		}
-	}
-
-	public resolveErr(err: any): void {
-		if (this._isCanceled || this._hasValue) {
-			return;
-		}
-
-		this._hasErr = true;
-		this._err = err;
-
-		if (this._actual) {
-			this._actualErr(err);
-		}
-	}
-
-	public then(success: any, error: any): any {
-		if (this._isCanceled) {
-			return;
-		}
-
-		return this._ensureActual().then(success, error);
-	}
-
-	public done(success: any, error: any): void {
-		if (this._isCanceled) {
-			return;
-		}
-
-		this._ensureActual().done(success, error);
-	}
-
-	public cancel(): void {
-		if (this._hasValue || this._hasErr) {
-			return;
-		}
-
-		this._isCanceled = true;
-
-		if (this._actual) {
-			this._actual.cancel();
-		} else {
-			this._onCancel();
-		}
 	}
 }
 
