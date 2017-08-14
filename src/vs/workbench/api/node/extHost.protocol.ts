@@ -230,7 +230,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> { throw ni(); }
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> { throw ni(); }
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
-	$registerColorFormats(formats: IColorFormatMap): TPromise<any> { throw ni(); }
+	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any> { throw ni(); }
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any> { throw ni(); }
 }
@@ -466,13 +466,12 @@ export abstract class ExtHostHeapServiceShape {
 	$onGarbageCollection(ids: number[]): void { throw ni(); }
 }
 export interface IRawColorInfo {
-	color: [number, number, number, number | undefined];
-	availableFormats: number[];
+	color: [number, number, number, number];
+	availableFormats: (number | [number, number])[];
 	range: IRange;
 }
 
-export type IRawColorFormat = string | [string, string];
-export type IColorFormatMap = [number, IRawColorFormat][];
+export type IRawColorFormatMap = [number, string][];
 
 export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
