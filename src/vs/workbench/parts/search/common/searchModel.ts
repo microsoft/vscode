@@ -549,8 +549,12 @@ export class SearchResult extends Disposable {
 		this.disposeMatches();
 	}
 
-	public remove(match: FileMatch): void {
-		this.getFolderMatch(match.resource()).remove(match);
+	public remove(match: FileMatch | FolderMatch): void {
+		if (match instanceof FileMatch) {
+			this.getFolderMatch(match.resource()).remove(match);
+		} else {
+			match.clear();
+		}
 	}
 
 	public replace(match: FileMatch): TPromise<any> {
@@ -787,6 +791,8 @@ export class SearchModel extends Disposable {
 }
 
 export type FileMatchOrMatch = FileMatch | Match;
+
+export type RenderableMatch = FolderMatch | FileMatch | Match;
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
