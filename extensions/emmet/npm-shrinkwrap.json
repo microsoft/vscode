@@ -2,100 +2,25 @@
   "name": "emmet",
   "version": "0.0.1",
   "dependencies": {
-    "@emmetio/abbreviation": {
-      "version": "0.6.1",
-      "from": "@emmetio/abbreviation@>=0.6.1 <0.7.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/abbreviation/-/abbreviation-0.6.1.tgz"
-    },
-    "@emmetio/css-abbreviation": {
-      "version": "0.3.1",
-      "from": "@emmetio/css-abbreviation@>=0.3.1 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/css-abbreviation/-/css-abbreviation-0.3.1.tgz"
-    },
     "@emmetio/css-parser": {
-      "version": "0.3.0",
-      "from": "@emmetio/css-parser@>=0.3.0 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/css-parser/-/css-parser-0.3.0.tgz"
-    },
-    "@emmetio/css-snippets-resolver": {
-      "version": "0.2.5",
-      "from": "@emmetio/css-snippets-resolver@>=0.2.5 <0.3.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/css-snippets-resolver/-/css-snippets-resolver-0.2.5.tgz"
-    },
-    "@emmetio/expand-abbreviation": {
-      "version": "0.5.8",
-      "from": "@emmetio/expand-abbreviation@>=0.5.8 <0.6.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/expand-abbreviation/-/expand-abbreviation-0.5.8.tgz"
+      "version": "0.4.0",
+      "from": "@emmetio/css-parser@>=0.4.0 <0.5.0",
+      "resolved": "https://registry.npmjs.org/@emmetio/css-parser/-/css-parser-0.4.0.tgz"
     },
     "@emmetio/extract-abbreviation": {
       "version": "0.1.2",
       "from": "@emmetio/extract-abbreviation@>=0.1.1 <0.2.0",
       "resolved": "https://registry.npmjs.org/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.2.tgz"
     },
-    "@emmetio/field-parser": {
-      "version": "0.3.0",
-      "from": "@emmetio/field-parser@>=0.3.0 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/field-parser/-/field-parser-0.3.0.tgz"
-    },
     "@emmetio/html-matcher": {
       "version": "0.3.2",
       "from": "@emmetio/html-matcher@>=0.3.1 <0.4.0",
       "resolved": "https://registry.npmjs.org/@emmetio/html-matcher/-/html-matcher-0.3.2.tgz"
     },
-    "@emmetio/html-snippets-resolver": {
-      "version": "0.1.4",
-      "from": "@emmetio/html-snippets-resolver@>=0.1.4 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/html-snippets-resolver/-/html-snippets-resolver-0.1.4.tgz"
-    },
-    "@emmetio/html-transform": {
-      "version": "0.3.2",
-      "from": "@emmetio/html-transform@>=0.3.2 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/html-transform/-/html-transform-0.3.2.tgz"
-    },
-    "@emmetio/implicit-tag": {
-      "version": "1.0.0",
-      "from": "@emmetio/implicit-tag@>=1.0.0 <2.0.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/implicit-tag/-/implicit-tag-1.0.0.tgz"
-    },
-    "@emmetio/lorem": {
-      "version": "1.0.1",
-      "from": "@emmetio/lorem@>=1.0.1 <2.0.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/lorem/-/lorem-1.0.1.tgz"
-    },
-    "@emmetio/markup-formatters": {
-      "version": "0.3.3",
-      "from": "@emmetio/markup-formatters@>=0.3.3 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/markup-formatters/-/markup-formatters-0.3.3.tgz"
-    },
     "@emmetio/math-expression": {
       "version": "0.1.1",
       "from": "@emmetio/math-expression@>=0.1.1 <0.2.0",
       "resolved": "https://registry.npmjs.org/@emmetio/math-expression/-/math-expression-0.1.1.tgz"
-    },
-    "@emmetio/node": {
-      "version": "0.1.2",
-      "from": "@emmetio/node@>=0.1.2 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/node/-/node-0.1.2.tgz"
-    },
-    "@emmetio/output-profile": {
-      "version": "0.1.5",
-      "from": "@emmetio/output-profile@>=0.1.5 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/output-profile/-/output-profile-0.1.5.tgz"
-    },
-    "@emmetio/output-renderer": {
-      "version": "0.1.1",
-      "from": "@emmetio/output-renderer@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/output-renderer/-/output-renderer-0.1.1.tgz"
-    },
-    "@emmetio/snippets": {
-      "version": "0.2.3",
-      "from": "@emmetio/snippets@>=0.2.3 <0.3.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/snippets/-/snippets-0.2.3.tgz"
-    },
-    "@emmetio/snippets-registry": {
-      "version": "0.3.1",
-      "from": "@emmetio/snippets-registry@>=0.3.1 <0.4.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/snippets-registry/-/snippets-registry-0.3.1.tgz"
     },
     "@emmetio/stream-reader": {
       "version": "2.2.0",
@@ -107,30 +32,25 @@
       "from": "@emmetio/stream-reader-utils@>=0.1.0 <0.2.0",
       "resolved": "https://registry.npmjs.org/@emmetio/stream-reader-utils/-/stream-reader-utils-0.1.0.tgz"
     },
-    "@emmetio/stylesheet-formatters": {
-      "version": "0.1.2",
-      "from": "@emmetio/stylesheet-formatters@>=0.1.2 <0.2.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/stylesheet-formatters/-/stylesheet-formatters-0.1.2.tgz"
-    },
-    "@emmetio/variable-resolver": {
-      "version": "0.2.1",
-      "from": "@emmetio/variable-resolver@>=0.2.1 <0.3.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/variable-resolver/-/variable-resolver-0.2.1.tgz"
-    },
     "image-size": {
       "version": "0.5.5",
       "from": "image-size@>=0.5.2 <0.6.0",
       "resolved": "https://registry.npmjs.org/image-size/-/image-size-0.5.5.tgz"
     },
     "vscode-emmet-helper": {
-      "version": "0.0.28",
-      "from": "vscode-emmet-helper@0.0.28",
-      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-0.0.28.tgz"
+      "version": "1.0.14",
+      "from": "vscode-emmet-helper@>=1.0.14 <2.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-1.0.14.tgz"
     },
     "vscode-languageserver-types": {
       "version": "3.3.0",
       "from": "vscode-languageserver-types@>=3.0.3 <4.0.0",
       "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.3.0.tgz"
+    },
+    "vscode-nls": {
+      "version": "2.0.2",
+      "from": "vscode-nls@2.0.2",
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
     }
   }
 }

@@ -137,6 +137,7 @@ export interface IViewModel {
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
+	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }

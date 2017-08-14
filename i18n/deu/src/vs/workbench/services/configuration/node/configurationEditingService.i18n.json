@@ -7,11 +7,10 @@
 	"open": "Einstellungen öffnen",
 	"close": "Schließen",
 	"saveAndRetry": "Änderungen Speichern und Wiederholen",
-	"errorUnknownKey": "Die Konfigurationsdatei kann nicht geschrieben werden (unbekannter Schlüssel).",
-	"errorInvalidTarget": "In die Konfigurationsdatei kann nicht geschrieben werden (ungültiges Ziel).",
-	"errorNoWorkspaceOpened": "In die Einstellungen kann nicht geschrieben werden, weil kein Ordner geöffnet ist. Öffnen Sie zuerst einen Ordner, und versuchen Sie es noch mal.",
 	"errorInvalidConfiguration": "In die Einstellungen kann nicht geschrieben werden. Öffnen Sie **Benutzereinstellungen**, um Fehler/Warnungen in der Datei zu korrigieren, und versuchen Sie es noch mal.",
 	"errorInvalidConfigurationWorkspace": "In die Einstellungen kann nicht geschrieben werden. Öffnen Sie die **Arbeitsbereichseinstellungen**, um Fehler/Warnungen in der Datei zu korrigieren, und versuchen Sie es noch mal.",
 	"errorConfigurationFileDirty": "In die Einstellungen kann nicht geschrieben werden, weil die Datei geändert wurde. Speichern Sie die Datei **Benutzereinstellungen**, und versuchen Sie es noch mal.",
-	"errorConfigurationFileDirtyWorkspace": "In die Einstellungen kann nicht geschrieben werden, weil die Datei geändert wurde. Speichern Sie die Datei **Arbeitsbereichseinstellungen**, und versuchen Sie es noch mal."
+	"errorConfigurationFileDirtyWorkspace": "In die Einstellungen kann nicht geschrieben werden, weil die Datei geändert wurde. Speichern Sie die Datei **Arbeitsbereichseinstellungen**, und versuchen Sie es noch mal.",
+	"userTarget": "Benutzereinstellungen",
+	"workspaceTarget": "Arbeitsbereichseinstellungen"
 }

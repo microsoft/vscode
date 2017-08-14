@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "複合的名稱。顯示於啟動組態下拉式功能表。",
 	"app.launch.json.compounds.configurations": "將會作為此複合一部份而啟動之組態的名稱。",
 	"debugNoType": "偵錯配接器 'type' 不能省略且必須屬於 'string' 類型。",
-	"DebugConfig.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'launch.json' 檔案。",
-	"selectDebug": "選取環境"
+	"selectDebug": "選取環境",
+	"DebugConfig.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'launch.json' 檔案。"
 }

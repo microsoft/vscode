@@ -15,5 +15,6 @@
 	"ConfigurationParser.noTaskName": "错误: 任务必须提供 taskName 属性。将忽略该任务。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: 任务“{0}”是 shell 命令，该命令的名称或其中一个参数具有非转义空格。若要确保命令行引用正确，请将参数合并到该命令。",
 	"taskConfiguration.noCommandOrDependsOn": "错误：任务“{0}”既不指定命令，也不指定 dependsOn 属性。将忽略该任务。其定义为:\n{1}",
-	"taskConfiguration.noCommand": "错误: 任务“{0}”未定义命令。将忽略该任务。其定义为:\n{1}"
+	"taskConfiguration.noCommand": "错误: 任务“{0}”未定义命令。将忽略该任务。其定义为:\n{1}",
+	"TaskParse.noOsSpecificGlobalTasks": "任务版本 2.0.0 不支持全局操作系统特定任务。请将他们转换为含有操作系统特定命令的任务。受影响的任务有:\n{0}"
 }

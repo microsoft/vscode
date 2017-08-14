@@ -42,6 +42,14 @@
 	"search.files.result": "{0} resultado nos arquivos {1}",
 	"search.file.results": "{0} resultados no arquivo {1}",
 	"search.files.results": "{0} resultados nos arquivos {1}",
+	"search.folder.file.result": "{0} resultado em {1} arquivo na pasta {2}",
+	"search.folder.files.result": "{0} resultado em {1} arquivos na pasta {2}",
+	"search.folder.file.results": "{0} resultados em {1} arquivo na pasta {2}",
+	"search.folder.files.results": "{0} resultados em {1} arquivos na pasta {2}",
+	"search.folders.file.result": "{0} resultado em {1} arquivo nas pastas {2}",
+	"search.folders.files.result": "{0} resultado em {1} arquivos nas pastas {2}",
+	"search.folders.file.results": "{0} resultados em {1} arquivo nas pastas {2}",
+	"search.folders.files.results": "{0} resultados em {1} arquivos nas pastas {2}",
 	"searchWithoutFolder": "Você ainda não abriu uma pasta. Somente arquivos abertos são pesquisados - ",
 	"openFolder": "Abrir Pasta"
 }

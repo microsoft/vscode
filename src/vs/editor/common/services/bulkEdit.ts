@@ -114,10 +114,14 @@ class EditTask implements IDisposable {
 			}).map(element => element.value);
 
 			this._initialSelections = this._getInitialSelections();
+			this._model.pushStackElement();
 			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+			this._model.pushStackElement();
 		}
 		if (this._newEol !== undefined) {
+			this._model.pushStackElement();
 			this._model.setEOL(this._newEol);
+			this._model.pushStackElement();
 		}
 	}
 

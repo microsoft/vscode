@@ -9,7 +9,6 @@
 	"focusNextInputBox": "聚焦於下一個輸入方塊",
 	"focusPreviousInputBox": "聚焦於上一個輸入方塊",
 	"replaceInFiles": "檔案中取代",
-	"findInFolder": "在資料夾中尋找",
 	"RefreshAction.label": "重新整理",
 	"ClearSearchResultsAction.label": "清除搜尋結果",
 	"FocusNextSearchResult.label": "聚焦於下一個搜尋結果",

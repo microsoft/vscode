@@ -124,7 +124,8 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.startDebugging(undefined, this.isNoDebug());
+		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -136,11 +137,18 @@ export class StartAction extends AbstractDebugAction {
 		const processes = this.debugService.getModel().getProcesses();
 		const selectedName = this.debugService.getConfigurationManager().selectedName;
 		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		const compound = launch && launch.getCompound(selectedName);
 
-		return state !== State.Initializing && processes.every(p => p.name !== selectedName) &&
-			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
-			(!this.contextService || this.contextService.hasWorkspace() || processes.length === 0);
+		if (state === State.Initializing) {
+			return false;
+		}
+		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
+			return false;
+		}
+		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
@@ -769,8 +777,9 @@ export class FocusProcessAction extends AbstractDebugAction {
 	}
 
 	public run(processName: string): TPromise<any> {
-		const process = this.debugService.getModel().getProcesses().filter(p => p.name === processName).pop();
-		return this.debugService.focusStackFrameAndEvaluate(null, process).then(() => {
+		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
+		return this.debugService.focusStackFrameAndEvaluate(null, process, true).then(() => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {
 				return stackFrame.openInEditor(this.editorService, true);

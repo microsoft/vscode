@@ -38,5 +38,10 @@
 	"openEditorsVisible": "Nombre d'éditeurs affichés dans le volet Éditeurs ouverts. Définissez la valeur 0 pour masquer le volet.",
 	"dynamicHeight": "Contrôle si la hauteur de la section des éditeurs ouverts doit s'adapter dynamiquement ou non au nombre d'éléments.",
 	"autoReveal": "Contrôle si l'Explorateur doit automatiquement afficher et sélectionner les fichiers à l'ouverture.",
-	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer."
+	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer.",
+	"sortOrder.default": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les répertoires sont affichés avant les fichiers.",
+	"sortOrder.mixed": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont imbriquées dans des répertoires.",
+	"sortOrder.filesFirst": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont affichés avant les répertoires.",
+	"sortOrder.type": "Fichiers et répertoires sont triés par leurs extensions, dans l’ordre alphabétique. Les répertoires sont affichés avant les fichiers.",
+	"sortOrder.modified": "Fichiers et répertoires sont triés par date de dernière modification, dans l’ordre décroissant. Les répertoires sont affichés avant les fichiers."
 }

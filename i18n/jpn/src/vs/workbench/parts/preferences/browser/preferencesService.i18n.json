@@ -7,7 +7,6 @@
 	"openFolderFirst": "ワークスペースの設定を作成するには、まずフォルダーを開いてください",
 	"emptyKeybindingsHeader": "既定値を上書きするには、このファイル内にキー バインドを挿入します",
 	"defaultKeybindings": "既定のキー バインド",
-	"emptySettingsHeader": "既定の設定を上書きするには、このファイル内に設定を挿入します",
-	"emptySettingsHeader1": "既定の設定とユーザー設定を上書きするには、このファイル内に設定を挿入します",
+	"folderSettingsName": "{0} (フォルダーの設定) ",
 	"fail.createSettings": "'{0}' ({1}) を作成できません。"
 }

@@ -173,7 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
-	'scope': ConfigurationScope.FOLDER,
+	'scope': ConfigurationScope.RESOURCE,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',

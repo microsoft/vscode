@@ -118,7 +118,7 @@ export class VariablesView extends CollapsibleView {
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
-			if (!this.tree.getContentHeight()) {
+			if (!this.tree.getContentHeight() || sf.explicit) {
 				this.onFocusStackFrameScheduler.schedule(0);
 			} else {
 				this.onFocusStackFrameScheduler.schedule();

@@ -85,10 +85,10 @@ export default class Webview {
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
+		this._webview.style.flex = '0 1';
+		this._webview.style.width = '0';
+		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -122,6 +122,7 @@ export default class Webview {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
 						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -133,6 +134,7 @@ export default class Webview {
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
 						if (uri && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -161,7 +163,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-set-content') {
-					this._webview.style.opacity = '';
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
 					this.layout();
 					return;
 				}
@@ -195,7 +199,6 @@ export default class Webview {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
-
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
@@ -257,6 +260,12 @@ export default class Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
+	}
+
+	private onDidBlockSvg() {
+		this.sendMessage({
+			name: 'vscode-did-block-svg'
+		});
 	}
 
 	style(theme: ITheme): void {
@@ -349,7 +358,7 @@ export default class Webview {
 
 	public layout(): void {
 		const contents = (this._webview as any).getWebContents();
-		if (!contents) {
+		if (!contents || contents.isDestroyed()) {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();

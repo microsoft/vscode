@@ -167,7 +167,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.as(null);
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
 		return TPromise.as(null);

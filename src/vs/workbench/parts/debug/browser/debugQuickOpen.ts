@@ -20,7 +20,7 @@ class DebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public getLabel(): string {
-		return this.configurationName;
+		return this.debugService.getConfigurationManager().getLaunches().length <= 1 ? this.configurationName : `${this.configurationName} (${this.launch.name})`;
 	}
 
 	public getAriaLabel(): string {
@@ -33,7 +33,7 @@ class DebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging().done(undefined, errors.onUnexpectedError);
+		this.debugService.startDebugging(this.launch.workspaceUri).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}

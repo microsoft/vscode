@@ -31,10 +31,10 @@ export class Adapter {
 		}
 	}
 
-	public getAdapterExecutable(verifyAgainstFS = true): TPromise<IAdapterExecutable> {
+	public getAdapterExecutable(root: uri, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
 		if (this.rawAdapter.adapterExecutableCommand) {
-			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand).then(ad => {
+			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.toString()).then(ad => {
 				return this.verifyAdapterDetails(ad, verifyAgainstFS);
 			});
 		}
@@ -85,7 +85,6 @@ export class Adapter {
 	private getRuntime(): string {
 		let runtime = this.getAttributeBasedOnPlatform('runtime');
 		if (runtime && runtime.indexOf('./') === 0) {
-			runtime = this.configurationResolverService ? this.configurationResolverService.resolve(runtime) : runtime;
 			runtime = paths.join(this.extensionDescription.extensionFolderPath, runtime);
 		}
 		return runtime;
@@ -94,7 +93,6 @@ export class Adapter {
 	private getProgram(): string {
 		let program = this.getAttributeBasedOnPlatform('program');
 		if (program) {
-			program = this.configurationResolverService ? this.configurationResolverService.resolve(program) : program;
 			program = paths.join(this.extensionDescription.extensionFolderPath, program);
 		}
 		return program;

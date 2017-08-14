@@ -12,5 +12,5 @@
 	"staleSaveError": "Falha ao salvar '{0}': O conteúdo no disco é mais recente. Clique em **Comparar** para comparar a sua versão com a do disco.",
 	"compareChanges": "Comparar",
 	"saveConflictDiffLabel": "{0} (no disco) ↔ {1} (em {2}) - Resolver conflitos de salvamento",
-	"userGuide": "Use as ações na barra de ferramentas do editor para **desfazer** suas alterações ou **substituir** o conteúdo no disco com as suas alterações"
+	"userGuide": "Use as ações na barra de ferramentas de editor para a direita para **desfazer** suas alterações ou **substituir** o conteúdo no disco com as alterações"
 }

@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "完成函数的参数签名。",
 	"typescript.tsdk.desc": "指定包含要使用的 tsserver 和 lib*.d.ts 文件的文件夹路径。",
 	"typescript.disableAutomaticTypeAcquisition": "禁用自动获取类型。需要 TypeScript >= 2.0.6，并且更改后需要重启。",
-	"typescript.check.tscVersion": "检查全局安装的 TypeScript 编译器(例如 tsc )是否不同于使用的 TypeScript 语言服务。",
 	"typescript.tsserver.log": "将 TS 服务器的日志保存到一个文件。此日志可用于诊断 TS 服务器问题。日志可能包含你的项目中的文件路径、源代码和其他可能敏感的信息。",
 	"typescript.tsserver.trace": "对发送到 TS 服务器的消息启用跟踪。此跟踪信息可用于诊断 TS 服务器问题。 跟踪信息可能包含你的项目中的文件路径、源代码和其他可能敏感的信息。",
 	"typescript.validate.enable": "启用/禁用 TypeScript 验证。",

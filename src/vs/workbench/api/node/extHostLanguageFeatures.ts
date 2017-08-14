@@ -19,7 +19,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -666,10 +666,63 @@ class LinkProviderAdapter {
 	}
 }
 
+class ColorProviderAdapter {
+
+	private static _colorFormatHandlePool: number = 0;
+
+	constructor(
+		private _proxy: MainThreadLanguageFeaturesShape,
+		private _documents: ExtHostDocuments,
+		private _colorFormatCache: Map<string, number>,
+		private _provider: vscode.DocumentColorProvider
+	) { }
+
+	provideColors(resource: URI): TPromise<IRawColorInfo[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
+			if (!Array.isArray(colors)) {
+				return [];
+			}
+
+			const newRawColorFormats: IRawColorFormatMap = [];
+			const getFormatId = (format: string) => {
+				let id = this._colorFormatCache.get(format);
+
+				if (typeof id !== 'number') {
+					id = ColorProviderAdapter._colorFormatHandlePool++;
+					this._colorFormatCache.set(format, id);
+					newRawColorFormats.push([id, format]);
+				}
+
+				return id;
+			};
+
+			const colorInfos: IRawColorInfo[] = colors.map(ci => {
+				const availableFormats = ci.availableFormats.map(format => {
+					if (typeof format === 'string') {
+						return getFormatId(format);
+					} else {
+						return [getFormatId(format.opaque), getFormatId(format.transparent)] as [number, number];
+					}
+				});
+
+				return {
+					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
+					availableFormats: availableFormats,
+					range: TypeConverters.fromRange(ci.range)
+				};
+			});
+
+			this._proxy.$registerColorFormats(newRawColorFormats);
+			return colorInfos;
+		});
+	}
+}
+
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
 export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
@@ -681,6 +734,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
+	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
 		threadService: IThreadService,
@@ -952,6 +1006,17 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
+	}
+
+	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
+		this._proxy.$registerDocumentColorProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
 	// --- configuration

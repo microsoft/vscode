@@ -117,7 +117,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return roots[0].fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri): string {
+	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
@@ -139,8 +139,12 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return normalize(path);
 		}
 
+		if (typeof includeWorkspace === 'undefined') {
+			includeWorkspace = this.workspace.roots.length > 1;
+		}
+
 		let result = relative(folder.uri.fsPath, path);
-		if (this.workspace.roots.length > 1) {
+		if (includeWorkspace) {
 			result = `${folder.name}/${result}`;
 		}
 		return normalize(result);

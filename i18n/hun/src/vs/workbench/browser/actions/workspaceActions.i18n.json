@@ -6,18 +6,22 @@
 {
 	"openFolder": "Mappa megnyitása...",
 	"openFileFolder": "Megnyitás...",
+	"reload": "Új&&ratöltés",
 	"cancel": "Mégse",
 	"newWorkspaceFormExisting": "Új munkaterület meglévőből...",
 	"select": "&&Kiválasztás",
 	"selectWorkspace": "Válassza ki a munkaterület mappáit!",
+	"addSupported": "Több mappa megnyitásához az ablak újratöltése szükséges.",
 	"addFolderToWorkspace": "Mappa hozzáadása a munkaterülethez...",
 	"add": "&&Hozzáadás",
 	"addFolderToWorkspaceTitle": "Mappa hozzáadása a munkaterülethez",
 	"removeFolderFromWorkspace": "Mappa eltávolítása a munkaterületről",
 	"saveWorkspaceAsAction": "Munkaterület mentése másként...",
-	"saveEmptyWorkspaceNotSupported": "A munkaterület mentése nem lehetséges, ha az ablak egy mappa nélkül lett megnyitva. Először nyisson meg egy mappát!",
+	"saveEmptyWorkspaceNotSupported": "A mentéshez először nyisson meg egy munkaterületet.",
+	"saveNotSupported": "Munkaterület mentéséhez az ablak újratöltése szükséges.",
 	"save": "Menté&&s",
 	"saveWorkspace": "Munkaterület mentése",
 	"openWorkspaceAction": "Munkaterület megnyitása...",
-	"newWorkspace": "Új munkaterület..."
+	"newWorkspace": "Új munkaterület...",
+	"openWorkspaceConfigFile": "Munkaterület konfigurációs fájljának megnyitása"
 }

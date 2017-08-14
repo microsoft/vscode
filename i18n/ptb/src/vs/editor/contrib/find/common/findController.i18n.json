@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "Mover Última Seleção para Próximo Localizar Correspondência",
 	"moveSelectionToPreviousFindMatch": "Mover Última Seleção para Correspondência de Localização Anterior",
 	"selectAllOccurrencesOfFindMatch": "Selecionar Todas as Ocorrências de Localizar Correspondência",
-	"changeAll.label": "Alterar todas as ocorrências"
+	"changeAll.label": "Alterar todas as ocorrências",
+	"showNextFindTermAction": "Mostrar Próximo Termo de Busca",
+	"showPreviousFindTermAction": "Mostrar Termo de Busca Anterior"
 }

@@ -1507,6 +1507,26 @@ export namespace CoreNavigationCommands {
 			);
 		}
 	});
+
+	export const SetSelection: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'setSelection',
+				precondition: null
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				[
+					CursorState.fromModelSelection(args.selection)
+				]
+			);
+		}
+	});
 }
 
 export namespace CoreEditingCommands {

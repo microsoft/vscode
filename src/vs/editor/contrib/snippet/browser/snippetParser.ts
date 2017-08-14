@@ -129,14 +129,6 @@ export class Scanner {
 
 export abstract class Marker {
 
-	static toString(marker?: Marker[]): string {
-		let result = '';
-		for (const m of marker) {
-			result += m.toString();
-		}
-		return result;
-	}
-
 	readonly _markerBrand: any;
 
 	public parent: Marker;
@@ -167,9 +159,24 @@ export abstract class Marker {
 		return this._children;
 	}
 
-	toString() {
-		return '';
+	get snippet(): TextmateSnippet {
+		let candidate: Marker = this;
+		while (true) {
+			if (!candidate) {
+				return undefined;
+			}
+			if (candidate instanceof TextmateSnippet) {
+				return candidate;
+			}
+			candidate = candidate.parent;
+		}
 	}
+
+	toString() {
+		return this.children.reduce((prev, cur) => prev + cur.toString(), '');
+	}
+
+	abstract toTextmateString(): string;
 
 	len(): number {
 		return 0;
@@ -184,6 +191,9 @@ export class Text extends Marker {
 	}
 	toString() {
 		return this.value;
+	}
+	toTextmateString(): string {
+		return this.value.replace(/\$|}|\\/g, '\\$&');
 	}
 	len(): number {
 		return this.value.length;
@@ -225,8 +235,14 @@ export class Placeholder extends Marker {
 			: undefined;
 	}
 
-	toString() {
-		return Marker.toString(this.children);
+	toTextmateString(): string {
+		if (this.children.length === 0) {
+			return `\$${this.index}`;
+		} else if (this.choice) {
+			return `\${${this.index}|${this.choice.toTextmateString()}|}`;
+		} else {
+			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+		}
 	}
 
 	clone(): Placeholder {
@@ -252,6 +268,12 @@ export class Choice extends Marker {
 		return this.options[0].value;
 	}
 
+	toTextmateString(): string {
+		return this.options
+			.map(option => option.value.replace(/\||,/g, '\\$&'))
+			.join(',');
+	}
+
 	len(): number {
 		return this.options[0].len();
 	}
@@ -269,8 +291,8 @@ export class Variable extends Marker {
 		super();
 	}
 
-	resolve(resolver: { resolve(name: string): string }): boolean {
-		const value = resolver.resolve(this.name);
+	resolve(resolver: VariableResolver): boolean {
+		const value = resolver.resolve(this);
 		if (value !== undefined) {
 			this._children = [new Text(value)];
 			return true;
@@ -278,8 +300,12 @@ export class Variable extends Marker {
 		return false;
 	}
 
-	toString() {
-		return Marker.toString(this.children);
+	toTextmateString(): string {
+		if (this.children.length === 0) {
+			return `\${${this.name}}`;
+		} else {
+			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+		}
 	}
 
 	clone(): Variable {
@@ -287,6 +313,10 @@ export class Variable extends Marker {
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
+}
+
+export interface VariableResolver {
+	resolve(variable: Variable): string | undefined;
 }
 
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -358,11 +388,7 @@ export class TextmateSnippet extends Marker {
 		return ret;
 	}
 
-	get text() {
-		return Marker.toString(this.children);
-	}
-
-	resolveVariables(resolver: { resolve(name: string): string }): this {
+	resolveVariables(resolver: VariableResolver): this {
 		this.walk(candidate => {
 			if (candidate instanceof Variable) {
 				if (candidate.resolve(resolver)) {
@@ -382,6 +408,10 @@ export class TextmateSnippet extends Marker {
 	replace(child: Marker, others: Marker[]): void {
 		this._placeholders = undefined;
 		return super.replace(child, others);
+	}
+
+	toTextmateString(): string {
+		return this.children.reduce((prev, cur) => prev + cur.toTextmateString(), '');
 	}
 
 	clone(): TextmateSnippet {
@@ -405,7 +435,7 @@ export class SnippetParser {
 	private _token: Token;
 
 	text(value: string): string {
-		return this.parse(value).text;
+		return this.parse(value).toString();
 	}
 
 	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {

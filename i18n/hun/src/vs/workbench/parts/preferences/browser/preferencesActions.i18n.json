@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Billentyűparancsok megnyitása",
 	"openGlobalKeybindingsFile": "Billentyűparancsfájl megnyitása",
 	"openWorkspaceSettings": "Munkaterület beállításainak megnyitása",
+	"openFolderSettings": "Mappa beállításainak megnyitása",
+	"pickFolder": "Válasszon mappát!",
 	"configureLanguageBasedSettings": "Nyelvspecifikus beállítások konfigurálása...",
 	"languageDescriptionConfigured": "(({0})",
 	"pickLanguage": "Nyelv kiválasztása"

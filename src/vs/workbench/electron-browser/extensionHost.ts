@@ -36,7 +36,7 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 import { isEqual } from "vs/base/common/paths";
-import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
+import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
 
 export class LazyMessagePassingProtol implements IMessagePassingProtocol {
 
@@ -113,6 +113,13 @@ export class ExtensionHostProcessWorker {
 				this.windowService.closeWindow();
 			}
 		}
+
+		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this.isExtensionDevelopmentHost) {
+			const extensionPaths = broadcast.payload as string[];
+			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
+				this.windowService.reloadWindow();
+			}
+		}
 	}
 
 	public start(extensionService: MainProcessExtensionService): void {
@@ -137,7 +144,7 @@ export class ExtensionHostProcessWorker {
 				// (i.e. extension host) is taken down in a brutal fashion by the OS
 				detached: !!isWindows,
 				execArgv: port
-					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
+					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--inspect-brk=' : '--inspect=') + port]
 					: undefined,
 				silent: true
 			};
@@ -284,9 +291,10 @@ export class ExtensionHostProcessWorker {
 
 	private createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this.telemetryService.getTelemetryInfo(), this.extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
-			return <IInitData>{
+			let r: IInitData = {
 				parentPid: process.pid,
 				environment: {
+					isExtensionDevelopmentDebug: this.isExtensionDevelopmentDebug,
 					appSettingsHome: this.environmentService.appSettingsHome,
 					disableExtensions: this.environmentService.disableExtensions,
 					userExtensionsHome: this.environmentService.extensionsPath,
@@ -301,6 +309,7 @@ export class ExtensionHostProcessWorker {
 				configuration: this.configurationService.getConfigurationData(),
 				telemetryInfo
 			};
+			return r;
 		});
 	}
 

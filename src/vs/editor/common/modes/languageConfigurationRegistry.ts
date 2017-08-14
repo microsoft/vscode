@@ -282,6 +282,10 @@ export class LanguageConfigurationRegistryImpl {
 
 	/**
 	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+	 * Result:
+	 * -1: run into the boundary of embedded languages
+	 * 0: every line above are invalid
+	 * else: nearest preceding line of the same language
 	 */
 	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
 		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
@@ -332,7 +336,9 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		let precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
-		if (precedingUnIgnoredLine < 1) {
+		if (precedingUnIgnoredLine < 0) {
+			return null;
+		} else if (precedingUnIgnoredLine < 1) {
 			return {
 				indentation: '',
 				action: null

@@ -16,11 +16,12 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorFormatMap } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 
 export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
 
@@ -28,6 +29,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 	private _heapService: IHeapService;
 	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
+	private _formatters: Map<number, ColorFormatter>;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -38,6 +40,7 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;
+		this._formatters = new Map<number, ColorFormatter>();
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -263,6 +266,50 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 			}
 		});
 		return undefined;
+	}
+
+	// --- colors
+
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		const proxy = this._proxy;
+
+		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorRangeProvider>{
+			provideColorRanges: (model, token) => {
+				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
+					.then(documentColors => {
+						return documentColors.map(documentColor => {
+							const formatters = documentColor.availableFormats.map(f => {
+								if (typeof f === 'number') {
+									return this._formatters.get(f);
+								} else {
+									return new CombinedColorFormatter(this._formatters.get(f[0]), this._formatters.get(f[1]));
+								}
+							});
+
+							const [red, green, blue, alpha] = documentColor.color;
+							const color = {
+								red: red / 255.0,
+								green: green / 255.0,
+								blue: blue / 255.0,
+								alpha
+							};
+
+							return {
+								color,
+								formatters,
+								range: documentColor.range
+							};
+						});
+					});
+			}
+		});
+
+		return TPromise.as(null);
+	}
+
+	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any> {
+		formats.forEach(f => this._formatters.set(f[0], new ColorFormatter(f[1])));
+		return TPromise.as(null);
 	}
 
 	// --- configuration

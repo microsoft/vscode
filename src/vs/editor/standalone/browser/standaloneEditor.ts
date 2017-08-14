@@ -196,7 +196,7 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
 
 /**
  * Get markers for owner ant/or resource
- * @returns {IMarkerData[]} list of markers
+ * @returns {IMarker[]} list of markers
  * @param filter
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {

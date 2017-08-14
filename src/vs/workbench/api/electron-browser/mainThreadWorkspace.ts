@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -56,13 +56,16 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 			return undefined;
 		}
 
-		const search = this._searchService.search({
+		const query: ISearchQuery = {
 			folderQueries: workspace.roots.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },
 			excludePattern: { [exclude]: true },
-		}).then(result => {
+		};
+		this._searchService.extendQuery(query);
+
+		const search = this._searchService.search(query).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {

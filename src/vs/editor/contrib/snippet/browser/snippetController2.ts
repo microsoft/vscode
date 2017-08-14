@@ -83,11 +83,12 @@ export class SnippetController2 {
 			this._editor.getModel().pushStackElement();
 		}
 
+		this._updateState();
+
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
-		this._updateState();
 	}
 
 	private _updateState(): void {

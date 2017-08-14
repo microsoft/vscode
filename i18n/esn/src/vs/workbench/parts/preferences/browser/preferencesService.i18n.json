@@ -7,7 +7,5 @@
 	"openFolderFirst": "Abrir una carpeta antes de crear la configuración del área de trabajo",
 	"emptyKeybindingsHeader": "Coloque sus enlaces de teclado en este archivo para sobrescribir los valores predeterminados.",
 	"defaultKeybindings": "Enlaces de teclado predeterminados",
-	"emptySettingsHeader": "Coloque su configuración en este archivo para sobrescribir la configuración predeterminada.",
-	"emptySettingsHeader1": "Coloque su configuración en este archivo para sobrescribir la configuración predeterminada y de usuario.",
 	"fail.createSettings": "No se puede crear '{0}' ({1})."
 }

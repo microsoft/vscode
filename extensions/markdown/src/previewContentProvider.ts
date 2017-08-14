@@ -252,11 +252,11 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		if (!this.config.isEqualTo(newConfig)) {
 			this.config = newConfig;
 			// update all generated md documents
-			vscode.workspace.textDocuments.forEach(document => {
+			for (const document of vscode.workspace.textDocuments) {
 				if (document.uri.scheme === 'markdown') {
 					this.update(document.uri);
 				}
-			});
+			}
 		}
 	}
 

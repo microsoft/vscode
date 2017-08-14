@@ -96,7 +96,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userHome, product.dataFolderName, 'extensions'); }
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }

@@ -559,18 +559,6 @@ export class FileSorter implements ISorter {
 
 		// Sort Directories
 		switch (this.sortOrder) {
-			case 'default':
-			case 'modified':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return -1;
-				}
-
-				if (statB.isDirectory && !statA.isDirectory) {
-					return 1;
-				}
-
-				break;
-
 			case 'type':
 				if (statA.isDirectory && !statB.isDirectory) {
 					return -1;
@@ -596,6 +584,17 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			default: /* 'default', 'modified' */
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				break;
 		}
 
 		// Sort "New File/Folder" placeholders
@@ -609,11 +608,6 @@ export class FileSorter implements ISorter {
 
 		// Sort Files
 		switch (this.sortOrder) {
-			case 'default':
-			case 'mixed':
-			case 'filesFirst':
-				return comparers.compareFileNames(statA.name, statB.name);
-
 			case 'type':
 				return comparers.compareFileExtensions(statA.name, statB.name);
 
@@ -622,6 +616,9 @@ export class FileSorter implements ISorter {
 					return statA.mtime < statB.mtime ? 1 : -1;
 				}
 
+				return comparers.compareFileNames(statA.name, statB.name);
+
+			default: /* 'default', 'mixed', 'filesFirst' */
 				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}

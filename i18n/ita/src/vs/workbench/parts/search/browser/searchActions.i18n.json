@@ -9,7 +9,6 @@
 	"focusNextInputBox": "Sposta lo stato attivo sulla casella di input successiva",
 	"focusPreviousInputBox": "Sposta lo stato attivo sulla casella di input precedente",
 	"replaceInFiles": "Sostituisci nei file",
-	"findInFolder": "Trova nella cartella",
 	"RefreshAction.label": "Aggiorna",
 	"ClearSearchResultsAction.label": "Cancella risultati della ricerca",
 	"FocusNextSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca successivo",

@@ -8,7 +8,7 @@
 import 'vs/css!./actionbar';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner } from 'vs/base/common/actions';
@@ -690,7 +690,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.emit(CommonEventType.CANCEL);
 	}
 
-	public run(action: IAction, context?: any): Promise {
+	public run(action: IAction, context?: any): TPromise<void> {
 		return this._actionRunner.run(action, context);
 	}
 

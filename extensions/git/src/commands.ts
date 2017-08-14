@@ -163,7 +163,7 @@ export class CommandCenter {
 		await this._openResource(model, resource);
 	}
 
-	private async _openResource(model: Model, resource: Resource): Promise<void> {
+	private async _openResource(model: Model, resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(model, resource);
 		const title = this.getTitle(resource);
@@ -174,20 +174,22 @@ export class CommandCenter {
 			return;
 		}
 
-		const viewColumn = window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One;
-
-		if (!left) {
-			return await commands.executeCommand<void>('vscode.open', right, viewColumn);
-		}
-
 		const opts: TextDocumentShowOptions = {
-			viewColumn
+			preserveFocus: true,
+			preview: preview,
+			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
 		const activeTextEditor = window.activeTextEditor;
 
 		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
 			opts.selection = activeTextEditor.selection;
+		}
+
+		if (!left) {
+			const document = await workspace.openTextDocument(right);
+			await window.showTextDocument(document, opts);
+			return;
 		}
 
 		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
@@ -201,6 +203,9 @@ export class CommandCenter {
 
 			case Status.MODIFIED:
 				return toGitUri(resource.resourceUri, '~');
+
+			case Status.DELETED_BY_THEM:
+				return toGitUri(resource.resourceUri, '');
 		}
 	}
 
@@ -213,6 +218,7 @@ export class CommandCenter {
 				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
+			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
 				return toGitUri(resource.resourceUri, 'HEAD');
 
@@ -228,6 +234,7 @@ export class CommandCenter {
 
 				return resource.resourceUri;
 
+			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
 		}
@@ -239,9 +246,12 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
+			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
 		}
 
@@ -305,14 +315,14 @@ export class CommandCenter {
 	}
 
 	@modelCommand('git.openFile')
-	async openFile(model: Model, arg?: Resource | Uri): Promise<void> {
-		let uri: Uri | undefined;
+	async openFile(model: Model, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
 			if (arg.scheme === 'git') {
-				uri = Uri.file(fromGitUri(arg).path);
+				uris = [Uri.file(fromGitUri(arg).path)];
 			} else if (arg.scheme === 'file') {
-				uri = arg;
+				uris = [arg];
 			}
 		} else {
 			let resource = arg;
@@ -323,23 +333,34 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uri = resource.resourceUri;
+				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
 			}
 		}
 
-		if (!uri) {
+		if (!uris) {
 			return;
 		}
 
-		const activeTextEditor = window.activeTextEditor && window.activeTextEditor;
-		const isSameUri = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString();
-		const selections = activeTextEditor && activeTextEditor.selections;
-		const viewColumn = activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One;
+		const preview = uris.length === 1 ? true : false;
+		const activeTextEditor = window.activeTextEditor;
+		for (const uri of uris) {
+			// If the active editor matches the current uri, get its selection
+			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
+				? activeTextEditor.selections
+				: undefined;
 
-		await commands.executeCommand<void>('vscode.open', uri, viewColumn);
+			const opts: TextDocumentShowOptions = {
+				preserveFocus: true,
+				preview: preview,
+				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
+			};
 
-		if (isSameUri && selections && window.activeTextEditor) {
-			window.activeTextEditor.selections = selections;
+			const document = await workspace.openTextDocument(uri);
+			await window.showTextDocument(document, opts);
+
+			if (selections && window.activeTextEditor) {
+				window.activeTextEditor.selections = selections;
+			}
 		}
 	}
 
@@ -370,22 +391,36 @@ export class CommandCenter {
 	}
 
 	@modelCommand('git.openChange')
-	async openChange(model: Model, arg?: Resource | Uri): Promise<void> {
-		let resource: Resource | undefined = undefined;
+	async openChange(model: Model, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		let resources: Resource[] | undefined = undefined;
 
-		if (arg instanceof Resource) {
-			resource = arg;
-		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(model, arg);
+		if (arg instanceof Uri) {
+			const resource = this.getSCMResource(model, arg);
+			if (resource !== undefined) {
+				resources = [resource];
+			}
 		} else {
-			resource = this.getSCMResource(model);
+			let resource: Resource | undefined = undefined;
+
+			if (arg instanceof Resource) {
+				resource = arg;
+			} else {
+				resource = this.getSCMResource(model);
+			}
+
+			if (resource) {
+				resources = [...resourceStates as Resource[], resource];
+			}
 		}
 
-		if (!resource) {
+		if (!resources) {
 			return;
 		}
 
-		return await this._openResource(model, resource);
+		const preview = resources.length === 1 ? undefined : false;
+		for (const resource of resources) {
+			await this._openResource(model, resource, preview);
+		}
 	}
 
 	@modelCommand('git.stage')
@@ -415,6 +450,7 @@ export class CommandCenter {
 		return await model.add();
 	}
 
+	// TODO@Joao does this command really receive a model?
 	@diffCommand('git.stageSelectedRanges')
 	async stageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
@@ -446,6 +482,7 @@ export class CommandCenter {
 		await model.stage(modifiedUri, result);
 	}
 
+	// TODO@Joao does this command really receive a model?
 	@diffCommand('git.revertSelectedRanges')
 	async revertSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
@@ -518,6 +555,7 @@ export class CommandCenter {
 		return await model.revertFiles();
 	}
 
+	// TODO@Joao does this command really receive a model?
 	@diffCommand('git.unstageSelectedRanges')
 	async unstageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
@@ -609,6 +647,7 @@ export class CommandCenter {
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = model.indexGroup.resources.length === 0;
 		const noUnstagedChanges = model.workingTreeGroup.resources.length === 0;
 
@@ -631,6 +670,9 @@ export class CommandCenter {
 		if (!opts) {
 			opts = { all: noStagedChanges };
 		}
+
+		// enable signing of commits if configurated
+		opts.signCommit = enableCommitSigning;
 
 		if (
 			// no changes
@@ -703,6 +745,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput(model, { all: false, signoff: true });
 	}
 
+	@modelCommand('git.commitStagedAmend')
+	async commitStagedAmend(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: false, amend: true });
+	}
+
 	@modelCommand('git.commitAll')
 	async commitAll(model: Model): Promise<void> {
 		await this.commitWithAnyInput(model, { all: true });
@@ -711,6 +758,11 @@ export class CommandCenter {
 	@modelCommand('git.commitAllSigned')
 	async commitAllSigned(model: Model): Promise<void> {
 		await this.commitWithAnyInput(model, { all: true, signoff: true });
+	}
+
+	@modelCommand('git.commitAllAmend')
+	async commitAllAmend(model: Model): Promise<void> {
+		await this.commitWithAnyInput(model, { all: true, amend: true });
 	}
 
 	@modelCommand('git.undoCommit')
@@ -846,6 +898,29 @@ export class CommandCenter {
 		}
 	}
 
+	@modelCommand('git.createTag')
+	async createTag(model: Model): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: localize('tag name', "Tag name"),
+			prompt: localize('provide tag name', "Please provide a tag name"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const inputMessage = await window.showInputBox({
+			placeHolder: localize('tag message', "Message"),
+			prompt: localize('provide tag message', "Please provide a message to annotate the tag"),
+			ignoreFocusOut: true
+		});
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		const message = inputMessage || name;
+		await model.tag(name, message);
+	}
+
 	@modelCommand('git.pullFrom')
 	async pullFrom(model: Model): Promise<void> {
 		const remotes = model.remotes;
@@ -910,6 +985,20 @@ export class CommandCenter {
 		}
 
 		await model.push();
+	}
+
+	@modelCommand('git.pushWithTags')
+	async pushWithTags(model: Model): Promise<void> {
+		const remotes = model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		await model.pushTags();
+
+		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 	}
 
 	@modelCommand('git.pushTo')

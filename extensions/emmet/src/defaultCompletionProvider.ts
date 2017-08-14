@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { doComplete, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parse, getEmmetConfiguration } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
@@ -16,7 +16,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
 		let isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let excludedLanguages = emmetConfig['exlcudeLanguages'] ? emmetConfig['exlcudeLanguages'] : [];
+		let excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
 		let syntax = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
 
 		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {
@@ -33,7 +33,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
 		let newItems: vscode.CompletionItem[] = [];
-		if (result.items) {
+		if (result && result.items) {
 			result.items.forEach(item => {
 				let newItem = new vscode.CompletionItem(item.label);
 				newItem.documentation = item.documentation;
@@ -61,7 +61,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		if (!syntax) {
 			return syntax;
 		}
-		let rootNode = parse(document, false);
+		let rootNode = parseDocument(document, false);
 		if (!rootNode) {
 			return;
 		}

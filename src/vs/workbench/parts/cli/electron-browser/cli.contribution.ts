@@ -141,7 +141,8 @@ class UninstallAction extends Action {
 
 			return pfs.unlink(this.target)
 				.then(null, ignore('ENOENT'))
-				.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName)));
+				.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName)))
+				.then(null);
 		});
 	}
 }

@@ -44,7 +44,7 @@ export class SCMService implements ISCMService {
 	}
 
 	set activeProvider(provider: ISCMProvider | undefined) {
-		this.setActiveSCMProdiver(provider);
+		this.setActiveSCMProvider(provider);
 		this.storageService.store(DefaultSCMProviderIdStorageKey, provider.id, StorageScope.WORKSPACE);
 	}
 
@@ -61,9 +61,9 @@ export class SCMService implements ISCMService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private storageService: IStorageService,
 		@IStatusbarService private statusbarService: IStatusbarService
-	) {}
+	) { }
 
-	private setActiveSCMProdiver(provider: ISCMProvider): void {
+	private setActiveSCMProvider(provider: ISCMProvider): void {
 		this.activeProviderDisposable.dispose();
 
 		if (!provider) {
@@ -88,7 +88,7 @@ export class SCMService implements ISCMService {
 		const defaultProviderId = this.storageService.get(DefaultSCMProviderIdStorageKey, StorageScope.WORKSPACE);
 
 		if (this._providers.length === 1 || defaultProviderId === provider.id) {
-			this.setActiveSCMProdiver(provider);
+			this.setActiveSCMProvider(provider);
 		}
 
 		return toDisposable(() => {

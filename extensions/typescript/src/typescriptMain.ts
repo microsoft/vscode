@@ -327,6 +327,12 @@ class LanguageProvider {
 							// e.g.  *-----*/|
 							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 							action: { indentAction: IndentAction.None, removeText: 1 }
+						},
+						{
+							// e.g.  if (...) | {}
+							beforeText: /^\s*(for|while|if|else)\s*/,
+							afterText: /^\s*{/,
+							action: { indentAction: IndentAction.None }
 						}
 					]
 				}));
@@ -417,16 +423,20 @@ class LanguageProvider {
 	}
 
 	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.syntaxDiagnostics[file] = diagnostics;
+		if (this._validate) {
+			this.syntaxDiagnostics[file] = diagnostics;
+		}
 	}
 
 	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		const syntaxMarkers = this.syntaxDiagnostics[file];
-		if (syntaxMarkers) {
-			delete this.syntaxDiagnostics[file];
-			diagnostics = syntaxMarkers.concat(diagnostics);
+		if (this._validate) {
+			const syntaxMarkers = this.syntaxDiagnostics[file];
+			if (syntaxMarkers) {
+				delete this.syntaxDiagnostics[file];
+				diagnostics = syntaxMarkers.concat(diagnostics);
+			}
+			this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 		}
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
@@ -480,16 +490,16 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				return;
 			}
 
-			const langauges = new Set<string>();
+			const languages = new Set<string>();
 			for (const plugin of plugins) {
 				for (const language of plugin.languages) {
-					langauges.add(language);
+					languages.add(language);
 				}
 			}
-			if (langauges.size) {
+			if (languages.size) {
 				const description: LanguageDescription = {
 					id: 'typescript-plugins',
-					modeIds: Array.from(langauges.values()),
+					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
