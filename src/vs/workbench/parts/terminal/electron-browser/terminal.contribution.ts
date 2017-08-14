@@ -17,7 +17,6 @@ import { TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFA
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-// import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalAtIndexAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, NextMatchTerminalFindWidgetAction, PreviousMatchTerminalFindWidgetAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, FocusTerminalAtIndexAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
@@ -221,18 +220,10 @@ configurationRegistry.registerConfiguration({
 				FocusSecondGroupAction.ID,
 				FocusThirdGroupAction.ID,
 				SelectAllTerminalAction.ID,
-
 				ShowWidgetSimpleFindCommand.ID,
 				HideWidgetSimpleFindCommand.ID,
 				FindNextSimpleFindCommand.ID,
 				FindPreviousSimpleFindCommand.ID,
-				// PreviousMatchSimpleFindAction.ID,
-				// FocusTerminalFindWidgetAction.ID,
-				// HideTerminalFindWidgetAction.ID,
-				// NextMatchTerminalFindWidgetAction.ID,
-				// PreviousMatchTerminalFindWidgetAction.ID,
-				// ShowNextFindTermTerminalFindWidgetAction.ID,
-				// ShowPreviousFindTermTerminalFindWidgetAction.ID,
 				NavigateUpAction.ID,
 				NavigateDownAction.ID,
 				NavigateRightAction.ID,
@@ -346,33 +337,6 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(AllowWorkspaceSh
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisallowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand.ID, DisallowWorkspaceShellTerminalCommand.LABEL), 'Terminal: Disallow Workspace Shell Configuration', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(RenameTerminalAction, RenameTerminalAction.ID, RenameTerminalAction.LABEL), 'Terminal: Rename', category);
 
-/*
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalFindWidgetAction, FocusTerminalFindWidgetAction.ID, FocusTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Find Widget', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(HideTerminalFindWidgetAction, HideTerminalFindWidgetAction.ID, HideTerminalFindWidgetAction.LABEL, {
-	primary: KeyCode.Escape,
-	secondary: [KeyCode.Shift | KeyCode.Escape]
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Focus Find Widget', category);
-
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextFindTermTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction.ID, ShowNextFindTermTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.Alt | KeyCode.DownArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Find History Show Next', category);
-
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction.ID, ShowPreviousFindTermTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.Alt | KeyCode.UpArrow
-}, ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE)), 'Terminal: Find History Show Previous', category);
-
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NextMatchTerminalFindWidgetAction, NextMatchTerminalFindWidgetAction.ID, NextMatchTerminalFindWidgetAction.LABEL, {
-	primary: KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Find Next', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PreviousMatchTerminalFindWidgetAction, PreviousMatchTerminalFindWidgetAction.ID, PreviousMatchTerminalFindWidgetAction.LABEL, {
-	primary: KeyMod.Shift | KeyCode.F3,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Find Previous', category);
-
- */
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordLeftTerminalAction, DeleteWordLeftTerminalAction.ID, DeleteWordLeftTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }

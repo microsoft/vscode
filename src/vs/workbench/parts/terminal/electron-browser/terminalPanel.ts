@@ -65,6 +65,7 @@ export class TerminalPanel extends Panel {
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		// Register SimpleFindWidget
 		this._register(this._simpleFindWidgetService.register(this._findWidget, [this._terminalService.terminalFocusContextKey]));
 
 		this._parentDomElement.appendChild(this._themeStyleElement);
@@ -162,35 +163,6 @@ export class TerminalPanel extends Panel {
 		if (activeInstance) {
 			activeInstance.focus(true);
 		}
-	}
-
-	public focusFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
-			this._findWidget.reveal(true, activeInstance.selection);
-		} else {
-			this._findWidget.reveal(true);
-		}
-	}
-
-	public hideFindWidget() {
-		this._findWidget.hide();
-	}
-
-	public showNextFindTermFindWidget(): void {
-		this._findWidget.showNextFindTerm();
-	}
-
-	public showPreviousFindTermFindWidget(): void {
-		this._findWidget.showPreviousFindTerm();
-	}
-
-	public nextMatchFindWidget(): void {
-		this._findWidget.find(false);
-	}
-
-	public previousMatchFindWidget(): void {
-		this._findWidget.find(true);
 	}
 
 	private _attachEventListeners(): void {
