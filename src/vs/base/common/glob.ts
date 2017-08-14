@@ -229,7 +229,7 @@ const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   		// something/else
 
 export type ParsedPattern = (path: string, basename?: string) => boolean;
 
-// The ParsedExpression returns a Promise if siblingsFn returns a Promise.
+// The ParsedExpression returns a Promise iff siblingsFn returns a Promise.
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>) => string | TPromise<string> /* the matching pattern */;
 
 export interface IGlobOptions {

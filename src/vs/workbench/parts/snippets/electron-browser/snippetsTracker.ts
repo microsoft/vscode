@@ -32,7 +32,7 @@ export class SnippetsTracker implements IWorkbenchContribution {
 		this._toDispose = [];
 
 		// Whenever a mode is being created check if a snippet file exists
-		// and if so read all snippets from it.
+		// and iff so read all snippets from it.
 		this._toDispose.push(modeService.onDidCreateMode(mode => {
 			const snippetPath = join(this._snippetFolder, `${mode.getId()}.json`);
 			fileExists(snippetPath)

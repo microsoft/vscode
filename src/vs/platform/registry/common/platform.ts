@@ -19,7 +19,7 @@ export interface IRegistry {
 	add(id: string, data: any): void;
 
 	/**
-	 * Returns true if there is an extension with the provided id.
+	 * Returns true iff there is an extension with the provided id.
 	 * @param id an extension identifier
 	 */
 	knows(id: string): boolean;
