@@ -256,7 +256,7 @@ export class HSVA {
 export class Color {
 
 	static fromHex(hex: string): Color {
-		return Color.Format.CSS.parseHex(hex) || Color.red;
+		return Color.Format.CSS.parseHex(hex);
 	}
 
 	readonly rgba: RGBA;
