@@ -11,11 +11,16 @@ import { MainThreadDiagnosticsShape } from '../node/extHost.protocol';
 
 export class MainThreadDiagnostics extends MainThreadDiagnosticsShape {
 
-	private _markerService: IMarkerService;
+	private readonly _activeOwners = new Set<string>();
+	private readonly _markerService: IMarkerService;
 
 	constructor( @IMarkerService markerService: IMarkerService) {
 		super();
 		this._markerService = markerService;
+	}
+
+	dispose(): void {
+		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, undefined));
 	}
 
 	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
@@ -23,11 +28,13 @@ export class MainThreadDiagnostics extends MainThreadDiagnosticsShape {
 			let [uri, markers] = entry;
 			this._markerService.changeOne(owner, uri, markers);
 		}
+		this._activeOwners.add(owner);
 		return undefined;
 	}
 
 	$clear(owner: string): TPromise<any> {
 		this._markerService.changeAll(owner, undefined);
+		this._activeOwners.delete(owner);
 		return undefined;
 	}
 }

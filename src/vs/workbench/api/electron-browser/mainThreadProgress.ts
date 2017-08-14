@@ -11,7 +11,7 @@ import { MainThreadProgressShape } from '../node/extHost.protocol';
 export class MainThreadProgress extends MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
-	private progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
 
 	constructor(
 		@IProgressService2 progressService: IProgressService2
@@ -20,24 +20,29 @@ export class MainThreadProgress extends MainThreadProgressShape {
 		this._progressService = progressService;
 	}
 
+	dispose(): void {
+		this._progress.forEach(handle => handle.resolve());
+		this._progress.clear();
+	}
+
 	$startProgress(handle: number, options: IProgressOptions): void {
 		const task = this._createTask(handle);
 		this._progressService.withProgress(options, task);
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {
-		this.progress.get(handle).progress.report(message);
+		this._progress.get(handle).progress.report(message);
 	}
 
 	$progressEnd(handle: number): void {
-		this.progress.get(handle).resolve();
-		this.progress.delete(handle);
+		this._progress.get(handle).resolve();
+		this._progress.delete(handle);
 	}
 
 	private _createTask(handle: number) {
 		return (progress: IProgress<IProgressStep>) => {
 			return new TPromise<any>(resolve => {
-				this.progress.set(handle, { resolve, progress });
+				this._progress.set(handle, { resolve, progress });
 			});
 		};
 	}

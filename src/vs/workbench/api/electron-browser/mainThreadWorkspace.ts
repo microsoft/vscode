@@ -17,7 +17,7 @@ import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from 
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { Emitter } from 'vs/base/common/event';
 
@@ -40,6 +40,10 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
+	}
+
+	dispose(): void {
+		dispose(this._toDispose);
 	}
 
 	// --- workspace ---

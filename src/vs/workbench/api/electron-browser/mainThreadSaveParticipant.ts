@@ -240,6 +240,11 @@ export class SaveParticipant implements ISaveParticipant {
 		// Hook into model
 		TextFileEditorModel.setSaveParticipant(this);
 	}
+
+	dispose(): void {
+		TextFileEditorModel.setSaveParticipant(undefined);
+	}
+
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
 
 		const stats: { [name: string]: number } = Object.create(null);

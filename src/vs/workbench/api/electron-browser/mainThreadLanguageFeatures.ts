@@ -43,6 +43,12 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		this._formatters = new Map<number, ColorFormatter>();
 	}
 
+	dispose(): void {
+		for (const key in this._registrations) {
+			this._registrations[key].dispose();
+		}
+	}
+
 	$unregister(handle: number): TPromise<any> {
 		let registration = this._registrations[handle];
 		if (registration) {
