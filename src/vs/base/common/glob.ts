@@ -5,6 +5,7 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import { BoundedMap } from 'vs/base/common/map';
@@ -13,6 +14,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
+}
+
+export function getEmptyExpression(): IExpression {
+	return Object.create(null);
+}
+
+export function mergeExpressions(...expressions: IExpression[]): IExpression {
+	return objects.assign(getEmptyExpression(), ...expressions.filter(expr => !!expr));
 }
 
 export interface SiblingClause {

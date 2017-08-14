@@ -256,9 +256,9 @@ export class DebugHoverWidget implements IContentWidget {
 				showChanged: false,
 				preserveWhitespace: true
 			});
-			this.scrollbar.scanDomNode();
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.valueContainer.focus();
@@ -269,13 +269,13 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.valueContainer.hidden = true;
 		this.complexValueContainer.hidden = false;
-		this.scrollbar.scanDomNode();
 
 		return this.tree.setInput(expression).then(() => {
 			this.complexValueTitle.textContent = expression.value;
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.tree.DOMFocus();

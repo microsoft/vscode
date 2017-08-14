@@ -36,10 +36,5 @@
 	"welcomePage.interfaceOverview": "Felhasználói felület áttekintése",
 	"welcomePage.interfaceOverviewDescription": "Fedvény, ami vizuálisan bemutatja a felhasználói felület legfőbb részeit.",
 	"welcomePage.interactivePlayground": "Interaktív játszótér",
-	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!",
-	"welcomePage.quickLinks": "Gyorshivatkozások",
-	"welcomePage.keybindingsReference": "Billentyűparancs-referencia",
-	"welcomePage.keybindingsReferenceDescription": "Egy nyomtatható PDF a leggyakrabban használt billentyűparancsokkal",
-	"welcomePage.configureSettings": "Beállítások módosítása",
-	"welcomePage.configureSettingsDescription": "Szabadítsa fel a VS Code teljes tudását a beállítások személyre szabásával"
+	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!"
 }

@@ -12,5 +12,5 @@
 	"staleSaveError": "Nem sikerült menteni a(z) '{0}' fájlt: a lemezen lévő tartalom újabb. Kattintson az **Összehasonlítás*** gombra a helyi és a lemezen lévő változat összehasonlításához.",
 	"compareChanges": "Összehasonlítás",
 	"saveConflictDiffLabel": "{0} (a lemezen) ↔ {1} ({2}) – Mentési konfliktus feloldása",
-	"userGuide": "Használja a szerkesztői eszköztáron található műveleteket a helyi változtatások **visszavonására** vagy **írja felül** a lemezen lévő tartalmat a változtatásokkal"
+	"userGuide": "Használja a jobbra lévő szerkesztői eszköztáron található műveleteket a saját módosítások **visszavonására** vagy **írja felül** a lemezen lévő tartalmat a változtatásokkal"
 }

@@ -14,11 +14,11 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
-import { AddRootFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { AddRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 // Contribute Commands
 registerCommands();
@@ -29,11 +29,11 @@ const helpCategory = nls.localize('help', "Help");
 const fileCategory = nls.localize('file', "File");
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issue', helpCategory);
@@ -83,7 +83,11 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // TODO@Ben multi root
 if (product.quality !== 'stable') {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Files: Add Folder to Workspace...', fileCategory);
+	const workspacesCategory = nls.localize('workspaces', "Workspaces");
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceConfigFileAction, OpenWorkspaceConfigFileAction.ID, OpenWorkspaceConfigFileAction.LABEL), 'Workspaces: Open Workspace Configuration File', workspacesCategory);
 }
 
 // Developer related actions
@@ -176,6 +180,23 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (isMacintosh) {
+	workbenchProperties['workbench.fontAliasing'] = {
+		'type': 'string',
+		'enum': ['default', 'antialiased', 'none'],
+		'default': 'default',
+		'description':
+		nls.localize('fontAliasing',
+			`Controls font aliasing method in the workbench.
+- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text
+- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall
+- none: Disables font smoothing. Text will show with jagged sharp edges`),
+		'enumDescriptions': [
+			nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
+			nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
+			nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges.")
+		],
+	};
+
 	workbenchProperties['workbench.editor.swipeToNavigate'] = {
 		'type': 'boolean',
 		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
@@ -199,9 +220,9 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.on' }, "Files will open in a new window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.off' }, "Files will open in the window with the files' folder open or the last active window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.default' }, "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
+			nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
+			nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
+			nls.localize('window.openFilesInNewWindow.default', "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
 		'default': 'off',
 		'description':
@@ -217,9 +238,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.on' }, "Folders will open in a new window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.off' }, "Folders will replace the last active window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.default' }, "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+			nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
+			nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
+			nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
 		],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
@@ -234,13 +255,13 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['all', 'folders', 'one', 'none'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "Reopen all windows."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.folders' }, "Reopen all folders. Empty windows will not be restored."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "Reopen the last active window."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a window. Always start with an empty one.")
+			nls.localize('window.reopenFolders.all', "Reopen all windows."),
+			nls.localize('window.reopenFolders.folders', "Reopen all folders. Empty workspaces will not be restored."),
+			nls.localize('window.reopenFolders.one', "Reopen the last active window."),
+			nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
 		],
 		'default': 'one',
-		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty window, 'one' to reopen the last window you worked on, 'folders' to reopen all folders you had opened or 'all' to reopen all windows of your last session.")
+		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
 	},
 	'window.restoreFullscreen': {
 		'type': 'boolean',
@@ -254,7 +275,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 	},
 	'window.title': {
 		'type': 'string',
-		'default': isMacintosh ? '${activeEditorShort}${separator}${folderName}' : '${dirty}${activeEditorShort}${separator}${folderName}${separator}${appName}',
+		'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
 			`Controls the window title based on the active editor. Variables are substituted based on the context:
 \${activeEditorShort}: e.g. myFile.txt
@@ -272,18 +293,18 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.default' }, "Open new windows in the center of the screen."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.inherit' }, "Open new windows with same dimension as last active one."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.maximized' }, "Open new windows maximized."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.fullscreen' }, "Open new windows in full screen mode.")
+			nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
+			nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
+			nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
+			nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
 		],
 		'default': 'default',
 		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 	},
 	'window.closeWhenEmpty': {
 		'type': 'boolean',
-		'default': isMacintosh ? true : false,
-		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that have no folder opened.")
+		'default': false,
+		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
 	}
 };
 
@@ -292,10 +313,10 @@ if (isWindows || isLinux) {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.default' }, "Menu is only hidden in full screen mode."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.visible' }, "Menu is always visible even in full screen mode."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.toggle' }, "Menu is hidden but can be displayed via Alt key."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.hidden' }, "Menu is always hidden.")
+			nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
+			nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
+			nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+			nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
 		],
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
@@ -375,35 +396,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Configuration: Workspace
-// TODO@Ben multi root
-if (product.quality !== 'stable') {
-	configurationRegistry.registerConfiguration({
-		'id': 'workspace',
-		'order': 10000,
-		'title': nls.localize('workspaceConfigurationTitle', "Workspace"),
-		'type': 'object',
-		'properties': {
-			'workspace': {
-				'type': 'object',
-				'description': nls.localize('workspaces.title', "Folder configuration of the workspace"),
-				'additionalProperties': {
-					'anyOf': [{
-						'type': 'object',
-						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-						'properties': {
-							'folders': {
-								'description': nls.localize('workspaces.additionalFolders', "Folders of this workspace"),
-								'type': 'array',
-								'items': {
-									'type': 'string'
-								}
-							}
-						}
-					}]
-				}
-			}
-		}
-	});
-}

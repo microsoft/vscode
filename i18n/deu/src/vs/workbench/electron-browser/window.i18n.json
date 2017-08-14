@@ -10,6 +10,5 @@
 	"copy": "Kopieren",
 	"paste": "Einfügen",
 	"selectAll": "Alles auswählen",
-	"confirmOpen": "Möchten Sie \"{0}\" Ordner wirklich öffnen?",
 	"confirmOpenButton": "&&Öffnen"
 }

@@ -7,5 +7,6 @@
 	"replAriaLabel": "REPL-Bereich (Read Eval Print-Loop)",
 	"actions.repl.historyPrevious": "Verlauf vorherige",
 	"actions.repl.historyNext": "Verlauf nächste",
-	"actions.repl.acceptInput": "REPL-Eingaben akzeptieren"
+	"actions.repl.acceptInput": "REPL-Eingaben akzeptieren",
+	"actions.repl.copyAll": "Debuggen: Konsole – alle kopieren"
 }

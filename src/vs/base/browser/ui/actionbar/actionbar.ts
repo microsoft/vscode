@@ -8,7 +8,7 @@
 import 'vs/css!./actionbar';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner } from 'vs/base/common/actions';
@@ -32,6 +32,7 @@ export interface IActionItem extends IEventEmitter {
 
 export interface IBaseActionItemOptions {
 	draggable?: boolean;
+	isMenu?: boolean;
 }
 
 export class BaseActionItem extends EventEmitter implements IActionItem {
@@ -129,7 +130,19 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
-			setTimeout(() => this.onClick(e), 50);
+			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
+			// > Writing to the clipboard
+			// > You can use the "cut" and "copy" commands without any special
+			// permission if you are using them in a short-lived event handler
+			// for a user action (for example, a click handler).
+
+			// => to get the Copy and Paste context menu actions working on Firefox,
+			// there should be no timeout here
+			if (this.options && this.options.isMenu) {
+				this.onClick(e);
+			} else {
+				setTimeout(() => this.onClick(e), 50);
+			}
 		});
 
 		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
@@ -218,7 +231,6 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
-	isMenu?: boolean;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -678,7 +690,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.emit(CommonEventType.CANCEL);
 	}
 
-	public run(action: IAction, context?: any): Promise {
+	public run(action: IAction, context?: any): TPromise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
@@ -723,8 +735,8 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.selectBox.onDidSelect(selected => {
-			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
 		}));
 	}
 

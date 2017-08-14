@@ -6,6 +6,7 @@
 {
 	"errorInvalidConfiguration": "Не удается записать параметры. Устраните ошибки и предупреждения в файле и повторите попытку.",
 	"defaultSettingsTitle": "Параметры по умолчанию",
+	"noSettingsFound": "Параметры не найдены.",
 	"editTtile": "Изменить",
 	"replaceDefaultValue": "Заменить в параметрах",
 	"copyDefaultValue": "Копировать в параметры",

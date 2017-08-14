@@ -57,7 +57,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
@@ -66,7 +66,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		this.registerViews();
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
-		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.updateTitleArea()));
+		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {

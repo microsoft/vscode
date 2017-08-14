@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "İşlevleri parametre imzalarıyla tamamlayın.",
 	"typescript.tsdk.desc": "Kullanılacak tsserver ve lib*.d.ts dosyalarını içeren klasör yolunu belirtir.",
 	"typescript.disableAutomaticTypeAcquisition": "Otomatik tür kazanımını devre dışı bırakır. TypeScript >= 2.0.6 ve değiştirildikten sonra yeniden başlatma gerektirir.",
-	"typescript.check.tscVersion": "Global TypeScript derleyicisinin(ör. tsc) kullanılan TypeScript dil hizmetinden farklı olup olmadığını kontrol et.",
 	"typescript.tsserver.log": "TS sunucusunun bir dosyaya günlük yazmasını etkinleştirir. Bu günlük, TS Sunucu sorunlarını teşhis etmek için kullanılabilir. Günlük dosya yollarını, kaynak kodunu ve projenizdeki diğer muhtemel hassas bilgileri içerebilir.",
 	"typescript.tsserver.trace": "TS sunucusuna gönderilen mesajları izlemeyi etkinleştirir. Bu izleme, TS Sunucu sorunlarını teşhis etmek için kullanılabilir. İzleme; dosya yollarını, kaynak kodunu ve projenizdeki diğer muhtemel hassas bilgileri içerebilir.",
 	"typescript.validate.enable": "TypeScript doğrulamasını etkinleştir veya devre dışı bırak.",

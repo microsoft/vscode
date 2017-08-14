@@ -1430,7 +1430,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var p1, p2;
 
 			var p1Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Completes.push(c); }); };
 
 			p1 = model.refresh('grandfather');
 
@@ -1448,7 +1448,7 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(gotTimes, 1);
 
 			var p2Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Complete = c; }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Complete = c; }); };
 			p2 = model.refresh('father');
 
 			// same situation still
@@ -1508,7 +1508,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var p1, p2;
 
 			var p1Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Complete = c; }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Complete = c; }); };
 
 			p1 = model.refresh('father');
 
@@ -1516,7 +1516,7 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(gotTimes, 0);
 
 			var p2Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Completes.push(c); }); };
 			p2 = model.refresh('grandfather');
 
 			assert.equal(getTimes, 1);

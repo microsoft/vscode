@@ -214,7 +214,8 @@ export enum Operation {
 	GetCommitTemplate = 1 << 15,
 	DeleteBranch = 1 << 16,
 	Merge = 1 << 17,
-	Ignore = 1 << 18
+	Ignore = 1 << 18,
+	Tag = 1 << 19
 }
 
 // function getOperationName(operation: Operation): string {
@@ -290,6 +291,7 @@ export interface CommitOptions {
 	all?: boolean;
 	amend?: boolean;
 	signoff?: boolean;
+	signCommit?: boolean;
 }
 
 export class Model implements Disposable {
@@ -465,6 +467,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async tag(name: string, message?: string): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -509,6 +515,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}
 
+	async pushTags(remote?: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
+	}
+
 	@throttle
 	async sync(): Promise<void> {
 		await this.run(Operation.Sync, async () => {
@@ -548,9 +558,12 @@ export class Model implements Disposable {
 				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
 
 			await window.showTextDocument(document);
-			const edit = new WorkspaceEdit();
 
-			edit.insert(document.uri, document.lineAt(document.lineCount - 1).range.end, `${textToAppend}\n`);
+			const edit = new WorkspaceEdit();
+			const lastLine = document.lineAt(document.lineCount - 1);
+			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+			edit.insert(document.uri, lastLine.range.end, text);
 			workspace.applyEdit(edit);
 		});
 	}

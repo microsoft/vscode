@@ -850,6 +850,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
 		this._domNode.setAttribute('aria-hidden', 'true');
+		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
+		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
@@ -968,14 +970,14 @@ class SimpleCheckbox extends Widget {
 	}
 }
 
-interface ISimpleButtonOpts {
+export interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: () => void;
 	onKeyDown: (e: IKeyboardEvent) => void;
 }
 
-class SimpleButton extends Widget {
+export class SimpleButton extends Widget {
 
 	private _opts: ISimpleButtonOpts;
 	private _domNode: HTMLElement;

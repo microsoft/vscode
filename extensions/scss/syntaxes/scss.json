@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-sass/commit/4cc7de72882dc3ab427f0bf2220465032378fb2c",
 	"scopeName": "source.css.scss",
 	"name": "SCSS",
 	"fileTypes": [
@@ -67,6 +68,10 @@
 		},
 		{
 			"include": "#at_rule_supports"
+		},
+		{
+			"match": ";",
+			"name": "punctuation.terminator.rule.css"
 		}
 	],
 	"repository": {
@@ -171,14 +176,14 @@
 			"begin": "\\s*((@)extend\\b)\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.control.at-rule.import.scss"
+					"name": "keyword.control.at-rule.extend.scss"
 				},
 				"2": {
 					"name": "punctuation.definition.keyword.scss"
 				}
 			},
 			"end": "\\s*(?=;)",
-			"name": "meta.at-rule.import.scss",
+			"name": "meta.at-rule.extend.scss",
 			"patterns": [
 				{
 					"include": "#variable"
@@ -1069,7 +1074,7 @@
 					"name": "punctuation.definition.map.end.bracket.round.scss"
 				}
 			},
-			"name": "meta.set.variable.map.scss",
+			"name": "meta.definition.variable.map.scss",
 			"patterns": [
 				{
 					"include": "#comment_block"
@@ -1304,7 +1309,7 @@
 			]
 		},
 		"selector_attribute": {
-			"match": "(?xi)\n(\\[)\n\\s*\n(\n  (?:\n    [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)\n(?:\n  \\s*([~|^$*]?=)\\s*\n  (?:\n    (\n      (?:\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n        | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n        | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n        | \\$                              # Possible start of interpolation variable\n        | }                                # Possible end of interpolation\n      )+\n    )\n    |\n    ((\")(.*)(\"))\n    |\n    ((')(.*)('))\n  )\n)?\n\\s*\n(\\])",
+			"match": "(?xi)\n(\\[)\n\\s*\n(\n  (?:\n    [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)\n(?:\n  \\s*([~|^$*]?=)\\s*\n  (?:\n    (\n      (?:\n        [-a-zA-Z_0-9]|[^\\x00-\\x7F]       # Valid identifier characters\n        | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n        | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n        | \\$                              # Possible start of interpolation variable\n        | }                                # Possible end of interpolation\n      )+\n    )\n    |\n    ((\")(.*?)(\"))\n    |\n    ((')(.*?)('))\n  )\n)?\n\\s*\n(\\])",
 			"name": "meta.attribute-selector.scss",
 			"captures": {
 				"1": {
@@ -1451,7 +1456,7 @@
 			}
 		},
 		"selector_placeholder": {
-			"match": "(?x)\n(%)                                    # Valid placeholder-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
+			"match": "(?x)\n(%)                                    # Valid placeholder-name\n(\n  (?: [-a-zA-Z_0-9]|[^\\x00-\\x7F]     # Valid identifier characters\n    | \\\\(?:[0-9a-fA-F]{1,6}|.)       # Escape sequence\n    | \\#\\{                           # Interpolation (escaped to avoid Coffeelint errors)\n    | \\$                              # Possible start of interpolation variable\n    | }                                # Possible end of interpolation\n  )+\n)                                      # Followed by either:\n(?= ;                                  # - End of statement\n  | $                                  # - End of the line\n  | [\\s,.\\#)\\[:{>+~|]               # - Another selector\n  | /\\*                               # - A block comment\n)",
 			"name": "entity.other.attribute-name.placeholder.css",
 			"captures": {
 				"1": {
@@ -1539,6 +1544,12 @@
 				},
 				{
 					"include": "source.css#pseudo-classes"
+				},
+				{
+					"include": "source.css#pseudo-elements"
+				},
+				{
+					"include": "source.css#functional-pseudo-classes"
 				}
 			]
 		},
@@ -1646,32 +1657,48 @@
 			]
 		},
 		"variable_setting": {
-			"begin": "\\s*(\\$[A-Za-z0-9_-]+\\b)\\s*(:)\\s*",
-			"captures": {
-				"1": {
-					"name": "variable.scss"
-				},
-				"2": {
-					"name": "punctuation.separator.key-value.scss"
+			"begin": "(?=\\$[\\w-]+\\s*:)",
+			"end": ";",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.terminator.rule.scss"
 				}
 			},
-			"end": "\\s*(?=;)",
-			"name": "meta.set.variable.scss",
+			"contentName": "meta.definition.variable.scss",
 			"patterns": [
 				{
-					"include": "#comment_block"
+					"match": "\\$[\\w-]+(?=\\s*:)",
+					"name": "variable.scss"
 				},
 				{
-					"include": "#comment_line"
-				},
-				{
-					"include": "#map"
-				},
-				{
-					"include": "#property_values"
-				},
-				{
-					"include": "#variable"
+					"begin": ":",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.separator.key-value.scss"
+						}
+					},
+					"end": "(?=;)",
+					"patterns": [
+						{
+							"include": "#comment_block"
+						},
+						{
+							"include": "#comment_line"
+						},
+						{
+							"include": "#map"
+						},
+						{
+							"include": "#property_values"
+						},
+						{
+							"include": "#variable"
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.delimiter.scss"
+						}
+					]
 				}
 			]
 		},

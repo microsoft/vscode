@@ -8,6 +8,7 @@
 	"requirestring": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`",
 	"optstring": "la proprietà `{0}` può essere omessa o deve essere di tipo `string`",
 	"vscode.extension.contributes.keybindings.command": "Identificatore del comando da eseguire quando si attiva il tasto di scelta rapida.",
+	"vscode.extension.contributes.keybindings.key": "Tasto o sequenza di tasti (separare i tasti con un segno di addizione e le sequenze con uno spazio, ad esempio CTRL+O e CTRL+L L per una combinazione).",
 	"vscode.extension.contributes.keybindings.mac": "Tasto o sequenza di tasti specifica di Mac.",
 	"vscode.extension.contributes.keybindings.linux": "Tasto o sequenza di tasti specifica di Linux.",
 	"vscode.extension.contributes.keybindings.win": "Tasto o sequenza di tasti specifica di Windows.",

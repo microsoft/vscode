@@ -36,10 +36,5 @@
 	"welcomePage.interfaceOverview": "Arayüze genel bakış",
 	"welcomePage.interfaceOverviewDescription": "Kullanıcı arayüzünün ana bileşenlerini vurgulayan bir kaplamayı görüntüleyin",
 	"welcomePage.interactivePlayground": "İnteraktif oyun alanı",
-	"welcomePage.interactivePlaygroundDescription": "Başlıca düzenleyici özelliklerini kısa örneklerle deneyin",
-	"welcomePage.quickLinks": "Hızlı bağlantılar",
-	"welcomePage.keybindingsReference": "Klavye kısayolları başvurusu",
-	"welcomePage.keybindingsReferenceDescription": "En yaygın klavye kısayollarının olduğu yazdırılabilir bir PDF dosyası",
-	"welcomePage.configureSettings": "Ayarları yapılandır",
-	"welcomePage.configureSettingsDescription": "Ayarları değiştirerek VS Code'un tam gücünü açın"
+	"welcomePage.interactivePlaygroundDescription": "Başlıca düzenleyici özelliklerini kısa örneklerle deneyin"
 }

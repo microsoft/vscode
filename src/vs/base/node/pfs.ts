@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { dirname, join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';
@@ -19,7 +19,7 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new Promise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c));
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
@@ -33,7 +33,7 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 				return nfcall(fs.stat, path)
 					.then((stat: fs.Stats) => stat.isDirectory
 						? null
-						: Promise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
+						: TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
 			}
 
 			return TPromise.wrapError<boolean>(err);
@@ -83,15 +83,15 @@ export function lstat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }
 
-export function rename(oldPath: string, newPath: string): Promise {
+export function rename(oldPath: string, newPath: string): TPromise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
-export function rmdir(path: string): Promise {
+export function rmdir(path: string): TPromise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
-export function unlink(path: string): Promise {
+export function unlink(path: string): TPromise<void> {
 	return nfcall(fs.unlink, path);
 }
 

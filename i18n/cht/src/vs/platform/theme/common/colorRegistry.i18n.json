@@ -53,14 +53,13 @@
 	"badgeBackground": "標記的背景顏色。標記為小型的訊息標籤,例如搜尋結果的數量。",
 	"badgeForeground": "標記的前景顏色。標記為小型的訊息標籤,例如搜尋結果的數量。",
 	"scrollbarShadow": "指出在捲動該檢視的捲軸陰影。",
-	"scrollbarSliderBackground": "滑桿背景色彩。",
-	"scrollbarSliderHoverBackground": "暫留時的滑桿背景色彩。",
-	"scrollbarSliderActiveBackground": "使用中狀態時的滑桿背景色彩。",
 	"progressBarBackground": "長時間運行進度條的背景色彩.",
 	"editorBackground": "編輯器的背景色彩。",
 	"editorForeground": "編輯器的預設前景色彩。",
 	"editorWidgetBackground": "編輯器小工具的背景色彩，例如尋找/取代。",
 	"editorWidgetBorder": "編輯器小工具的邊界色彩。小工具選擇擁有邊界或色彩未被小工具覆寫時，才會使用色彩。",
+	"editorSelectionBackground": "編輯器選取範圍的色彩。",
+	"editorSelectionForeground": "為選取的文字顏色高對比化",
 	"editorInactiveSelection": "非使用中之編輯器選取範圍的色彩。",
 	"editorSelectionHighlight": "選取時，內容相同之區域的色彩。",
 	"editorFindMatch": "符合目前搜尋的色彩。",
@@ -78,7 +77,10 @@
 	"mergeCurrentContentBackground": "目前內嵌合併衝突中的內容背景。",
 	"mergeIncomingHeaderBackground": "傳入內嵌合併衝突中的深色標題背景。",
 	"mergeIncomingContentBackground": "傳入內嵌合併衝突中的內容背景。",
+	"mergeCommonHeaderBackground": "內嵌合併衝突中的共同始祖標題背景",
+	"mergeCommonContentBackground": "內嵌合併衝突中的共同始祖內容背景。",
 	"mergeBorder": "內嵌合併衝突中標頭及分隔器的邊界色彩。",
 	"overviewRulerCurrentContentForeground": "目前內嵌合併衝突的概觀尺規前景。",
-	"overviewRulerIncomingContentForeground": "傳入內嵌合併衝突的概觀尺規前景。"
+	"overviewRulerIncomingContentForeground": "傳入內嵌合併衝突的概觀尺規前景。",
+	"overviewRulerCommonContentForeground": "內嵌合併衝突中的共同上階概觀尺規前景。"
 }

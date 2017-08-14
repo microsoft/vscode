@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "A kombináció neve. Az indítási konfiguráció lenyíló menüjében jelenik meg.",
 	"app.launch.json.compounds.configurations": "Azon konfigurációk neve, melyek elindulnak ezen kombináció részeként.",
 	"debugNoType": "A hibakeresési illesztő 'type' tulajdonsága kötelező, és 'string' típusúnak kell lennie.",
-	"DebugConfig.failed": "Nem sikerült létrehozni a 'launch.json' fájlt a '.vscode' mappánan ({0}).",
-	"selectDebug": "Környezet kiválasztása"
+	"selectDebug": "Környezet kiválasztása",
+	"DebugConfig.failed": "Nem sikerült létrehozni a 'launch.json' fájlt a '.vscode' mappánan ({0})."
 }

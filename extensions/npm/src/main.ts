@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//tslint:disable
 'use strict';
 
 import * as path from 'path';
@@ -12,8 +13,7 @@ type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
 export function activate(_context: vscode.ExtensionContext): void {
-	let workspaceRoot = vscode.workspace.rootPath;
-	if (!workspaceRoot) {
+	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
 
@@ -25,7 +25,7 @@ export function activate(_context: vscode.ExtensionContext): void {
 		} else if (!taskProvider && autoDetect === 'on') {
 			taskProvider = vscode.workspace.registerTaskProvider('npm', {
 				provideTasks: () => {
-					return getNpmScriptsAsTasks();
+					return provideNpmScripts();
 				},
 				resolveTask(_task: vscode.Task): vscode.Task | undefined {
 					return undefined;
@@ -87,15 +87,33 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
-	let workspaceRoot = vscode.workspace.rootPath;
-	let emptyTasks: vscode.Task[] = [];
+function isNotPreOrPostScript(script: string): boolean {
+	return !(script.startsWith('pre') || script.startsWith('post'));
+}
 
-	if (!workspaceRoot) {
+async function provideNpmScripts(): Promise<vscode.Task[]> {
+	let emptyTasks: vscode.Task[] = [];
+	let allTasks: vscode.Task[] = [];
+	let folders = vscode.workspace.workspaceFolders;
+
+	if (!folders) {
 		return emptyTasks;
 	}
 
-	let packageJson = path.join(workspaceRoot, 'package.json');
+	const isSingleRoot = folders.length === 1;
+
+	for (let i = 0; i < folders.length; i++) {
+		let tasks = await provideNpmScriptsForFolder(folders[i], isSingleRoot);
+		allTasks.push(...tasks);
+	}
+	return allTasks;
+}
+
+async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder, singleRoot: boolean): Promise<vscode.Task[]> {
+	let rootPath = folder.uri.fsPath;
+	let emptyTasks: vscode.Task[] = [];
+
+	let packageJson = path.join(rootPath, 'package.json');
 	if (!await exists(packageJson)) {
 		return emptyTasks;
 	}
@@ -104,16 +122,12 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 		var contents = await readFile(packageJson);
 		var json = JSON.parse(contents);
 		if (!json.scripts) {
-			return Promise.resolve(emptyTasks);
+			return emptyTasks;
 		}
 
 		const result: vscode.Task[] = [];
-		Object.keys(json.scripts).forEach(each => {
-			const kind: NpmTaskDefinition = {
-				type: 'npm',
-				script: each
-			};
-			const task = new vscode.Task(kind, `run ${each}`, 'npm', new vscode.ShellExecution(`npm run ${each}`));
+		Object.keys(json.scripts).filter(isNotPreOrPostScript).forEach(each => {
+			const task = createTask(each, `run ${each}`, rootPath, folder.name, singleRoot);
 			const lowerCaseTaskName = each.toLowerCase();
 			if (isBuildTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Build;
@@ -122,10 +136,35 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			}
 			result.push(task);
 		});
-		// add some 'well known' npm tasks
-		result.push(new vscode.Task({ type: 'npm', script: 'install' } as NpmTaskDefinition, `install`, 'npm', new vscode.ShellExecution(`npm install`)));
-		return Promise.resolve(result);
+		// always add npm install (without a problem matcher)
+		result.push(createTask('install', 'install', rootPath, folder.name, singleRoot, []));
+		return result;
 	} catch (e) {
-		return Promise.resolve(emptyTasks);
+		return emptyTasks;
 	}
+}
+
+function createTask(script: string, cmd: string, rootPath: string, shortPath: string, singleRoot: boolean, matcher?: any): vscode.Task {
+
+	function getTaskName(script: string, shortPath: string, singleRoot: boolean) {
+		if (singleRoot) {
+			return script;
+		}
+		return `${script} - ${shortPath}`;
+	}
+
+	function getNpmCommandLine(cmd: string): string {
+		if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
+			return `npm --silent ${cmd}`;
+		}
+		return `npm ${cmd}`;
+	}
+
+	let kind: NpmTaskDefinition = {
+		type: 'npm',
+		script: script
+	};
+	let taskName = getTaskName(script, shortPath, singleRoot);
+
+	return new vscode.Task(kind, taskName, 'npm', new vscode.ShellExecution(getNpmCommandLine(cmd), { cwd: rootPath }), matcher);
 }

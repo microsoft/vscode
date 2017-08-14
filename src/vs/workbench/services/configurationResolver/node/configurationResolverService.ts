@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -15,12 +16,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
-	private _workspaceRoot: string;
 	private _execPath: string;
+	private _workspaceRoot: string;
 
 	constructor(
 		envVariables: { [key: string]: string },
@@ -28,9 +28,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		this._workspaceRoot = paths.normalize(contextService.hasWorkspace() ? contextService.getLegacyWorkspace().resource.fsPath : '', true); // TODO@Isidor (https://github.com/Microsoft/vscode/issues/29246)
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
 			this[`env:${key}`] = envVariables[key];
@@ -103,35 +101,37 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return paths.normalize(fileResource.fsPath, true);
 	}
 
-	public resolve(value: string): string;
-	public resolve(value: string[]): string[];
-	public resolve(value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(value: any): any {
+	public resolve(root: uri, value: string): string;
+	public resolve(root: uri, value: string[]): string[];
+	public resolve(root: uri, value: IStringDictionary<string>): IStringDictionary<string>;
+	public resolve(root: uri, value: any): any {
+		this._workspaceRoot = root.fsPath.toString();
 		if (types.isString(value)) {
-			return this.resolveString(value);
+			return this.resolveString(root, value);
 		} else if (types.isArray(value)) {
-			return this.resolveArray(value);
+			return this.resolveArray(root, value);
 		} else if (types.isObject(value)) {
-			return this.resolveLiteral(value);
+			return this.resolveLiteral(root, value);
 		}
 
 		return value;
 	}
 
-	public resolveAny<T>(value: T): T;
-	public resolveAny<T>(value: any): any {
+	public resolveAny<T>(root: uri, value: T): T;
+	public resolveAny<T>(root: uri, value: any): any {
+		this._workspaceRoot = root.fsPath.toString();
 		if (types.isString(value)) {
-			return this.resolveString(value);
+			return this.resolveString(root, value);
 		} else if (types.isArray(value)) {
-			return this.resolveAnyArray(value);
+			return this.resolveAnyArray(root, value);
 		} else if (types.isObject(value)) {
-			return this.resolveAnyLiteral(value);
+			return this.resolveAnyLiteral(root, value);
 		}
 
 		return value;
 	}
 
-	private resolveString(value: string): string {
+	private resolveString(root: uri, value: string): string {
 		let regexp = /\$\{(.*?)\}/g;
 		const originalValue = value;
 		const resolvedString = value.replace(regexp, (match: string, name: string) => {
@@ -143,10 +143,10 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			}
 		});
 
-		return this.resolveConfigVariable(resolvedString, originalValue);
+		return this.resolveConfigVariable(root, resolvedString, originalValue);
 	}
 
-	private resolveConfigVariable(value: string, originalValue: string): string {
+	private resolveConfigVariable(root: uri, value: string, originalValue: string): string {
 		const replacer = (match: string, name: string) => {
 			let config = this.configurationService.getConfiguration<any>();
 			let newValue: any;
@@ -168,41 +168,41 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			}
 			if (types.isString(newValue)) {
 				// Prevent infinite recursion and also support nested references (or tokens)
-				return newValue === originalValue ? '' : this.resolveString(newValue);
+				return newValue === originalValue ? '' : this.resolveString(root, newValue);
 			} else {
-				return this.resolve(newValue) + '';
+				return this.resolve(root, newValue) + '';
 			}
 		};
 
 		return value.replace(/\$\{config:(.+?)\}/g, replacer);
 	}
 
-	private resolveLiteral(values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
+	private resolveLiteral(root: uri, values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
-			result[key] = <any>this.resolve(<any>value);
+			result[key] = <any>this.resolve(root, <any>value);
 		});
 		return result;
 	}
 
-	private resolveAnyLiteral<T>(values: T): T;
-	private resolveAnyLiteral<T>(values: any): any {
+	private resolveAnyLiteral<T>(root: uri, values: T): T;
+	private resolveAnyLiteral<T>(root: uri, values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];
-			result[key] = <any>this.resolveAny(<any>value);
+			result[key] = <any>this.resolveAny(root, <any>value);
 		});
 		return result;
 	}
 
-	private resolveArray(value: string[]): string[] {
-		return value.map(s => this.resolveString(s));
+	private resolveArray(root: uri, value: string[]): string[] {
+		return value.map(s => this.resolveString(root, s));
 	}
 
-	private resolveAnyArray<T>(value: T[]): T[];
-	private resolveAnyArray(value: any[]): any[] {
-		return value.map(s => this.resolveAny(s));
+	private resolveAnyArray<T>(root: uri, value: T[]): T[];
+	private resolveAnyArray(root: uri, value: any[]): any[] {
+		return value.map(s => this.resolveAny(root, s));
 	}
 
 	/**

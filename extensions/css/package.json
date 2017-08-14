@@ -11,6 +11,7 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
+  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
@@ -672,6 +673,7 @@
     }
   },
   "dependencies": {
+    "parse-color": "^1.0.0",
     "vscode-languageclient": "^3.2.0",
     "vscode-nls": "^2.0.2"
   },

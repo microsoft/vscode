@@ -25,6 +25,8 @@ export const SearchViewletVisibleKey = new RawContextKey<boolean>('searchViewlet
 export const InputBoxFocussedKey = new RawContextKey<boolean>('inputBoxFocus', false);
 export const SearchInputBoxFocussedKey = new RawContextKey<boolean>('searchInputBoxFocus', false);
 export const ReplaceInputBoxFocussedKey = new RawContextKey<boolean>('replaceInputBoxFocus', false);
+export const PatternIncludesFocussedKey = new RawContextKey<boolean>('patternIncludesInputBoxFocus', false);
+export const PatternExcludesFocussedKey = new RawContextKey<boolean>('patternExcludesInputBoxFocus', false);
 export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', false);
 
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);

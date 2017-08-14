@@ -7,6 +7,7 @@
 import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as browser from 'vs/base/browser/browser';
@@ -100,6 +101,9 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
 			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection);
+		},
+		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+			return null;
 		}
 	};
 

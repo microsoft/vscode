@@ -7,6 +7,5 @@
 	"httpsRequired": "Imagens devem usar o protocolo HTTPS.",
 	"svgsNotValid": "SVGs não são uma fonte de imagem válida.",
 	"embeddedSvgsNotValid": "SVGs embutidos não são uma fonte de imagem válida.",
-	"dataUrlsNotValid": "URLs de dados não são uma fonte de imagem válida.",
-	"relativeUrlRequiresHttpsRepository": "URLs de imagens relativas exigem um repositório com protocolo HTTPS no pacote .json."
+	"dataUrlsNotValid": "URLs de dados não são uma fonte de imagem válida."
 }

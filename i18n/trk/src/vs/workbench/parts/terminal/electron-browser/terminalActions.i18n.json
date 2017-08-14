@@ -9,6 +9,8 @@
 	"workbench.action.terminal.kill.short": "Terminali Sonlandır",
 	"workbench.action.terminal.copySelection": "Seçimi Kopyala",
 	"workbench.action.terminal.selectAll": "Tümünü Seç",
+	"workbench.action.terminal.deleteWordLeft": "Soldaki Sözcüğü Sil",
+	"workbench.action.terminal.deleteWordRight": "Sağdaki Sözcüğü Sil",
 	"workbench.action.terminal.new": "Yeni Entegre Terminal Oluştur",
 	"workbench.action.terminal.new.short": "Yeni Terminal",
 	"workbench.action.terminal.focus": "Terminale Odakla",

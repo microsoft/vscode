@@ -2246,7 +2246,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 suite('Editor Controller - Indentation Rules', () => {
 	let mode = new IndentRulesMode({
 		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
 		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	});
@@ -2968,6 +2968,40 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 	});
 
+	test('bug #31015: When pressing Tab on lines and Enter rules are avail, indent straight to the right spotTab', () => {
+		let mode = new OnEnterMode(IndentAction.Indent);
+		let model = Model.createFromString(
+			[
+				'    if (a) {',
+				'        ',
+				'',
+				'',
+				'    }'
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, 1);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), '    if (a) {');
+			assert.equal(model.getLineContent(2), '        ');
+			assert.equal(model.getLineContent(3), '        ');
+			assert.equal(model.getLineContent(4), '');
+			assert.equal(model.getLineContent(5), '    }');
+		});
+
+		model.dispose();
+	});
+
 	test('type honors indentation rules: ruby keywords', () => {
 		let rubyMode = new IndentRulesMode({
 			increaseIndentPattern: /^\s*((begin|class|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while)|(.*\sdo\b))\b[^\{;]*$/,
@@ -3020,6 +3054,48 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: 'e' }, 'keyboard');
 			assertCursor(cursor, new Selection(5, 4, 5, 4));
 			assert.equal(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
+		});
+	});
+
+	test('type honors users indentation adjustment', () => {
+		usingCursor({
+			text: [
+				'\tif (true ||',
+				'\t ) {',
+				'\t}',
+				'if (true ||',
+				') {',
+				'}'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 3, false);
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
+
+			cursorCommand(cursor, H.Type, { text: ' ' }, 'keyboard');
+			assertCursor(cursor, new Selection(2, 4, 2, 4));
+			assert.equal(model.getLineContent(2), '\t  ) {', 'This line should not decrease indent');
+		});
+	});
+
+	test('bug 29972: if a line is line comment, open bracket should not indent next line', () => {
+		usingCursor({
+			text: [
+				'if (true) {',
+				'\t// {',
+				'\t\t'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true },
+			editorOpts: { autoIndent: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 3, false);
+			assertCursor(cursor, new Selection(3, 3, 3, 3));
+
+			cursorCommand(cursor, H.Type, { text: '}' }, 'keyboard');
+			assertCursor(cursor, new Selection(3, 2, 3, 2));
+			assert.equal(model.getLineContent(3), '}');
 		});
 	});
 });
@@ -3417,12 +3493,12 @@ suite('autoClosingPairs', () => {
 			let autoClosePositions = [
 				'var a =| [|];|',
 				'var b =| |`asd`;|',
-				'var c =| !\'asd!\';|',
+				'var c =| |\'asd!\';|',
 				'var d =| |"asd";|',
 				'var e =| /*3*/|	3;|',
 				'var f =| /**| 3 */3;|',
 				'var g =| (3+5);|',
-				'var h =| {| a:| !\'value!\'| |};|',
+				'var h =| {| a:| |\'value!\'| |};|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -3438,6 +3514,19 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+	test('issue #27937: Trying to add an item to the front of a list is cumbersome', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var arr = ["b", "c"];'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertType(model, cursor, 1, 12, '"', '""', `does not over type and will auto close`);
 		});
 		mode.dispose();
 	});

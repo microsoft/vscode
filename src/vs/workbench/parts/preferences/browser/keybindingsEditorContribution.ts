@@ -177,7 +177,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._updateDecorations = this._register(new RunOnceScheduler(() => this._updateDecorationsNow(), 500));
 
 		let model = this._editor.getModel();
-		this._register(model.onDidChangeContent((e) => this._updateDecorations.schedule()));
+		this._register(model.onDidChangeContent(() => this._updateDecorations.schedule()));
 		this._register(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
 		this._register({
 			dispose: () => {

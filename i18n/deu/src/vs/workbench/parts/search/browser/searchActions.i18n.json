@@ -9,13 +9,11 @@
 	"focusNextInputBox": "Fokus im nächsten Eingabefeld",
 	"focusPreviousInputBox": "Fokus im vorherigen Eingabefeld",
 	"replaceInFiles": "In Dateien ersetzen",
-	"findInFolder": "In Ordner suchen",
 	"RefreshAction.label": "Aktualisieren",
 	"ClearSearchResultsAction.label": "Suchergebnisse löschen",
 	"FocusNextSearchResult.label": "Fokus auf nächstes Suchergebnis",
 	"FocusPreviousSearchResult.label": "Fokus auf vorheriges Suchergebnis",
 	"RemoveAction.label": "Entfernen",
 	"file.replaceAll.label": "Alle ersetzen",
-	"match.replace.label": "Ersetzen",
-	"ConfigureGlobalExclusionsAction.label": "Einstellungen öffnen"
+	"match.replace.label": "Ersetzen"
 }

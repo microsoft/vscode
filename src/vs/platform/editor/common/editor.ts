@@ -107,11 +107,6 @@ export interface IResourceDiffInput extends IBaseResourceInput {
 	 * The right hand side URI to open inside a diff editor.
 	 */
 	rightResource: URI;
-
-	/**
-	 * Optional options to use when opening the text diff input.
-	 */
-	options?: ITextDiffEditorOptions;
 }
 
 export interface IResourceSideBySideInput extends IBaseResourceInput {
@@ -301,13 +296,4 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	revealInCenterIfOutsideViewport?: boolean;
-}
-
-export interface ITextDiffEditorOptions extends ITextEditorOptions {
-
-	/**
-	 * Whether to auto reveal the first change when the text editor is opened or not. By default
-	 * the first change will not be revealed.
-	 */
-	autoRevealFirstChange: boolean;
 }

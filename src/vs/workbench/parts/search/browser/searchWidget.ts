@@ -35,6 +35,7 @@ export interface ISearchWidgetOptions {
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
+	history?: string[];
 }
 
 class ReplaceAllAction extends Action {
@@ -119,7 +120,7 @@ export class SearchWidget extends Widget {
 		@IKeybindingService private keyBindingService2: IKeybindingService,
 	) {
 		super();
-		this.searchHistory = new HistoryNavigator<string>();
+		this.searchHistory = new HistoryNavigator<string>(options.history);
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
 		this.replaceInputBoxFocussed = Constants.ReplaceInputBoxFocussedKey.bindTo(this.keyBindingService);
@@ -146,7 +147,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public setWidth(width: number) {
-		this.searchInput.setWidth(width - 2);
+		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
 	}
 
@@ -168,6 +169,10 @@ export class SearchWidget extends Widget {
 		if (show === void 0 || show !== this.isReplaceShown()) {
 			this.onToggleReplaceButton();
 		}
+	}
+
+	public getHistory(): string[] {
+		return this.searchHistory.getHistory();
 	}
 
 	public showNextSearchTerm() {

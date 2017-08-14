@@ -20,7 +20,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';

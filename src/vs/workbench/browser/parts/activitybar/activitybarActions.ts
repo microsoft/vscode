@@ -241,7 +241,9 @@ export class ActivityActionItem extends BaseActionItem {
 				this.$badge.show();
 			}
 
-			this.$label.attr('aria-label', `${this.activity.name} - ${badge.getDescription()}`);
+			const description = badge.getDescription();
+			this.$label.attr('aria-label', `${this.activity.name} - ${description}`);
+			this.$label.title(description);
 		}
 	}
 
@@ -519,30 +521,6 @@ export class ViewletOverflowActivityActionItem extends ActivityActionItem {
 
 		this.cssClass = action.class;
 		this.name = action.label;
-	}
-
-	protected updateStyles(): void {
-		const theme = this.themeService.getTheme();
-
-		// Label
-		if (this.$label) {
-			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-
-			this.$label.style('background-color', background ? background.toString() : null);
-		}
-	}
-
-	public render(container: HTMLElement): void {
-		super.render(container);
-
-		this.$label = $('a.action-label').attr({
-			tabIndex: '0',
-			role: 'button',
-			title: this.name,
-			class: this.cssClass
-		}).appendTo(this.builder);
-
-		this.updateStyles();
 	}
 
 	public showMenu(): void {
