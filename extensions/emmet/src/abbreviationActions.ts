@@ -133,8 +133,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 				return [rangeToReplace, abbr, []];
 			}
 		}
-
-		let extractedResults = extractAbbreviation(editor.document, position);
+		let extractedResults = extractAbbreviation(editor.document, position, false);
 		if (!extractedResults) {
 			return [null, '', []];
 		}
