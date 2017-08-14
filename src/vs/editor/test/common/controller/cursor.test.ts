@@ -34,6 +34,11 @@ function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwri
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
 }
 
+function cursorCommandAndTokenize(model: Model, cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
+	cursor.trigger(overwriteSource || 'tests', command, extraData);
+	model.forceTokenization(model.getLineCount());
+}
+
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
 		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(cursor, {
@@ -2264,7 +2269,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
 
 			moveTo(cursor, 3, 13, false);
@@ -2327,7 +2332,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(3, 1, 3, 1));
 
 			moveTo(cursor, 5, 16, false);
@@ -2358,7 +2363,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
 
 			cursorCommand(cursor, H.Type, { text: 'console.log();' }, 'keyboard');
@@ -2447,6 +2452,8 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 5, 2, 5));
 
+			model.forceTokenization(model.getLineCount());
+
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
 
@@ -2467,7 +2474,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 5, 2, 5));
 
 			moveTo(cursor, 3, 16, false);
@@ -2491,7 +2498,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
 
 			moveTo(cursor, 3, 16, false);
@@ -3109,6 +3116,7 @@ interface ICursorOpts {
 
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
+	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts);
 	let viewModel = new ViewModel(0, config, model);
 	let cursor = new Cursor(config, model, viewModel);
