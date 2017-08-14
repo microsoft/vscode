@@ -22,7 +22,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -60,6 +62,17 @@ class DirtyDiffModelDecorator {
 		}
 	});
 
+	static HIDDEN_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		linesDecorationsClassName: 'dirty-diff-hidden-glyph',
+		isWholeLine: true,
+		overviewRuler: {
+			color: 'rgba(0, 0, 0, 0)',
+			darkColor: 'rgba(0, 0, 0, 0)',
+			position: common.OverviewRulerLane.Left
+		}
+	});
+
+	private configurationService: IConfigurationService;
 	private decorations: string[];
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
@@ -74,6 +87,7 @@ class DirtyDiffModelDecorator {
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+    @IConfigurationService configurationService: IConfigurationService
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.decorations = [];
@@ -82,6 +96,7 @@ class DirtyDiffModelDecorator {
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 		this.toDispose.push(scmService.onDidChangeProvider(() => this.triggerDiff()));
+		this.configurationService = configurationService;
 	}
 
 	private triggerDiff(): winjs.Promise {
@@ -100,7 +115,10 @@ class DirtyDiffModelDecorator {
 					diff = [];
 				}
 
-				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || []));
+				// check whether decorations should be hidden
+				const hiddenDecorations = !this.configurationService.getConfiguration<IEditorOptions>('editor').showChangesInGutter;
+
+				return this.decorations = this.model.deltaDecorations(this.decorations, DirtyDiffModelDecorator.changesToDecorations(diff || [], hiddenDecorations));
 			});
 	}
 
@@ -151,8 +169,18 @@ class DirtyDiffModelDecorator {
 		});
 	}
 
-	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {
+	private static changesToDecorations(diff: common.IChange[], hidden = false): common.IModelDeltaDecoration[] {
 		return diff.map((change) => {
+			if (hidden) {
+				return {
+					range: {
+						startLineNumber: 0, startColumn: 1,
+						endLineNumber: 0, endColumn: 0
+					},
+					options: DirtyDiffModelDecorator.HIDDEN_DECORATION_OPTIONS
+				};
+			}
+
 			const startLineNumber = change.modifiedStartLineNumber;
 			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
 
@@ -287,7 +315,7 @@ export const editorGutterAddedBackground = registerColor('editorGutter.addedBack
 	hc: Color.fromHex('#2d883e').transparent(0.6)
 }, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
-export const editorGutteDeletedBackground = registerColor('editorGutter.deletedBackground', {
+export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
 	dark: Color.fromHex('#b9131a').transparent(0.76),
 	light: Color.fromHex('#b9131a').transparent(0.76),
 	hc: Color.fromHex('#b9131a').transparent(0.76)
@@ -304,14 +332,21 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-editor .dirty-diff-added-glyph { border-left: 3px solid ${editorGutterAddedBackgroundColor}; }`);
 	}
 
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutteDeletedBackground);
-	if (editorGutteDeletedBackgroundColor) {
+	const editorGutterDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
+	if (editorGutterDeletedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted-glyph:after {
 				border-top: 4px solid transparent;
 				border-bottom: 4px solid transparent;
-				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+				border-left: 4px solid ${editorGutterDeletedBackgroundColor};
 			}
 		`);
 	}
+
+	// TODO: Find a better location for this rule
+	collector.addRule(`
+			.monaco-editor .dirty-diff-hidden-glyph {
+				display: none;
+			}
+	`);
 });

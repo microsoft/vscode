@@ -3087,6 +3087,10 @@ declare module monaco.editor {
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
+		/**
+		 * Enable changes in gutter
+		 */
+		showChangesInGutter?: boolean;
 	}
 
 	/**
