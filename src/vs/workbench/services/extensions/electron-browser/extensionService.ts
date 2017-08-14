@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { ExtensionHostProcessWorker } from "vs/workbench/electron-browser/extensionHost";
+import { ExtensionHostProcessWorker } from "vs/workbench/services/extensions/electron-browser/extensionHost";
 import { MainThreadService } from "vs/workbench/services/thread/electron-browser/threadService";
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
