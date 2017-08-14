@@ -63,9 +63,14 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
 
 	/**
-	 * JSON schema of all colors
+	 * JSON schema for an object to assign color values to one of the color contrbutions.
 	 */
 	getColorSchema(): IJSONSchema;
+
+	/**
+	 * JSON schema to for a reference to a color contrbution.
+	 */
+	getColorReferenceSchema(): IJSONSchema;
 
 }
 
@@ -75,6 +80,7 @@ const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color fo
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
 	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
+	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -84,6 +90,8 @@ class ColorRegistry implements IColorRegistry {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
 		this.colorSchema.properties[id] = { type: 'string', description, format: 'color', pattern: colorPattern, patternErrorMessage: colorPatternErrorMessage };
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
 		return id;
 	}
 
@@ -102,6 +110,10 @@ class ColorRegistry implements IColorRegistry {
 
 	public getColorSchema(): IJSONSchema {
 		return this.colorSchema;
+	}
+
+	public getColorReferenceSchema(): IJSONSchema {
+		return this.colorReferenceSchema;
 	}
 
 	public toString() {
@@ -124,6 +136,10 @@ platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
 export function registerColor(id: string, defaults: ColorDefaults, description: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, defaults, description);
+}
+
+export function getColorRegistry(): IColorRegistry {
+	return colorRegistry;
 }
 
 // ----- base colors

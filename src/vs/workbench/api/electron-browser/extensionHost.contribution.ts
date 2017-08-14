@@ -41,6 +41,7 @@ import { MainThreadCredentials } from './mainThreadCredentials';
 // --- other interested parties
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
+import { ColorExtensionPoint } from 'vs/platform/theme/common/colorExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
 
@@ -99,6 +100,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Other interested parties
 		create(JSONValidationExtensionPoint);
+		create(ColorExtensionPoint);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);
