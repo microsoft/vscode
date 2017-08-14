@@ -43,7 +43,7 @@ export function wrapWithAbbreviation(args) {
 			const preceedingWhiteSpace = matches ? matches[1].length : 0;
 
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
-			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t\$TM_SELECTED_TEXT\n'] });
+			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'] });
 		});
 
 		return expandAbbreviationInRange(editor, expandAbbrList, true);
@@ -288,10 +288,17 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 		// Expand the abbreviation
 		let expandedText = expandAbbreviation(input.abbreviation, expandOptions);
 
-		// If the expanded text is single line then we dont need the \t we added to $TM_SELECTED_TEXT earlier
-		if (input.textToWrap && input.textToWrap.length === 1 && expandedText.indexOf('\n') === -1) {
-			expandedText = expandedText.replace(/\s*\$TM_SELECTED_TEXT\s*/, '\$TM_SELECTED_TEXT');
+		if (input.textToWrap) {
+			// All $anyword would have been escaped by the emmet helper.
+			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
+			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
+
+			// If the expanded text is single line then we dont need the \t and \n we added to $TM_SELECTED_TEXT earlier
+			if (input.textToWrap.length === 1 && expandedText.indexOf('\n') === -1) {
+				expandedText = expandedText.replace(/\s*\$TM_SELECTED_TEXT\s*/, '$TM_SELECTED_TEXT');
+			}
 		}
+
 		return expandedText;
 
 	} catch (e) {
