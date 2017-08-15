@@ -8,7 +8,7 @@
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './repository';
-import { ModelRegistry } from './modelRegistry';
+import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
@@ -130,7 +130,7 @@ export class CommandCenter {
 
 	constructor(
 		private git: Git,
-		private modelRegistry: ModelRegistry,
+		private model: Model,
 		private outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
 	) {
@@ -143,21 +143,6 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
-	}
-
-	private groupByModel(resources: Uri[]): [Repository | undefined, Uri[]][] {
-		return resources.reduce((result, resource) => {
-			const model = this.modelRegistry.getModel(resource);
-			const pair = result.filter(p => p[0] === model)[0];
-
-			if (pair) {
-				pair[1].push(resource);
-			} else {
-				result.push([model, [resource]]);
-			}
-
-			return result;
-		}, [] as [Repository | undefined, Uri[]][]);
 	}
 
 	@command('git.refresh', { model: true })
@@ -450,15 +435,7 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		const resourcesByModel = this.groupByModel(resources);
-
-		await Promise.all(resourcesByModel.map(async ([model, resources]) => {
-			if (!model) {
-				return; // TODO@joao
-			}
-
-			await model.add(...resources);
-		}));
+		await this.model.add(...resources);
 	}
 
 	@command('git.stageAll', { model: true })
@@ -1237,12 +1214,12 @@ export class CommandCenter {
 			if (!options.model) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
-				result = this.modelRegistry.pickModel().then(model => {
-					if (!model) {
+				result = this.model.pickRepository().then(repository => {
+					if (!repository) {
 						return Promise.reject(localize('modelnotfound', "Git model not found"));
 					}
 
-					return Promise.resolve(method.apply(this, [model, ...args]));
+					return Promise.resolve(method.apply(this, [repository, ...args]));
 				});
 			}
 
@@ -1309,14 +1286,14 @@ export class CommandCenter {
 
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
-			const model = this.modelRegistry.getModel(uri);
+			const repository = this.model.getRepository(uri);
 
-			if (!model) {
+			if (!repository) {
 				return undefined;
 			}
 
-			return model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
+			return repository.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 	}
 

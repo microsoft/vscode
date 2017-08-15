@@ -10,7 +10,7 @@ const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Repository } from './repository';
-import { ModelRegistry } from './modelRegistry';
+import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
 import { StatusBarCommands } from './statusbar';
@@ -37,17 +37,17 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const modelRegistry = new ModelRegistry();
+	const model = new Model();
 
 	if (!workspaceRootPath || !enabled) {
-		const commandCenter = new CommandCenter(git, modelRegistry, outputChannel, telemetryReporter);
+		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
 	}
 
 	const workspaceRoot = Uri.file(workspaceRootPath);
 	const repository = new Repository(git, workspaceRoot);
-	modelRegistry.register(workspaceRoot, repository);
+	model.register(workspaceRoot, repository);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
@@ -55,7 +55,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const commandCenter = new CommandCenter(git, modelRegistry, outputChannel, telemetryReporter);
+	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	const statusBarCommands = new StatusBarCommands(repository);
 	const provider = new GitSCMProvider(repository, statusBarCommands);
 	const contentProvider = new GitContentProvider(repository);

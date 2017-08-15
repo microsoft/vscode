@@ -295,7 +295,11 @@ export interface CommitOptions {
 	signCommit?: boolean;
 }
 
-export class Repository implements Disposable {
+export interface IRepository {
+	add(...resources: Uri[]): Promise<void>;
+}
+
+export class Repository implements IRepository, Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
