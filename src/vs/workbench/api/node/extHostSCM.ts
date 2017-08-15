@@ -71,7 +71,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private static _handlePool: number = 0;
 	private _resourceHandlePool: number = 0;
-	private _resourceStates: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+	private _resourceStates: vscode.SourceControlResourceState[] = [];
+	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 
 	get id(): string {
 		return this._id;
@@ -97,12 +98,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { hideWhenEmpty });
 	}
 
+	get resourceStates(): vscode.SourceControlResourceState[] {
+		return [...this._resourceStates];
+	}
+
 	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourceStates.clear();
+		this._resourceStatesMap.clear();
+		this._resourceStates = [...resources];
 
 		const rawResources = resources.map(r => {
 			const handle = this._resourceHandlePool++;
-			this._resourceStates.set(handle, r);
+			this._resourceStatesMap.set(handle, r);
 
 			const sourceUri = r.resourceUri.toString();
 			const command = this._commands.toInternal(r.command);
@@ -144,7 +150,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
-		return this._resourceStates.get(handle);
+		return this._resourceStatesMap.get(handle);
 	}
 
 	dispose(): void {
