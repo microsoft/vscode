@@ -2266,6 +2266,11 @@ declare namespace Electron {
 		 * If you don’t like this behavior, you can set noLink to true.
 		 */
 		noLink?: boolean;
+		/**
+		 * If provided, the message box will include a checkbox with the given label.
+		 * The checkbox state can be inspected only when using callback.
+		 */
+		checkboxLabel?: string;
 	}
 
 	// https://github.com/electron/electron/blob/master/docs/api/download-item.md

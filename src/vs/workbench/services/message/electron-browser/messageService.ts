@@ -46,7 +46,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			message: confirmation.message,
 			buttons,
 			defaultId: 0,
-			cancelId: 1,
+			cancelId: 1
 		};
 
 		if (confirmation.detail) {
