@@ -336,6 +336,7 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		this.applyStyles();
+
 		// Allows focus to switch to next/previous entry after tab into an actionbar item
 		DOM.addDisposableListener(this.treeContainer.getHTMLElement(), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
