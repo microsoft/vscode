@@ -13,13 +13,11 @@ export class ExtensionDescriptionRegistry {
 	private _extensionsArr: IExtensionDescription[];
 	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
 
-	constructor() {
+	constructor(extensionDescriptions: IExtensionDescription[]) {
 		this._extensionsMap = {};
 		this._extensionsArr = [];
 		this._activationMap = {};
-	}
 
-	public registerExtensions(extensionDescriptions: IExtensionDescription[]): void {
 		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 			let extensionDescription = extensionDescriptions[i];
 

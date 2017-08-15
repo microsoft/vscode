@@ -60,7 +60,7 @@ export class ExtensionHostMain {
 	}
 
 	public start(): TPromise<void> {
-		return this._extensionService.onReady()
+		return this._extensionService.onExtensionAPIReady()
 			.then(() => this.handleEagerExtensions())
 			.then(() => this.handleExtensionTests());
 	}

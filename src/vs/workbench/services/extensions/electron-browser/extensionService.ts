@@ -10,7 +10,7 @@ import pkg from 'vs/platform/node/package';
 import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
-import { ExtensionDescriptionRegistry } from 'vs/platform/extensions/common/abstractExtensionService';
+import { ExtensionDescriptionRegistry } from "vs/workbench/services/extensions/node/extensionDescriptionRegistry";
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -168,8 +168,7 @@ export class ExtensionService implements IThreadService, IExtensionService {
 			return installedExtensions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e)));
 
 		}).then((extensionDescriptions) => {
-			this._registry = new ExtensionDescriptionRegistry();
-			this._registry.registerExtensions(extensionDescriptions);
+			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
 
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
 			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
