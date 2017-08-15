@@ -603,11 +603,25 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		let message: string;
+		let yes = localize('discard', "Discard Changes");
 
-		const yes = localize('discard', "Discard Changes");
+		if (resources.length === 1) {
+			if (untrackedCount > 0) {
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+				yes = localize('delete file', "Delete file");
+			} else {
+				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath));
+			}
+		} else {
+			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+
+			if (untrackedCount > 0) {
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+			}
+		}
+
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -619,7 +633,46 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
+		const config = workspace.getConfiguration('git');
+		let scope = config.get<string>('discardAllScope') || 'prompt';
+		let resources = this.model.workingTreeGroup.resources;
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+
+		if (scope === 'prompt' && untrackedCount > 0) {
+			const message = localize('there are untracked files', "There are untracked files ({0}) which will be DELETED if discarded.\n\nWould you like to delete untracked files when discarding all changes?", untrackedCount);
+			const yes = localize('yes', "Yes");
+			const always = localize('always', "Always");
+			const no = localize('no', "No");
+			const never = localize('never', "Never");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, no, never);
+
+			if (typeof pick === 'undefined') {
+				return;
+			} else if (pick === always) {
+				await config.update('discardAllScope', 'all', true);
+			} else if (pick === never) {
+				await config.update('discardAllScope', 'tracked', true);
+			}
+
+			if (pick === never || pick === no) {
+				scope = 'tracked';
+			}
+		}
+
+		if (scope === 'tracked') {
+			resources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		}
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL ({0}) changes?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
 		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -627,7 +680,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.clean(...this.model.workingTreeGroup.resources);
+		await this.model.clean(...resources);
 	}
 
 	private async smartCommit(

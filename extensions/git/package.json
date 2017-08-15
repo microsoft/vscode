@@ -771,6 +771,16 @@
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
           "default": false
+        },
+        "git.discardAllScope": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked",
+            "prompt"
+          ],
+          "description": "%config.discardAllScope%",
+          "default": false
         }
       }
     }
