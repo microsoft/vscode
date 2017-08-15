@@ -6,7 +6,6 @@
 'use strict';
 
 import { Uri, window, QuickPickItem, Disposable } from 'vscode';
-import { GitErrorCodes } from './git';
 import { Repository, IRepository, State } from './repository';
 import { memoize } from './decorators';
 import { toDisposable, filterEvent, once } from './util';
@@ -89,21 +88,9 @@ export class Model implements IRepository {
 		}, [] as { repository: Repository, resources: Uri[] }[]);
 
 		const promises = groups
-			.map(({ repository, resources }) => this.run(repository, () => fn(repository as Repository, resources)));
+			.map(({ repository, resources }) => fn(repository as Repository, resources));
 
 		return Promise.all(promises);
-	}
-
-	private async run<T>(repository: Repository, fn: () => Promise<T>): Promise<T> {
-		try {
-			return fn();
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-				// do something about it
-			}
-
-			throw err;
-		}
 	}
 
 	// IRepository
