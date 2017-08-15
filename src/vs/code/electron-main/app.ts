@@ -179,6 +179,10 @@ export class CodeApplication {
 			}, 100);
 		});
 
+		app.on('new-window-for-tab', () => {
+			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
+		});
+
 		ipc.on('vscode:exit', (event, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
