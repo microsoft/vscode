@@ -25,6 +25,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 import { ExtensionHostProcessWorker } from "vs/workbench/services/extensions/electron-browser/extensionHost";
 import { MainThreadService } from "vs/workbench/services/thread/electron-browser/threadService";
+import { Barrier } from "vs/workbench/services/extensions/node/barrier";
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -41,38 +42,6 @@ function messageWithSource2(source: string, message: string): string {
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
-
-/**
- * A barrier that is initially closed and then becomes opened permanently.
- */
-class Barrier {
-
-	private _isOpen: boolean;
-	private _promise: TPromise<boolean>;
-	private _completePromise: (v: boolean) => void;
-
-	constructor() {
-		this._isOpen = false;
-		this._promise = new TPromise<boolean>((c, e, p) => {
-			this._completePromise = c;
-		}, () => {
-			console.warn('You should really not try to cancel this ready promise!');
-		});
-	}
-
-	public isOpen(): boolean {
-		return this._isOpen;
-	}
-
-	public open(): void {
-		this._isOpen = true;
-		this._completePromise(true);
-	}
-
-	public wait(): TPromise<boolean> {
-		return this._promise;
-	}
-}
 
 export class ExtensionService implements IThreadService, IExtensionService {
 	public _serviceBrand: any;
