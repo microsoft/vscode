@@ -7,6 +7,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, MainThreadLanguagesShape } from './extHost.protocol';
+import URI from 'vs/base/common/uri';
+import { IPosition } from "vs/editor/common/core/position";
 
 export class ExtHostLanguages {
 
@@ -20,6 +22,10 @@ export class ExtHostLanguages {
 
 	getLanguages(): TPromise<string[]> {
 		return this._proxy.$getLanguages();
+	}
+
+	getLanguage(resource: URI, position?: IPosition): TPromise<string> {
+		return this._proxy.$getLanguage(resource, position);
 	}
 }
 

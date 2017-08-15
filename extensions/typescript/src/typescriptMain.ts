@@ -349,8 +349,8 @@ class LanguageProvider {
 		}
 	}
 
-	public handles(file: string, doc: TextDocument): boolean {
-		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
+	public handles(file: string, languageId: string): boolean {
+		if (this.description.modeIds.indexOf(languageId) >= 0) {
 			return true;
 		}
 
@@ -606,9 +606,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
+		return languages.getLanguage(this.client.asUrl(file)).then(languageId => {
 			for (const language of this.languages) {
-				if (language.handles(file, doc)) {
+				if (language.handles(file, languageId)) {
 					return language;
 				}
 			}
