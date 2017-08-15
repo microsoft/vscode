@@ -10,7 +10,7 @@ import pkg from 'vs/platform/node/package';
 import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
-import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { ExtensionDescriptionRegistry } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -28,72 +28,82 @@ import { MainThreadService } from "vs/workbench/services/thread/electron-browser
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
-/**
- * Represents a failed extension in the ext host.
- */
-class MainProcessFailedExtension extends ActivatedExtension {
-	constructor() {
-		super(true);
-	}
-}
-
-/**
- * Represents an extension that was successfully loaded or an
- * empty extension in the ext host.
- */
-class MainProcessSuccessExtension extends ActivatedExtension {
-	constructor() {
-		super(false);
-	}
-}
-
 function messageWithSource(msg: IMessage): string {
 	return (msg.source ? '[' + msg.source + ']: ' : '') + msg.message;
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
+const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
 
-export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> implements IThreadService, IExtensionService {
+export abstract class AbstractExtensionService {
+	public _serviceBrand: any;
 
-	private _proxy: ExtHostExtensionServiceShape;
-	private _isDev: boolean;
-	private _extensionsStatus: { [id: string]: IExtensionsStatus };
-	private _threadService: IThreadService;
+	private _onReady: TPromise<boolean>;
+	private _onReadyC: (v: boolean) => void;
+	private _isReady: boolean;
+	protected _registry: ExtensionDescriptionRegistry;
 
+	constructor() {
+		this._isReady = false;
+		this._onReady = new TPromise<boolean>((c, e, p) => {
+			this._onReadyC = c;
+		}, () => {
+			console.warn('You should really not try to cancel this ready promise!');
+		});
+		this._registry = new ExtensionDescriptionRegistry();
+	}
+
+	protected _triggerOnReady(): void {
+		this._isReady = true;
+		this._onReadyC(true);
+	}
+
+	public onReady(): TPromise<boolean> {
+		return this._onReady;
+	}
+
+	public activateByEvent(activationEvent: string): TPromise<void> {
+		if (this._isReady) {
+			return this._activateByEvent(activationEvent);
+		} else {
+			return this._onReady.then(() => this._activateByEvent(activationEvent));
+		}
+	}
+
+	protected abstract _activateByEvent(activationEvent: string): TPromise<void>;
+}
+
+export class MainProcessExtensionService extends AbstractExtensionService implements IThreadService, IExtensionService {
+
+	private readonly _isDev: boolean;
+	private readonly _extensionsStatus: { [id: string]: IExtensionsStatus };
 	/**
-	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
+	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
+	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
+	private readonly _threadService: IThreadService;
+	private readonly _proxy: ExtHostExtensionServiceShape;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMessageService private readonly _messageService: IMessageService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
-		@IStorageService storageService: IStorageService,
+		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		super(false);
-		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
+		super();
 
+		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsStatus = {};
+		this._alreadyActivatedEvents = Object.create(null);
 
 		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker);
 		this._threadService = this._instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		extensionHostProcessWorker.start(this);
 
-		this.scanExtensions().done(extensionDescriptions => {
-			const disabledExtensions = [
-				...getGloballyDisabledExtensions(extensionEnablementService, storageService, extensionDescriptions),
-				...extensionEnablementService.getWorkspaceDisabledExtensions()
-			];
-
-			_telemetryService.publicLog('extensionsScanned', {
-				totalCount: extensionDescriptions.length,
-				disabledCount: disabledExtensions.length
-			});
-
-			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e))) : extensionDescriptions);
-		});
+		this._initialize();
 	}
 
 	// ---- begin IThreadService
@@ -108,41 +118,22 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	// ---- end IThreadService
 
-	private _handleMessage(msg: IMessage) {
+	// ---- begin IExtensionService
 
-		if (!this._extensionsStatus[msg.source]) {
-			this._extensionsStatus[msg.source] = { messages: [] };
+	// public activateByEvent(activationEvent: string): TPromise<void> {
+	// }
+
+	protected _activateByEvent(activationEvent: string): TPromise<void> {
+		if (this._alreadyActivatedEvents[activationEvent]) {
+			return NO_OP_VOID_PROMISE;
 		}
-		this._extensionsStatus[msg.source].messages.push(msg);
-
-		this._localShowMessage(
-			msg.type, messageWithSource(msg),
-			this.environmentService.extensionDevelopmentPath === msg.source
-		);
-
-		if (!this._isDev && msg.extensionId) {
-			const { type, extensionId, extensionPointId, message } = msg;
-			this._telemetryService.publicLog('extensionsMessage', {
-				type, extensionId, extensionPointId, message
-			});
-		}
+		return this._proxy.$activateByEvent(activationEvent).then(() => {
+			this._alreadyActivatedEvents[activationEvent] = true;
+		});
 	}
 
-	public _localShowMessage(severity: Severity, msg: string, useMessageService: boolean = this._isDev): void {
-		// Only show nasty intrusive messages if doing extension development
-		// and print all other messages to the console
-		if (useMessageService && (severity === Severity.Error || severity === Severity.Warning)) {
-			this._messageService.show(severity, msg);
-		} else if (severity === Severity.Error) {
-			console.error(msg);
-		} else if (severity === Severity.Warning) {
-			console.warn(msg);
-		} else {
-			console.log(msg);
-		}
-	}
-
-	// -- overwriting AbstractExtensionService
+	// public onReady(): TPromise<boolean> {
+	// }
 
 	public getExtensions(): TPromise<IExtensionDescription[]> {
 		return this.onReady().then(() => {
@@ -171,25 +162,89 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		return this._extensionsStatus;
 	}
 
-	protected _showMessage(severity: Severity, msg: string): void {
-		this._localShowMessage(severity, msg);
+	// ---- end IExtensionService
+
+	private _handleMessage(msg: IMessage) {
+
+		if (!this._extensionsStatus[msg.source]) {
+			this._extensionsStatus[msg.source] = { messages: [] };
+		}
+		this._extensionsStatus[msg.source].messages.push(msg);
+
+		this._localShowMessage(
+			msg.type, messageWithSource(msg),
+			this._environmentService.extensionDevelopmentPath === msg.source
+		);
+
+		if (!this._isDev && msg.extensionId) {
+			const { type, extensionId, extensionPointId, message } = msg;
+			this._telemetryService.publicLog('extensionsMessage', {
+				type, extensionId, extensionPointId, message
+			});
+		}
 	}
 
-	protected _createFailedExtension(): ActivatedExtension {
-		return new MainProcessFailedExtension();
-	}
+	// --- impl
 
-	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
+	private _initialize(): void {
 
-		// redirect extension activation to the extension host
-		return this._proxy.$activateExtension(extensionDescription).then(_ => {
+		MainProcessExtensionService._scanInstalledExtensions(this._environmentService).done(([installedExtensions, messages]) => {
+			messages.forEach(entry => this._localShowMessage(entry.type, this._isDev ? (entry.source ? '[' + entry.source + ']: ' : '') + entry.message : entry.message));
 
-			// the extension host calls $onExtensionActivated, where we write to `_activatedExtensions`
-			return this._manager.getActivatedExtension(extensionDescription.id);
+			const disabledExtensions = [
+				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
+				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
+			];
+
+			this._telemetryService.publicLog('extensionsScanned', {
+				totalCount: installedExtensions.length,
+				disabledCount: disabledExtensions.length
+			});
+
+			this._onExtensionDescriptions(disabledExtensions.length ? installedExtensions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e))) : installedExtensions);
 		});
 	}
 
-	// -- called by extension host
+	private static _scanInstalledExtensions(environmentService: IEnvironmentService): TPromise<[IExtensionDescription[], IMessage[]]> {
+		const collector = new MessagesCollector();
+		const version = pkg.version;
+		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, SystemExtensionsRoot, true);
+		const userExtensions = environmentService.disableExtensions || !environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, environmentService.extensionsPath, false);
+		const developedExtensions = environmentService.disableExtensions || !environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, environmentService.extensionDevelopmentPath, false);
+
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then<IExtensionDescription[]>((extensionDescriptions: IExtensionDescription[][]) => {
+			const builtinExtensions = extensionDescriptions[0];
+			const userExtensions = extensionDescriptions[1];
+			const developedExtensions = extensionDescriptions[2];
+
+			let result: { [extensionId: string]: IExtensionDescription; } = {};
+			builtinExtensions.forEach((builtinExtension) => {
+				result[builtinExtension.id] = builtinExtension;
+			});
+			userExtensions.forEach((userExtension) => {
+				if (result.hasOwnProperty(userExtension.id)) {
+					collector.warn(userExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+				}
+				result[userExtension.id] = userExtension;
+			});
+			developedExtensions.forEach(developedExtension => {
+				collector.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+				if (result.hasOwnProperty(developedExtension.id)) {
+					collector.warn(developedExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+				}
+				result[developedExtension.id] = developedExtension;
+			});
+
+			return Object.keys(result).map(name => result[name]);
+		}).then<IExtensionDescription[]>(null, err => {
+			collector.error('', err);
+			return [];
+		}).then<[IExtensionDescription[], IMessage[]]>(extensions => {
+			const messages = collector.getMessages();
+			const result: [IExtensionDescription[], IMessage[]] = [extensions, messages];
+			return result;
+		});
+	}
 
 	private _onExtensionDescriptions(extensionDescriptions: IExtensionDescription[]): void {
 		this._registry.registerExtensions(extensionDescriptions);
@@ -223,51 +278,19 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		extensionPoint.acceptUsers(users);
 	}
 
-	public _onExtensionActivated(extensionId: string): void {
-		this._manager.setActivatedExtension(extensionId, new MainProcessSuccessExtension());
-	}
+	// -- called by extension host
 
-	public _onExtensionActivationFailed(extensionId: string): void {
-		this._manager.setActivatedExtension(extensionId, new MainProcessFailedExtension());
-	}
-
-	private scanExtensions(): TPromise<IExtensionDescription[]> {
-		const collector = new MessagesCollector();
-		const version = pkg.version;
-		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, SystemExtensionsRoot, true);
-		const userExtensions = this.environmentService.disableExtensions || !this.environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, this.environmentService.extensionsPath, false);
-		const developedExtensions = this.environmentService.disableExtensions || !this.environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, this.environmentService.extensionDevelopmentPath, false);
-
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
-			let builtinExtensions = extensionDescriptions[0];
-			let userExtensions = extensionDescriptions[1];
-			let developedExtensions = extensionDescriptions[2];
-
-			let result: { [extensionId: string]: IExtensionDescription; } = {};
-			builtinExtensions.forEach((builtinExtension) => {
-				result[builtinExtension.id] = builtinExtension;
-			});
-			userExtensions.forEach((userExtension) => {
-				if (result.hasOwnProperty(userExtension.id)) {
-					collector.warn(userExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
-				}
-				result[userExtension.id] = userExtension;
-			});
-			developedExtensions.forEach(developedExtension => {
-				collector.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
-				if (result.hasOwnProperty(developedExtension.id)) {
-					collector.warn(developedExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
-				}
-				result[developedExtension.id] = developedExtension;
-			});
-
-			return Object.keys(result).map(name => result[name]);
-		}).then(null, err => {
-			collector.error('', err);
-			return [];
-		}).then(extensions => {
-			collector.getMessages().forEach(entry => this._localShowMessage(entry.type, this._isDev ? (entry.source ? '[' + entry.source + ']: ' : '') + entry.message : entry.message));
-			return extensions;
-		});
+	public _localShowMessage(severity: Severity, msg: string, useMessageService: boolean = this._isDev): void {
+		// Only show nasty intrusive messages if doing extension development
+		// and print all other messages to the console
+		if (useMessageService && (severity === Severity.Error || severity === Severity.Warning)) {
+			this._messageService.show(severity, msg);
+		} else if (severity === Severity.Error) {
+			console.error(msg);
+		} else if (severity === Severity.Warning) {
+			console.warn(msg);
+		} else {
+			console.log(msg);
+		}
 	}
 }

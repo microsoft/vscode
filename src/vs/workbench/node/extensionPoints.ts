@@ -32,7 +32,13 @@ const nlsConfig: NlsConfiguration = {
 	pseudo: Platform.locale === 'pseudo'
 };
 
-export class MessagesCollector {
+export interface IMessagesCollector {
+	error(source: string, message: string): void;
+	warn(source: string, message: string): void;
+	info(source: string, message: string): void;
+}
+
+export class MessagesCollector implements IMessagesCollector {
 
 	private _messages: IMessage[];
 
@@ -70,12 +76,12 @@ export class MessagesCollector {
 abstract class ExtensionManifestHandler {
 
 	protected _ourVersion: string;
-	protected _collector: MessagesCollector;
+	protected _collector: IMessagesCollector;
 	protected _absoluteFolderPath: string;
 	protected _isBuiltin: boolean;
 	protected _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, collector: MessagesCollector, absoluteFolderPath: string, isBuiltin: boolean) {
+	constructor(ourVersion: string, collector: IMessagesCollector, absoluteFolderPath: string, isBuiltin: boolean) {
 		this._ourVersion = ourVersion;
 		this._collector = collector;
 		this._absoluteFolderPath = absoluteFolderPath;
@@ -190,7 +196,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, collector: MessagesCollector, messageScope: string): void {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, collector: IMessagesCollector, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (Types.isString(value)) {
@@ -283,7 +289,7 @@ export class ExtensionScanner {
 	 */
 	public static scanExtension(
 		version: string,
-		collector: MessagesCollector,
+		collector: IMessagesCollector,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription> {
@@ -312,7 +318,7 @@ export class ExtensionScanner {
 	 */
 	public static scanExtensions(
 		version: string,
-		collector: MessagesCollector,
+		collector: IMessagesCollector,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {
@@ -371,7 +377,7 @@ export class ExtensionScanner {
 	 */
 	public static scanOneOrMultipleExtensions(
 		version: string,
-		collector: MessagesCollector,
+		collector: IMessagesCollector,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {

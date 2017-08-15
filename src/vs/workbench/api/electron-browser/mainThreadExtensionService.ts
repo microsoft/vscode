@@ -25,9 +25,7 @@ export class MainProcessExtensionServiceAPI extends MainProcessExtensionServiceS
 		this._extensionService._localShowMessage(severity, msg);
 	}
 	$onExtensionActivated(extensionId: string): void {
-		this._extensionService._onExtensionActivated(extensionId);
 	}
 	$onExtensionActivationFailed(extensionId: string): void {
-		this._extensionService._onExtensionActivationFailed(extensionId);
 	}
 }

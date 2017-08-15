@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -250,10 +250,6 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> {
 
 	public onReady(): TPromise<boolean> {
 		return this._onReady;
-	}
-
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
-		return null;
 	}
 
 	public isActivated(extensionId: string): boolean {

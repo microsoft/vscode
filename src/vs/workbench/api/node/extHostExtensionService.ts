@@ -331,10 +331,9 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 	// -- called by main thread
 
-	public $activateExtension(extensionDescription: IExtensionDescription): TPromise<void> {
-		return this._manager._activateExtension(extensionDescription);
+	public $activateByEvent(activationEvent: string): TPromise<void> {
+		return this._manager.activateByEvent(activationEvent);
 	}
-
 }
 
 function loadCommonJSModule<T>(modulePath: string): TPromise<T> {

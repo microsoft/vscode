@@ -436,7 +436,7 @@ export abstract class ExtHostWorkspaceShape {
 }
 
 export abstract class ExtHostExtensionServiceShape {
-	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
+	$activateByEvent(activationEvent: string): TPromise<void> { throw ni(); }
 }
 
 export interface FileSystemEvents {
