@@ -46,7 +46,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			message: confirmation.message,
 			buttons,
 			defaultId: 0,
-			cancelId: 1
+			cancelId: 1,
 		};
 
 		if (confirmation.detail) {
@@ -55,6 +55,10 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 		if (confirmation.type) {
 			opts.type = confirmation.type;
+		}
+
+		if (confirmation.checkboxLabel) {
+			opts.checkboxLabel = confirmation.checkboxLabel;
 		}
 
 		let result = this.showMessageBox(opts);

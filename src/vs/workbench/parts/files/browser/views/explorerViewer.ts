@@ -894,7 +894,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 							message: nls.localize('confirmMoveMessage', "Are you sure that you want to move this file?"),
 							detail: nls.localize('irreversible', "This action is irreversible!"),
 							primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move"),
-							type: 'warning'
+							type: 'warning',
+							checkboxLabel: nls.localize('showMessageCheckbox', "Don't show this message again.")
 						};
 
 						if (this.messageService.confirm(confirm)) {
