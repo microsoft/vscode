@@ -66,7 +66,12 @@ export class Model implements IRepository {
 		return undefined;
 	}
 
-	private async runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]> {
+	private runByRepository<T>(resources: Uri, fn: (repository: Repository, resources: Uri) => Promise<T>): Promise<T[]>;
+	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
+	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
+		const resources = arg instanceof Uri ? [arg] : arg;
+		const isSingleResource = arg instanceof Uri;
+
 		const groups = resources.reduce((result, resource) => {
 			const repository = this.getRepository(resource);
 
@@ -88,7 +93,7 @@ export class Model implements IRepository {
 		}, [] as { repository: Repository, resources: Uri[] }[]);
 
 		const promises = groups
-			.map(({ repository, resources }) => fn(repository as Repository, resources));
+			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
 
 		return Promise.all(promises);
 	}
@@ -97,5 +102,9 @@ export class Model implements IRepository {
 
 	async add(resources: Uri[]): Promise<void> {
 		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
+	}
+
+	async stage(resource: Uri, contents: string): Promise<void> {
+		await this.runByRepository(resource, async (repository, uri) => repository.stage(uri, contents));
 	}
 }

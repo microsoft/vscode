@@ -297,6 +297,7 @@ export interface CommitOptions {
 
 export interface IRepository {
 	add(resources: Uri[]): Promise<void>;
+	stage(resource: Uri, contents: string): Promise<void>;
 }
 
 export class Repository implements IRepository, Disposable {
@@ -406,8 +407,8 @@ export class Repository implements IRepository, Disposable {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
 	}
 
-	async stage(uri: Uri, contents: string): Promise<void> {
-		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+	async stage(resource: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
