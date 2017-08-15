@@ -31,7 +31,7 @@ import { createServer, Server } from 'net';
 import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
-import { MainProcessExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
@@ -76,7 +76,7 @@ export class ExtensionHostProcessWorker {
 
 	public readonly messagingProtocol = new LazyMessagePassingProtol();
 
-	private extensionService: MainProcessExtensionService;
+	private extensionService: ExtensionService;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -122,7 +122,7 @@ export class ExtensionHostProcessWorker {
 		}
 	}
 
-	public start(extensionService: MainProcessExtensionService): void {
+	public start(extensionService: ExtensionService): void {
 		this.extensionService = extensionService;
 
 		TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
