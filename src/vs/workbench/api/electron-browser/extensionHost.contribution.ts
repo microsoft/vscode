@@ -18,6 +18,7 @@ import { MainThreadConfiguration } from './mainThreadConfiguration';
 import { MainThreadDebugService } from './mainThreadDebugService';
 import { MainThreadDiagnostics } from './mainThreadDiagnostics';
 import { MainThreadDocuments } from './mainThreadDocuments';
+import { MainThreadDocumentContentProviders } from './mainThreadDocumentContentProviders';
 import { MainThreadEditors } from './mainThreadEditors';
 import { MainThreadErrors } from './mainThreadErrors';
 import { MainThreadTreeViews } from './mainThreadTreeViews';
@@ -104,6 +105,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDebugService).set(create(MainThreadDebugService));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
+		col.define(MainContext.MainThreadDocumentContentProviders).set(create(MainThreadDocumentContentProviders));
 		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
 		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
