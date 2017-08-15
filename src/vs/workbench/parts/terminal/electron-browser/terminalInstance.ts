@@ -890,6 +890,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {
+		if (!title) {
+			return;
+		}
 		if (eventFromProcess) {
 			title = path.basename(title);
 			if (platform.isWindows) {
