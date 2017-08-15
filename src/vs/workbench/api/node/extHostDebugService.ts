@@ -7,8 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -35,7 +34,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		super();
 
 		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
@@ -43,7 +42,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
-		this._debugServiceProxy = threadService.get(MainContext.MainThreadDebugService);
+		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
 	}
 
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {

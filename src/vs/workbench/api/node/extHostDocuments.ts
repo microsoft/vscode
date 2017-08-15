@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -16,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TextSource } from 'vs/editor/common/model/textSource';
-import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
+import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
@@ -42,9 +41,9 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	private _documentContentProviders = new Map<number, vscode.TextDocumentContentProvider>();
 
 
-	constructor(threadService: IThreadService, documentsAndEditors: ExtHostDocumentsAndEditors) {
+	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadDocuments);
+		this._proxy = mainContext.get(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 
 		this._toDispose = [

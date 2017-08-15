@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MainContext, MainThreadCredentialsShape, ExtHostCredentialsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { MainContext, MainThreadCredentialsShape, ExtHostCredentialsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 
 export class ExtHostCredentials extends ExtHostCredentialsShape {
 
 	private _proxy: MainThreadCredentialsShape;
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadCredentials);
+		this._proxy = mainContext.get(MainContext.MainThreadCredentials);
 	};
 
 	readSecret(service: string, account: string): Thenable<string | undefined> {

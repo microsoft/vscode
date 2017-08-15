@@ -73,6 +73,20 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 }
 
+export interface IExtHostContext {
+	/**
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 */
+	get<T>(identifier: ProxyIdentifier<T>): T;
+}
+
+export interface IMainContext {
+	/**
+	 * Returns a proxy to an object addressable/named in the main/renderer process.
+	 */
+	get<T>(identifier: ProxyIdentifier<T>): T;
+}
+
 export interface InstanceSetter<T> {
 	set<R extends T>(instance: T): R;
 }

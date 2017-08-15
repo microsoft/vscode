@@ -8,19 +8,21 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
+@extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands extends MainThreadCommandsShape {
 
 	private readonly _disposables = new Map<string, IDisposable>();
 	private readonly _proxy: ExtHostCommandsShape;
 
 	constructor(
-		@IThreadService private readonly _threadService: IThreadService,
-		@ICommandService private readonly _commandService: ICommandService
+		extHostContext: IExtHostContext,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
-		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostCommands);
 	}
 
 	dispose() {

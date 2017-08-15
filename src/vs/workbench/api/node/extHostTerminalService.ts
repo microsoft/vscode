@@ -7,8 +7,7 @@
 import vscode = require('vscode');
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -101,9 +100,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[];
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
-		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
+		this._proxy = mainContext.get(MainContext.MainThreadTerminalService);
 		this._terminals = [];
 	}
 
