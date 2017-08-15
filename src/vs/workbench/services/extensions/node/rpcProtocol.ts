@@ -10,22 +10,13 @@ import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from "vs/workbench/services/extensions/node/lazyPromise";
 
-export interface IManyHandler {
-	handle(rpcId: string, method: string, args: any[]): any;
+export interface IDispatcher {
+	invoke(proxyId: string, methodName: string, args: any[]): any;
 }
 
-export interface IRemoteCom {
-	callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
-	setManyHandler(handler: IManyHandler): void;
-}
+export class RPCProtocol {
 
-export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteCom {
-	return new RPCManager(protocol);
-}
-
-export class RPCManager implements IRemoteCom {
-
-	private _bigHandler: IManyHandler;
+	private _bigHandler: IDispatcher;
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
@@ -97,15 +88,15 @@ export class RPCManager implements IRemoteCom {
 		});
 	}
 
-	private _invokeHandler(rpcId: string, method: string, args: any[]): TPromise<any> {
+	private _invokeHandler(proxyId: string, methodName: string, args: any[]): TPromise<any> {
 		try {
-			return TPromise.as(this._bigHandler.handle(rpcId, method, args));
+			return TPromise.as(this._bigHandler.invoke(proxyId, methodName, args));
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}
 	}
 
-	public callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
+	public callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {
 		let req = String(++this._lastMessageId);
 		let result = new LazyPromise(() => {
 			this._multiplexor.send(MessageFactory.cancel(req));
@@ -113,12 +104,12 @@ export class RPCManager implements IRemoteCom {
 
 		this._pendingRPCReplies[req] = result;
 
-		this._multiplexor.send(MessageFactory.request(req, proxyId, path, args));
+		this._multiplexor.send(MessageFactory.request(req, proxyId, methodName, args));
 
 		return result;
 	}
 
-	public setManyHandler(handler: IManyHandler): void {
+	public setDispatcher(handler: IDispatcher): void {
 		this._bigHandler = handler;
 	}
 }

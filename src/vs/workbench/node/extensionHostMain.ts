@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { IRemoteCom } from 'vs/workbench/services/extensions/node/ipcRemoteCom';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
@@ -40,12 +40,12 @@ export class ExtensionHostMain {
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(remoteCom: IRemoteCom, initData: IInitData) {
+	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 		this._workspace = initData.workspace;
 
 		// services
-		const threadService = new ExtHostThreadService(remoteCom);
+		const threadService = new ExtHostThreadService(rpcProtocol);
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
