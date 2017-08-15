@@ -298,6 +298,7 @@ export interface CommitOptions {
 export interface IRepository {
 	add(resources: Uri[]): Promise<void>;
 	stage(resource: Uri, contents: string): Promise<void>;
+	revert(resources: Uri[]): Promise<void>;
 }
 
 export class Repository implements IRepository, Disposable {
@@ -412,8 +413,8 @@ export class Repository implements IRepository, Disposable {
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
-	async revertFiles(resources: Uri[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.fsPath)));
+	async revert(resources: Uri[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revert('HEAD', resources.map(r => r.fsPath)));
 	}
 
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {

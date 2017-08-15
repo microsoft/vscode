@@ -542,12 +542,12 @@ export class CommandCenter {
 
 		const resources = scmResources.map(r => r.resourceUri);
 
-		return await model.revertFiles(resources);
+		return await model.revert(resources);
 	}
 
 	@command('git.unstageAll', { model: true })
 	async unstageAll(model: Repository): Promise<void> {
-		return await model.revertFiles([]);
+		return await model.revert([]);
 	}
 
 	// TODO@Joao does this command really receive a model?

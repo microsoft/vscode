@@ -107,4 +107,8 @@ export class Model implements IRepository {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		await this.runByRepository(resource, async (repository, uri) => repository.stage(uri, contents));
 	}
+
+	async revert(resources: Uri[]): Promise<void> {
+		await this.runByRepository(resources, async (repository, resources) => repository.revert(resources));
+	}
 }
