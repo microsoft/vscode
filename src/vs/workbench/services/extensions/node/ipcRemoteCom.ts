@@ -10,10 +10,6 @@ import errors = require('vs/base/common/errors');
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from "vs/workbench/services/extensions/node/lazyPromise";
 
-interface IRPCFunc {
-	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
-}
-
 let lastMessageId = 0;
 const pendingRPCReplies: { [msgId: string]: LazyPromise; } = {};
 
@@ -41,22 +37,6 @@ class MessageFactory {
 	}
 }
 
-function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
-
-	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
-		let req = String(++lastMessageId);
-		let result = new LazyPromise(() => {
-			serializeAndSend(MessageFactory.cancel(req));
-		});
-
-		pendingRPCReplies[req] = result;
-
-		serializeAndSend(MessageFactory.request(req, rpcId, method, args));
-
-		return result;
-	};
-}
-
 export interface IManyHandler {
 	handle(rpcId: string, method: string, args: any[]): any;
 }
@@ -66,20 +46,77 @@ export interface IRemoteCom {
 	setManyHandler(handler: IManyHandler): void;
 }
 
-export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteCom {
-	let rpc = createRPC(sendDelayed);
-	let bigHandler: IManyHandler = null;
-	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
-	let messagesToSend: string[] = [];
+/**
+ * Sends/Receives multiple messages in one go:
+ *  - multiple messages to be sent from one stack get sent in bulk at `process.nextTick`.
+ *  - each incoming message is handled in a separate `process.nextTick`.
+ */
+class RPCMultiplexer {
 
-	let messagesToReceive: string[] = [];
-	let receiveOneMessage = () => {
-		let rawmsg = messagesToReceive.shift();
+	private readonly _protocol: IMessagePassingProtocol;
+	private readonly _onMessage: (msg: string) => void;
+	private readonly _receiveOneMessageBound: () => void;
+	private readonly _sendAccumulatedBound: () => void;
 
-		if (messagesToReceive.length > 0) {
-			process.nextTick(receiveOneMessage);
+	private _messagesToSend: string[];
+	private _messagesToReceive: string[];
+
+	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: string) => void) {
+		this._protocol = protocol;
+		this._onMessage = onMessage;
+		this._receiveOneMessageBound = this._receiveOneMessage.bind(this);
+		this._sendAccumulatedBound = this._sendAccumulated.bind(this);
+
+		this._messagesToSend = [];
+		this._messagesToReceive = [];
+
+		this._protocol.onMessage(data => {
+			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
+			if (this._messagesToReceive.length === 0) {
+				process.nextTick(this._receiveOneMessageBound);
+			}
+
+			this._messagesToReceive = this._messagesToReceive.concat(data);
+		});
+	}
+
+	private _receiveOneMessage(): void {
+		const rawmsg = this._messagesToReceive.shift();
+
+		if (this._messagesToReceive.length > 0) {
+			process.nextTick(this._receiveOneMessageBound);
 		}
 
+		this._onMessage(rawmsg);
+	}
+
+	private _sendAccumulated(): void {
+		const tmp = this._messagesToSend;
+		this._messagesToSend = [];
+		this._protocol.send(tmp);
+	}
+
+	public send(msg: string): void {
+		if (this._messagesToSend.length === 0) {
+			process.nextTick(this._sendAccumulatedBound);
+		}
+		this._messagesToSend.push(msg);
+	}
+}
+
+export class RPCManager implements IRemoteCom {
+
+	private _bigHandler: IManyHandler;
+	private readonly _invokedHandlers: { [req: string]: winjs.TPromise<any>; };
+	private readonly _multiplexor: RPCMultiplexer;
+
+	constructor(protocol: IMessagePassingProtocol) {
+		this._bigHandler = null;
+		this._invokedHandlers = Object.create(null);
+		this._multiplexor = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
+	}
+
+	private _receiveOneMessage(rawmsg: string): void {
 		let msg = marshalling.parse(rawmsg);
 
 		if (msg.seq) {
@@ -107,8 +144,8 @@ export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteC
 		}
 
 		if (msg.cancel) {
-			if (invokedHandlers[msg.cancel]) {
-				invokedHandlers[msg.cancel].cancel();
+			if (this._invokedHandlers[msg.cancel]) {
+				this._invokedHandlers[msg.cancel].cancel();
 			}
 			return;
 		}
@@ -120,62 +157,49 @@ export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteC
 
 		let rpcId = msg.rpcId;
 
-		if (!bigHandler) {
+		if (!this._bigHandler) {
 			throw new Error('got message before big handler attached!');
 		}
 
 		let req = msg.req;
 
-		invokedHandlers[req] = invokeHandler(rpcId, msg.method, msg.args);
+		this._invokedHandlers[req] = this._invokeHandler(rpcId, msg.method, msg.args);
 
-		invokedHandlers[req].then((r) => {
-			delete invokedHandlers[req];
-			sendDelayed(MessageFactory.replyOK(req, r));
+		this._invokedHandlers[req].then((r) => {
+			delete this._invokedHandlers[req];
+			this._multiplexor.send(MessageFactory.replyOK(req, r));
 		}, (err) => {
-			delete invokedHandlers[req];
-			sendDelayed(MessageFactory.replyErr(req, err));
+			delete this._invokedHandlers[req];
+			this._multiplexor.send(MessageFactory.replyErr(req, err));
 		});
-	};
-
-	protocol.onMessage(data => {
-		// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
-		if (messagesToReceive.length === 0) {
-			process.nextTick(receiveOneMessage);
-		}
-
-		messagesToReceive = messagesToReceive.concat(data);
-	});
-
-	let r: IRemoteCom = {
-		callOnRemote: rpc,
-		setManyHandler: (_bigHandler: IManyHandler): void => {
-			bigHandler = _bigHandler;
-		}
-	};
-
-	function sendAccumulated(): void {
-		let tmp = messagesToSend;
-		messagesToSend = [];
-
-		// console.log('SENDING ' + tmp.length + ' MESSAGES.');
-		protocol.send(tmp);
 	}
 
-	function sendDelayed(value: string): void {
-		if (messagesToSend.length === 0) {
-			process.nextTick(sendAccumulated);
-		}
-		messagesToSend.push(value);
-	}
-
-	function invokeHandler(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
+	private _invokeHandler(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		try {
-			return winjs.TPromise.as(bigHandler.handle(rpcId, method, args));
+			return winjs.TPromise.as(this._bigHandler.handle(rpcId, method, args));
 		} catch (err) {
 			return winjs.TPromise.wrapError(err);
 		}
 	}
 
-	return r;
+	public callOnRemote(proxyId: string, path: string, args: any[]): winjs.TPromise<any> {
+		let req = String(++lastMessageId);
+		let result = new LazyPromise(() => {
+			this._multiplexor.send(MessageFactory.cancel(req));
+		});
+
+		pendingRPCReplies[req] = result;
+
+		this._multiplexor.send(MessageFactory.request(req, proxyId, path, args));
+
+		return result;
+	}
+
+	public setManyHandler(handler: IManyHandler): void {
+		this._bigHandler = handler;
+	}
 }
 
+export function createProxyProtocol(protocol: IMessagePassingProtocol): IRemoteCom {
+	return new RPCManager(protocol);
+}
