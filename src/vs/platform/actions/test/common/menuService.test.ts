@@ -11,6 +11,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { IExtensionPoint } from "vs/platform/extensions/common/extensionsRegistry";
+import { TPromise } from "vs/base/common/winjs.base";
+import { ExtensionPointContribution, IExtensionDescription } from "vs/platform/extensions/common/extensions";
 
 // --- service instances
 
@@ -23,6 +26,12 @@ const extensionService = new class extends AbstractExtensionService<ActivatedExt
 	}
 	protected _actualActivateExtension() {
 		return null;
+	}
+	public getExtensions(): TPromise<IExtensionDescription[]> {
+		throw new Error('Not implemented');
+	}
+	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		throw new Error('Not implemented');
 	}
 }(true);
 

@@ -7,8 +7,7 @@
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionDescription, IExtensionService, IExtensionsStatus, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -30,92 +29,52 @@ interface IActivatingExtensionMap {
 
 const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
 
-export abstract class AbstractExtensionService<T extends ActivatedExtension> implements IExtensionService {
-	public _serviceBrand: any;
+export interface IExtensionsManagerHost<T extends ActivatedExtension> {
+	showMessage(severity: Severity, message: string): void;
 
-	private _activatingExtensions: IActivatingExtensionMap;
-	protected _activatedExtensions: IActivatedExtensionMap<T>;
-	private _onReady: TPromise<boolean>;
-	private _onReadyC: (v: boolean) => void;
-	private _isReady: boolean;
-	protected _registry: ExtensionDescriptionRegistry;
+	createFailedExtension(): T;
 
+	actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<T>;
+}
+
+export class ExtensionsManager<T extends ActivatedExtension> {
+
+	private readonly _registry: ExtensionDescriptionRegistry;
+	private readonly _host: IExtensionsManagerHost<T>;
+	private readonly _activatingExtensions: IActivatingExtensionMap;
+	private readonly _activatedExtensions: IActivatedExtensionMap<T>;
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
+	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
 
-	constructor(isReadyByDefault: boolean) {
-		if (isReadyByDefault) {
-			this._isReady = true;
-			this._onReady = TPromise.as(true);
-			this._onReadyC = (v: boolean) => { /*no-op*/ };
-		} else {
-			this._isReady = false;
-			this._onReady = new TPromise<boolean>((c, e, p) => {
-				this._onReadyC = c;
-			}, () => {
-				console.warn('You should really not try to cancel this ready promise!');
-			});
-		}
+	constructor(registry: ExtensionDescriptionRegistry, host: IExtensionsManagerHost<T>) {
+		this._registry = registry;
+		this._host = host;
 		this._activatingExtensions = {};
 		this._activatedExtensions = {};
-		this._registry = new ExtensionDescriptionRegistry();
 		this._alreadyActivatedEvents = Object.create(null);
-	}
-
-	protected _triggerOnReady(): void {
-		this._isReady = true;
-		this._onReadyC(true);
-	}
-
-	public onReady(): TPromise<boolean> {
-		return this._onReady;
-	}
-
-	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return this.onReady().then(() => {
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
-
-			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
-			for (let i = 0, len = availableExtensions.length; i < len; i++) {
-				let desc = availableExtensions[i];
-
-				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result[resultLen++] = new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name]);
-				}
-			}
-
-			return result;
-		});
-	}
-
-	public getExtensions(): TPromise<IExtensionDescription[]> {
-		return this.onReady().then(() => {
-			return this._registry.getAllExtensionDescriptions();
-		});
-	}
-
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
-		return null;
 	}
 
 	public isActivated(extensionId: string): boolean {
 		return hasOwnProperty.call(this._activatedExtensions, extensionId);
 	}
 
+	public getActivatedExtension(extensionId: string): T {
+		if (!hasOwnProperty.call(this._activatedExtensions, extensionId)) {
+			throw new Error('Extension `' + extensionId + '` is not known or not activated');
+		}
+		return this._activatedExtensions[extensionId];
+	}
+
+	public setActivatedExtension(extensionId: string, value: T): void {
+		this._activatedExtensions[extensionId] = value;
+	}
+
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
-		if (this._isReady) {
-			return this._activateByEvent(activationEvent);
-		} else {
-			return this._onReady.then(() => this._activateByEvent(activationEvent));
-		}
-	}
-
-	private _activateByEvent(activationEvent: string): TPromise<void> {
 		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
 		return this._activateExtensions(activateExtensions, 0).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
@@ -123,14 +82,12 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 	}
 
 	public activateById(extensionId: string): TPromise<void> {
-		return this._onReady.then(() => {
-			let desc = this._registry.getExtensionDescription(extensionId);
-			if (!desc) {
-				throw new Error('Extension `' + extensionId + '` is not known');
-			}
+		let desc = this._registry.getExtensionDescription(extensionId);
+		if (!desc) {
+			throw new Error('Extension `' + extensionId + '` is not known');
+		}
 
-			return this._activateExtensions([desc], 0);
-		});
+		return this._activateExtensions([desc], 0);
 	}
 
 	/**
@@ -147,8 +104,8 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
-				this._showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentExtension.id));
-				this._activatedExtensions[currentExtension.id] = this._createFailedExtension();
+				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentExtension.id));
+				this._activatedExtensions[currentExtension.id] = this._host.createFailedExtension();
 				return;
 			}
 
@@ -156,8 +113,8 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 				let dep = this._activatedExtensions[depId];
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentExtension.id));
-					this._activatedExtensions[currentExtension.id] = this._createFailedExtension();
+					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentExtension.id));
+					this._activatedExtensions[currentExtension.id] = this._host.createFailedExtension();
 					return;
 				}
 			} else {
@@ -189,8 +146,8 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 			// More than 10 dependencies deep => most likely a dependency loop
 			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
-				this._showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
-				this._activatedExtensions[extensionDescriptions[i].id] = this._createFailedExtension();
+				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
+				this._activatedExtensions[extensionDescriptions[i].id] = this._host.createFailedExtension();
 			}
 			return TPromise.as(void 0);
 		}
@@ -224,7 +181,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 		});
 	}
 
-	protected _activateExtension(extensionDescription: IExtensionDescription): TPromise<void> {
+	public _activateExtension(extensionDescription: IExtensionDescription): TPromise<void> {
 		if (hasOwnProperty.call(this._activatedExtensions, extensionDescription.id)) {
 			return TPromise.as(void 0);
 		}
@@ -233,18 +190,90 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._actualActivateExtension(extensionDescription).then(null, (err) => {
-			this._showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription).then(null, (err) => {
+			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the extension as being empty
-			return this._createFailedExtension();
+			return this._host.createFailedExtension();
 		}).then((x: T) => {
 			this._activatedExtensions[extensionDescription.id] = x;
 			delete this._activatingExtensions[extensionDescription.id];
 		});
 
 		return this._activatingExtensions[extensionDescription.id];
+	}
+}
+
+export abstract class AbstractExtensionService<T extends ActivatedExtension> {
+	public _serviceBrand: any;
+
+	private _onReady: TPromise<boolean>;
+	private _onReadyC: (v: boolean) => void;
+	private _isReady: boolean;
+	protected _registry: ExtensionDescriptionRegistry;
+	protected _manager: ExtensionsManager<T>;
+
+	constructor(isReadyByDefault: boolean) {
+		if (isReadyByDefault) {
+			this._isReady = true;
+			this._onReady = TPromise.as(true);
+			this._onReadyC = (v: boolean) => { /*no-op*/ };
+		} else {
+			this._isReady = false;
+			this._onReady = new TPromise<boolean>((c, e, p) => {
+				this._onReadyC = c;
+			}, () => {
+				console.warn('You should really not try to cancel this ready promise!');
+			});
+		}
+		this._registry = new ExtensionDescriptionRegistry();
+		this._manager = new ExtensionsManager(this._registry, {
+			showMessage: (severity: Severity, message: string): void => {
+				this._showMessage(severity, message);
+			},
+
+			createFailedExtension: (): T => {
+				return this._createFailedExtension();
+			},
+
+			actualActivateExtension: (extensionDescription: IExtensionDescription): TPromise<T> => {
+				return this._actualActivateExtension(extensionDescription);
+			}
+		});
+	}
+
+	protected _triggerOnReady(): void {
+		this._isReady = true;
+		this._onReadyC(true);
+	}
+
+	public onReady(): TPromise<boolean> {
+		return this._onReady;
+	}
+
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+		return null;
+	}
+
+	public isActivated(extensionId: string): boolean {
+		return this._manager.isActivated(extensionId);
+	}
+
+	public activateByEvent(activationEvent: string): TPromise<void> {
+		if (this._isReady) {
+			return this._manager.activateByEvent(activationEvent);
+		} else {
+			return this._onReady.then(() => this._manager.activateByEvent(activationEvent));
+		}
+	}
+
+	public activateById(extensionId: string): TPromise<void> {
+		if (this._isReady) {
+			return this._manager.activateById(extensionId);
+		} else {
+			return this._onReady.then(() => this._manager.activateById(extensionId));
+		}
 	}
 
 	protected abstract _showMessage(severity: Severity, message: string): void;

@@ -17,8 +17,6 @@ import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
 
-const hasOwnProperty = Object.hasOwnProperty;
-
 /**
  * Represents the source code (module) of an extension.
  */
@@ -201,16 +199,17 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	}
 
 	public get(extensionId: string): IExtensionAPI {
-		if (!hasOwnProperty.call(this._activatedExtensions, extensionId)) {
-			throw new Error('Extension `' + extensionId + '` is not known or not activated');
-		}
-		return this._activatedExtensions[extensionId].exports;
+		return this._manager.getActivatedExtension(extensionId).exports;
 	}
 
 	public deactivate(extensionId: string): TPromise<void> {
 		let result: TPromise<void> = TPromise.as(void 0);
 
-		let extension = this._activatedExtensions[extensionId];
+		if (!this._manager.isActivated(extensionId)) {
+			return result;
+		}
+
+		let extension = this._manager.getActivatedExtension(extensionId);
 		if (!extension) {
 			return result;
 		}
@@ -333,7 +332,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	// -- called by main thread
 
 	public $activateExtension(extensionDescription: IExtensionDescription): TPromise<void> {
-		return this._activateExtension(extensionDescription);
+		return this._manager._activateExtension(extensionDescription);
 	}
 
 }
