@@ -299,6 +299,7 @@ export interface IRepository {
 	add(resources: Uri[]): Promise<void>;
 	stage(resource: Uri, contents: string): Promise<void>;
 	revert(resources: Uri[]): Promise<void>;
+	clean(resources: Uri[]): Promise<void>;
 }
 
 export class Repository implements IRepository, Disposable {
