@@ -16,7 +16,7 @@ export class AutoFetcher {
 	private disposables: Disposable[] = [];
 	private timer: NodeJS.Timer;
 
-	constructor(private model: Repository) {
+	constructor(private repository: Repository) {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
 	}
@@ -47,7 +47,7 @@ export class AutoFetcher {
 	@throttle
 	private async fetch(): Promise<void> {
 		try {
-			await this.model.fetch();
+			await this.repository.fetch();
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 				this.disable();

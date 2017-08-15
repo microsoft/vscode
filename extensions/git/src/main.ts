@@ -11,9 +11,7 @@ import { ExtensionContext, workspace, window, Disposable, commands, Uri } from '
 import { findGit, Git, IGit } from './git';
 import { Repository } from './repository';
 import { Model } from './model';
-import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
-import { StatusBarCommands } from './statusbar';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { Askpass } from './askpass';
@@ -56,14 +54,11 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	const statusBarCommands = new StatusBarCommands(repository);
-	const provider = new GitSCMProvider(repository, statusBarCommands);
 	const contentProvider = new GitContentProvider(repository);
 	const autoFetcher = new AutoFetcher(repository);
 
 	disposables.push(
 		commandCenter,
-		provider,
 		contentProvider,
 		autoFetcher,
 		repository

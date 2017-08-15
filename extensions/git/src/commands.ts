@@ -7,7 +7,7 @@
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -27,14 +27,14 @@ class CheckoutItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(model: Repository): Promise<void> {
+	async run(repository: Repository): Promise<void> {
 		const ref = this.treeish;
 
 		if (!ref) {
 			return;
 		}
 
-		await model.checkout(ref);
+		await repository.checkout(ref);
 	}
 }
 
@@ -70,11 +70,11 @@ class BranchDeleteItem implements QuickPickItem {
 
 	constructor(private ref: Ref) { }
 
-	async run(model: Repository, force?: boolean): Promise<void> {
+	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (!this.branchName) {
 			return;
 		}
-		await model.deleteBranch(this.branchName, force);
+		await repository.deleteBranch(this.branchName, force);
 	}
 }
 
@@ -85,8 +85,8 @@ class MergeItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(model: Repository): Promise<void> {
-		await model.merge(this.ref.name! || this.ref.commit!);
+	async run(repository: Repository): Promise<void> {
+		await repository.merge(this.ref.name! || this.ref.commit!);
 	}
 }
 
@@ -95,7 +95,7 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
-	async run(model: Repository): Promise<void> {
+	async run(repository: Repository): Promise<void> {
 		await commands.executeCommand('git.branch');
 	}
 }
@@ -146,18 +146,18 @@ export class CommandCenter {
 	}
 
 	@command('git.refresh', { model: true })
-	async refresh(model: Repository): Promise<void> {
-		await model.status();
+	async refresh(repository: Repository): Promise<void> {
+		await repository.status();
 	}
 
 	@command('git.openResource', { model: true })
-	async openResource(model: Repository, resource: Resource): Promise<void> {
-		await this._openResource(model, resource);
+	async openResource(repository: Repository, resource: Resource): Promise<void> {
+		await this._openResource(repository, resource);
 	}
 
-	private async _openResource(model: Repository, resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(repository: Repository, resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
-		const right = this.getRightResource(model, resource);
+		const right = this.getRightResource(repository, resource);
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -201,7 +201,7 @@ export class CommandCenter {
 		}
 	}
 
-	private getRightResource(model: Repository, resource: Resource): Uri | undefined {
+	private getRightResource(repository: Repository, resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -218,7 +218,7 @@ export class CommandCenter {
 			case Status.UNTRACKED:
 			case Status.IGNORED:
 				const uriString = resource.resourceUri.toString();
-				const [indexStatus] = model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString);
+				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.renameResourceUri) {
 					return indexStatus.renameResourceUri;
@@ -307,7 +307,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile', { model: true })
-	async openFile(model: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async openFile(repository: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -357,7 +357,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openHEADFile', { model: true })
-	async openHEADFile(model: Repository, arg?: Resource | Uri): Promise<void> {
+	async openHEADFile(repository: Repository, arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
@@ -383,7 +383,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange', { model: true })
-	async openChange(model: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async openChange(repository: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -411,7 +411,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(model, resource, preview);
+			await this._openResource(repository, resource, preview);
 		}
 	}
 
@@ -428,7 +428,7 @@ export class CommandCenter {
 		}
 
 		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
+			.filter(s => s instanceof Resource && (s.resourceGroupType === ResourceGroupType.WorkingTree || s.resourceGroupType === ResourceGroupType.Merge)) as Resource[];
 
 		if (!scmResources.length) {
 			return;
@@ -439,13 +439,13 @@ export class CommandCenter {
 	}
 
 	@command('git.stageAll', { model: true })
-	async stageAll(model: Repository): Promise<void> {
-		await model.add([]);
+	async stageAll(repository: Repository): Promise<void> {
+		await repository.add([]);
 	}
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.stageSelectedRanges', { model: true, diff: true })
-	async stageSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
+	async stageSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -472,12 +472,12 @@ export class CommandCenter {
 
 		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 
-		await model.stage(modifiedUri, result);
+		await repository.stage(modifiedUri, result);
 	}
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.revertSelectedRanges', { model: true, diff: true })
-	async revertSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
+	async revertSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -522,7 +522,7 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage', { model: true })
-	async unstage(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async unstage(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -534,7 +534,7 @@ export class CommandCenter {
 		}
 
 		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroup instanceof IndexGroup) as Resource[];
+			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.Index) as Resource[];
 
 		if (!scmResources.length) {
 			return;
@@ -542,17 +542,17 @@ export class CommandCenter {
 
 		const resources = scmResources.map(r => r.resourceUri);
 
-		return await model.revert(resources);
+		return await repository.revert(resources);
 	}
 
 	@command('git.unstageAll', { model: true })
-	async unstageAll(model: Repository): Promise<void> {
-		return await model.revert([]);
+	async unstageAll(repository: Repository): Promise<void> {
+		return await repository.revert([]);
 	}
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.unstageSelectedRanges', { model: true, diff: true })
-	async unstageSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -586,11 +586,11 @@ export class CommandCenter {
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		await model.stage(modifiedUri, result);
+		await repository.stage(modifiedUri, result);
 	}
 
 	@command('git.clean', { model: true })
-	async clean(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async clean(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -602,7 +602,7 @@ export class CommandCenter {
 		}
 
 		const resources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
+			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
 
 		if (!resources.length) {
 			return;
@@ -633,14 +633,14 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(resources.map(r => r.resourceUri));
+		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	@command('git.cleanAll', { model: true })
-	async cleanAll(model: Repository): Promise<void> {
+	async cleanAll(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		let scope = config.get<string>('discardAllScope') || 'prompt';
-		let resources = model.workingTreeGroup.resources;
+		let resources = repository.workingTreeGroup.resourceStates;
 
 		if (resources.length === 0) {
 			return;
@@ -685,19 +685,19 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(resources.map(r => r.resourceUri));
+		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(
-		model: Repository,
+		repository: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
-		const noStagedChanges = model.indexGroup.resources.length === 0;
-		const noUnstagedChanges = model.workingTreeGroup.resources.length === 0;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
@@ -739,12 +739,12 @@ export class CommandCenter {
 			return false;
 		}
 
-		await model.commit(message, opts);
+		await repository.commit(message, opts);
 
 		return true;
 	}
 
-	private async commitWithAnyInput(model: Repository, opts?: CommitOptions): Promise<void> {
+	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
 		const message = scm.inputBox.value;
 		const getCommitMessage = async () => {
 			if (message) {
@@ -758,78 +758,78 @@ export class CommandCenter {
 			});
 		};
 
-		const didCommit = await this.smartCommit(model, getCommitMessage, opts);
+		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			scm.inputBox.value = await model.getCommitTemplate();
+			scm.inputBox.value = await repository.getCommitTemplate();
 		}
 	}
 
 	@command('git.commit', { model: true })
-	async commit(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model);
+	async commit(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository);
 	}
 
 	@command('git.commitWithInput', { model: true })
-	async commitWithInput(model: Repository): Promise<void> {
+	async commitWithInput(repository: Repository): Promise<void> {
 		if (!scm.inputBox.value) {
 			return;
 		}
 
-		const didCommit = await this.smartCommit(model, async () => scm.inputBox.value);
+		const didCommit = await this.smartCommit(repository, async () => scm.inputBox.value);
 
 		if (didCommit) {
-			scm.inputBox.value = await model.getCommitTemplate();
+			scm.inputBox.value = await repository.getCommitTemplate();
 		}
 	}
 
 	@command('git.commitStaged', { model: true })
-	async commitStaged(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: false });
+	async commitStaged(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false });
 	}
 
 	@command('git.commitStagedSigned', { model: true })
-	async commitStagedSigned(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: false, signoff: true });
+	async commitStagedSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, signoff: true });
 	}
 
 	@command('git.commitStagedAmend', { model: true })
-	async commitStagedAmend(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: false, amend: true });
+	async commitStagedAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, amend: true });
 	}
 
 	@command('git.commitAll', { model: true })
-	async commitAll(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: true });
+	async commitAll(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true });
 	}
 
 	@command('git.commitAllSigned', { model: true })
-	async commitAllSigned(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: true, signoff: true });
+	async commitAllSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, signoff: true });
 	}
 
 	@command('git.commitAllAmend', { model: true })
-	async commitAllAmend(model: Repository): Promise<void> {
-		await this.commitWithAnyInput(model, { all: true, amend: true });
+	async commitAllAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
 	@command('git.undoCommit', { model: true })
-	async undoCommit(model: Repository): Promise<void> {
-		const HEAD = model.HEAD;
+	async undoCommit(repository: Repository): Promise<void> {
+		const HEAD = repository.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
 			return;
 		}
 
-		const commit = await model.getCommit('HEAD');
-		await model.reset('HEAD~');
+		const commit = await repository.getCommit('HEAD');
+		await repository.reset('HEAD~');
 		scm.inputBox.value = commit.message;
 	}
 
 	@command('git.checkout', { model: true })
-	async checkout(model: Repository, treeish: string): Promise<void> {
+	async checkout(repository: Repository, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
-			return await model.checkout(treeish);
+			return await repository.checkout(treeish);
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -839,13 +839,13 @@ export class CommandCenter {
 
 		const createBranch = new CreateBranchItem();
 
-		const heads = model.refs.filter(ref => ref.type === RefType.Head)
+		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.map(ref => new CheckoutItem(ref));
 
-		const tags = (includeTags ? model.refs.filter(ref => ref.type === RefType.Tag) : [])
+		const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
 			.map(ref => new CheckoutTagItem(ref));
 
-		const remoteHeads = (includeRemotes ? model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
@@ -856,11 +856,11 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(model);
+		await choice.run(repository);
 	}
 
 	@command('git.branch', { model: true })
-	async branch(model: Repository): Promise<void> {
+	async branch(repository: Repository): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
@@ -872,17 +872,17 @@ export class CommandCenter {
 		}
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await model.branch(name);
+		await repository.branch(name);
 	}
 
 	@command('git.deleteBranch', { model: true })
-	async deleteBranch(model: Repository, name: string, force?: boolean): Promise<void> {
+	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => model.deleteBranch(name, force);
+			run = force => repository.deleteBranch(name, force);
 		} else {
-			const currentHead = model.HEAD && model.HEAD.name;
-			const heads = model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+			const currentHead = repository.HEAD && repository.HEAD.name;
+			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
 				.map(ref => new BranchDeleteItem(ref));
 
 			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
@@ -892,7 +892,7 @@ export class CommandCenter {
 				return;
 			}
 			name = choice.branchName;
-			run = force => choice.run(model, force);
+			run = force => choice.run(repository, force);
 		}
 
 		try {
@@ -913,16 +913,16 @@ export class CommandCenter {
 	}
 
 	@command('git.merge', { model: true })
-	async merge(model: Repository): Promise<void> {
+	async merge(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
-		const heads = model.refs.filter(ref => ref.type === RefType.Head)
+		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
 			.filter(ref => ref.name || ref.commit)
 			.map(ref => new MergeItem(ref as Branch));
 
-		const remoteHeads = (includeRemotes ? model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.filter(ref => ref.name || ref.commit)
 			.map(ref => new MergeItem(ref as Branch));
 
@@ -935,7 +935,7 @@ export class CommandCenter {
 		}
 
 		try {
-			await choice.run(model);
+			await choice.run(repository);
 		} catch (err) {
 			if (err.gitErrorCode !== GitErrorCodes.Conflict) {
 				throw err;
@@ -947,7 +947,7 @@ export class CommandCenter {
 	}
 
 	@command('git.createTag', { model: true })
-	async createTag(model: Repository): Promise<void> {
+	async createTag(repository: Repository): Promise<void> {
 		const inputTagName = await window.showInputBox({
 			placeHolder: localize('tag name', "Tag name"),
 			prompt: localize('provide tag name', "Please provide a tag name"),
@@ -966,12 +966,12 @@ export class CommandCenter {
 
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		const message = inputMessage || name;
-		await model.tag(name, message);
+		await repository.tag(name, message);
 	}
 
 	@command('git.pullFrom', { model: true })
-	async pullFrom(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async pullFrom(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
@@ -996,74 +996,74 @@ export class CommandCenter {
 			return;
 		}
 
-		model.pull(false, pick.label, branchName);
+		repository.pull(false, pick.label, branchName);
 	}
 
 	@command('git.pull', { model: true })
-	async pull(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async pull(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
 			return;
 		}
 
-		await model.pull();
+		await repository.pull();
 	}
 
 	@command('git.pullRebase', { model: true })
-	async pullRebase(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async pullRebase(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
 			return;
 		}
 
-		await model.pullWithRebase();
+		await repository.pullWithRebase();
 	}
 
 	@command('git.push', { model: true })
-	async push(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async push(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		await model.push();
+		await repository.push();
 	}
 
 	@command('git.pushWithTags', { model: true })
-	async pushWithTags(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async pushWithTags(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		await model.pushTags();
+		await repository.pushTags();
 
 		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 	}
 
 	@command('git.pushTo', { model: true })
-	async pushTo(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async pushTo(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
 		}
 
-		if (!model.HEAD || !model.HEAD.name) {
+		if (!repository.HEAD || !repository.HEAD.name) {
 			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
 			return;
 		}
 
-		const branchName = model.HEAD.name;
+		const branchName = repository.HEAD.name;
 		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const pick = await window.showQuickPick(picks, { placeHolder });
@@ -1072,12 +1072,12 @@ export class CommandCenter {
 			return;
 		}
 
-		model.pushTo(pick.label, branchName);
+		repository.pushTo(pick.label, branchName);
 	}
 
 	@command('git.sync', { model: true })
-	async sync(model: Repository): Promise<void> {
-		const HEAD = model.HEAD;
+	async sync(repository: Repository): Promise<void> {
+		const HEAD = repository.HEAD;
 
 		if (!HEAD || !HEAD.upstream) {
 			return;
@@ -1099,20 +1099,20 @@ export class CommandCenter {
 			}
 		}
 
-		await model.sync();
+		await repository.sync();
 	}
 
 	@command('git.publish', { model: true })
-	async publish(model: Repository): Promise<void> {
-		const remotes = model.remotes;
+	async publish(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
 			return;
 		}
 
-		const branchName = model.HEAD && model.HEAD.name || '';
-		const picks = model.remotes.map(r => r.name);
+		const branchName = repository.HEAD && repository.HEAD.name || '';
+		const picks = repository.remotes.map(r => r.name);
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
@@ -1120,7 +1120,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.pushTo(choice, branchName, true);
+		await repository.pushTo(choice, branchName, true);
 	}
 
 	@command('git.showOutput')
@@ -1129,7 +1129,7 @@ export class CommandCenter {
 	}
 
 	@command('git.ignore', { model: true })
-	async ignore(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async ignore(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
 
@@ -1137,7 +1137,7 @@ export class CommandCenter {
 				return;
 			}
 
-			return await model.ignore([uri]);
+			return await repository.ignore([uri]);
 		}
 
 		const uris = resourceStates
@@ -1148,12 +1148,12 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.ignore(uris);
+		await repository.ignore(uris);
 	}
 
 	@command('git.stash', { model: true })
-	async stash(model: Repository): Promise<void> {
-		if (model.workingTreeGroup.resources.length === 0) {
+	async stash(repository: Repository): Promise<void> {
+		if (repository.workingTreeGroup.resourceStates.length === 0) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
 		}
@@ -1167,12 +1167,12 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.createStash(message);
+		await repository.createStash(message);
 	}
 
 	@command('git.stashPop', { model: true })
-	async stashPop(model: Repository): Promise<void> {
-		const stashes = await model.getStashes();
+	async stashPop(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
@@ -1187,19 +1187,19 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.popStash(choice.id);
+		await repository.popStash(choice.id);
 	}
 
 	@command('git.stashPopLatest', { model: true })
-	async stashPopLatest(model: Repository): Promise<void> {
-		const stashes = await model.getStashes();
+	async stashPopLatest(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
 			return;
 		}
 
-		await model.popStash();
+		await repository.popStash();
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
@@ -1292,8 +1292,8 @@ export class CommandCenter {
 				return undefined;
 			}
 
-			return repository.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
+			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 	}
 

@@ -30,9 +30,9 @@ export class GitContentProvider {
 	private cache: Cache = Object.create(null);
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Repository) {
+	constructor(private repository: Repository) {
 		this.disposables.push(
-			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
+			repository.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)
 		);
 
@@ -61,12 +61,12 @@ export class GitContentProvider {
 		if (ref === '~') {
 			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
-			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
+			const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
 
 		try {
-			return await this.model.show(ref, path);
+			return await this.repository.show(ref, path);
 		} catch (err) {
 			return '';
 		}

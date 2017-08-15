@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, commands, SourceControl, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
+import { toGitUri } from './uri';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
@@ -49,6 +50,12 @@ export enum Status {
 	BOTH_MODIFIED
 }
 
+export enum ResourceGroupType {
+	Merge,
+	Index,
+	WorkingTree
+}
+
 export class Resource implements SourceControlResourceState {
 
 	@memoize
@@ -69,7 +76,7 @@ export class Resource implements SourceControlResourceState {
 		};
 	}
 
-	get resourceGroup(): ResourceGroup { return this._resourceGroup; }
+	get resourceGroupType(): ResourceGroupType { return this._resourceGroupType; }
 	get type(): Status { return this._type; }
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
@@ -149,50 +156,11 @@ export class Resource implements SourceControlResourceState {
 
 	constructor(
 		private workspaceRoot: Uri,
-		private _resourceGroup: ResourceGroup,
+		private _resourceGroupType: ResourceGroupType,
 		private _resourceUri: Uri,
 		private _type: Status,
 		private _renameResourceUri?: Uri
 	) { }
-}
-
-export abstract class ResourceGroup {
-
-	get id(): string { return this._id; }
-	get contextKey(): string { return this._id; }
-	get label(): string { return this._label; }
-	get resources(): Resource[] { return this._resources; }
-
-	constructor(private _id: string, private _label: string, private _resources: Resource[]) {
-
-	}
-}
-
-export class MergeGroup extends ResourceGroup {
-
-	static readonly ID = 'merge';
-
-	constructor(resources: Resource[] = []) {
-		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
-	}
-}
-
-export class IndexGroup extends ResourceGroup {
-
-	static readonly ID = 'index';
-
-	constructor(resources: Resource[] = []) {
-		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
-	}
-}
-
-export class WorkingTreeGroup extends ResourceGroup {
-
-	static readonly ID = 'workingTree';
-
-	constructor(resources: Resource[] = []) {
-		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
-	}
 }
 
 export enum Operation {
@@ -302,6 +270,10 @@ export interface IRepository {
 	clean(resources: Uri[]): Promise<void>;
 }
 
+export interface GitResourceGroup extends SourceControlResourceGroup {
+	resourceStates: Resource[];
+}
+
 export class Repository implements IRepository, Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -310,12 +282,9 @@ export class Repository implements IRepository, Disposable {
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
-	private _onDidChangeResources = new EventEmitter<void>();
-	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
-
 	@memoize
 	get onDidChange(): Event<void> {
-		return anyEvent<any>(this.onDidChangeState, this.onDidChangeResources);
+		return anyEvent<any>(this.onDidChangeState);
 	}
 
 	private _onRunOperation = new EventEmitter<Operation>();
@@ -329,14 +298,17 @@ export class Repository implements IRepository, Disposable {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
 	}
 
-	private _mergeGroup = new MergeGroup([]);
-	get mergeGroup(): MergeGroup { return this._mergeGroup; }
+	private _sourceControl: SourceControl;
+	get sourceControl(): SourceControl { return this._sourceControl; }
 
-	private _indexGroup = new IndexGroup([]);
-	get indexGroup(): IndexGroup { return this._indexGroup; }
+	private _mergeGroup: SourceControlResourceGroup;
+	get mergeGroup(): GitResourceGroup { return this._mergeGroup as GitResourceGroup; }
 
-	private _workingTreeGroup = new WorkingTreeGroup([]);
-	get workingTreeGroup(): WorkingTreeGroup { return this._workingTreeGroup; }
+	private _indexGroup: SourceControlResourceGroup;
+	get indexGroup(): GitResourceGroup { return this._indexGroup as GitResourceGroup; }
+
+	private _workingTreeGroup: SourceControlResourceGroup;
+	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -367,10 +339,11 @@ export class Repository implements IRepository, Disposable {
 		this._HEAD = undefined;
 		this._refs = [];
 		this._remotes = [];
-		this._mergeGroup = new MergeGroup();
-		this._indexGroup = new IndexGroup();
-		this._workingTreeGroup = new WorkingTreeGroup();
-		this._onDidChangeResources.fire();
+		this.mergeGroup.resourceStates = [];
+		this.indexGroup.resourceStates = [];
+		this.workingTreeGroup.resourceStates = [];
+		this._sourceControl.count = 0;
+		commands.executeCommand('setContext', 'gitState', '');
 	}
 
 	private onWorkspaceChange: Event<Uri>;
@@ -387,7 +360,41 @@ export class Repository implements IRepository, Disposable {
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		this.disposables.push(fsWatcher);
 
+		this._sourceControl = scm.createSourceControl('git', 'Git');
+		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
+		this._sourceControl.quickDiffProvider = this;
+		this.disposables.push(this._sourceControl);
+
+		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+
+		this.mergeGroup.hideWhenEmpty = true;
+		this.indexGroup.hideWhenEmpty = true;
+
+		this.disposables.push(this.mergeGroup);
+		this.disposables.push(this.indexGroup);
+		this.disposables.push(this.workingTreeGroup);
+
+		this.updateCommitTemplate();
 		this.status();
+	}
+
+	// TODO@Joao reorganize this
+	provideOriginalResource(uri: Uri): Uri | undefined {
+		if (uri.scheme !== 'file') {
+			return;
+		}
+
+		return toGitUri(uri, '', true);
+	}
+
+	private async updateCommitTemplate(): Promise<void> {
+		try {
+			this._sourceControl.commitTemplate = await this.repository.getCommitTemplate();
+		} catch (e) {
+			// noop
+		}
 	}
 
 	@throttle
@@ -435,7 +442,7 @@ export class Repository implements IRepository, Disposable {
 
 			resources.forEach(r => {
 				const raw = r.toString();
-				const scmResource = find(this.workingTreeGroup.resources, sr => sr.resourceUri.toString() === raw);
+				const scmResource = find(this.workingTreeGroup.resourceStates, sr => sr.resourceUri.toString() === raw);
 
 				if (!scmResource) {
 					return;
@@ -731,37 +738,59 @@ export class Repository implements IRepository, Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(this.workspaceRoot, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(this.workspaceRoot, ResourceGroupType.WorkingTree, uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(this.workspaceRoot, ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED, renameUri)); break;
+				case 'M': index.push(new Resource(this.workspaceRoot, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(this.workspaceRoot, ResourceGroupType.Index, uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(this.workspaceRoot, ResourceGroupType.Index, uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(this.workspaceRoot, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, renameUri)); break;
+				case 'C': index.push(new Resource(this.workspaceRoot, ResourceGroupType.Index, uri, Status.INDEX_COPIED, renameUri)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(this.workspaceRoot, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(this.workspaceRoot, ResourceGroupType.WorkingTree, uri, Status.DELETED, renameUri)); break;
 			}
 		});
 
-		this._mergeGroup = new MergeGroup(merge);
-		this._indexGroup = new IndexGroup(index);
-		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-		this._onDidChangeResources.fire();
+		// set resource groups
+		this.mergeGroup.resourceStates = merge;
+		this.indexGroup.resourceStates = index;
+		this.workingTreeGroup.resourceStates = workingTree;
+
+		// set count badge
+		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
+		let count = merge.length + index.length + workingTree.length;
+
+		switch (countBadge) {
+			case 'off': count = 0; break;
+			case 'tracked': count = count - workingTree.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
+		}
+
+		this._sourceControl.count = count;
+
+		// set context key
+		let stateContextKey = '';
+
+		switch (this.state) {
+			case State.Uninitialized: stateContextKey = 'uninitialized'; break;
+			case State.Idle: stateContextKey = 'idle'; break;
+			case State.NotAGitRepository: stateContextKey = 'norepo'; break;
+		}
+
+		commands.executeCommand('setContext', 'gitState', stateContextKey);
 	}
 
 	private onFSChange(uri: Uri): void {

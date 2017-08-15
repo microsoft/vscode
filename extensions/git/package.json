@@ -276,393 +276,393 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && scmProvider == git && gitState == norepo"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.refresh",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.openFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.openHEADFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.unstage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.unstageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.clean",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.cleanAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitStaged",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitStagedSigned",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitStagedAmend",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitAllSigned",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.commitAllAmend",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.undoCommit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.checkout",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.branch",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.deleteBranch",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pull",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pullFrom",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pullRebase",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pullFrom",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.createTag",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.push",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pushTo",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.pushWithTags",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.publish",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.showOutput",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stash",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stashPop",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         },
         {
           "command": "git.stashPopLatest",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled"
         }
       ],
       "scm/title": [
         {
           "command": "git.init",
           "group": "navigation",
-          "when": "config.git.enabled && scmProvider == git && gitState == norepo"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commit",
           "group": "navigation",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.refresh",
           "group": "navigation",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.sync",
           "group": "1_sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.pull",
           "group": "1_sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.pullRebase",
           "group": "1_sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.pullFrom",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.push",
           "group": "1_sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.pushTo",
           "group": "1_sync",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.publish",
           "group": "2_publish",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitStaged",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitStagedSigned",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitStagedAmend",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitAll",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitAllSigned",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.commitAllAmend",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.undoCommit",
           "group": "3_commit",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.unstageAll",
           "group": "4_stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.cleanAll",
           "group": "4_stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.showOutput",
           "group": "6_output",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.stash",
           "group": "5_stash",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.stashPop",
           "group": "5_stash",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         },
         {
           "command": "git.stashPopLatest",
           "group": "5_stash",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && scmProvider == git"
         }
       ],
       "scm/resourceGroup/context": [
         {
           "command": "git.stageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == merge",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
         },
         {
           "command": "git.stageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == merge",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },
         {
           "command": "git.unstageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "1_modification"
         },
         {
           "command": "git.unstageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "inline"
         },
         {
           "command": "git.cleanAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
           "command": "git.stageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
           "command": "git.cleanAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         },
         {
           "command": "git.stageAll",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         }
       ],
       "scm/resourceState/context": [
         {
           "command": "git.stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == merge",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
         },
         {
           "command": "git.stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == merge",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
         },
         {
           "command": "git.openFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
         },
         {
           "command": "git.openHEADFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
         },
         {
           "command": "git.unstage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "1_modification"
         },
         {
           "command": "git.unstage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == index",
           "group": "inline"
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "navigation"
         },
         {
           "command": "git.openHEADFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "navigation"
         },
         {
           "command": "git.openFile",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "navigation"
         },
         {
           "command": "git.stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
           "command": "git.clean",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
         },
         {
           "command": "git.clean",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         },
         {
           "command": "git.stage",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
         },
         {
           "command": "git.ignore",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
         }
       ],
