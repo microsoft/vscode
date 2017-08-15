@@ -7,7 +7,7 @@
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
+import { Repository, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './repository';
 import { ModelRegistry } from './modelRegistry';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -27,7 +27,7 @@ class CheckoutItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(model: Model): Promise<void> {
+	async run(model: Repository): Promise<void> {
 		const ref = this.treeish;
 
 		if (!ref) {
@@ -70,7 +70,7 @@ class BranchDeleteItem implements QuickPickItem {
 
 	constructor(private ref: Ref) { }
 
-	async run(model: Model, force?: boolean): Promise<void> {
+	async run(model: Repository, force?: boolean): Promise<void> {
 		if (!this.branchName) {
 			return;
 		}
@@ -85,7 +85,7 @@ class MergeItem implements QuickPickItem {
 
 	constructor(protected ref: Ref) { }
 
-	async run(model: Model): Promise<void> {
+	async run(model: Repository): Promise<void> {
 		await model.merge(this.ref.name! || this.ref.commit!);
 	}
 }
@@ -95,7 +95,7 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
-	async run(model: Model): Promise<void> {
+	async run(model: Repository): Promise<void> {
 		await commands.executeCommand('git.branch');
 	}
 }
@@ -145,7 +145,7 @@ export class CommandCenter {
 		});
 	}
 
-	private groupByModel(resources: Uri[]): [Model | undefined, Uri[]][] {
+	private groupByModel(resources: Uri[]): [Repository | undefined, Uri[]][] {
 		return resources.reduce((result, resource) => {
 			const model = this.modelRegistry.getModel(resource);
 			const pair = result.filter(p => p[0] === model)[0];
@@ -157,20 +157,20 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as [Model | undefined, Uri[]][]);
+		}, [] as [Repository | undefined, Uri[]][]);
 	}
 
 	@command('git.refresh', { model: true })
-	async refresh(model: Model): Promise<void> {
+	async refresh(model: Repository): Promise<void> {
 		await model.status();
 	}
 
 	@command('git.openResource', { model: true })
-	async openResource(model: Model, resource: Resource): Promise<void> {
+	async openResource(model: Repository, resource: Resource): Promise<void> {
 		await this._openResource(model, resource);
 	}
 
-	private async _openResource(model: Model, resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(model: Repository, resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(model, resource);
 		const title = this.getTitle(resource);
@@ -216,7 +216,7 @@ export class CommandCenter {
 		}
 	}
 
-	private getRightResource(model: Model, resource: Resource): Uri | undefined {
+	private getRightResource(model: Repository, resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -322,7 +322,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile', { model: true })
-	async openFile(model: Model, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async openFile(model: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -372,7 +372,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openHEADFile', { model: true })
-	async openHEADFile(model: Model, arg?: Resource | Uri): Promise<void> {
+	async openHEADFile(model: Repository, arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
@@ -398,7 +398,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange', { model: true })
-	async openChange(model: Model, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async openChange(model: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -462,13 +462,13 @@ export class CommandCenter {
 	}
 
 	@command('git.stageAll', { model: true })
-	async stageAll(model: Model): Promise<void> {
+	async stageAll(model: Repository): Promise<void> {
 		return await model.add();
 	}
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.stageSelectedRanges', { model: true, diff: true })
-	async stageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
+	async stageSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -500,7 +500,7 @@ export class CommandCenter {
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.revertSelectedRanges', { model: true, diff: true })
-	async revertSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
+	async revertSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -545,7 +545,7 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage', { model: true })
-	async unstage(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async unstage(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -569,13 +569,13 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageAll', { model: true })
-	async unstageAll(model: Model): Promise<void> {
+	async unstageAll(model: Repository): Promise<void> {
 		return await model.revertFiles();
 	}
 
 	// TODO@Joao does this command really receive a model?
 	@command('git.unstageSelectedRanges', { model: true, diff: true })
-	async unstageSelectedRanges(model: Model, diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(model: Repository, diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -613,7 +613,7 @@ export class CommandCenter {
 	}
 
 	@command('git.clean', { model: true })
-	async clean(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async clean(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -660,7 +660,7 @@ export class CommandCenter {
 	}
 
 	@command('git.cleanAll', { model: true })
-	async cleanAll(model: Model): Promise<void> {
+	async cleanAll(model: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		let scope = config.get<string>('discardAllScope') || 'prompt';
 		let resources = model.workingTreeGroup.resources;
@@ -712,7 +712,7 @@ export class CommandCenter {
 	}
 
 	private async smartCommit(
-		model: Model,
+		model: Repository,
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
@@ -767,7 +767,7 @@ export class CommandCenter {
 		return true;
 	}
 
-	private async commitWithAnyInput(model: Model, opts?: CommitOptions): Promise<void> {
+	private async commitWithAnyInput(model: Repository, opts?: CommitOptions): Promise<void> {
 		const message = scm.inputBox.value;
 		const getCommitMessage = async () => {
 			if (message) {
@@ -789,12 +789,12 @@ export class CommandCenter {
 	}
 
 	@command('git.commit', { model: true })
-	async commit(model: Model): Promise<void> {
+	async commit(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model);
 	}
 
 	@command('git.commitWithInput', { model: true })
-	async commitWithInput(model: Model): Promise<void> {
+	async commitWithInput(model: Repository): Promise<void> {
 		if (!scm.inputBox.value) {
 			return;
 		}
@@ -807,37 +807,37 @@ export class CommandCenter {
 	}
 
 	@command('git.commitStaged', { model: true })
-	async commitStaged(model: Model): Promise<void> {
+	async commitStaged(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: false });
 	}
 
 	@command('git.commitStagedSigned', { model: true })
-	async commitStagedSigned(model: Model): Promise<void> {
+	async commitStagedSigned(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: false, signoff: true });
 	}
 
 	@command('git.commitStagedAmend', { model: true })
-	async commitStagedAmend(model: Model): Promise<void> {
+	async commitStagedAmend(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: false, amend: true });
 	}
 
 	@command('git.commitAll', { model: true })
-	async commitAll(model: Model): Promise<void> {
+	async commitAll(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: true });
 	}
 
 	@command('git.commitAllSigned', { model: true })
-	async commitAllSigned(model: Model): Promise<void> {
+	async commitAllSigned(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: true, signoff: true });
 	}
 
 	@command('git.commitAllAmend', { model: true })
-	async commitAllAmend(model: Model): Promise<void> {
+	async commitAllAmend(model: Repository): Promise<void> {
 		await this.commitWithAnyInput(model, { all: true, amend: true });
 	}
 
 	@command('git.undoCommit', { model: true })
-	async undoCommit(model: Model): Promise<void> {
+	async undoCommit(model: Repository): Promise<void> {
 		const HEAD = model.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
@@ -850,7 +850,7 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout', { model: true })
-	async checkout(model: Model, treeish: string): Promise<void> {
+	async checkout(model: Repository, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
 			return await model.checkout(treeish);
 		}
@@ -883,7 +883,7 @@ export class CommandCenter {
 	}
 
 	@command('git.branch', { model: true })
-	async branch(model: Model): Promise<void> {
+	async branch(model: Repository): Promise<void> {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
@@ -899,7 +899,7 @@ export class CommandCenter {
 	}
 
 	@command('git.deleteBranch', { model: true })
-	async deleteBranch(model: Model, name: string, force?: boolean): Promise<void> {
+	async deleteBranch(model: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
 			run = force => model.deleteBranch(name, force);
@@ -936,7 +936,7 @@ export class CommandCenter {
 	}
 
 	@command('git.merge', { model: true })
-	async merge(model: Model): Promise<void> {
+	async merge(model: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
@@ -970,7 +970,7 @@ export class CommandCenter {
 	}
 
 	@command('git.createTag', { model: true })
-	async createTag(model: Model): Promise<void> {
+	async createTag(model: Repository): Promise<void> {
 		const inputTagName = await window.showInputBox({
 			placeHolder: localize('tag name', "Tag name"),
 			prompt: localize('provide tag name', "Please provide a tag name"),
@@ -993,7 +993,7 @@ export class CommandCenter {
 	}
 
 	@command('git.pullFrom', { model: true })
-	async pullFrom(model: Model): Promise<void> {
+	async pullFrom(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1023,7 +1023,7 @@ export class CommandCenter {
 	}
 
 	@command('git.pull', { model: true })
-	async pull(model: Model): Promise<void> {
+	async pull(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1035,7 +1035,7 @@ export class CommandCenter {
 	}
 
 	@command('git.pullRebase', { model: true })
-	async pullRebase(model: Model): Promise<void> {
+	async pullRebase(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1047,7 +1047,7 @@ export class CommandCenter {
 	}
 
 	@command('git.push', { model: true })
-	async push(model: Model): Promise<void> {
+	async push(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1059,7 +1059,7 @@ export class CommandCenter {
 	}
 
 	@command('git.pushWithTags', { model: true })
-	async pushWithTags(model: Model): Promise<void> {
+	async pushWithTags(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1073,7 +1073,7 @@ export class CommandCenter {
 	}
 
 	@command('git.pushTo', { model: true })
-	async pushTo(model: Model): Promise<void> {
+	async pushTo(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1099,7 +1099,7 @@ export class CommandCenter {
 	}
 
 	@command('git.sync', { model: true })
-	async sync(model: Model): Promise<void> {
+	async sync(model: Repository): Promise<void> {
 		const HEAD = model.HEAD;
 
 		if (!HEAD || !HEAD.upstream) {
@@ -1126,7 +1126,7 @@ export class CommandCenter {
 	}
 
 	@command('git.publish', { model: true })
-	async publish(model: Model): Promise<void> {
+	async publish(model: Repository): Promise<void> {
 		const remotes = model.remotes;
 
 		if (remotes.length === 0) {
@@ -1152,7 +1152,7 @@ export class CommandCenter {
 	}
 
 	@command('git.ignore', { model: true })
-	async ignore(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	async ignore(model: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const uri = window.activeTextEditor && window.activeTextEditor.document.uri;
 
@@ -1175,7 +1175,7 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { model: true })
-	async stash(model: Model): Promise<void> {
+	async stash(model: Repository): Promise<void> {
 		if (model.workingTreeGroup.resources.length === 0) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
@@ -1194,7 +1194,7 @@ export class CommandCenter {
 	}
 
 	@command('git.stashPop', { model: true })
-	async stashPop(model: Model): Promise<void> {
+	async stashPop(model: Repository): Promise<void> {
 		const stashes = await model.getStashes();
 
 		if (stashes.length === 0) {
@@ -1214,7 +1214,7 @@ export class CommandCenter {
 	}
 
 	@command('git.stashPopLatest', { model: true })
-	async stashPopLatest(model: Model): Promise<void> {
+	async stashPopLatest(model: Repository): Promise<void> {
 		const stashes = await model.getStashes();
 
 		if (stashes.length === 0) {

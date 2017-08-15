@@ -7,7 +7,7 @@
 
 import { workspace, Disposable } from 'vscode';
 import { GitErrorCodes } from './git';
-import { Model } from './model';
+import { Repository } from './repository';
 import { throttle } from './decorators';
 
 export class AutoFetcher {
@@ -16,7 +16,7 @@ export class AutoFetcher {
 	private disposables: Disposable[] = [];
 	private timer: NodeJS.Timer;
 
-	constructor(private model: Model) {
+	constructor(private model: Repository) {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
 	}

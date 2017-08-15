@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
-import { Model } from './model';
+import { Repository } from './repository';
 import { ModelRegistry } from './modelRegistry';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
@@ -46,8 +46,8 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	}
 
 	const workspaceRoot = Uri.file(workspaceRootPath);
-	const model = new Model(git, workspaceRoot);
-	modelRegistry.register(workspaceRoot, model);
+	const repository = new Repository(git, workspaceRoot);
+	modelRegistry.register(workspaceRoot, repository);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
@@ -56,17 +56,17 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, modelRegistry, outputChannel, telemetryReporter);
-	const statusBarCommands = new StatusBarCommands(model);
-	const provider = new GitSCMProvider(model, statusBarCommands);
-	const contentProvider = new GitContentProvider(model);
-	const autoFetcher = new AutoFetcher(model);
+	const statusBarCommands = new StatusBarCommands(repository);
+	const provider = new GitSCMProvider(repository, statusBarCommands);
+	const contentProvider = new GitContentProvider(repository);
+	const autoFetcher = new AutoFetcher(repository);
 
 	disposables.push(
 		commandCenter,
 		provider,
 		contentProvider,
 		autoFetcher,
-		model
+		repository
 	);
 
 	await checkGitVersion(info);

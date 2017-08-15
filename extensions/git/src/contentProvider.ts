@@ -8,7 +8,7 @@
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce } from './decorators';
 import { fromGitUri } from './uri';
-import { Model } from './model';
+import { Repository } from './repository';
 
 interface CacheRow {
 	uri: Uri;
@@ -30,7 +30,7 @@ export class GitContentProvider {
 	private cache: Cache = Object.create(null);
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private model: Repository) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
 			workspace.registerTextDocumentContentProvider('git', this)

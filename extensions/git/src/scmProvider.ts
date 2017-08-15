@@ -6,7 +6,7 @@
 'use strict';
 
 import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
-import { Model, State, Status } from './model';
+import { Repository, State, Status } from './repository';
 import { StatusBarCommands } from './statusbar';
 import { mapEvent } from './util';
 import { toGitUri } from './uri';
@@ -58,7 +58,7 @@ export class GitSCMProvider {
 	private workingTreeGroup: SourceControlResourceGroup;
 
 	constructor(
-		private model: Model,
+		private model: Repository,
 		private statusBarCommands: StatusBarCommands
 	) {
 		this._sourceControl = scm.createSourceControl('git', 'Git');

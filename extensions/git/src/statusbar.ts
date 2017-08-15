@@ -7,7 +7,7 @@
 
 import { Disposable, Command, EventEmitter, Event } from 'vscode';
 import { RefType, Branch } from './git';
-import { Model, Operation } from './model';
+import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
 
@@ -19,7 +19,7 @@ class CheckoutStatusBar {
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
+	constructor(private model: Repository) {
 		model.onDidChange(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
@@ -76,7 +76,7 @@ class SyncStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private model: Model) {
+	constructor(private model: Repository) {
 		model.onDidChange(this.onModelChange, this, this.disposables);
 		model.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 		this._onDidChange.fire();
@@ -149,7 +149,7 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(model: Model) {
+	constructor(model: Repository) {
 		this.syncStatusBar = new SyncStatusBar(model);
 		this.checkoutStatusBar = new CheckoutStatusBar(model);
 	}

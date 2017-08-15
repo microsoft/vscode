@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, window, QuickPickItem } from 'vscode';
-import { Model } from './model';
+import { Repository } from './repository';
 import { memoize } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
@@ -16,18 +16,18 @@ const localize = nls.loadMessageBundle();
 class ModelPick implements QuickPickItem {
 	@memoize get label(): string { return path.basename(this.repositoryRoot.fsPath); }
 	@memoize get description(): string { return path.dirname(this.repositoryRoot.fsPath); }
-	constructor(protected repositoryRoot: Uri, public readonly model: Model) { }
+	constructor(protected repositoryRoot: Uri, public readonly model: Repository) { }
 }
 
 export class ModelRegistry {
 
-	private models: Map<Uri, Model> = new Map<Uri, Model>();
+	private models: Map<Uri, Repository> = new Map<Uri, Repository>();
 
 	register(uri: Uri, model): void {
 		this.models.set(uri, model);
 	}
 
-	async pickModel(): Promise<Model | undefined> {
+	async pickModel(): Promise<Repository | undefined> {
 		const picks = Array.from(this.models.entries(), ([uri, model]) => new ModelPick(uri, model));
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
@@ -35,7 +35,7 @@ export class ModelRegistry {
 		return pick && pick.model;
 	}
 
-	getModel(resource: Uri): Model | undefined {
+	getModel(resource: Uri): Repository | undefined {
 		const resourcePath = resource.fsPath;
 
 		for (let [repositoryRoot, model] of this.models) {
@@ -50,7 +50,7 @@ export class ModelRegistry {
 		return undefined;
 	}
 
-	async resolve(resource: Uri): Promise<Model | undefined> {
+	async resolve(resource: Uri): Promise<Repository | undefined> {
 		const model = this.getModel(resource);
 
 		if (model) {

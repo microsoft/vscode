@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
+import { Git, Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
@@ -295,7 +295,7 @@ export interface CommitOptions {
 	signCommit?: boolean;
 }
 
-export class Model implements Disposable {
+export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -349,7 +349,7 @@ export class Model implements Disposable {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	private repository: Repository;
+	private repository: BaseRepository;
 
 	private _state = State.Uninitialized;
 	get state(): State { return this._state; }
