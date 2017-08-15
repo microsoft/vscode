@@ -150,14 +150,14 @@ export class CommandCenter {
 		await repository.status();
 	}
 
-	@command('git.openResource', { repository: true })
-	async openResource(repository: Repository, resource: Resource): Promise<void> {
-		await this._openResource(repository, resource);
+	@command('git.openResource')
+	async openResource(resource: Resource): Promise<void> {
+		await this._openResource(resource);
 	}
 
-	private async _openResource(repository: Repository, resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
-		const right = this.getRightResource(repository, resource);
+		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -201,7 +201,7 @@ export class CommandCenter {
 		}
 	}
 
-	private getRightResource(repository: Repository, resource: Resource): Uri | undefined {
+	private getRightResource(resource: Resource): Uri | undefined {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
@@ -217,6 +217,12 @@ export class CommandCenter {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
+				const repository = this.model.getRepository(resource.resourceUri);
+
+				if (!repository) {
+					return;
+				}
+
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -306,8 +312,8 @@ export class CommandCenter {
 		// await model.init();
 	}
 
-	@command('git.openFile', { repository: true })
-	async openFile(repository: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.openFile')
+	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -356,8 +362,8 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openHEADFile', { repository: true })
-	async openHEADFile(repository: Repository, arg?: Resource | Uri): Promise<void> {
+	@command('git.openHEADFile')
+	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
 
 		if (arg instanceof Resource) {
@@ -382,8 +388,8 @@ export class CommandCenter {
 		return await commands.executeCommand<void>('vscode.open', HEAD);
 	}
 
-	@command('git.openChange', { repository: true })
-	async openChange(repository: Repository, arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.openChange')
+	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -411,7 +417,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(repository, resource, preview);
+			await this._openResource(resource, preview);
 		}
 	}
 
