@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/2091139972d9a5022213697e5ce774cb19053925",
+	"version": "https://github.com/atom/language-php/commit/f53f2fc2c3f52468b6d205b8c2bbf79aca95f5b2",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -154,69 +154,30 @@
 		"class-body": {
 			"patterns": [
 				{
-					"match": "(?xi)\n\\b(use)\\s+\n([a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)*)\n(?=\\s*;)",
-					"name": "meta.use.php",
-					"captures": {
-						"1": {
-							"name": "keyword.other.use.php"
-						},
-						"2": {
-							"patterns": [
-								{
-									"include": "#class-name"
-								}
-							]
-						},
-						"3": {
-							"patterns": [
-								{
-									"include": "#class-name"
-								},
-								{
-									"match": ",",
-									"name": "punctuation.separator.delimiter.php"
-								}
-							]
-						}
-					}
-				},
-				{
 					"begin": "(?i)\\buse\\b",
 					"beginCaptures": {
 						"0": {
 							"name": "keyword.other.use.php"
 						}
 					},
-					"end": "}",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.use.end.bracket.curly.php"
-						}
-					},
+					"end": "(?=;)",
 					"name": "meta.use.php",
 					"patterns": [
 						{
-							"match": "(?xi)\n([a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)\n((?:\\s*,\\s*[a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*)*)",
+							"match": "(?i)[a-z_\\x{7f}-\\x{ff}\\\\][a-z0-9_\\x{7f}-\\x{ff}\\\\]*",
 							"captures": {
-								"1": {
+								"0": {
 									"patterns": [
 										{
 											"include": "#class-name"
-										}
-									]
-								},
-								"2": {
-									"patterns": [
-										{
-											"include": "#class-name"
-										},
-										{
-											"match": ",",
-											"name": "punctuation.separator.delimiter.php"
 										}
 									]
 								}
 							}
+						},
+						{
+							"match": ",",
+							"name": "punctuation.separator.delimiter.php"
 						},
 						{
 							"begin": "{",
@@ -225,7 +186,12 @@
 									"name": "punctuation.definition.use.begin.bracket.curly.php"
 								}
 							},
-							"end": "(?=})",
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.use.end.bracket.curly.php"
+								}
+							},
 							"contentName": "meta.use.body.php",
 							"patterns": [
 								{
@@ -1463,14 +1429,6 @@
 					"include": "#comments"
 				},
 				{
-					"match": "{",
-					"name": "punctuation.section.scope.begin.php"
-				},
-				{
-					"match": "}",
-					"name": "punctuation.section.scope.end.php"
-				},
-				{
 					"begin": "(?i)^\\s*(interface)\\s+([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)\\s*(extends)?\\s*",
 					"beginCaptures": {
 						"1": {
@@ -1606,7 +1564,7 @@
 							"name": "storage.type.${2:/downcase}.php"
 						}
 					},
-					"end": "(?=;|(?:^\\s*$))",
+					"end": "(?=;)",
 					"name": "meta.use.php",
 					"patterns": [
 						{
@@ -2127,6 +2085,25 @@
 				},
 				{
 					"include": "#string-backtick"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.begin.bracket.curly.php"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.curly.php"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#language"
+						}
+					]
 				},
 				{
 					"begin": "\\[",
@@ -3402,7 +3379,7 @@
 				},
 				{
 					"match": ",",
-					"name": "punctuation.definition.separator.delimiter.php"
+					"name": "punctuation.separator.delimiter.php"
 				}
 			]
 		},
