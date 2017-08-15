@@ -435,12 +435,12 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		await this.model.add(...resources);
+		await this.model.add(resources);
 	}
 
 	@command('git.stageAll', { model: true })
 	async stageAll(model: Repository): Promise<void> {
-		return await model.add();
+		await model.add([]);
 	}
 
 	// TODO@Joao does this command really receive a model?
@@ -542,12 +542,12 @@ export class CommandCenter {
 
 		const resources = scmResources.map(r => r.resourceUri);
 
-		return await model.revertFiles(...resources);
+		return await model.revertFiles(resources);
 	}
 
 	@command('git.unstageAll', { model: true })
 	async unstageAll(model: Repository): Promise<void> {
-		return await model.revertFiles();
+		return await model.revertFiles([]);
 	}
 
 	// TODO@Joao does this command really receive a model?
@@ -633,7 +633,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(...resources.map(r => r.resourceUri));
+		await model.clean(resources.map(r => r.resourceUri));
 	}
 
 	@command('git.cleanAll', { model: true })
@@ -685,7 +685,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(...resources.map(r => r.resourceUri));
+		await model.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(

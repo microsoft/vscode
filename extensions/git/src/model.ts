@@ -95,7 +95,7 @@ export class Model implements IRepository {
 
 	// IRepository
 
-	async add(...resources: Uri[]): Promise<void> {
-		await this.runByRepository(resources, async (repository, resources) => repository.add(...resources));
+	async add(resources: Uri[]): Promise<void> {
+		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
 	}
 }

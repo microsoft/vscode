@@ -296,7 +296,7 @@ export interface CommitOptions {
 }
 
 export interface IRepository {
-	add(...resources: Uri[]): Promise<void>;
+	add(resources: Uri[]): Promise<void>;
 }
 
 export class Repository implements IRepository, Disposable {
@@ -402,7 +402,7 @@ export class Repository implements IRepository, Disposable {
 		await this.run(Operation.Status);
 	}
 
-	async add(...resources: Uri[]): Promise<void> {
+	async add(resources: Uri[]): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
 	}
 
@@ -411,7 +411,7 @@ export class Repository implements IRepository, Disposable {
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
-	async revertFiles(...resources: Uri[]): Promise<void> {
+	async revertFiles(resources: Uri[]): Promise<void> {
 		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.fsPath)));
 	}
 
@@ -425,7 +425,7 @@ export class Repository implements IRepository, Disposable {
 		});
 	}
 
-	async clean(...resources: Uri[]): Promise<void> {
+	async clean(resources: Uri[]): Promise<void> {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
