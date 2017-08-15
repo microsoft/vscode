@@ -670,6 +670,7 @@ export interface ITreeOptions extends ITreeStyles {
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
+	preventRootFocus?: boolean;
 }
 
 export interface ITreeStyles {
