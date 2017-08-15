@@ -163,3 +163,18 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 		return true;
 	};
 }
+
+export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
+	let result: T | undefined = undefined;
+
+	array.some(e => {
+		if (fn(e)) {
+			result = e;
+			return true;
+		}
+
+		return false;
+	});
+
+	return result;
+}

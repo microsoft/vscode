@@ -145,9 +145,9 @@ export class CommandCenter {
 		});
 	}
 
-	private groupByModel(resources: Resource[]): [Model | undefined, Resource[]][] {
+	private groupByModel(resources: Uri[]): [Model | undefined, Uri[]][] {
 		return resources.reduce((result, resource) => {
-			const model = this.modelRegistry.getModel(resource.resourceUri);
+			const model = this.modelRegistry.getModel(resource);
 			const pair = result.filter(p => p[0] === model)[0];
 
 			if (pair) {
@@ -157,7 +157,7 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as [Model | undefined, Resource[]][]);
+		}, [] as [Model | undefined, Uri[]][]);
 	}
 
 	@command('git.refresh', { model: true })
@@ -442,16 +442,19 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
-		const resources = resourceStates
+		const scmResources = resourceStates
 			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
 
-		if (!resources.length) {
+		if (!scmResources.length) {
 			return;
 		}
 
-		await Promise.all(this.groupByModel(resources).map(async ([model, resources]) => {
+		const resources = scmResources.map(r => r.resourceUri);
+		const resourcesByModel = this.groupByModel(resources);
+
+		await Promise.all(resourcesByModel.map(async ([model, resources]) => {
 			if (!model) {
-				return;
+				return; // TODO@joao
 			}
 
 			await model.add(...resources);
@@ -553,12 +556,14 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
-		const resources = resourceStates
+		const scmResources = resourceStates
 			.filter(s => s instanceof Resource && s.resourceGroup instanceof IndexGroup) as Resource[];
 
-		if (!resources.length) {
+		if (!scmResources.length) {
 			return;
 		}
+
+		const resources = scmResources.map(r => r.resourceUri);
 
 		return await model.revertFiles(...resources);
 	}
@@ -620,14 +625,15 @@ export class CommandCenter {
 		}
 
 		const resources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup)
+			.map(r => r.resourceUri);
 
 		if (!resources.length) {
 			return;
 		}
 
 		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].fsPath))
 			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
 
 		const yes = localize('discard', "Discard Changes");
@@ -650,7 +656,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(...model.workingTreeGroup.resources);
+		await model.clean(...model.workingTreeGroup.resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(

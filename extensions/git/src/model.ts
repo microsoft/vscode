@@ -7,7 +7,7 @@
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
-import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
+import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
@@ -397,8 +397,8 @@ export class Model implements Disposable {
 		await this.run(Operation.Status);
 	}
 
-	async add(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
+	async add(...resources: Uri[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
 	}
 
 	async stage(uri: Uri, contents: string): Promise<void> {
@@ -406,8 +406,8 @@ export class Model implements Disposable {
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
-	async revertFiles(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.resourceUri.fsPath)));
+	async revertFiles(...resources: Uri[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.fsPath)));
 	}
 
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
@@ -420,20 +420,27 @@ export class Model implements Disposable {
 		});
 	}
 
-	async clean(...resources: Resource[]): Promise<void> {
+	async clean(...resources: Uri[]): Promise<void> {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
 
 			resources.forEach(r => {
-				switch (r.type) {
+				const raw = r.toString();
+				const scmResource = find(this.workingTreeGroup.resources, sr => sr.resourceUri.toString() === raw);
+
+				if (!scmResource) {
+					return;
+				}
+
+				switch (scmResource.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.resourceUri.fsPath);
+						toClean.push(r.fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.resourceUri.fsPath);
+						toCheckout.push(r.fsPath);
 						break;
 				}
 			});
