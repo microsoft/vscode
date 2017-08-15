@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
@@ -215,7 +215,8 @@ export enum Operation {
 	DeleteBranch = 1 << 16,
 	Merge = 1 << 17,
 	Ignore = 1 << 18,
-	Tag = 1 << 19
+	Tag = 1 << 19,
+	Stash = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -542,6 +543,11 @@ export class Model implements Disposable {
 		});
 	}
 
+	@throttle
+	async stash(pop: boolean = false, index?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.stash(pop, index));
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
@@ -566,6 +572,10 @@ export class Model implements Disposable {
 			edit.insert(document.uri, lastLine.range.end, text);
 			workspace.applyEdit(edit);
 		});
+	}
+
+	async getStashes(): Promise<Stash[]> {
+		return await this.getStashes();
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

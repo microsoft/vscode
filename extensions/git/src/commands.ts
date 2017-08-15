@@ -1092,6 +1092,47 @@ export class CommandCenter {
 		await this.model.ignore(uris);
 	}
 
+	@command('git.stash')
+	async stash() : Promise<void> {
+		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
+		if (noUnstagedChanges){
+			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
+			return;
+		}
+		return await this.model.stash();
+	}
+
+	@command('git.stashPop')
+	async stashPop(): Promise<void> {
+		let stashes = await this.model.getStashes();
+		const noStashes = stashes.length === 0;
+		if (noStashes){
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+
+		const picks = stashes.map(r => { return { label: `#${r.id}:  ${r.description}`, description: "", derails: "", id: r.id }; });
+		const placeHolder = localize('pick stash', "Pick a stash");
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+		return await this.model.stash(true, choice.id);
+	}
+
+	@command('git.stashPopLatest')
+	async stashPopLatest(): Promise<void> {
+		let stashes = await this.model.getStashes();
+		const noStashes = stashes.length === 0;
+		if (noStashes){
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+		return await this.model.stash(true);
+	}
+
+
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
 		const result = (...args) => {
 			if (!skipModelCheck && !this.model) {
