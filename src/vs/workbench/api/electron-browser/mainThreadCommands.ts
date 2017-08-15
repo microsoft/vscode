@@ -12,32 +12,34 @@ import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape } from '.
 
 export class MainThreadCommands extends MainThreadCommandsShape {
 
-	private _disposables: { [id: string]: IDisposable } = Object.create(null);
-	private _proxy: ExtHostCommandsShape;
+	private readonly _disposables = new Map<string, IDisposable>();
+	private readonly _proxy: ExtHostCommandsShape;
 
 	constructor(
-		@IThreadService private _threadService: IThreadService,
-		@ICommandService private _commandService: ICommandService
+		@IThreadService private readonly _threadService: IThreadService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostCommands);
 	}
 
 	dispose() {
-		for (let id in this._disposables) {
-			this._disposables[id].dispose();
-		}
+		this._disposables.forEach(value => value.dispose());
+		this._disposables.clear();
 	}
 
 	$registerCommand(id: string): TPromise<any> {
-		this._disposables[id] = CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args));
+		this._disposables.set(
+			id,
+			CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args))
+		);
 		return undefined;
 	}
 
 	$unregisterCommand(id: string): TPromise<any> {
-		if (this._disposables[id]) {
-			this._disposables[id].dispose();
-			delete this._disposables[id];
+		if (this._disposables.has(id)) {
+			this._disposables.get(id).dispose();
+			this._disposables.delete(id);
 		}
 		return undefined;
 	}

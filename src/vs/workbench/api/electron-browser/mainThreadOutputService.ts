@@ -13,11 +13,12 @@ import { MainThreadOutputServiceShape } from '../node/extHost.protocol';
 
 export class MainThreadOutputService extends MainThreadOutputServiceShape {
 
-	private _outputService: IOutputService;
-	private _partService: IPartService;
-	private _panelService: IPanelService;
+	private readonly _outputService: IOutputService;
+	private readonly _partService: IPartService;
+	private readonly _panelService: IPanelService;
 
-	constructor( @IOutputService outputService: IOutputService,
+	constructor(
+		@IOutputService outputService: IOutputService,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {

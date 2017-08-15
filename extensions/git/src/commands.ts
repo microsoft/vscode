@@ -625,30 +625,82 @@ export class CommandCenter {
 		}
 
 		const resources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup)
-			.map(r => r.resourceUri);
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
 
 		if (!resources.length) {
 			return;
 		}
 
-		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].fsPath))
-			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		let message: string;
+		let yes = localize('discard', "Discard Changes");
 
-		const yes = localize('discard', "Discard Changes");
+		if (resources.length === 1) {
+			if (untrackedCount > 0) {
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+				yes = localize('delete file', "Delete file");
+			} else {
+				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath));
+			}
+		} else {
+			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+
+			if (untrackedCount > 0) {
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+			}
+		}
+
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
 			return;
 		}
 
-		await model.clean(...resources);
+		await model.clean(...resources.map(r => r.resourceUri));
 	}
 
 	@command('git.cleanAll', { model: true })
 	async cleanAll(model: Model): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
+		const config = workspace.getConfiguration('git');
+		let scope = config.get<string>('discardAllScope') || 'prompt';
+		let resources = model.workingTreeGroup.resources;
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+
+		if (scope === 'prompt' && untrackedCount > 0) {
+			const message = localize('there are untracked files', "There are untracked files ({0}) which will be DELETED if discarded.\n\nWould you like to delete untracked files when discarding all changes?", untrackedCount);
+			const yes = localize('yes', "Yes");
+			const always = localize('always', "Always");
+			const no = localize('no', "No");
+			const never = localize('never', "Never");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, no, never);
+
+			if (typeof pick === 'undefined') {
+				return;
+			} else if (pick === always) {
+				await config.update('discardAllScope', 'all', true);
+			} else if (pick === never) {
+				await config.update('discardAllScope', 'tracked', true);
+			}
+
+			if (pick === never || pick === no) {
+				scope = 'tracked';
+			}
+		}
+
+		if (scope === 'tracked') {
+			resources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		}
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL ({0}) changes?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
 		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -656,7 +708,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await model.clean(...model.workingTreeGroup.resources.map(r => r.resourceUri));
+		await model.clean(...resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(
@@ -1120,6 +1172,57 @@ export class CommandCenter {
 		}
 
 		await model.ignore(uris);
+	}
+
+	@command('git.stash', { model: true })
+	async stash(model: Model): Promise<void> {
+		if (model.workingTreeGroup.resources.length === 0) {
+			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
+			return;
+		}
+
+		const message = await window.showInputBox({
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
+
+		if (typeof message === 'undefined') {
+			return;
+		}
+
+		await model.createStash(message);
+	}
+
+	@command('git.stashPop', { model: true })
+	async stashPop(model: Model): Promise<void> {
+		const stashes = await model.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+
+		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
+		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await model.popStash(choice.id);
+	}
+
+	@command('git.stashPopLatest', { model: true })
+	async stashPopLatest(model: Model): Promise<void> {
+		const stashes = await model.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+
+		await model.popStash();
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {

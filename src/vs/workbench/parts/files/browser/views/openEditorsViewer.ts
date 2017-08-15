@@ -396,10 +396,12 @@ export class ActionProvider extends ContributableActionProvider {
 					// Compare Actions
 					result.push(new Separator());
 
-					const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
-					compareWithSavedAction.setResource(resource);
-					compareWithSavedAction.enabled = openEditor.isDirty();
-					result.push(compareWithSavedAction);
+					if (!openEditor.isUntitled()) {
+						const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
+						compareWithSavedAction.setResource(resource);
+						compareWithSavedAction.enabled = openEditor.isDirty();
+						result.push(compareWithSavedAction);
+					}
 
 					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
 					if (runCompareAction._isEnabled()) {

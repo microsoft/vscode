@@ -286,6 +286,12 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): ICommand {
+		if (model.getFirstInvalidLineNumber() < range.getStartPosition().lineNumber) {
+			let lineText = model.getLineContent(range.startLineNumber);
+			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		}
+
 		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		if (r) {
 			let enterAction = r.enterAction;
@@ -367,6 +373,21 @@ export class TypeOperations {
 		} else {
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
+	}
+
+	private static _isAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): boolean {
+		if (!config.autoIndent) {
+			return false;
+		}
+
+		let firstInvalidLineNumber = model.getFirstInvalidLineNumber();
+		for (let i = 0, len = selections.length; i < len; i++) {
+			if (firstInvalidLineNumber < selections[i].getEndPosition().lineNumber) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, range: Range, ch: string): ICommand {
@@ -585,12 +606,20 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection, ch: string): EditOperationResult {
-		if (!config.electricChars.hasOwnProperty(ch) || !selections.isEmpty()) {
+	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]) {
+		let firstInvalidLineNumber = model.getFirstInvalidLineNumber();
+		if (selections.length === 1 && firstInvalidLineNumber >= selections[0].getEndPosition().lineNumber) {
+			return true;
+		}
+		return false;
+	}
+
+	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selection: Selection, ch: string): EditOperationResult {
+		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
 		}
 
-		let position = selections.getPosition();
+		let position = selection.getPosition();
 		model.forceTokenization(position.lineNumber);
 		let lineTokens = model.getLineTokens(position.lineNumber);
 
@@ -606,7 +635,7 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-			const command = new ReplaceCommandWithOffsetCursorState(selections, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+			const command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
 			return new EditOperationResult([command], {
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: true
@@ -661,7 +690,7 @@ export class TypeOperations {
 			});
 		}
 
-		if (config.autoIndent) {
+		if (this._isAutoIndentType(config, model, selections)) {
 			let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
 			if (indentCommand) {
 				return new EditOperationResult([indentCommand], {
@@ -685,7 +714,7 @@ export class TypeOperations {
 
 		// Electric characters make sense only when dealing with a single cursor,
 		// as multiple cursors typing brackets for example would interfer with bracket matching
-		if (selections.length === 1) {
+		if (this._isTypeInterceptorElectricChar(config, model, selections)) {
 			const r = this._typeInterceptorElectricChar(config, model, selections[0], ch);
 			if (r) {
 				return r;

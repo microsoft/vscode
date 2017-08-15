@@ -39,6 +39,7 @@ export class ColorPickerHeader extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorFormat()));
+		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => this.model.color = this.model.originalColor));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangeFormatter(this.onDidChangeFormatter, this));
 		this.onDidChangeColor(this.model.color);

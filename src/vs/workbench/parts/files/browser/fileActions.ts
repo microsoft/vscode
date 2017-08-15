@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileChangeType } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -51,6 +51,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextModelService, ITextModelContentProvider } from "vs/editor/common/services/resolverService";
 import { IModelService } from "vs/editor/common/services/modelService";
 import { IModeService } from "vs/editor/common/services/modeService";
+import { IMode } from "vs/editor/common/modes";
 
 export interface IEditableData {
 	action: IAction;
@@ -2007,13 +2008,14 @@ export class CompareWithSavedAction extends Action implements ITextModelContentP
 	private static SCHEME = 'showModifications';
 
 	private resource: URI;
+	private fileWatcher: IDisposable;
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IFileService fileService: IFileService,
+		@IFileService private fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -2038,7 +2040,7 @@ export class CompareWithSavedAction extends Action implements ITextModelContentP
 			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
-		if (resource && resource.scheme !== 'untitled') {
+		if (resource && resource.scheme === 'file') {
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
@@ -2048,19 +2050,61 @@ export class CompareWithSavedAction extends Action implements ITextModelContentP
 		return TPromise.as(true);
 	}
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<IModel> {
 
 		// Make sure our file from disk is resolved up to date
-		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
-			} else {
-				this.modelService.updateModel(codeEditorModel, content.value);
+		return this.resolveEditorModel(resource).then(codeEditorModel => {
+
+			// Make sure to keep contents on disk up to date when it changes
+			if (!this.fileWatcher) {
+				this.fileWatcher = this.fileService.onFileChanges(changes => {
+					if (changes.contains(resource, FileChangeType.UPDATED)) {
+						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, errors.onUnexpectedError); // update model when resource changes
+					}
+				});
+
+				const disposeListener = codeEditorModel.onWillDispose(() => {
+					disposeListener.dispose();
+					this.fileWatcher.dispose();
+					this.fileWatcher = void 0;
+				});
 			}
 
 			return codeEditorModel;
 		});
+	}
+
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
+
+		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
+			let codeEditorModel = this.modelService.getModel(resource);
+			if (codeEditorModel) {
+				this.modelService.updateModel(codeEditorModel, content.value);
+			} else if (createAsNeeded) {
+				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
+
+				let mode: TPromise<IMode>;
+				if (fileOnDiskModel) {
+					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+				} else {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+				}
+
+				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		if (this.fileWatcher) {
+			this.fileWatcher.dispose();
+			this.fileWatcher = void 0;
+		}
 	}
 }
 

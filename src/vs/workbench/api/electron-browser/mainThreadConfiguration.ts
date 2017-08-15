@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -14,8 +14,8 @@ import { MainThreadConfigurationShape, ExtHostContext } from '../node/extHost.pr
 
 export class MainThreadConfiguration extends MainThreadConfigurationShape {
 
-	private _configurationEditingService: IConfigurationEditingService;
-	private _toDispose: IDisposable;
+	private readonly _configurationEditingService: IConfigurationEditingService;
+	private readonly _configurationListener: IDisposable;
 
 	constructor(
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
@@ -26,13 +26,13 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		this._configurationEditingService = configurationEditingService;
 		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
 
-		this._toDispose = configurationService.onDidUpdateConfiguration(() => {
+		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
 			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
 		});
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._configurationListener.dispose();
 	}
 
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
