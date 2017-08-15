@@ -62,7 +62,7 @@ export interface IUntitledEditorService {
 	getDirty(resources?: URI[]): URI[];
 
 	/**
-	 * Returns true iff the provided resource is dirty.
+	 * Returns true if the provided resource is dirty.
 	 */
 	isDirty(resource: URI): boolean;
 

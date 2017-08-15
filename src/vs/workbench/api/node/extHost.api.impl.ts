@@ -604,7 +604,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get exports(): T {
-		return <T>this._extensionService.get(this.id);
+		return <T>this._extensionService.getExtensionExports(this.id);
 	}
 
 	activate(): Thenable<T> {

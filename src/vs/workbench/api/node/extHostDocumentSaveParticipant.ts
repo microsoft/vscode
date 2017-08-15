@@ -149,7 +149,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 				}
 			}
 
-			// apply edits iff any and iff document
+			// apply edits if any and if document
 			// didn't change somehow in the meantime
 			if (edits.length === 0) {
 				return undefined;

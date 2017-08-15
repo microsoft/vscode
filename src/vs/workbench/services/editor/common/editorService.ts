@@ -36,9 +36,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	getVisibleEditors(): IEditor[];
 
 	/**
-	 * Returns iff the provided input is currently visible.
+	 * Returns if the provided input is currently visible.
 	 *
-	 * @param includeDiff iff set to true, will also consider diff editors to find out if the provided
+	 * @param includeDiff if set to true, will also consider diff editors to find out if the provided
 	 * input is opened either on the left or right hand side of the diff editor.
 	 */
 	isVisible(input: IEditorInput, includeDiff: boolean): boolean;

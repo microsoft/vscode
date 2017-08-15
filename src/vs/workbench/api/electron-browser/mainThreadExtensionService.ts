@@ -7,27 +7,25 @@
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainProcessExtensionServiceShape } from '../node/extHost.protocol';
-import { MainProcessExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
 
 export class MainProcessExtensionServiceAPI extends MainProcessExtensionServiceShape {
 
-	private readonly _extensionService: MainProcessExtensionService;
+	private readonly _extensionService: ExtensionService;
 
 	constructor( @IExtensionService extensionService: IExtensionService) {
 		super();
 
-		if (extensionService instanceof MainProcessExtensionService) {
+		if (extensionService instanceof ExtensionService) {
 			this._extensionService = extensionService;
 		}
 	}
 
 	$localShowMessage(severity: Severity, msg: string): void {
-		this._extensionService._localShowMessage(severity, msg);
+		this._extensionService._logOrShowMessage(severity, msg);
 	}
 	$onExtensionActivated(extensionId: string): void {
-		this._extensionService._onExtensionActivated(extensionId);
 	}
 	$onExtensionActivationFailed(extensionId: string): void {
-		this._extensionService._onExtensionActivationFailed(extensionId);
 	}
 }

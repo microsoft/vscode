@@ -49,7 +49,7 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { MainProcessExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -118,7 +118,7 @@ export class WorkbenchShell {
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: MainProcessExtensionService;
+	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
@@ -321,7 +321,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 		disposables.push(extensionEnablementService);
 
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
+		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		serviceCollection.set(IThreadService, this.extensionService);
 

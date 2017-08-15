@@ -34,8 +34,10 @@ function assertUnchangedTokens(testFixurePath: string, done) {
 								throw e;
 							}
 						}
+						// different but no tokenization ot color change: no failure
+					} else {
+						throw e;
 					}
-					// different but no tokenization ot color change: no failure
 				}
 			} else {
 				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));

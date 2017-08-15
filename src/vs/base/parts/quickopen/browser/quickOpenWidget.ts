@@ -398,9 +398,10 @@ export class QuickOpenWidget implements IModelProvider {
 			return false; // no modifiers allowed
 		}
 
-		// validate the cursor is at the end of the input, and if not prevent
-		// opening in the background such as the selection can be changed
-		return this.inputBox.inputElement.selectionEnd === this.inputBox.value.length;
+		// validate the cursor is at the end of the input and there is no selection,
+		// and if not prevent opening in the background such as the selection can be changed
+		const element = this.inputBox.inputElement;
+		return element.selectionEnd === this.inputBox.value.length && element.selectionStart === element.selectionEnd;
 	}
 
 	private onType(): void {

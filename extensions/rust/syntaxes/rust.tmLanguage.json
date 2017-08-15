@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/d4a0a7f2d6affc79806aef0be53b90fa690a7e27",
+	"version": "https://github.com/zargony/atom-language-rust/commit/452fc72b48d293dc1440a10054babc77a16c24bc",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"fileTypes": [
@@ -566,7 +566,7 @@
 		},
 		{
 			"comment": "Type declaration",
-			"begin": "\\b(enum|struct|trait)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+			"begin": "\\b(enum|struct|trait|union)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
 			"end": "[\\{\\(;]",
 			"beginCaptures": {
 				"1": {

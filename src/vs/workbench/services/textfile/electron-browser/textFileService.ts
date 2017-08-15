@@ -29,7 +29,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { mnemonicButtonLabel } from "vs/base/common/labels";
+import { mnemonicLabel } from "vs/base/common/labels";
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -105,8 +105,8 @@ export class TextFileService extends AbstractTextFileService {
 		// Mac: Save | Cancel | Don't Save
 		// Linux: Don't Save | Cancel | Save
 
-		const save = { label: resourcesToConfirm.length > 1 ? mnemonicButtonLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const save = { label: resourcesToConfirm.length > 1 ? mnemonicLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : mnemonicLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
 		const buttons: { label: string; result: ConfirmResult; }[] = [];
