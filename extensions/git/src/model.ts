@@ -543,9 +543,16 @@ export class Model implements Disposable {
 		});
 	}
 
-	@throttle
-	async stash(pop: boolean = false, index?: string): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.stash(pop, index));
+	async getStashes(): Promise<Stash[]> {
+		return await this.repository.getStashes();
+	}
+
+	async createStash(message?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	}
+
+	async popStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}
 
 	async getCommitTemplate(): Promise<string> {
@@ -572,10 +579,6 @@ export class Model implements Disposable {
 			edit.insert(document.uri, lastLine.range.end, text);
 			workspace.applyEdit(edit);
 		});
-	}
-
-	async getStashes(): Promise<Stash[]> {
-		return await this.getStashes();
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

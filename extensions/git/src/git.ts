@@ -34,7 +34,7 @@ export interface Remote {
 }
 
 export interface Stash {
-	id : string;
+	index: number;
 	description: string;
 }
 
@@ -842,15 +842,12 @@ export class Repository {
 		}
 	}
 
-	async stash(pop: boolean = false, index?: string): Promise<void> {
+	async createStash(message?: string): Promise<void> {
 		try {
-			const args = ['stash'];
+			const args = ['stash', 'save'];
 
-			if (pop) {
-				args.push('pop');
-				if (index) {
-					args.push(`stash@{${index}}`);
-				}
+			if (message) {
+				args.push('--', message);
 			}
 
 			await this.run(args);
@@ -858,12 +855,27 @@ export class Repository {
 			if (/No local changes to save/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
 			}
-			else if (/No stash found/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoStashFound;
+
+			throw err;
+		}
+	}
+
+	async popStash(index?: number): Promise<void> {
+		try {
+			const args = ['stash', 'pop'];
+
+			if (typeof index === 'string') {
+				args.push(`stash@{${index}}`);
 			}
-			else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
+
+			await this.run(args);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
 			}
+
 			throw err;
 		}
 	}
@@ -957,15 +969,15 @@ export class Repository {
 
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.run(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)/;
+		const regex = /^stash@{(\d+)}:(.+)$/;
 		const rawStashes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
 			.map(line => regex.exec(line))
 			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ id: groups[1], description: groups[2] }));
-		return uniqBy(rawStashes, remote => remote.id);
-	}
+			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
 
+		return rawStashes;
+	}
 
 	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);

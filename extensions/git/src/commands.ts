@@ -1093,45 +1093,55 @@ export class CommandCenter {
 	}
 
 	@command('git.stash')
-	async stash() : Promise<void> {
-		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
-		if (noUnstagedChanges){
+	async stash(): Promise<void> {
+		if (this.model.workingTreeGroup.resources.length === 0) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
 		}
-		return await this.model.stash();
+
+		const message = await window.showInputBox({
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
+
+		if (typeof message === 'undefined') {
+			return;
+		}
+
+		await this.model.createStash(message);
 	}
 
 	@command('git.stashPop')
 	async stashPop(): Promise<void> {
-		let stashes = await this.model.getStashes();
-		const noStashes = stashes.length === 0;
-		if (noStashes){
+		const stashes = await this.model.getStashes();
+
+		if (stashes.length === 0) {
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
 			return;
 		}
 
-		const picks = stashes.map(r => { return { label: `#${r.id}:  ${r.description}`, description: "", derails: "", id: r.id }; });
-		const placeHolder = localize('pick stash', "Pick a stash");
+		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
+		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
-		return await this.model.stash(true, choice.id);
+
+		await this.model.popStash(choice.id);
 	}
 
 	@command('git.stashPopLatest')
 	async stashPopLatest(): Promise<void> {
-		let stashes = await this.model.getStashes();
-		const noStashes = stashes.length === 0;
-		if (noStashes){
+		const stashes = await this.model.getStashes();
+
+		if (stashes.length === 0) {
 			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
 			return;
 		}
-		return await this.model.stash(true);
-	}
 
+		await this.model.popStash();
+	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
 		const result = (...args) => {
