@@ -38,24 +38,24 @@ export class SearchService implements ISearchService {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
 		this.registerSearchResultProvider(this.diskSearch);
 
-		this.registerSearchResultProvider({
-			search(query): PPromise<ISearchComplete, ISearchProgressItem> {
-				return new PPromise(resolve => {
-					resolve({
-						limitHit: false,
-						stats: undefined,
-						results: [{
-							resource: uri.parse('foo://auth/path/name.abc'),
-							lineMatches: [{
-								lineNumber: 1,
-								preview: 'foo',
-								offsetAndLengths: [[0, 3]]
-							}]
-						}]
-					});
-				});
-			}
-		});
+		// this.registerSearchResultProvider({
+		// 	search(query): PPromise<ISearchComplete, ISearchProgressItem> {
+		// 		return new PPromise(resolve => {
+		// 			resolve({
+		// 				limitHit: false,
+		// 				stats: undefined,
+		// 				results: [{
+		// 					resource: uri.parse('foo://auth/path/name.abc'),
+		// 					lineMatches: [{
+		// 						lineNumber: 1,
+		// 						preview: 'foo',
+		// 						offsetAndLengths: [[0, 3]]
+		// 					}]
+		// 				}]
+		// 			});
+		// 		});
+		// 	}
+		// });
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
