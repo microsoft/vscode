@@ -145,6 +145,21 @@ export class CommandCenter {
 		});
 	}
 
+	private groupByModel(resources: Resource[]): [Model | undefined, Resource[]][] {
+		return resources.reduce((result, resource) => {
+			const model = this.modelRegistry.getModel(resource.resourceUri);
+			const pair = result.filter(p => p[0] === model)[0];
+
+			if (pair) {
+				pair[1].push(resource);
+			} else {
+				result.push([model, [resource]]);
+			}
+
+			return result;
+		}, [] as [Model | undefined, Resource[]][]);
+	}
+
 	@command('git.refresh', { model: true })
 	async refresh(model: Model): Promise<void> {
 		await model.status();
@@ -321,7 +336,7 @@ export class CommandCenter {
 
 			if (!(resource instanceof Resource)) {
 				// can happen when called from a keybinding
-				resource = this.getSCMResource(model);
+				resource = this.getSCMResource();
 			}
 
 			if (resource) {
@@ -363,9 +378,9 @@ export class CommandCenter {
 		if (arg instanceof Resource) {
 			resource = arg;
 		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(model, arg);
+			resource = this.getSCMResource(arg);
 		} else {
-			resource = this.getSCMResource(model);
+			resource = this.getSCMResource();
 		}
 
 		if (!resource) {
@@ -387,7 +402,7 @@ export class CommandCenter {
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
-			const resource = this.getSCMResource(model, arg);
+			const resource = this.getSCMResource(arg);
 			if (resource !== undefined) {
 				resources = [resource];
 			}
@@ -397,7 +412,7 @@ export class CommandCenter {
 			if (arg instanceof Resource) {
 				resource = arg;
 			} else {
-				resource = this.getSCMResource(model);
+				resource = this.getSCMResource();
 			}
 
 			if (resource) {
@@ -415,10 +430,10 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.stage', { model: true })
-	async stage(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.stage')
+	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource(model);
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -434,7 +449,13 @@ export class CommandCenter {
 			return;
 		}
 
-		return await model.add(...resources);
+		await Promise.all(this.groupByModel(resources).map(async ([model, resources]) => {
+			if (!model) {
+				return;
+			}
+
+			await model.add(...resources);
+		}));
 	}
 
 	@command('git.stageAll', { model: true })
@@ -523,7 +544,7 @@ export class CommandCenter {
 	@command('git.unstage', { model: true })
 	async unstage(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource(model);
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -589,7 +610,7 @@ export class CommandCenter {
 	@command('git.clean', { model: true })
 	async clean(model: Model, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
-			const resource = this.getSCMResource(model);
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -1164,7 +1185,8 @@ export class CommandCenter {
 		return result;
 	}
 
-	private getSCMResource(model: Model, uri?: Uri): Resource | undefined {
+	// TODO@Joao: possibly remove? do we really need to return resources?
+	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
@@ -1178,6 +1200,11 @@ export class CommandCenter {
 
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
+			const model = this.modelRegistry.getModel(uri);
+
+			if (!model) {
+				return undefined;
+			}
 
 			return model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];

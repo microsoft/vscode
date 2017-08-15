@@ -35,7 +35,7 @@ export class ModelRegistry {
 		return pick && pick.model;
 	}
 
-	async resolve(resource: Uri): Promise<Model | undefined> {
+	getModel(resource: Uri): Model | undefined {
 		const resourcePath = resource.fsPath;
 
 		for (let [repositoryRoot, model] of this.models) {
@@ -45,6 +45,16 @@ export class ModelRegistry {
 			if (!/^\./.test(relativePath)) {
 				return model;
 			}
+		}
+
+		return undefined;
+	}
+
+	async resolve(resource: Uri): Promise<Model | undefined> {
+		const model = this.getModel(resource);
+
+		if (model) {
+			return model;
 		}
 
 		const picks = Array.from(this.models.entries(), ([uri, model]) => new ModelPick(uri, model));
