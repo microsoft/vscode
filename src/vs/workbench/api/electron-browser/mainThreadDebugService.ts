@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, IConfig } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
@@ -42,6 +42,31 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
+	}
+
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, handle: number): TPromise<void> {
+
+		const provider = <IDebugConfigurationProvider>{
+			type: debugType
+		};
+		if (hasProvide) {
+			provider.provideDebugConfigurations = (folder: URI | undefined) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder);
+			};
+		}
+		if (hasResolve) {
+			provider.resolveDebugConfiguration = (folder: URI | undefined, debugConfiguration: any) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
+			};
+		}
+		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
+
+		return TPromise.as<void>(undefined);
+	}
+
+	public $unregisterDebugConfigurationProvider(handle: number): TPromise<any> {
+		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
+		return TPromise.as<void>(undefined);
 	}
 
 	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {

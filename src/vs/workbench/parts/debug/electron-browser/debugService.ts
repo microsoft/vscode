@@ -661,6 +661,8 @@ export class DebugService implements debug.IDebugService {
 					if (noDebug && config) {
 						config.noDebug = true;
 					}
+
+					// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
 					if (commandAndType && commandAndType.command) {
 						const defaultConfig = noDebug ? { noDebug: true } : {};
 						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
@@ -676,9 +678,14 @@ export class DebugService implements debug.IDebugService {
 							return undefined;
 						});
 					}
+					// end of deprecation
 
 					if (config) {
-						return this.createProcess(root, config);
+						return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, config).then(config => {
+
+							// TODO@AW: handle the 'initialConfiguration' and 'saveConfiguration' cases from above!
+							return this.createProcess(root, config);
+						});
 					}
 					if (launch && commandAndType) {
 						return launch.openConfigFile(false, commandAndType.type);

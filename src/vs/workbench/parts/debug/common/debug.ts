@@ -373,6 +373,12 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
+export interface IDebugConfigurationProvider {
+	type: string;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<any[]>;
+}
+
 export interface IConfigurationManager {
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
@@ -403,6 +409,10 @@ export interface IConfigurationManager {
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
 	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
+
+	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
+	unregisterDebugConfigurationProvider(handle): void;
+	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {
