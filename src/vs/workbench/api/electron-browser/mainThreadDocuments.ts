@@ -7,14 +7,13 @@
 import URI from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IExtHostContext } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -81,7 +80,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
@@ -96,7 +95,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
 
-		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];

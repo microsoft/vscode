@@ -78,6 +78,8 @@ export interface IExtHostContext {
 	 * Returns a proxy to an object addressable/named in the extension host process.
 	 */
 	get<T>(identifier: ProxyIdentifier<T>): T;
+
+	set<T>(identifier: ProxyIdentifier<T>, instance: T): void;
 }
 
 export interface IMainContext {

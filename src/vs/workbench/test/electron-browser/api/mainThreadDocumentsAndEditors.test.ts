@@ -16,6 +16,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import Event from 'vs/base/common/event';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -33,17 +35,37 @@ suite('MainThreadDocumentsAndEditors', () => {
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		modelService = new ModelServiceImpl(null, configService);
 		codeEditorService = new MockCodeEditorService();
-		textFileService = <ITextFileService>{ isDirty() { return false; } };
+		textFileService = new class extends mock<ITextFileService>() {
+			isDirty() { return false; };
+			models = <any>{
+				onModelSaved: Event.None,
+				onModelReverted: Event.None,
+				onModelDirty: Event.None,
+			};
+		};
 		workbenchEditorService = <IWorkbenchEditorService>{
 			getVisibleEditors() { return []; },
 			getActiveEditor() { return undefined; }
 		};
+		const editorGroupService = new class extends mock<IEditorGroupService>() {
+			onEditorsChanged = Event.None;
+			onEditorsMoved = Event.None;
+		};
 
 		documentAndEditor = new MainThreadDocumentsAndEditors(
-			modelService, textFileService, workbenchEditorService,
 			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
-			}), codeEditorService
+			}),
+			modelService,
+			textFileService,
+			workbenchEditorService,
+			codeEditorService,
+			null,
+			null,
+			null,
+			null,
+			editorGroupService,
+			null
 		);
 	});
 

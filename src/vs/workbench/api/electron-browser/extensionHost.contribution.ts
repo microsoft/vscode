@@ -8,16 +8,14 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, InstanceCollection } from '../node/extHost.protocol';
+import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { MainContext, InstanceCollection, IExtHostContext } from '../node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 // --- addressable
 import { MainThreadDiagnostics } from './mainThreadDiagnostics';
-import { MainThreadDocuments } from './mainThreadDocuments';
 import { MainThreadDocumentContentProviders } from './mainThreadDocumentContentProviders';
-import { MainThreadEditors } from './mainThreadEditors';
 import { MainThreadErrors } from './mainThreadErrors';
 import { MainThreadTreeViews } from './mainThreadTreeViews';
 import { MainThreadLanguages } from './mainThreadLanguages';
@@ -34,7 +32,6 @@ import { MainThreadTask } from './mainThreadTask';
 import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
-import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/platform/theme/common/colorExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
@@ -49,10 +46,10 @@ import './mainThreadConfiguration';
 import './mainThreadCredentials';
 import './mainThreadDebugService';
 // import './mainThreadDiagnostics';
-// import './mainThreadDocuments';
-// import './mainThreadDocumentsAndEditors';
+import './mainThreadDocuments';
+import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
-// import './mainThreadEditors';
+import './mainThreadEditors';
 // import './mainThreadErrors';
 // import './mainThreadExtensionService';
 import './mainThreadFileSystemEventService';
@@ -92,14 +89,25 @@ export class ExtHostContribution implements IWorkbenchContribution {
 			return this.instantiationService.createInstance(ctor);
 		};
 
-		const documentsAndEditors = this.instantiationService.createInstance(MainThreadDocumentsAndEditors);
+		let col = new InstanceCollection();
+
+		const extHostContext = new class implements IExtHostContext {
+
+			constructor(private readonly _threadService: IThreadService) {
+			}
+
+			get<T>(identifier: ProxyIdentifier<T>): T {
+				return this._threadService.get<T>(identifier);
+			}
+
+			set<T>(identifier: ProxyIdentifier<T>, instance: T): void {
+				col.define(identifier).set(instance);
+			}
+		}(this.threadService);
 
 		// Addressable instances
-		const col = new InstanceCollection();
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
 		col.define(MainContext.MainThreadDocumentContentProviders).set(create(MainThreadDocumentContentProviders));
-		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
-		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
 		col.define(MainContext.MainThreadTreeViews).set(create(MainThreadTreeViews));
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
@@ -119,7 +127,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			const obj = this.instantiationService.createInstance(ctor, this.threadService);
+			const obj = this.instantiationService.createInstance(ctor, extHostContext);
 			col.define(id).set(obj);
 		}
 
@@ -127,10 +135,12 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (let i = 0, len = customers.length; i < len; i++) {
 			const ctor = customers[i];
-			this.instantiationService.createInstance(ctor, this.threadService);
+			this.instantiationService.createInstance(ctor, extHostContext);
 		}
 
 		col.finish(true, this.threadService);
+
+		col = null;
 
 		// Other interested parties
 		create(JSONValidationExtensionPoint); // TODO@rehost: can survive an ext host restart

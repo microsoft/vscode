@@ -15,7 +15,6 @@ export function OneGetThreadService(thing: any): IThreadService {
 			return thing;
 		},
 		set<T>(): void {
-			throw new Error();
 		}
 	};
 }
