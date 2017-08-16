@@ -11,7 +11,7 @@ import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-@extHostNamedCustomer<MainThreadQuickOpenShape>(MainContext.MainThreadQuickOpen)
+@extHostNamedCustomer(MainContext.MainThreadQuickOpen)
 export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;

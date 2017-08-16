@@ -226,7 +226,7 @@ export interface MainThreadTreeViewsShape {
 }
 
 export interface MainThreadErrorsShape {
-	onUnexpectedExtHostError(err: any): void;
+	$onUnexpectedExtHostError(err: any): void;
 }
 
 export interface MainThreadLanguageFeaturesShape {
@@ -326,7 +326,7 @@ export interface MainThreadTaskShape {
 	$unregisterTaskProvider(handle: number): TPromise<any>;
 }
 
-export interface MainProcessExtensionServiceShape {
+export interface MainThreadExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void;
 	$onExtensionActivated(extensionId: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
@@ -579,7 +579,7 @@ export const MainContext = {
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
-	MainProcessExtensionService: createMainId<MainProcessExtensionServiceShape>('MainProcessExtensionService'),
+	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),

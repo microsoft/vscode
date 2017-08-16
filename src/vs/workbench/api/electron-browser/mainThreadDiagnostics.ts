@@ -7,14 +7,19 @@
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadDiagnosticsShape } from '../node/extHost.protocol';
+import { MainThreadDiagnosticsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
+@extHostNamedCustomer(MainContext.MainThreadDiagnostics)
 export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 
 	private readonly _activeOwners = new Set<string>();
 	private readonly _markerService: IMarkerService;
 
-	constructor( @IMarkerService markerService: IMarkerService) {
+	constructor(
+		extHostContext: IExtHostContext,
+		@IMarkerService markerService: IMarkerService
+	) {
 		this._markerService = markerService;
 	}
 

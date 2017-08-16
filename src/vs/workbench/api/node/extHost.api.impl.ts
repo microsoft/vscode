@@ -8,7 +8,6 @@ import { Emitter } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -52,6 +51,7 @@ import { realpath } from 'fs';
 import { MainContext, ExtHostContext, InstanceCollection, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { ExtHostThreadService } from "vs/workbench/services/thread/node/extHostThreadService";
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -72,7 +72,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
  */
 export function createApiFactory(
 	initData: IInitData,
-	threadService: IThreadService,
+	threadService: ExtHostThreadService,
 	extensionService: ExtHostExtensionService,
 	telemetryService: ITelemetryService
 ): IExtensionApiFactory {

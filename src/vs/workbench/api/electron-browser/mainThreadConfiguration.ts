@@ -12,7 +12,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-@extHostNamedCustomer<MainThreadConfigurationShape>(MainContext.MainThreadConfiguration)
+@extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 	private readonly _configurationEditingService: IConfigurationEditingService;

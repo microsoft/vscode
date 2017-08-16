@@ -23,7 +23,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-@extHostNamedCustomer<MainThreadLanguageFeaturesShape>(MainContext.MainThreadLanguageFeatures)
+@extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private _proxy: ExtHostLanguageFeaturesShape;

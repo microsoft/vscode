@@ -51,7 +51,7 @@ export class ExtensionHostMain {
 
 		// Error forwarding
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
+		errors.setUnexpectedErrorHandler(err => mainThreadErrors.$onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
 		if (!initData.environment.isExtensionDevelopmentDebug) {

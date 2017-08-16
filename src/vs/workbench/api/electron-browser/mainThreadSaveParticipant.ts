@@ -225,9 +225,9 @@ export class SaveParticipant implements ISaveParticipant {
 	private _saveParticipants: INamedSaveParticpant[];
 
 	constructor(
+		@IThreadService threadService: IThreadService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 
 		this._saveParticipants = [

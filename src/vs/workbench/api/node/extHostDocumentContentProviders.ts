@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
@@ -14,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TextSource } from 'vs/editor/common/model/textSource';
-import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape } from './extHost.protocol';
+import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
@@ -25,8 +24,8 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 	private readonly _proxy: MainThreadDocumentContentProvidersShape;
 	private readonly _documentsAndEditors: ExtHostDocumentsAndEditors;
 
-	constructor(threadService: IThreadService, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = threadService.get(MainContext.MainThreadDocumentContentProviders);
+	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
+		this._proxy = mainContext.get(MainContext.MainThreadDocumentContentProviders);
 		this._documentsAndEditors = documentsAndEditors;
 	}
 

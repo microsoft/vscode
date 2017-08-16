@@ -7,30 +7,37 @@
 import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape } from '../node/extHost.protocol';
+import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
+@extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
 
 	private _resourceContentProvider: { [handle: number]: IDisposable } = Object.create(null);
 	private readonly _proxy: ExtHostDocumentContentProvidersShape;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
-		@IThreadService threadService: IThreadService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentContentProviders);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentContentProviders);
+	}
+
+	public dispose(): void {
+		for (let handle in this._resourceContentProvider) {
+			this._resourceContentProvider[handle].dispose();
+		}
 	}
 
 	$registerTextContentProvider(handle: number, scheme: string): void {

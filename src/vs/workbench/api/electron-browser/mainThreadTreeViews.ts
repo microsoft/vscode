@@ -6,21 +6,27 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
+@extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews implements MainThreadTreeViewsShape {
 
 	private _proxy: ExtHostTreeViewsShape;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IMessageService private messageService: IMessageService
 	) {
-		this._proxy = threadService.get(ExtHostContext.ExtHostTreeViews);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostTreeViews);
+	}
+
+	public dispose(): void {
+		// TODO@Sandeep: please implement this
+		// will be called when the extension host process is gone.
 	}
 
 	$registerView(treeViewId: string): void {

@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-@extHostNamedCustomer<MainThreadDebugServiceShape>(MainContext.MainThreadDebugService)
+@extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	private _proxy: ExtHostDebugServiceShape;
