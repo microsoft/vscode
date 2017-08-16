@@ -27,6 +27,7 @@ export function testMultiRoot() {
 
 		it('shows results from all folders', async function () {
 			await common.openQuickOpen();
+			await app.wait();
 			await common.type('*.*');
 			await app.wait();
 			const elCount = await common.getQuickOpenElements();
