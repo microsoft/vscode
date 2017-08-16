@@ -53,7 +53,6 @@ export class SpectronApplication {
 		this.spectron = new Application({
 			path: electronPath,
 			args: args,
-			// args: ['/Users/bpasero/Development/monaco', ...args],
 			chromeDriverArgs: chromeDriverArgs,
 			startTimeout: 10000
 		});
