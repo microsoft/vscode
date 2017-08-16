@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		private readonly host: ITypescriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
-		private readonly plugins: TypeScriptServerPlugin[]
+		public readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();

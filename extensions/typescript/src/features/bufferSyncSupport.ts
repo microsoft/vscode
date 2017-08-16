@@ -53,6 +53,13 @@ class SyncedBuffer {
 			}
 		}
 
+		if (this.client.apiVersion.has240Features()) {
+			if (this.client.plugins.length) {
+				(args as any).plugins = this.client.plugins.map(x => x.name);
+			}
+		}
+
+
 		this.client.execute('open', args, false);
 	}
 
