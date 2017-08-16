@@ -594,8 +594,8 @@ export class CommandCenter {
 		await repository.stage(modifiedUri, result);
 	}
 
-	@command('git.clean', { repository: true })
-	async clean(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.clean')
+	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -606,26 +606,26 @@ export class CommandCenter {
 			resourceStates = [resource];
 		}
 
-		const resources = resourceStates
+		const scmResources = resourceStates
 			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.WorkingTree) as Resource[];
 
-		if (!resources.length) {
+		if (!scmResources.length) {
 			return;
 		}
 
-		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		const untrackedCount = scmResources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
 		let message: string;
 		let yes = localize('discard', "Discard Changes");
 
-		if (resources.length === 1) {
+		if (scmResources.length === 1) {
 			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
-				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath));
+				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
 			}
 		} else {
-			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
 
 			if (untrackedCount > 0) {
 				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
@@ -638,7 +638,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.clean(resources.map(r => r.resourceUri));
+		const resources = scmResources.map(r => r.resourceUri);
+		await this.model.clean(resources);
 	}
 
 	@command('git.cleanAll', { repository: true })
