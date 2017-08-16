@@ -60,34 +60,35 @@ export class Model {
 		return pick && pick.repository;
 	}
 
-	getRepositoryFromSourceControl(sourceControl: SourceControl): Repository | undefined {
-		for (let [, repository] of this.repositories) {
-			if (sourceControl === repository.sourceControl) {
-				return repository;
-			}
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined {
+		if (!hint) {
+			return undefined;
 		}
 
-		return undefined;
-	}
+		if (hint instanceof Uri) {
+			const resourcePath = hint.fsPath;
 
-	getRepositoryFromResourceGroup(resourceGroup: SourceControlResourceGroup): Repository | undefined {
-		for (let [, repository] of this.repositories) {
-			if (resourceGroup === repository.mergeGroup || resourceGroup === repository.indexGroup || resourceGroup === repository.workingTreeGroup) {
-				return repository;
+			for (let [root, repository] of this.repositories) {
+				const repositoryRootPath = root.fsPath;
+				const relativePath = path.relative(repositoryRootPath, resourcePath);
+
+				if (!/^\./.test(relativePath)) {
+					return repository;
+				}
 			}
+
+			return undefined;
 		}
 
-		return undefined;
-	}
+		for (let [, repository] of this.repositories) {
+			if (hint === repository.sourceControl) {
+				return repository;
+			}
 
-	getRepository(resource: Uri): Repository | undefined {
-		const resourcePath = resource.fsPath;
-
-		for (let [root, repository] of this.repositories) {
-			const repositoryRootPath = root.fsPath;
-			const relativePath = path.relative(repositoryRootPath, resourcePath);
-
-			if (!/^\./.test(relativePath)) {
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
 				return repository;
 			}
 		}

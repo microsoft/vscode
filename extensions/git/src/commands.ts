@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControl, SourceControlResourceGroup, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -145,22 +145,8 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.refresh')
-	async refresh(sourceControl?: SourceControl): Promise<void> {
-		let repository: Repository | undefined = undefined;
-
-		if (sourceControl) {
-			repository = this.model.getRepositoryFromSourceControl(sourceControl);
-		}
-
-		if (!repository) {
-			repository = await this.model.pickRepository();
-		}
-
-		if (!repository) {
-			return;
-		}
-
+	@command('git.refresh', { repository: true })
+	async refresh(repository: Repository): Promise<void> {
 		await repository.status();
 	}
 
@@ -458,22 +444,8 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
 	}
 
-	@command('git.stageAll')
-	async stageAll(group?: SourceControlResourceGroup): Promise<void> {
-		let repository: Repository | undefined = undefined;
-
-		if (group) {
-			repository = this.model.getRepositoryFromResourceGroup(group);
-		}
-
-		if (!repository) {
-			repository = await this.model.pickRepository();
-		}
-
-		if (!repository) {
-			return;
-		}
-
+	@command('git.stageAll', { repository: true })
+	async stageAll(repository: Repository): Promise<void> {
 		await repository.add([]);
 	}
 
@@ -576,22 +548,8 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.revert(resources));
 	}
 
-	@command('git.unstageAll')
-	async unstageAll(group?: SourceControlResourceGroup): Promise<void> {
-		let repository: Repository | undefined = undefined;
-
-		if (group) {
-			repository = this.model.getRepositoryFromResourceGroup(group);
-		}
-
-		if (!repository) {
-			repository = await this.model.pickRepository();
-		}
-
-		if (!repository) {
-			return;
-		}
-
+	@command('git.unstageAll', { repository: true })
+	async unstageAll(repository: Repository): Promise<void> {
 		await repository.revert([]);
 	}
 
@@ -681,22 +639,8 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
 	}
 
-	@command('git.cleanAll')
-	async cleanAll(group?: SourceControlResourceGroup): Promise<void> {
-		let repository: Repository | undefined = undefined;
-
-		if (group) {
-			repository = this.model.getRepositoryFromResourceGroup(group);
-		}
-
-		if (!repository) {
-			repository = await this.model.pickRepository();
-		}
-
-		if (!repository) {
-			return;
-		}
-
+	@command('git.cleanAll', { repository: true })
+	async cleanAll(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		let scope = config.get<string>('discardAllScope') || 'prompt';
 		let resources = repository.workingTreeGroup.resourceStates;
@@ -1263,21 +1207,16 @@ export class CommandCenter {
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args) => {
-			// if (!skipModelCheck && !this.model) {
-			// 	window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
-			// 	return;
-			// }
-
 			let result: Promise<any>;
 
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
-				console.log(args[0]);
-				// if (args[0] instanceof SourceControlResourceGroup) {
-				// }
+				// try to guess the repository based on the first argument
+				const repository = this.model.getRepository(args[0]);
+				const repositoryPromise = repository ? Promise.resolve(repository) : this.model.pickRepository();
 
-				result = this.model.pickRepository().then(repository => {
+				result = repositoryPromise.then(repository => {
 					if (!repository) {
 						return Promise.reject(localize('modelnotfound', "Git model not found"));
 					}
