@@ -12,7 +12,7 @@ import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
 
-export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape {
+export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
 	private _activeEditorId: string;
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
@@ -31,7 +31,6 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 	constructor(
 		private readonly _mainContext: IMainContext
 	) {
-		super();
 	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {

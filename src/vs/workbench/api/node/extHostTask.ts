@@ -395,14 +395,13 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-export class ExtHostTask extends ExtHostTaskShape {
+export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 
 	constructor(mainContext: IMainContext) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadTask);
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();

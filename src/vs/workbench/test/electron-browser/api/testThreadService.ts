@@ -20,6 +20,8 @@ export function OneGetThreadService(thing: any): IThreadService {
 	};
 }
 
+declare var Proxy; // TODO@TypeScript
+
 export abstract class AbstractTestThreadService {
 
 	private _isMain: boolean;
@@ -46,34 +48,20 @@ export abstract class AbstractTestThreadService {
 
 	get<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.methodNames);
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(id: string, methodNames: string[]): T {
-		// Check below how to switch to native proxies
-		let result: any = {};
-		for (let i = 0; i < methodNames.length; i++) {
-			let methodName = methodNames[i];
-			result[methodName] = this.createMethodProxy(id, methodName);
-		}
-		return result;
-
-		// let handler = {
-		// 	get: (target, name) => {
-		// 		return (...myArgs: any[]) => {
-		// 			return this._callOnRemote(id, name, myArgs);
-		// 		};
-		// 	}
-		// };
-		// return new Proxy({}, handler);
-	}
-
-	private createMethodProxy(id: string, methodName: string): (...myArgs: any[]) => TPromise<any> {
-		return (...myArgs: any[]) => {
-			return this._callOnRemote(id, methodName, myArgs);
+	private _createProxy<T>(id: string): T {
+		let handler = {
+			get: (target, name) => {
+				return (...myArgs: any[]) => {
+					return this._callOnRemote(id, name, myArgs);
+				};
+			}
 		};
+		return new Proxy({}, handler);
 	}
 
 	set<T>(identifier: ProxyIdentifier<T>, value: T): void {

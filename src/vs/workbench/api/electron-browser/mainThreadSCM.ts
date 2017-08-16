@@ -205,7 +205,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 }
 
-export class MainThreadSCM extends MainThreadSCMShape {
+export class MainThreadSCM implements MainThreadSCMShape {
 
 	private _proxy: ExtHostSCMShape;
 	private _sourceControls: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
@@ -218,7 +218,6 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		@ISCMService private scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostSCM);
 
 		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this._disposables);

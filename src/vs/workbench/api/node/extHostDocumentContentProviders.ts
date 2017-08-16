@@ -17,7 +17,7 @@ import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 
-export class ExtHostDocumentContentProvider extends ExtHostDocumentContentProvidersShape {
+export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
 	private static _handlePool = 0;
 
@@ -26,7 +26,6 @@ export class ExtHostDocumentContentProvider extends ExtHostDocumentContentProvid
 	private readonly _documentsAndEditors: ExtHostDocumentsAndEditors;
 
 	constructor(threadService: IThreadService, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		super();
 		this._proxy = threadService.get(MainContext.MainThreadDocumentContentProviders);
 		this._documentsAndEditors = documentsAndEditors;
 	}

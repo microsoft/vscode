@@ -13,7 +13,7 @@ import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostCont
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 @extHostNamedCustomer<MainThreadConfigurationShape>(MainContext.MainThreadConfiguration)
-export class MainThreadConfiguration extends MainThreadConfigurationShape {
+export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 	private readonly _configurationEditingService: IConfigurationEditingService;
 	private readonly _configurationListener: IDisposable;
@@ -23,7 +23,6 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super();
 		this._configurationEditingService = configurationEditingService;
 		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 

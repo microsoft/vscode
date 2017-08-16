@@ -64,7 +64,7 @@ export class BoundModelReferenceCollection {
 	}
 }
 
-export class MainThreadDocuments extends MainThreadDocumentsShape {
+export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _modelService: IModelService;
 	private _modeService: IModeService;
@@ -89,7 +89,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 	) {
-		super();
 		this._modelService = modelService;
 		this._modeService = modeService;
 		this._textModelResolverService = textModelResolverService;

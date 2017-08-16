@@ -8,12 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MainThreadStorageShape } from '../node/extHost.protocol';
 
-export class MainThreadStorage extends MainThreadStorageShape {
+export class MainThreadStorage implements MainThreadStorageShape {
 
 	private _storageService: IStorageService;
 
 	constructor( @IStorageService storageService: IStorageService) {
-		super();
 		this._storageService = storageService;
 	}
 

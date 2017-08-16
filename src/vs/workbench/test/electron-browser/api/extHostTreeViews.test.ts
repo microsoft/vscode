@@ -17,11 +17,12 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
 import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { mock } from "vs/workbench/test/electron-browser/api/mock";
 
 suite('ExtHostConfiguration', function () {
 
 
-	class RecordingShape extends MainThreadTreeViewsShape {
+	class RecordingShape extends mock<MainThreadTreeViewsShape>() {
 
 		onRefresh = new Emitter<number[]>();
 

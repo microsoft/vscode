@@ -9,13 +9,12 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadDiagnosticsShape } from '../node/extHost.protocol';
 
-export class MainThreadDiagnostics extends MainThreadDiagnosticsShape {
+export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 
 	private readonly _activeOwners = new Set<string>();
 	private readonly _markerService: IMarkerService;
 
 	constructor( @IMarkerService markerService: IMarkerService) {
-		super();
 		this._markerService = markerService;
 	}
 

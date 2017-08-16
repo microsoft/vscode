@@ -9,13 +9,11 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { MainProcessExtensionServiceShape } from '../node/extHost.protocol';
 import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
 
-export class MainProcessExtensionServiceAPI extends MainProcessExtensionServiceShape {
+export class MainProcessExtensionServiceAPI implements MainProcessExtensionServiceShape {
 
 	private readonly _extensionService: ExtensionService;
 
 	constructor( @IExtensionService extensionService: IExtensionService) {
-		super();
-
 		if (extensionService instanceof ExtensionService) {
 			this._extensionService = extensionService;
 		}

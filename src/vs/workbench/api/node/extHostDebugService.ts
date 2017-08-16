@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 
 
-export class ExtHostDebugService extends ExtHostDebugServiceShape {
+export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _debugServiceProxy: MainThreadDebugServiceShape;
 	private _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
@@ -35,8 +35,6 @@ export class ExtHostDebugService extends ExtHostDebugServiceShape {
 
 
 	constructor(mainContext: IMainContext) {
-		super();
-
 		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();

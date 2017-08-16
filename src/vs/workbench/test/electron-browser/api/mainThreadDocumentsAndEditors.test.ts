@@ -15,6 +15,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { mock } from "vs/workbench/test/electron-browser/api/mock";
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -40,7 +41,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		documentAndEditor = new MainThreadDocumentsAndEditors(
 			modelService, textFileService, workbenchEditorService,
-			OneGetThreadService(new class extends ExtHostDocumentsAndEditorsShape {
+			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
 			}), codeEditorService
 		);

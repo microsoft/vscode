@@ -9,7 +9,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 @extHostNamedCustomer<MainThreadCredentialsShape>(MainContext.MainThreadCredentials)
-export class MainThreadCredentials extends MainThreadCredentialsShape {
+export class MainThreadCredentials implements MainThreadCredentialsShape {
 
 	private _proxy: ExtHostCredentialsShape;
 
@@ -17,7 +17,6 @@ export class MainThreadCredentials extends MainThreadCredentialsShape {
 		extHostContext: IExtHostContext,
 		@ICredentialsService private _credentialsService: ICredentialsService
 	) {
-		super();
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostCredentials);
 	}
 

@@ -9,14 +9,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadStatusBarShape } from '../node/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
-export class MainThreadStatusBar extends MainThreadStatusBarShape {
+export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly _entries: { [id: number]: IDisposable };
 
 	constructor(
 		@IStatusbarService private readonly _statusbarService: IStatusbarService
 	) {
-		super();
 		this._entries = Object.create(null);
 	}
 

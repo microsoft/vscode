@@ -33,7 +33,7 @@ type ConfigurationInspect<T> = {
 	workspaceFolderValue?: T;
 };
 
-export class ExtHostConfiguration extends ExtHostConfigurationShape {
+export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	private readonly _onDidChangeConfiguration = new Emitter<void>();
 	private readonly _proxy: MainThreadConfigurationShape;
@@ -41,7 +41,6 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 	private _configuration: Configuration<any>;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData<any>) {
-		super();
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);

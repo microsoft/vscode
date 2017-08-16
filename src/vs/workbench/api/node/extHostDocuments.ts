@@ -15,7 +15,7 @@ import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 
-export class ExtHostDocuments extends ExtHostDocumentsShape {
+export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	private _onDidAddDocument = new Emitter<vscode.TextDocument>();
 	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
@@ -33,7 +33,6 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 	private _documentLoader = new Map<string, TPromise<ExtHostDocumentData>>();
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 

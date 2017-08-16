@@ -8,14 +8,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MainThreadLanguagesShape } from '../node/extHost.protocol';
 
-export class MainThreadLanguages extends MainThreadLanguagesShape {
+export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	private _modeService: IModeService;
 
 	constructor(
 		@IModeService modeService: IModeService
 	) {
-		super();
 		this._modeService = modeService;
 	}
 

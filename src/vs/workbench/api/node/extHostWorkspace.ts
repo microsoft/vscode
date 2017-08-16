@@ -65,7 +65,7 @@ class Workspace2 extends Workspace {
 	}
 }
 
-export class ExtHostWorkspace extends ExtHostWorkspaceShape {
+export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
@@ -76,7 +76,6 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(mainContext: IMainContext, data: IWorkspaceData) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadWorkspace);
 		this._workspace = Workspace2.fromData(data);
 	}

@@ -12,13 +12,12 @@ import { TPromise as Promise } from 'vs/base/common/winjs.base';
 import { MainThreadMessageServiceShape } from '../node/extHost.protocol';
 import * as vscode from 'vscode';
 
-export class MainThreadMessageService extends MainThreadMessageServiceShape {
+export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
 		@IMessageService private _messageService: IMessageService,
 		@IChoiceService private _choiceService: IChoiceService
 	) {
-		super();
 	}
 
 	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {

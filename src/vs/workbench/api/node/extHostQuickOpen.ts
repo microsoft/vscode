@@ -12,14 +12,13 @@ import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPi
 
 export type Item = string | QuickPickItem;
 
-export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
+export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
 	constructor(mainContext: IMainContext) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
 	}
 

@@ -216,7 +216,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
+export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
@@ -224,7 +224,6 @@ export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
 	private _collections: DiagnosticCollection[];
 
 	constructor(mainContext: IMainContext) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}

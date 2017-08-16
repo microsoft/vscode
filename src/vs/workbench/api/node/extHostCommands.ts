@@ -26,7 +26,7 @@ export interface ArgumentProcessor {
 	processArgument(arg: any): any;
 }
 
-export class ExtHostCommands extends ExtHostCommandsShape {
+export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
@@ -37,7 +37,6 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		mainContext: IMainContext,
 		heapService: ExtHostHeapService
 	) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}

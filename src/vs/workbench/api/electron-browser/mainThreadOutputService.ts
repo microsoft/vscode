@@ -11,7 +11,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape } from '../node/extHost.protocol';
 
-export class MainThreadOutputService extends MainThreadOutputServiceShape {
+export class MainThreadOutputService implements MainThreadOutputServiceShape {
 
 	private readonly _outputService: IOutputService;
 	private readonly _partService: IPartService;
@@ -22,7 +22,6 @@ export class MainThreadOutputService extends MainThreadOutputServiceShape {
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
-		super();
 		this._outputService = outputService;
 		this._partService = partService;
 		this._panelService = panelService;

@@ -24,7 +24,7 @@ import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorP
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 @extHostNamedCustomer<MainThreadLanguageFeaturesShape>(MainContext.MainThreadLanguageFeatures)
-export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
+export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private _proxy: ExtHostLanguageFeaturesShape;
 	private _heapService: IHeapService;
@@ -37,7 +37,6 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		@IHeapService heapService: IHeapService,
 		@IModeService modeService: IModeService,
 	) {
-		super();
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;

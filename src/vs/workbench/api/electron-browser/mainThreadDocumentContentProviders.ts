@@ -17,7 +17,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-export class MainThreadDocumentContentProviders extends MainThreadDocumentContentProvidersShape {
+export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
 
 	private _resourceContentProvider: { [handle: number]: IDisposable } = Object.create(null);
 	private readonly _proxy: ExtHostDocumentContentProvidersShape;
@@ -30,7 +30,6 @@ export class MainThreadDocumentContentProviders extends MainThreadDocumentConten
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentContentProviders);
 	}
 

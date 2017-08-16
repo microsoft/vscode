@@ -19,7 +19,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 
 type TreeItemHandle = number;
 
-export class ExtHostTreeViews extends ExtHostTreeViewsShape {
+export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 
@@ -27,7 +27,6 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		private _proxy: MainThreadTreeViewsShape,
 		private commands: ExtHostCommands
 	) {
-		super();
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
 				if (arg && arg.$treeViewId && arg.$treeItemHandle) {

@@ -12,7 +12,7 @@ import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuic
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 @extHostNamedCustomer<MainThreadQuickOpenShape>(MainContext.MainThreadQuickOpen)
-export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
+export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickOpenService: IQuickOpenService;
@@ -25,7 +25,6 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 		extHostContext: IExtHostContext,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super();
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
 	}

@@ -11,12 +11,11 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape } from '../node/extHost.protocol';
 
-export class MainThreadTask extends MainThreadTaskShape {
+export class MainThreadTask implements MainThreadTaskShape {
 
 	private _proxy: ExtHostTaskShape;
 
 	constructor( @IThreadService threadService: IThreadService, @ITaskService private _taskService: ITaskService) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostTask);
 	}
 

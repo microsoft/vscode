@@ -10,7 +10,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape } from '../node/extHost.protocol';
 
-export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
+export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
 
 	private _proxy: ExtHostTerminalServiceShape;
 	private _toDispose: IDisposable[];
@@ -19,7 +19,6 @@ export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 		@IThreadService threadService: IThreadService,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostTerminalService);
 		this._toDispose = [];
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));

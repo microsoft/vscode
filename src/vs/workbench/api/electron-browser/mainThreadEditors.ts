@@ -23,7 +23,7 @@ import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocum
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 
-export class MainThreadEditors extends MainThreadEditorsShape {
+export class MainThreadEditors implements MainThreadEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
@@ -41,7 +41,6 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;

@@ -22,7 +22,7 @@ import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/servi
 import { Emitter } from 'vs/base/common/event';
 
 
-export class MainThreadWorkspace extends MainThreadWorkspaceShape {
+export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
 	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
@@ -37,7 +37,6 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		@IFileService private readonly _fileService: IFileService,
 		@IThreadService threadService: IThreadService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
 	}

@@ -11,12 +11,11 @@ import { MainThreadTelemetryShape } from '../node/extHost.protocol';
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
  */
-export class MainThreadTelemetry extends MainThreadTelemetryShape {
+export class MainThreadTelemetry implements MainThreadTelemetryShape {
 
 	private _telemetryService: ITelemetryService;
 
 	constructor( @ITelemetryService telemetryService: ITelemetryService) {
-		super();
 		this._telemetryService = telemetryService;
 	}
 

@@ -27,25 +27,17 @@ export class ProxyIdentifier<T> {
 
 	isMain: boolean;
 	id: string;
-	methodNames: string[];
 
-	constructor(isMain: boolean, id: string, ctor: Function) {
+	constructor(isMain: boolean, id: string) {
 		this.isMain = isMain;
 		this.id = id;
-
-		this.methodNames = [];
-		for (let prop in ctor.prototype) {
-			if (typeof ctor.prototype[prop] === 'function') {
-				this.methodNames.push(prop);
-			}
-		}
 	}
 }
 
-export function createMainContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
-	return new ProxyIdentifier(true, 'm' + identifier, ctor);
+export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(true, 'm' + identifier);
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
-	return new ProxyIdentifier(false, 'e' + identifier, ctor);
+export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(false, 'e' + identifier);
 }

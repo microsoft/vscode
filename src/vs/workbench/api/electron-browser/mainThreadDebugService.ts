@@ -12,7 +12,7 @@ import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, 
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 @extHostNamedCustomer<MainThreadDebugServiceShape>(MainContext.MainThreadDebugService)
-export class MainThreadDebugService extends MainThreadDebugServiceShape {
+export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
@@ -21,8 +21,6 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		extHostContext: IExtHostContext,
 		@IDebugService private debugService: IDebugService
 	) {
-		super();
-
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));

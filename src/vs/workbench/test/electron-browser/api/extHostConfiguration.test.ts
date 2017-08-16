@@ -14,10 +14,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { TestThreadService } from './testThreadService';
+import { mock } from "vs/workbench/test/electron-browser/api/mock";
 
 suite('ExtHostConfiguration', function () {
 
-	class RecordingShape extends MainThreadConfigurationShape {
+	class RecordingShape extends mock<MainThreadConfigurationShape>() {
 		lastArgs: [ConfigurationTarget, string, any];
 		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
 			this.lastArgs = [target, key, value];
@@ -27,7 +28,7 @@ suite('ExtHostConfiguration', function () {
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
 		if (!shape) {
-			shape = new class extends MainThreadConfigurationShape { };
+			shape = new class extends mock<MainThreadConfigurationShape>() { };
 		}
 		return new ExtHostConfiguration(shape, new ExtHostWorkspace(new TestThreadService(), null), {
 			defaults: new ConfigurationModel(contents),
@@ -86,7 +87,7 @@ suite('ExtHostConfiguration', function () {
 
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
-			new class extends MainThreadConfigurationShape { },
+			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), null),
 			{
 				defaults: new ConfigurationModel({
@@ -127,7 +128,7 @@ suite('ExtHostConfiguration', function () {
 		}, ['editor.wordWrap']);
 		folders[workspaceUri.toString()] = workspace;
 		const testObject = new ExtHostConfiguration(
-			new class extends MainThreadConfigurationShape { },
+			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
 				'roots': [URI.file('foo')],
@@ -199,7 +200,7 @@ suite('ExtHostConfiguration', function () {
 		folders[thirdRoot.toString()] = new ConfigurationModel({}, []);
 
 		const testObject = new ExtHostConfiguration(
-			new class extends MainThreadConfigurationShape { },
+			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
 				'roots': [firstRoot, secondRoot],
@@ -374,7 +375,7 @@ suite('ExtHostConfiguration', function () {
 
 	test('update/error-state not OK', function () {
 
-		const shape = new class extends MainThreadConfigurationShape {
+		const shape = new class extends mock<MainThreadConfigurationShape>() {
 			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<any> {
 				return TPromise.wrapError(new ConfigurationEditingError('Unknown Key', ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY)); // something !== OK
 			}

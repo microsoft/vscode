@@ -12,7 +12,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
 
-export class MainThreadTreeViews extends MainThreadTreeViewsShape {
+export class MainThreadTreeViews implements MainThreadTreeViewsShape {
 
 	private _proxy: ExtHostTreeViewsShape;
 
@@ -20,7 +20,6 @@ export class MainThreadTreeViews extends MainThreadTreeViewsShape {
 		@IThreadService threadService: IThreadService,
 		@IMessageService private messageService: IMessageService
 	) {
-		super();
 		this._proxy = threadService.get(ExtHostContext.ExtHostTreeViews);
 	}
 

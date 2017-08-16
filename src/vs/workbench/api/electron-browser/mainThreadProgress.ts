@@ -8,7 +8,7 @@ import { IProgressService2, IProgress, IProgressOptions, IProgressStep } from 'v
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadProgressShape } from '../node/extHost.protocol';
 
-export class MainThreadProgress extends MainThreadProgressShape {
+export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
 	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
@@ -16,7 +16,6 @@ export class MainThreadProgress extends MainThreadProgressShape {
 	constructor(
 		@IProgressService2 progressService: IProgressService2
 	) {
-		super();
 		this._progressService = progressService;
 	}
 

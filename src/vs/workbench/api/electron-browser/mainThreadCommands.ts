@@ -11,8 +11,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-@extHostNamedCustomer<MainThreadCommandsShape>(MainContext.MainThreadCommands)
-export class MainThreadCommands extends MainThreadCommandsShape {
+@extHostNamedCustomer(MainContext.MainThreadCommands)
+export class MainThreadCommands implements MainThreadCommandsShape {
 
 	private readonly _disposables = new Map<string, IDisposable>();
 	private readonly _proxy: ExtHostCommandsShape;
@@ -21,7 +21,6 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		super();
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostCommands);
 	}
 
