@@ -12,7 +12,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testExplorer() {
-	context('Explorer', () => {
+	describe('Explorer', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);

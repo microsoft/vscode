@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testCSS() {
-	context('CSS', () => {
+	describe('CSS', () => {
 		let css: CSS;
 
 		beforeEach(async function () {

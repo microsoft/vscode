@@ -12,7 +12,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testMultiRoot() {
-	context('Multi Root', () => {
+	describe('Multi Root', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [CODE_WORKSPACE_PATH]);

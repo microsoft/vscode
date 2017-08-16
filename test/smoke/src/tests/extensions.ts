@@ -16,7 +16,7 @@ let common: CommonActions;
 
 export function testExtensions() {
 
-	context('Extensions', () => {
+	describe('Extensions', () => {
 		let extensions: Extensions;
 		const extensionName = 'vscode-smoketest-check';
 

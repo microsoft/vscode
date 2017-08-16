@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testJavaScript() {
-	context('JavaScript', () => {
+	describe('JavaScript', () => {
 		let js: JavaScript;
 
 		beforeEach(async function () {
