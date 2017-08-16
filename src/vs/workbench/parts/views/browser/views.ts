@@ -72,6 +72,8 @@ export interface IView extends IBaseView, IThemable {
 
 	getActionItem(action: IAction): IActionItem;
 
+	getActionsContext(): any;
+
 	showHeader(): boolean;
 
 	hideHeader(): boolean;
@@ -171,6 +173,7 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 
 	protected updateActions(): void {
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+		this.toolBar.context = this.getActionsContext();
 	}
 
 	protected renderViewTree(container: HTMLElement): HTMLElement {
@@ -226,6 +229,10 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 
 	public getActionItem(action: IAction): IActionItem {
 		return null;
+	}
+
+	public getActionsContext(): any {
+		return undefined;
 	}
 
 	public shutdown(): void {

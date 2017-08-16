@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, window, QuickPickItem, Disposable, SourceControlResourceGroup } from 'vscode';
+import { Uri, window, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup } from 'vscode';
 import { Repository, State } from './repository';
 import { memoize } from './decorators';
 import { toDisposable, filterEvent, once } from './util';
@@ -60,7 +60,17 @@ export class Model {
 		return pick && pick.repository;
 	}
 
-	getRepositoryFromResourceGroup(resourceGroup?: SourceControlResourceGroup): Repository | undefined {
+	getRepositoryFromSourceControl(sourceControl: SourceControl): Repository | undefined {
+		for (let [, repository] of this.repositories) {
+			if (sourceControl === repository.sourceControl) {
+				return repository;
+			}
+		}
+
+		return undefined;
+	}
+
+	getRepositoryFromResourceGroup(resourceGroup: SourceControlResourceGroup): Repository | undefined {
 		for (let [, repository] of this.repositories) {
 			if (resourceGroup === repository.mergeGroup || resourceGroup === repository.indexGroup || resourceGroup === repository.workingTreeGroup) {
 				return repository;

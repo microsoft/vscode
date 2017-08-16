@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceGroup, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControl, SourceControlResourceGroup, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -145,8 +145,22 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.refresh', { repository: true })
-	async refresh(repository: Repository): Promise<void> {
+	@command('git.refresh')
+	async refresh(sourceControl?: SourceControl): Promise<void> {
+		let repository: Repository | undefined = undefined;
+
+		if (sourceControl) {
+			repository = this.model.getRepositoryFromSourceControl(sourceControl);
+		}
+
+		if (!repository) {
+			repository = await this.model.pickRepository();
+		}
+
+		if (!repository) {
+			return;
+		}
+
 		await repository.status();
 	}
 

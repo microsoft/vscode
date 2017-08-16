@@ -253,6 +253,7 @@ class SourceControlView extends CollapsibleView {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IListService protected listService: IListService,
 		@ICommandService protected commandService: ICommandService,
+		@IMessageService protected messageService: IMessageService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -316,6 +317,18 @@ class SourceControlView extends CollapsibleView {
 
 	getSecondaryActions(): IAction[] {
 		return this.menus.getTitleSecondaryActions();
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+
+		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+	}
+
+	getActionsContext(): any {
+		return this.provider;
 	}
 
 	private updateList(): void {

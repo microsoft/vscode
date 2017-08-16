@@ -307,6 +307,14 @@ export class ExtHostSCM {
 					}
 
 					return sourceControl.getResourceGroup(arg.groupHandle);
+				} else if (arg && arg.$mid === 5) {
+					const sourceControl = this._sourceControls.get(arg.handle);
+
+					if (!sourceControl) {
+						return arg;
+					}
+
+					return sourceControl;
 				}
 
 				return arg;
