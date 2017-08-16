@@ -540,13 +540,13 @@ export class SCMViewlet extends ComposedViewsViewlet {
 
 	getTitle(): string {
 		const title = localize('source control', "Source Control");
-		const providerLabel = this.scmService.activeProvider && this.scmService.activeProvider.label;
+		// const providerLabel = this.scmService.activeProvider && this.scmService.activeProvider.label;
 
-		if (providerLabel) {
-			return localize('viewletTitle', "{0}: {1}", title, providerLabel);
-		} else {
-			return title;
-		}
+		// if (providerLabel) {
+		// 	return localize('viewletTitle', "{0}: {1}", title, providerLabel);
+		// } else {
+		return title;
+		// }
 	}
 
 	@memoize
