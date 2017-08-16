@@ -527,8 +527,8 @@ export class CommandCenter {
 		workspace.applyEdit(edit);
 	}
 
-	@command('git.unstage', { repository: true })
-	async unstage(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.unstage')
+	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
@@ -547,8 +547,7 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-
-		return await repository.revert(resources);
+		await this.model.revert(resources);
 	}
 
 	@command('git.unstageAll', { repository: true })
