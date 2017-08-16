@@ -542,8 +542,10 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			return TPromise.as(undefined);
 		}
 		return callback().then(() => this, err => {
+			if (err instanceof Error && err.name === 'DISPOSED') {
+				return;
+			}
 			console.warn(err);
-			return undefined;
 		});
 	}
 }

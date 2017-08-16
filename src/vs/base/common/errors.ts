@@ -215,6 +215,12 @@ export function readonly(name?: string): Error {
 		: new Error('readonly property cannot be changed');
 }
 
+export function disposed(what: string): Error {
+	const result = new Error(`${what} has been disposed`);
+	result.name = 'DISPOSED';
+	return result;
+}
+
 export interface IErrorOptions {
 	severity?: Severity;
 	actions?: IAction[];
