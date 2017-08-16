@@ -5,20 +5,21 @@
 'use strict';
 
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents, IExtHostContext } from '../node/extHost.protocol';
 import { IDisposable } from "vs/base/common/lifecycle";
+import { extHostCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
+@extHostCustomer
 export class MainThreadFileSystemEventService {
 
 	private readonly _listener: IDisposable;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService
 	) {
 
-		const proxy: ExtHostFileSystemEventServiceShape = threadService.get(ExtHostContext.ExtHostFileSystemEventService);
+		const proxy: ExtHostFileSystemEventServiceShape = extHostContext.get(ExtHostContext.ExtHostFileSystemEventService);
 		const events: FileSystemEvents = {
 			created: [],
 			changed: [],

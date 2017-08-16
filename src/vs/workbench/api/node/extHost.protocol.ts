@@ -131,6 +131,7 @@ function ni() { return new Error('Not implemented'); }
 // --- main thread
 
 export abstract class MainThreadCommandsShape {
+	dispose(): void { throw ni(); }
 	$registerCommand(id: string): TPromise<any> { throw ni(); }
 	$unregisterCommand(id: string): TPromise<any> { throw ni(); }
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> { throw ni(); }
@@ -138,6 +139,7 @@ export abstract class MainThreadCommandsShape {
 }
 
 export abstract class MainThreadConfigurationShape {
+	dispose(): void { throw ni(); }
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> { throw ni(); }
 	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void> { throw ni(); }
 }
@@ -228,6 +230,7 @@ export abstract class MainThreadErrorsShape {
 }
 
 export abstract class MainThreadLanguageFeaturesShape {
+	dispose(): void { throw ni(); }
 	$unregister(handle: number): TPromise<any> { throw ni(); }
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> { throw ni(); }
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> { throw ni(); }
@@ -287,6 +290,7 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
 export abstract class MainThreadQuickOpenShape {
+	dispose(): void { throw ni(); }
 	$show(options: IPickOptions): TPromise<number> { throw ni(); }
 	$setItems(items: MyQuickPickItems[]): TPromise<any> { throw ni(); }
 	$setError(error: Error): TPromise<any> { throw ni(); }
@@ -367,12 +371,14 @@ export abstract class MainThreadSCMShape {
 export type DebugSessionUUID = string;
 
 export abstract class MainThreadDebugServiceShape {
+	dispose(): void { throw ni(); }
 	$startDebugging(folderUri: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> { throw ni(); }
 	$startDebugSession(folderUri: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID> { throw ni(); }
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any> { throw ni(); }
 }
 
 export abstract class MainThreadCredentialsShape {
+	dispose(): void { throw ni(); }
 	$readSecret(service: string, account: string): Thenable<string | undefined> { throw ni(); }
 	$writeSecret(service: string, account: string, secret: string): Thenable<void> { throw ni(); }
 	$deleteSecret(service: string, account: string): Thenable<boolean> { throw ni(); }
