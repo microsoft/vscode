@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceGroup, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -444,8 +444,22 @@ export class CommandCenter {
 		await this.model.add(resources);
 	}
 
-	@command('git.stageAll', { repository: true })
-	async stageAll(repository: Repository): Promise<void> {
+	@command('git.stageAll')
+	async stageAll(group?: SourceControlResourceGroup): Promise<void> {
+		let repository: Repository | undefined = undefined;
+
+		if (group) {
+			repository = this.model.getRepositoryFromResourceGroup(group);
+		}
+
+		if (!repository) {
+			repository = await this.model.pickRepository();
+		}
+
+		if (!repository) {
+			return;
+		}
+
 		await repository.add([]);
 	}
 
@@ -550,9 +564,23 @@ export class CommandCenter {
 		await this.model.revert(resources);
 	}
 
-	@command('git.unstageAll', { repository: true })
-	async unstageAll(repository: Repository): Promise<void> {
-		return await repository.revert([]);
+	@command('git.unstageAll')
+	async unstageAll(group?: SourceControlResourceGroup): Promise<void> {
+		let repository: Repository | undefined = undefined;
+
+		if (group) {
+			repository = this.model.getRepositoryFromResourceGroup(group);
+		}
+
+		if (!repository) {
+			repository = await this.model.pickRepository();
+		}
+
+		if (!repository) {
+			return;
+		}
+
+		await repository.revert([]);
 	}
 
 	// TODO@Joao does this command really receive a model?
@@ -642,8 +670,22 @@ export class CommandCenter {
 		await this.model.clean(resources);
 	}
 
-	@command('git.cleanAll', { repository: true })
-	async cleanAll(repository: Repository): Promise<void> {
+	@command('git.cleanAll')
+	async cleanAll(group?: SourceControlResourceGroup): Promise<void> {
+		let repository: Repository | undefined = undefined;
+
+		if (group) {
+			repository = this.model.getRepositoryFromResourceGroup(group);
+		}
+
+		if (!repository) {
+			repository = await this.model.pickRepository();
+		}
+
+		if (!repository) {
+			return;
+		}
+
 		const config = workspace.getConfiguration('git');
 		let scope = config.get<string>('discardAllScope') || 'prompt';
 		let resources = repository.workingTreeGroup.resourceStates;
@@ -1220,6 +1262,10 @@ export class CommandCenter {
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
+				console.log(args[0]);
+				// if (args[0] instanceof SourceControlResourceGroup) {
+				// }
+
 				result = this.model.pickRepository().then(repository => {
 					if (!repository) {
 						return Promise.reject(localize('modelnotfound', "Git model not found"));

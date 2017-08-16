@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, window, QuickPickItem, Disposable } from 'vscode';
+import { Uri, window, QuickPickItem, Disposable, SourceControlResourceGroup } from 'vscode';
 import { Repository, IRepository, State } from './repository';
 import { memoize } from './decorators';
 import { toDisposable, filterEvent, once } from './util';
@@ -44,6 +44,15 @@ export class Model implements IRepository {
 	}
 
 	async pickRepository(): Promise<Repository | undefined> {
+		if (this.repositories.size === 0) {
+			throw new Error(localize('no repositories', "There are no available repositories"));
+		}
+
+		// TODO@joao enable this code
+		// if (this.repositories.size === 1) {
+		// 	return this.repositories.values().next().value;
+		// }
+
 		const picks = Array.from(this.repositories.entries(), ([uri, model]) => new RepositoryPick(uri, model));
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
@@ -51,15 +60,25 @@ export class Model implements IRepository {
 		return pick && pick.repository;
 	}
 
+	getRepositoryFromResourceGroup(resourceGroup?: SourceControlResourceGroup): Repository | undefined {
+		for (let [, repository] of this.repositories) {
+			if (resourceGroup === repository.mergeGroup || resourceGroup === repository.indexGroup || resourceGroup === repository.workingTreeGroup) {
+				return repository;
+			}
+		}
+
+		return undefined;
+	}
+
 	getRepository(resource: Uri): Repository | undefined {
 		const resourcePath = resource.fsPath;
 
-		for (let [repositoryRoot, model] of this.repositories) {
-			const repositoryRootPath = repositoryRoot.fsPath;
+		for (let [root, repository] of this.repositories) {
+			const repositoryRootPath = root.fsPath;
 			const relativePath = path.relative(repositoryRootPath, resourcePath);
 
 			if (!/^\./.test(relativePath)) {
-				return model;
+				return repository;
 			}
 		}
 
