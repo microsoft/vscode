@@ -14,10 +14,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
@@ -72,10 +70,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modeService: IModeService;
 	private _textModelResolverService: ITextModelService;
 	private _textFileService: ITextFileService;
-	private _codeEditorService: ICodeEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
-	private _editorGroupService: IEditorGroupService;
 
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
@@ -89,21 +85,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
 		this._modelService = modelService;
 		this._modeService = modeService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
-		this._codeEditorService = codeEditorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
-		this._editorGroupService = editorGroupService;
 
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
