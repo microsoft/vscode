@@ -211,7 +211,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					const args = [settings.source, line];
+					const args = [settings.source, line, settings.wordWrap];
 					window.parent.postMessage({
 						command: 'did-click-link',
 						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
