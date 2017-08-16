@@ -8,6 +8,12 @@
 	-webkit-mask-size: 19px;
 }
 
+.monaco-workbench .viewlet.scm-viewlet .split-view-view .actions,
+.monaco-workbench .viewlet.scm-viewlet .collapsible.header .actions {
+	width: initial;
+	flex: 1;
+}
+
 .scm-viewlet .scm-status {
 	height: 100%;
 }
