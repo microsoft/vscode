@@ -18,6 +18,9 @@ echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 step "Install dependencies" \
 	npm install --arch=$ARCH --unsafe-perm
 
+step "Hygiene" \
+	npm run gulp -- hygiene
+
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
@@ -26,9 +29,6 @@ step "Get Electron" \
 
 step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js --arch=$ARCH
-
-step "Hygiene" \
-	npm run gulp -- hygiene
 
 step "Build minified" \
 	npm run gulp -- "vscode-linux-$ARCH-min"

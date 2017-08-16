@@ -16,14 +16,14 @@ echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 step "Install dependencies" \
 	npm install
 
+step "Hygiene" \
+	npm run gulp -- hygiene
+
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
 step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js
-
-step "Hygiene" \
-	npm run gulp -- hygiene
 
 step "Build minified & upload source maps" \
 	npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps

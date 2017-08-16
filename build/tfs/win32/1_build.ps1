@@ -19,6 +19,10 @@ step "Install dependencies" {
   exec { & npm install }
 }
 
+step "Hygiene" {
+  exec { & npm run gulp -- hygiene }
+}
+
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
 step "Mix in repository from vscode-distro" {
   exec { & npm run gulp -- mixin }
@@ -30,10 +34,6 @@ step "Get Electron" {
 
 step "Install distro dependencies" {
   exec { & node build\tfs\common\installDistro.js }
-}
-
-step "Hygiene" {
-  exec { & npm run gulp -- hygiene }
 }
 
 step "Build minified" {
