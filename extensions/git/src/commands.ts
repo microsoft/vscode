@@ -463,9 +463,8 @@ export class CommandCenter {
 		await repository.add([]);
 	}
 
-	// TODO@Joao does this command really receive a model?
-	@command('git.stageSelectedRanges', { repository: true, diff: true })
-	async stageSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
+	@command('git.stageSelectedRanges', { diff: true })
+	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -492,12 +491,11 @@ export class CommandCenter {
 
 		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 
-		await repository.stage(modifiedUri, result);
+		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
-	// TODO@Joao does this command really receive a model?
-	@command('git.revertSelectedRanges', { repository: true, diff: true })
-	async revertSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
+	@command('git.revertSelectedRanges', { diff: true })
+	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -583,9 +581,8 @@ export class CommandCenter {
 		await repository.revert([]);
 	}
 
-	// TODO@Joao does this command really receive a model?
-	@command('git.unstageSelectedRanges', { repository: true, diff: true })
-	async unstageSelectedRanges(repository: Repository, diffs: LineChange[]): Promise<void> {
+	@command('git.unstageSelectedRanges', { diff: true })
+	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -619,7 +616,7 @@ export class CommandCenter {
 		const invertedDiffs = selectedDiffs.map(invertLineChange);
 		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		await repository.stage(modifiedUri, result);
+		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
 	@command('git.clean')
@@ -1349,7 +1346,7 @@ export class CommandCenter {
 		}
 	}
 
-	private runByRepository<T>(resources: Uri, fn: (repository: Repository, resources: Uri) => Promise<T>): Promise<T[]>;
+	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;
 	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
 	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
 		const resources = arg instanceof Uri ? [arg] : arg;
