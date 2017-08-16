@@ -16,7 +16,6 @@ import { Model as EditorModel } from 'vs/editor/common/model/model';
 import { TestThreadService } from './testThreadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -81,7 +80,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
-			instantiationService.stub(IThreadService, threadService);
 			instantiationService.stub(IModelService, <IModelService>{
 				_serviceBrand: IModelService,
 				getModel(): any { return model; },

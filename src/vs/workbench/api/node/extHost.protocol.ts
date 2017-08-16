@@ -7,7 +7,7 @@
 import {
 	createMainContextProxyIdentifier as createMainId,
 	createExtHostContextProxyIdentifier as createExtId,
-	ProxyIdentifier, IThreadService
+	ProxyIdentifier
 } from 'vs/workbench/services/thread/common/threadService';
 
 import * as vscode from 'vscode';
@@ -46,6 +46,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -79,7 +80,10 @@ export interface IExtHostContext {
 	 */
 	get<T>(identifier: ProxyIdentifier<T>): T;
 
-	set<T>(identifier: ProxyIdentifier<T>, instance: T): void;
+	/**
+	 * Register manually created instance.
+	 */
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
 }
 
 export interface IMainContext {
@@ -89,73 +93,32 @@ export interface IMainContext {
 	get<T>(identifier: ProxyIdentifier<T>): T;
 }
 
-export interface InstanceSetter<T> {
-	set<R extends T>(instance: T): R;
-}
-
-export class InstanceCollection {
-	private _items: { [id: string]: any; };
-
-	constructor() {
-		this._items = Object.create(null);
-	}
-
-	public define<T>(id: ProxyIdentifier<T>): InstanceSetter<T> {
-		let that = this;
-		return new class {
-			set<R extends T>(value: T): R {
-				that._set(id, value);
-				return <R>value;
-			}
-		};
-	}
-
-	_set<T>(id: ProxyIdentifier<T>, value: T): void {
-		this._items[id.id] = value;
-	}
-
-	public finish(isMain: boolean, threadService: IThreadService): void {
-		let expected = (isMain ? MainContext : ExtHostContext);
-		Object.keys(expected).forEach((key) => {
-			let id = expected[key];
-			let value = this._items[id.id];
-
-			if (!value) {
-				throw new Error(`Missing actor ${key} (isMain: ${id.isMain}, id:  ${id.id})`);
-			}
-			threadService.set<any>(id, value);
-		});
-	}
-}
-
 // --- main thread
 
-export interface MainThreadCommandsShape {
-	dispose(): void;
+export interface MainThreadCommandsShape extends IDisposable {
 	$registerCommand(id: string): TPromise<any>;
 	$unregisterCommand(id: string): TPromise<any>;
 	$executeCommand<T>(id: string, args: any[]): Thenable<T>;
 	$getCommands(): Thenable<string[]>;
 }
 
-export interface MainThreadConfigurationShape {
-	dispose(): void;
+export interface MainThreadConfigurationShape extends IDisposable {
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void>;
 	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void>;
 }
 
-export interface MainThreadDiagnosticsShape {
+export interface MainThreadDiagnosticsShape extends IDisposable {
 	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any>;
 	$clear(owner: string): TPromise<any>;
 }
 
-export interface MainThreadDocumentContentProvidersShape {
+export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
 	$onVirtualDocumentChange(uri: URI, value: ITextSource): void;
 }
 
-export interface MainThreadDocumentsShape {
+export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<any>;
 	$tryOpenDocument(uri: URI): TPromise<any>;
 	$trySaveDocument(uri: URI): TPromise<boolean>;
@@ -205,7 +168,7 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
-export interface MainThreadEditorsShape {
+export interface MainThreadEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
@@ -220,17 +183,16 @@ export interface MainThreadEditorsShape {
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
 
-export interface MainThreadTreeViewsShape {
+export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerView(treeViewId: string): void;
 	$refresh(treeViewId: string, treeItemHandles: number[]): void;
 }
 
-export interface MainThreadErrorsShape {
+export interface MainThreadErrorsShape extends IDisposable {
 	$onUnexpectedExtHostError(err: any): void;
 }
 
-export interface MainThreadLanguageFeaturesShape {
-	dispose(): void;
+export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): TPromise<any>;
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any>;
@@ -255,15 +217,15 @@ export interface MainThreadLanguageFeaturesShape {
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any>;
 }
 
-export interface MainThreadLanguagesShape {
+export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): TPromise<string[]>;
 }
 
-export interface MainThreadMessageServiceShape {
+export interface MainThreadMessageServiceShape extends IDisposable {
 	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
 }
 
-export interface MainThreadOutputServiceShape {
+export interface MainThreadOutputServiceShape extends IDisposable {
 	$append(channelId: string, label: string, value: string): TPromise<void>;
 	$clear(channelId: string, label: string): TPromise<void>;
 	$dispose(channelId: string, label: string): TPromise<void>;
@@ -271,14 +233,14 @@ export interface MainThreadOutputServiceShape {
 	$close(channelId: string): TPromise<void>;
 }
 
-export interface MainThreadProgressShape {
+export interface MainThreadProgressShape extends IDisposable {
 
 	$startProgress(handle: number, options: IProgressOptions): void;
 	$progressReport(handle: number, message: IProgressStep): void;
 	$progressEnd(handle: number): void;
 }
 
-export interface MainThreadTerminalServiceShape {
+export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
@@ -289,30 +251,29 @@ export interface MainThreadTerminalServiceShape {
 export interface MyQuickPickItems extends IPickOpenEntry {
 	handle: number;
 }
-export interface MainThreadQuickOpenShape {
-	dispose(): void;
+export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions): TPromise<number>;
 	$setItems(items: MyQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
 }
 
-export interface MainThreadStatusBarShape {
+export interface MainThreadStatusBarShape extends IDisposable {
 	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
 	$dispose(id: number);
 }
 
-export interface MainThreadStorageShape {
+export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): TPromise<T>;
 	$setValue(shared: boolean, key: string, value: any): TPromise<any>;
 }
 
-export interface MainThreadTelemetryShape {
+export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$getTelemetryInfo(): TPromise<ITelemetryInfo>;
 }
 
-export interface MainThreadWorkspaceShape {
+export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
@@ -321,12 +282,12 @@ export interface MainThreadWorkspaceShape {
 	$onFileSystemChange(handle: number, resource: URI): void;
 }
 
-export interface MainThreadTaskShape {
+export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<any>;
 	$unregisterTaskProvider(handle: number): TPromise<any>;
 }
 
-export interface MainThreadExtensionServiceShape {
+export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
 	$onExtensionActivated(extensionId: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
@@ -354,7 +315,7 @@ export type SCMRawResource = [
 	boolean /*faded*/
 ];
 
-export interface MainThreadSCMShape {
+export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, id: string, label: string): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
@@ -370,15 +331,13 @@ export interface MainThreadSCMShape {
 
 export type DebugSessionUUID = string;
 
-export interface MainThreadDebugServiceShape {
-	dispose(): void;
+export interface MainThreadDebugServiceShape extends IDisposable {
 	$startDebugging(folderUri: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$startDebugSession(folderUri: URI | undefined, config: vscode.DebugConfiguration): TPromise<DebugSessionUUID>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 }
 
-export interface MainThreadCredentialsShape {
-	dispose(): void;
+export interface MainThreadCredentialsShape extends IDisposable {
 	$readSecret(service: string, account: string): Thenable<string | undefined>;
 	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
 	$deleteSecret(service: string, account: string): Thenable<boolean>;

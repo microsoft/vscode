@@ -45,6 +45,7 @@ export abstract class AbstractThreadService implements IDispatcher {
 	}
 
 	private _createProxy<T>(proxyId: string): T {
+		// TODO@Alex: should all these methods be cached for this proxy ?
 		let handler = {
 			get: (target, name) => {
 				return (...myArgs: any[]) => {
@@ -55,11 +56,21 @@ export abstract class AbstractThreadService implements IDispatcher {
 		return new Proxy({}, handler);
 	}
 
-	set<T>(identifier: ProxyIdentifier<T>, value: T): void {
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 		if (identifier.isMain !== this._isMain) {
 			throw new Error('Mismatch in object registration!');
 		}
 		this._locals[identifier.id] = value;
+		return value;
+	}
+
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		for (let i = 0, len = identifiers.length; i < len; i++) {
+			const identifier = identifiers[i];
+			if (!this._locals[identifier.id]) {
+				throw new Error(`Missing actor ${identifier.id} (isMain: ${identifier.isMain})`);
+			}
+		}
 	}
 
 	private _callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {

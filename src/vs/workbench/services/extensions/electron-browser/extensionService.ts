@@ -85,8 +85,12 @@ export class ExtensionService implements IThreadService, IExtensionService {
 		return this._threadService.get(identifier);
 	}
 
-	public set<T>(identifier: ProxyIdentifier<T>, value: T): void {
-		this._threadService.set(identifier, value);
+	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
+		return this._threadService.set<T, R>(identifier, value);
+	}
+
+	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		this._threadService.assertRegistered(identifiers);
 	}
 
 	// ---- end IThreadService

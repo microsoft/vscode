@@ -14,8 +14,10 @@ export function OneGetThreadService(thing: any): IThreadService {
 		get<T>(): T {
 			return thing;
 		},
-		set<T>(): void {
-		}
+		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
+			return value;
+		},
+		assertRegistered: undefined
 	};
 }
 
@@ -63,11 +65,12 @@ export abstract class AbstractTestThreadService {
 		return new Proxy({}, handler);
 	}
 
-	set<T>(identifier: ProxyIdentifier<T>, value: T): void {
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 		if (identifier.isMain !== this._isMain) {
 			throw new Error('Mismatch in object registration!');
 		}
 		this._locals[identifier.id] = value;
+		return value;
 	}
 
 	protected abstract _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
@@ -153,5 +156,9 @@ export class TestThreadService extends AbstractTestThreadService implements IThr
 				return TPromise.wrapError(err);
 			});
 		});
+	}
+
+	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		throw new Error('Not implemented!');
 	}
 }

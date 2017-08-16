@@ -7,9 +7,9 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
-import { InstanceCollection, IExtHostContext } from '../node/extHost.protocol';
+import { MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
 
@@ -17,10 +17,6 @@ import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extH
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/platform/theme/common/colorExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/electron-browser/languageConfiguration/languageConfigurationExtensionPoint';
-import { SaveParticipant } from './mainThreadSaveParticipant';
-
-// --- registers itself as service
-import './mainThreadHeapService';
 
 // --- mainThread participants
 import './mainThreadCommands';
@@ -36,7 +32,7 @@ import './mainThreadEditors';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystemEventService';
-// import './mainThreadHeapService';
+import './mainThreadHeapService';
 import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadMessageService';
@@ -44,7 +40,7 @@ import './mainThreadOutputService';
 import './mainThreadProgress';
 import './mainThreadQuickOpen';
 import './mainThreadSCM';
-// import './mainThreadSaveParticipant';
+import './mainThreadSaveParticipant';
 import './mainThreadStatusBar';
 import './mainThreadStorage';
 import './mainThreadTask';
@@ -56,66 +52,57 @@ import './mainThreadWorkspace';
 export class ExtHostContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IThreadService private threadService: IThreadService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionService private extensionService: IExtensionService
+		@IThreadService threadService: IThreadService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		this.initExtensionSystem();
+
+		const extHostContext: IExtHostContext = threadService;
+
+		// Named customers
+		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
+		for (let i = 0, len = namedCustomers.length; i < len; i++) {
+			const [id, ctor] = namedCustomers[i];
+			threadService.set(id, instantiationService.createInstance(ctor, extHostContext));
+		}
+
+		// Customers
+		const customers = ExtHostCustomersRegistry.getCustomers();
+		for (let i = 0, len = customers.length; i < len; i++) {
+			const ctor = customers[i];
+			instantiationService.createInstance(ctor, extHostContext);
+		}
+
+		// Check that no named customers are missing
+		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => MainContext[key]);
+		threadService.assertRegistered(expected);
 	}
 
 	public getId(): string {
 		return 'vs.api.extHost';
 	}
+}
 
-	private initExtensionSystem(): void {
-		const create = <T>(ctor: IConstructorSignature0<T>): T => {
-			return this.instantiationService.createInstance(ctor);
-		};
 
-		let col = new InstanceCollection();
+export class ExtensionPoints implements IWorkbenchContribution {
 
-		const extHostContext = new class implements IExtHostContext {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		// Classes that handle extension points...
+		this.instantiationService.createInstance(JSONValidationExtensionPoint);
+		this.instantiationService.createInstance(ColorExtensionPoint);
+		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
+	}
 
-			constructor(private readonly _threadService: IThreadService) {
-			}
-
-			get<T>(identifier: ProxyIdentifier<T>): T {
-				return this._threadService.get<T>(identifier);
-			}
-
-			set<T>(identifier: ProxyIdentifier<T>, instance: T): void {
-				col.define(identifier).set(instance);
-			}
-		}(this.threadService);
-
-		// Registered named customers
-		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
-		for (let i = 0, len = namedCustomers.length; i < len; i++) {
-			const [id, ctor] = namedCustomers[i];
-			const obj = this.instantiationService.createInstance(ctor, extHostContext);
-			col.define(id).set(obj);
-		}
-
-		// Registered customers
-		const customers = ExtHostCustomersRegistry.getCustomers();
-		for (let i = 0, len = customers.length; i < len; i++) {
-			const ctor = customers[i];
-			this.instantiationService.createInstance(ctor, extHostContext);
-		}
-
-		col.finish(true, this.threadService);
-
-		col = null;
-
-		// Other interested parties
-		create(JSONValidationExtensionPoint); // TODO@rehost: can survive an ext host restart
-		create(ColorExtensionPoint); // TODO@rehost: can survive an ext host restart
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler); // TODO@rehost: can survive an ext host restart
-		create(SaveParticipant);
+	public getId(): string {
+		return 'vs.api.extensionPoints';
 	}
 }
 
-// Register File Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	ExtHostContribution
+);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	ExtensionPoints
 );

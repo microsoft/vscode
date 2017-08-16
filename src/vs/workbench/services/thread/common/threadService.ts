@@ -19,7 +19,12 @@ export interface IThreadService {
 	/**
 	 * Register instance.
 	 */
-	set<T>(identifier: ProxyIdentifier<T>, value: T): void;
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R;
+
+	/**
+	 * Assert these identifiers are already registered via `.set`.
+	 */
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
 }
 
 export class ProxyIdentifier<T> {

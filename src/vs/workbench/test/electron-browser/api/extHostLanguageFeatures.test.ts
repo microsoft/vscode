@@ -17,7 +17,6 @@ import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestThreadService } from './testThreadService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -73,7 +72,6 @@ suite('ExtHostLanguageFeatures', function () {
 		let inst: IInstantiationService;
 		{
 			let instantiationService = new TestInstantiationService();
-			instantiationService.stub(IThreadService, threadService);
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
