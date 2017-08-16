@@ -148,7 +148,6 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			return;
 		}
 		if (!isAbbreviationValid(syntax, abbreviation)) {
-			vscode.window.showErrorMessage('Emmet: Invalid abbreviation');
 			return;
 		}
 
