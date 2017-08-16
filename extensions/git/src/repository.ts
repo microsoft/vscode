@@ -360,7 +360,8 @@ export class Repository implements IRepository, Disposable {
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		this.disposables.push(fsWatcher);
 
-		this._sourceControl = scm.createSourceControl('git', 'Git');
+		const label = `Git - ${path.basename(workspaceRoot.fsPath)}`;
+		this._sourceControl = scm.createSourceControl('git', label);
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
 		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
