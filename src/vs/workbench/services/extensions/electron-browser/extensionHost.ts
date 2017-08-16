@@ -380,8 +380,12 @@ export class ExtensionHostProcessWorker {
 					return false;
 				});
 
+				let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover.");
+				if (code === 87) {
+					message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive. Please reload the window to recover.");
+				}
 				this.messageService.show(Severity.Error, {
-					message: nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover."),
+					message: message,
 					actions: [
 						openDevTools,
 						this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
