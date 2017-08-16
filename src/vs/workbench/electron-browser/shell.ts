@@ -61,7 +61,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -323,7 +322,6 @@ export class WorkbenchShell {
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
-		serviceCollection.set(IThreadService, this.extensionService);
 
 		this.timerService.beforeExtensionLoad = Date.now();
 		this.extensionService.onReady().done(() => {

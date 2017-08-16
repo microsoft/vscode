@@ -17,8 +17,8 @@ import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/ex
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostExtensionServiceShape } from "vs/workbench/api/node/extHost.protocol";
+import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from "vs/workbench/api/node/extHost.protocol";
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -26,6 +26,8 @@ import { IInstantiationService } from "vs/platform/instantiation/common/instanti
 import { ExtensionHostProcessWorker } from "vs/workbench/services/extensions/electron-browser/extensionHost";
 import { MainThreadService } from "vs/workbench/services/thread/electron-browser/threadService";
 import { Barrier } from "vs/workbench/services/extensions/node/barrier";
+import { IMessagePassingProtocol } from "vs/base/parts/ipc/common/ipc";
+import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -43,7 +45,7 @@ function messageWithSource2(source: string, message: string): string {
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
 
-export class ExtensionService implements IThreadService, IExtensionService {
+export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;
 
 	private _registry: ExtensionDescriptionRegistry;
@@ -54,8 +56,10 @@ export class ExtensionService implements IThreadService, IExtensionService {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
-	private readonly _threadService: IThreadService;
-	private readonly _proxy: ExtHostExtensionServiceShape;
+
+	// winjs believes a proxy is a promise because it has a `then` method,
+	// so wrap the result in an object.
+	private _proxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -72,28 +76,38 @@ export class ExtensionService implements IThreadService, IExtensionService {
 		this._alreadyActivatedEvents = Object.create(null);
 
 		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker);
-		this._threadService = this._instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
-		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
-		extensionHostProcessWorker.start(this);
+		this._proxy = extensionHostProcessWorker.start(this).then((protocol) => {
+			return { value: this._begin(protocol) };
+		});
 
-		this._initialize();
+		this._scanAndHandleExtensions();
 	}
 
-	// ---- begin IThreadService
+	private _begin(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
-	public get<T>(identifier: ProxyIdentifier<T>): T {
-		return this._threadService.get(identifier);
+		const threadService = this._instantiationService.createInstance(MainThreadService, protocol);
+		const extHostContext: IExtHostContext = threadService;
+
+		// Named customers
+		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
+		for (let i = 0, len = namedCustomers.length; i < len; i++) {
+			const [id, ctor] = namedCustomers[i];
+			threadService.set(id, this._instantiationService.createInstance(ctor, extHostContext));
+		}
+
+		// Customers
+		const customers = ExtHostCustomersRegistry.getCustomers();
+		for (let i = 0, len = customers.length; i < len; i++) {
+			const ctor = customers[i];
+			this._instantiationService.createInstance(ctor, extHostContext);
+		}
+
+		// Check that no named customers are missing
+		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => MainContext[key]);
+		threadService.assertRegistered(expected);
+
+		return threadService.get(ExtHostContext.ExtHostExtensionService);
 	}
-
-	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		return this._threadService.set<T, R>(identifier, value);
-	}
-
-	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
-		this._threadService.assertRegistered(identifiers);
-	}
-
-	// ---- end IThreadService
 
 	// ---- begin IExtensionService
 
@@ -109,7 +123,9 @@ export class ExtensionService implements IThreadService, IExtensionService {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
-		return this._proxy.$activateByEvent(activationEvent).then(() => {
+		return this._proxy.then((proxy) => {
+			return proxy.value.$activateByEvent(activationEvent);
+		}).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});
 	}
@@ -149,7 +165,7 @@ export class ExtensionService implements IThreadService, IExtensionService {
 
 	// --- impl
 
-	private _initialize(): void {
+	private _scanAndHandleExtensions(): void {
 
 		const log = new Logger((severity, source, message) => {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);

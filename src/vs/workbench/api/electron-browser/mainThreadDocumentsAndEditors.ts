@@ -123,11 +123,10 @@ class MainThreadDocumentAndEditorStateComputer {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
 	) {
-		this._modelService.onModelAdded(this._updateState, this, this._toDispose);
-		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
+		this._modelService.onModelAdded(this.updateState, this, this._toDispose);
+		this._modelService.onModelRemoved(this.updateState, this, this._toDispose);
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
-		// this._updateState();
 	}
 
 	dispose(): void {
@@ -135,10 +134,10 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidAddEditor(e: ICommonCodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
-		this._updateState();
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this.updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this.updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this.updateState()));
+		this.updateState();
 	}
 
 	private _onDidRemoveEditor(e: ICommonCodeEditor): void {
@@ -146,11 +145,11 @@ class MainThreadDocumentAndEditorStateComputer {
 		if (sub) {
 			this._toDisposeOnEditorRemove.delete(e.getId());
 			sub.dispose();
-			this._updateState();
+			this.updateState();
 		}
 	}
 
-	private _updateState(): void {
+	updateState(): void {
 
 		// models: ignore too large models
 		const models = this._modelService.getModels();
@@ -263,6 +262,8 @@ export class MainThreadDocumentsAndEditors {
 			this._onDocumentAdd,
 			this._onDocumentRemove,
 		];
+
+		this._stateComputer.updateState();
 	}
 
 	dispose(): void {

@@ -9,8 +9,6 @@ import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstrac
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
 export class ExtHostThreadService extends AbstractThreadService implements IThreadService {
-	public _serviceBrand: any;
-
 	constructor(rpcProtocol: RPCProtocol) {
 		super(rpcProtocol, false);
 	}

@@ -4,13 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const IThreadService = createDecorator<IThreadService>('threadService');
-
 export interface IThreadService {
-	_serviceBrand: any;
-
 	/**
 	 * Always returns a proxy.
 	 */

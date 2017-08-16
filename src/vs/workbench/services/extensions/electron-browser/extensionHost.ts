@@ -74,7 +74,7 @@ export class ExtensionHostProcessWorker {
 	private isExtensionDevelopmentDebug: boolean;
 	private isExtensionDevelopmentDebugBrk: boolean;
 
-	public readonly messagingProtocol = new LazyMessagePassingProtol();
+	readonly messagingProtocol = new LazyMessagePassingProtol();
 
 	private extensionService: ExtensionService;
 
@@ -122,10 +122,10 @@ export class ExtensionHostProcessWorker {
 		}
 	}
 
-	public start(extensionService: ExtensionService): void {
+	public start(extensionService: ExtensionService): TPromise<IMessagePassingProtocol> {
 		this.extensionService = extensionService;
 
-		TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
+		return TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
 			const [server, hook] = <[Server, string]>data[0];
 			const port = <number>data[1];
 
@@ -219,10 +219,10 @@ export class ExtensionHostProcessWorker {
 			}
 
 			// Initialize extension host process with hand shakes
-			return this.tryExtHostHandshake(server).then(() => clearTimeout(startupTimeoutHandle));
-		}).done(undefined, err => {
-			console.error('ERROR starting extension host');
-			console.error(err);
+			return this.tryExtHostHandshake(server).then((protocol) => {
+				clearTimeout(startupTimeoutHandle);
+				return protocol;
+			});
 		});
 	}
 
@@ -262,7 +262,7 @@ export class ExtensionHostProcessWorker {
 		});
 	}
 
-	private tryExtHostHandshake(server: Server): TPromise<any> {
+	private tryExtHostHandshake(server: Server): TPromise<IMessagePassingProtocol> {
 
 		return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
 			let handle = setTimeout(() => reject('timeout'), 60 * 1000);
@@ -276,15 +276,18 @@ export class ExtensionHostProcessWorker {
 
 		}).then(protocol => {
 
-			protocol.onMessage(msg => {
-				if (msg === 'ready') {
-					// 1) Host is ready to receive messages, initialize it
-					return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
-				} else if (msg === 'initialized') {
-					// 2) Host is initialized
-					this.messagingProtocol.resolve(protocol);
-				}
-				return undefined;
+			return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
+				protocol.onMessage(msg => {
+					if (msg === 'ready') {
+						// 1) Host is ready to receive messages, initialize it
+						return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
+					} else if (msg === 'initialized') {
+						// 2) Host is initialized
+						this.messagingProtocol.resolve(protocol);
+						resolve(protocol);
+					}
+					return undefined;
+				});
 			});
 		});
 	}

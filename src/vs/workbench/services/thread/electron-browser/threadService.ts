@@ -34,9 +34,6 @@ function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingPr
 
 
 export class MainThreadService extends AbstractThreadService implements IThreadService {
-
-	_serviceBrand: any;
-
 	constructor(protocol: IMessagePassingProtocol, @IEnvironmentService environmentService: IEnvironmentService) {
 		if (logExtensionHostCommunication || environmentService.logExtensionHostCommunication) {
 			protocol = asLoggingProtocol(protocol);

@@ -10,7 +10,6 @@ import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/co
 
 export function OneGetThreadService(thing: any): IThreadService {
 	return {
-		_serviceBrand: undefined,
 		get<T>(): T {
 			return thing;
 		},
@@ -77,8 +76,6 @@ export abstract class AbstractTestThreadService {
 }
 
 export class TestThreadService extends AbstractTestThreadService implements IThreadService {
-	public _serviceBrand: any;
-
 	constructor() {
 		super(false);
 	}

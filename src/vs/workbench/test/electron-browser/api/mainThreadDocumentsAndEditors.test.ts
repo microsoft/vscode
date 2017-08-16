@@ -71,6 +71,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 
 	test('Model#add', () => {
+		deltas.length = 0;
 
 		modelService.createModel('farboo', null, null);
 
@@ -125,6 +126,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('editor with model', () => {
+		deltas.length = 0;
+
 		const model = modelService.createModel('farboo', null, null);
 		codeEditorService.addCodeEditor(mockCodeEditor(null, { model }));
 
