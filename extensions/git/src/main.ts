@@ -12,8 +12,8 @@ import { findGit, Git, IGit } from './git';
 import { Repository } from './repository';
 import { Model } from './model';
 import { CommandCenter } from './commands';
-import { GitContentProvider } from './contentProvider';
-import { AutoFetcher } from './autofetch';
+// import { GitContentProvider } from './contentProvider';
+// import { AutoFetcher } from './autofetch';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -28,24 +28,26 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	const config = workspace.getConfiguration('git');
 	const enabled = config.get<boolean>('enabled') === true;
-	const workspaceRootPath = workspace.rootPath;
-
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint);
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model();
+	disposables.push(model);
 
-	if (!workspaceRootPath || !enabled) {
+	if (!enabled) {
 		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
 	}
 
-	const workspaceRoot = Uri.file(workspaceRootPath);
-	const repository = new Repository(git, workspaceRoot);
-	model.register(workspaceRoot, repository);
+	for (const folder of workspace.workspaceFolders || []) {
+		const repositoryRoot = await git.getRepositoryRoot(folder.uri.fsPath);
+		const repository = new Repository(git.open(repositoryRoot));
+
+		model.register(repository);
+	}
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
@@ -54,14 +56,14 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	const contentProvider = new GitContentProvider(repository);
-	const autoFetcher = new AutoFetcher(repository);
+	// const contentProvider = new GitContentProvider(repository);
+	// const autoFetcher = new AutoFetcher(repository);
 
 	disposables.push(
 		commandCenter,
-		contentProvider,
-		autoFetcher,
-		repository
+		// contentProvider,
+		// autoFetcher,
+		// repository
 	);
 
 	await checkGitVersion(info);

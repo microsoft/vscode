@@ -15,28 +15,30 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string { return path.basename(this.repositoryRoot.fsPath); }
-	@memoize get description(): string { return path.dirname(this.repositoryRoot.fsPath); }
-	constructor(protected repositoryRoot: Uri, public readonly repository: Repository) { }
+	@memoize get label(): string { return path.basename(this.repositoryRoot); }
+	@memoize get description(): string { return path.dirname(this.repositoryRoot); }
+	constructor(protected repositoryRoot: string, public readonly repository: Repository) { }
 }
 
 export class Model {
 
-	private repositories: Map<Uri, Repository> = new Map<Uri, Repository>();
+	private repositories: Map<string, Repository> = new Map<string, Repository>();
 
-	register(uri: Uri, repository: Repository): Disposable {
-		if (this.repositories.has(uri)) {
+	register(repository: Repository): Disposable {
+		const root = repository.root;
+
+		if (this.repositories.has(root)) {
 			// TODO@Joao: what should happen?
 			throw new Error('Cant register repository with the same URI');
 		}
 
-		this.repositories.set(uri, repository);
+		this.repositories.set(root, repository);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.NotAGitRepository);
 		const listener = onDidDisappearRepository(() => disposable.dispose());
 
 		const disposable = toDisposable(once(() => {
-			this.repositories.delete(uri);
+			this.repositories.delete(root);
 			listener.dispose();
 		}));
 
@@ -72,8 +74,7 @@ export class Model {
 			const resourcePath = hint.fsPath;
 
 			for (let [root, repository] of this.repositories) {
-				const repositoryRootPath = root.fsPath;
-				const relativePath = path.relative(repositoryRootPath, resourcePath);
+				const relativePath = path.relative(root, resourcePath);
 
 				if (!/^\./.test(relativePath)) {
 					return repository;
@@ -94,5 +95,37 @@ export class Model {
 		}
 
 		return undefined;
+	}
+
+	// private async assertIdleState(): Promise<void> {
+	// 	if (this.state === State.Idle) {
+	// 		return;
+	// 	}
+
+	// 	const disposables: Disposable[] = [];
+	// 	const repositoryRoot = await this.git.getRepositoryRoot(this.workspaceRoot.fsPath);
+	// 	this.repository = this.git.open(repositoryRoot);
+
+	// 	const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
+	// 	const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+
+	// 	onRelevantGitChange(this.onFSChange, this, disposables);
+	// 	onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
+
+	// 	const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.path));
+	// 	onNonGitChange(this.onFSChange, this, disposables);
+
+	// 	this.repositoryDisposable = combinedDisposable(disposables);
+	// 	this.isRepositoryHuge = false;
+	// 	this.didWarnAboutLimit = false;
+	// 	this.state = State.Idle;
+	// }
+
+	dispose(): void {
+		for (let [, repository] of this.repositories) {
+			repository.dispose();
+		}
+
+		this.repositories.clear();
 	}
 }

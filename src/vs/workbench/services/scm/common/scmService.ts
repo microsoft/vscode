@@ -51,6 +51,9 @@ export class SCMService implements ISCMService {
 	private _providers: ISCMProvider[] = [];
 	get providers(): ISCMProvider[] { return [...this._providers]; }
 
+	private _onDidChangeProviders = new Emitter<void>();
+	get onDidChangeProviders(): Event<void> { return this._onDidChangeProviders.event; }
+
 	private _onDidChangeProvider = new Emitter<ISCMProvider>();
 	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
 
@@ -90,6 +93,8 @@ export class SCMService implements ISCMService {
 		if (this._providers.length === 1 || defaultProviderId === provider.id) {
 			this.setActiveSCMProvider(provider);
 		}
+
+		this._onDidChangeProviders.fire();
 
 		return toDisposable(() => {
 			const index = this._providers.indexOf(provider);

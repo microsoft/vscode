@@ -63,6 +63,9 @@ export interface ISCMService {
 
 	readonly _serviceBrand: any;
 	readonly onDidChangeProvider: Event<ISCMProvider>;
+
+	// TODO@joao fix name
+	readonly onDidChangeProviders: Event<void>;
 	readonly providers: ISCMProvider[];
 	readonly input: ISCMInput;
 	activeProvider: ISCMProvider | undefined;
