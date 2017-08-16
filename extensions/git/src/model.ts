@@ -119,7 +119,7 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
-	private getTooltip(): string {
+	private get tooltip(): string {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
 			case Status.MODIFIED: return localize('modified', "Modified");
@@ -163,7 +163,7 @@ export class Resource implements SourceControlResourceState {
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
-		const tooltip = this.getTooltip();
+		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
 
