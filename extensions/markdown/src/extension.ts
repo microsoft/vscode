@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri: string, line: number, wordWrap: boolean) => {
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
 
@@ -112,7 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const sourceLine = Math.floor(line);
 				const fraction = line - sourceLine;
 				const text = editor.document.lineAt(sourceLine).text;
-				const start = wordWrap ? Math.floor(fraction * text.length) : 0;
+				const start = Math.floor(fraction * text.length);
 				editor.revealRange(
 					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
 					vscode.TextEditorRevealType.AtTop);
