@@ -122,40 +122,21 @@ export class RPCProtocol {
 class RPCMultiplexer {
 
 	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _onMessage: (msg: string) => void;
-	private readonly _receiveOneMessageBound: () => void;
 	private readonly _sendAccumulatedBound: () => void;
 
 	private _messagesToSend: string[];
-	private _messagesToReceive: string[];
 
 	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: string) => void) {
 		this._protocol = protocol;
-		this._onMessage = onMessage;
-		this._receiveOneMessageBound = this._receiveOneMessage.bind(this);
 		this._sendAccumulatedBound = this._sendAccumulated.bind(this);
 
 		this._messagesToSend = [];
-		this._messagesToReceive = [];
 
 		this._protocol.onMessage(data => {
-			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
-			if (this._messagesToReceive.length === 0) {
-				process.nextTick(this._receiveOneMessageBound);
+			for (let i = 0, len = data.length; i < len; i++) {
+				onMessage(data[i]);
 			}
-
-			this._messagesToReceive = this._messagesToReceive.concat(data);
 		});
-	}
-
-	private _receiveOneMessage(): void {
-		const rawmsg = this._messagesToReceive.shift();
-
-		if (this._messagesToReceive.length > 0) {
-			process.nextTick(this._receiveOneMessageBound);
-		}
-
-		this._onMessage(rawmsg);
 	}
 
 	private _sendAccumulated(): void {
