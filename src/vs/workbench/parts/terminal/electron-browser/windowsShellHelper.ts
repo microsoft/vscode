@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
+import * as pfs from 'vs/base/node/pfs';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
@@ -54,23 +55,27 @@ export class WindowsShellHelper {
 
 	private getChildProcessDetails(pid: number): TPromise<{ executable: string, pid: number }[]> {
 		return new TPromise((resolve, reject) => {
-			this._wmicProcess = cp.execFile('wmic.exe', ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
-				this._wmicProcess = null;
-				if (this._isDisposed) {
-					reject(null);
-				}
-				if (err) {
-					reject(err);
-				} else if (stderr.length > 0) {
-					resolve([]); // No processes found
-				} else {
-					const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
-					const childProcessDetails = childProcessLines.map(str => {
-						const s = str.split('  ');
-						return { executable: s[0], pid: Number(s[1]) };
-					});
-					resolve(childProcessDetails);
-				}
+			const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+			const wmicPath = `${process.env.windir}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\wbem\\wmic.exe`;
+			pfs.fileExists(wmicPath).then(() => {
+				this._wmicProcess = cp.execFile(wmicPath, ['process', 'where', `parentProcessId=${pid}`, 'get', 'ExecutablePath,ProcessId'], (err, stdout, stderr) => {
+					this._wmicProcess = null;
+					if (this._isDisposed) {
+						reject(null);
+					}
+					if (err) {
+						reject(err);
+					} else if (stderr.length > 0) {
+						resolve([]); // No processes found
+					} else {
+						const childProcessLines = stdout.split('\n').slice(1).filter(str => !/^\s*$/.test(str));
+						const childProcessDetails = childProcessLines.map(str => {
+							const s = str.split('  ');
+							return { executable: s[0], pid: Number(s[1]) };
+						});
+						resolve(childProcessDetails);
+					}
+				});
 			});
 		});
 	}

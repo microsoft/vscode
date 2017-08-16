@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import Severity from 'vs/base/common/severity';
 import vscode = require('vscode');
-import { MainContext, MainThreadMessageServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadMessageServiceShape, IMainContext } from './extHost.protocol';
 
 const emptyMessageOptions: vscode.MessageOptions = Object.create(null);
 
@@ -27,8 +26,8 @@ export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageServiceShape;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadMessageService);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadMessageService);
 	}
 
 	showMessage(severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Thenable<string | undefined>;

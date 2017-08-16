@@ -11,13 +11,14 @@ import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/insta
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, InstanceCollection } from '../node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 // --- addressable
-import { MainThreadCommands } from './mainThreadCommands';
 import { MainThreadConfiguration } from './mainThreadConfiguration';
 import { MainThreadDebugService } from './mainThreadDebugService';
 import { MainThreadDiagnostics } from './mainThreadDiagnostics';
 import { MainThreadDocuments } from './mainThreadDocuments';
+import { MainThreadDocumentContentProviders } from './mainThreadDocumentContentProviders';
 import { MainThreadEditors } from './mainThreadEditors';
 import { MainThreadErrors } from './mainThreadErrors';
 import { MainThreadTreeViews } from './mainThreadTreeViews';
@@ -48,6 +49,36 @@ import { SaveParticipant } from './mainThreadSaveParticipant';
 // --- registers itself as service
 import './mainThreadHeapService';
 
+// --- mainThread participants
+import './mainThreadCommands';
+// import './mainThreadConfiguration';
+// import './mainThreadCredentials';
+// import './mainThreadDebugService';
+// import './mainThreadDiagnostics';
+// import './mainThreadDocuments';
+// import './mainThreadDocumentsAndEditors';
+import './mainThreadEditor';
+// import './mainThreadEditors';
+// import './mainThreadErrors';
+// import './mainThreadExtensionService';
+// import './mainThreadFileSystemEventService';
+// import './mainThreadHeapService';
+// import './mainThreadLanguageFeatures';
+// import './mainThreadLanguages';
+// import './mainThreadMessageService';
+// import './mainThreadOutputService';
+// import './mainThreadProgress';
+// import './mainThreadQuickOpen';
+// import './mainThreadSCM';
+// import './mainThreadSaveParticipant';
+// import './mainThreadStatusBar';
+// import './mainThreadStorage';
+// import './mainThreadTask';
+// import './mainThreadTelemetry';
+// import './mainThreadTerminalService';
+// import './mainThreadTreeViews';
+// import './mainThreadWorkspace';
+
 export class ExtHostContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -71,10 +102,10 @@ export class ExtHostContribution implements IWorkbenchContribution {
 
 		// Addressable instances
 		const col = new InstanceCollection();
-		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
 		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDebugService).set(create(MainThreadDebugService));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
+		col.define(MainContext.MainThreadDocumentContentProviders).set(create(MainThreadDocumentContentProviders));
 		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
 		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
@@ -94,11 +125,27 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadTask).set(create(MainThreadTask));
 		col.define(MainContext.MainThreadCredentials).set(create(MainThreadCredentials));
 		col.define(MainContext.MainProcessExtensionService).set(create(MainProcessExtensionServiceAPI));
+
+		// Registered named customers
+		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
+		for (let i = 0, len = namedCustomers.length; i < len; i++) {
+			const [id, ctor] = namedCustomers[i];
+			const obj = this.instantiationService.createInstance(ctor, this.threadService);
+			col.define(id).set(obj);
+		}
+
+		// Registered customers
+		const customers = ExtHostCustomersRegistry.getCustomers();
+		for (let i = 0, len = customers.length; i < len; i++) {
+			const ctor = customers[i];
+			this.instantiationService.createInstance(ctor, this.threadService);
+		}
+
 		col.finish(true, this.threadService);
 
 		// Other interested parties
 		create(JSONValidationExtensionPoint); // TODO@rehost: can survive an ext host restart
-		create(ColorExtensionPoint);
+		create(ColorExtensionPoint); // TODO@rehost: can survive an ext host restart
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler); // TODO@rehost: can survive an ext host restart
 		create(MainThreadFileSystemEventService);
 		create(SaveParticipant);

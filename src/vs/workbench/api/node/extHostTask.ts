@@ -12,8 +12,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
@@ -402,9 +401,9 @@ export class ExtHostTask extends ExtHostTaskShape {
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadTask);
+		this._proxy = mainContext.get(MainContext.MainThreadTask);
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 	};

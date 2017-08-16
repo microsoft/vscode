@@ -7,9 +7,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
-import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
+import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
 
 export type Item = string | QuickPickItem;
 
@@ -19,9 +18,9 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string;
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		super();
-		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
+		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
 	}
 
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;

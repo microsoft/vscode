@@ -18,7 +18,6 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
@@ -82,7 +81,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
-	private _resourceContentProvider: { [handle: number]: IDisposable };
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
@@ -133,7 +131,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}));
 
 		this._modelToDisposeMap = Object.create(null);
-		this._resourceContentProvider = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -246,50 +243,5 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 			return resource;
 		});
-	}
-
-	// --- virtual document logic
-
-	$registerTextContentProvider(handle: number, scheme: string): void {
-		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): TPromise<editorCommon.IModel> => {
-				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (typeof value === 'string') {
-						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
-						return this._modelService.createModel(value, mode, uri);
-					}
-					return undefined;
-				});
-			}
-		});
-	}
-
-	$unregisterTextContentProvider(handle: number): void {
-		const registration = this._resourceContentProvider[handle];
-		if (registration) {
-			registration.dispose();
-			delete this._resourceContentProvider[handle];
-		}
-	}
-
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
-		const model = this._modelService.getModel(uri);
-		if (!model) {
-			return;
-		}
-
-		const raw: ITextSource = {
-			lines: value.lines,
-			length: value.length,
-			BOM: value.BOM,
-			EOL: value.EOL,
-			containsRTL: value.containsRTL,
-			isBasicASCII: value.isBasicASCII,
-		};
-
-		if (!model.equals(raw)) {
-			model.setValueFromTextSource(raw);
-		}
 	}
 }

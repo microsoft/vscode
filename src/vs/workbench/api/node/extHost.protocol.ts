@@ -73,6 +73,20 @@ export interface IInitData {
 	telemetryInfo: ITelemetryInfo;
 }
 
+export interface IExtHostContext {
+	/**
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 */
+	get<T>(identifier: ProxyIdentifier<T>): T;
+}
+
+export interface IMainContext {
+	/**
+	 * Returns a proxy to an object addressable/named in the main/renderer process.
+	 */
+	get<T>(identifier: ProxyIdentifier<T>): T;
+}
+
 export interface InstanceSetter<T> {
 	set<R extends T>(instance: T): R;
 }
@@ -133,15 +147,17 @@ export abstract class MainThreadDiagnosticsShape {
 	$clear(owner: string): TPromise<any> { throw ni(); }
 }
 
+export abstract class MainThreadDocumentContentProvidersShape {
+	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
+	$unregisterTextContentProvider(handle: number): void { throw ni(); }
+	$onVirtualDocumentChange(uri: URI, value: ITextSource): void { throw ni(); }
+}
+
 export abstract class MainThreadDocumentsShape {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<any> { throw ni(); }
 	$tryOpenDocument(uri: URI): TPromise<any> { throw ni(); }
-	$registerTextContentProvider(handle: number, scheme: string): void { throw ni(); }
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void { throw ni(); }
-	$unregisterTextContentProvider(handle: number): void { throw ni(); }
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }
-
 
 export interface ISelectionChangeEvent {
 	selections: Selection[];
@@ -377,6 +393,10 @@ export abstract class ExtHostDiagnosticsShape {
 
 }
 
+export abstract class ExtHostDocumentContentProvidersShape {
+	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
+}
+
 export interface IModelAddedData {
 	url: URI;
 	versionId: number;
@@ -386,7 +406,6 @@ export interface IModelAddedData {
 	isDirty: boolean;
 }
 export abstract class ExtHostDocumentsShape {
-	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
 	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
 	$acceptModelSaved(strURL: string): void { throw ni(); }
 	$acceptDirtyStateChanged(strURL: string, isDirty: boolean): void { throw ni(); }
@@ -539,6 +558,7 @@ export const MainContext = {
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService', MainThreadDebugServiceShape),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', MainThreadDiagnosticsShape),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', MainThreadDocumentsShape),
+	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders', MainThreadDocumentContentProvidersShape),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews', MainThreadTreeViewsShape),
@@ -566,6 +586,7 @@ export const ExtHostContext = {
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService', ExtHostDebugServiceShape),
 	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors', ExtHostDocumentsAndEditorsShape),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments', ExtHostDocumentsShape),
+	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders', ExtHostDocumentContentProvidersShape),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ExtHostDocumentSaveParticipantShape),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ExtHostEditorsShape),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews', ExtHostTreeViewsShape),
