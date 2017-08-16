@@ -45,15 +45,17 @@ export abstract class AbstractThreadService implements IDispatcher {
 	}
 
 	private _createProxy<T>(proxyId: string): T {
-		// TODO@Alex: should all these methods be cached for this proxy ?
 		let handler = {
 			get: (target, name) => {
-				return (...myArgs: any[]) => {
-					return this._callOnRemote(proxyId, name, myArgs);
-				};
+				if (!target[name]) {
+					target[name] = (...myArgs: any[]) => {
+						return this._callOnRemote(proxyId, name, myArgs);
+					};
+				}
+				return target[name];
 			}
 		};
-		return new Proxy({}, handler);
+		return new Proxy(Object.create(null), handler);
 	}
 
 	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
