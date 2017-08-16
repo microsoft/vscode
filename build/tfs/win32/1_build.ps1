@@ -32,6 +32,10 @@ step "Install distro dependencies" {
   exec { & node build\tfs\common\installDistro.js }
 }
 
+step "Hygiene" {
+  exec { & npm run gulp -- hygiene }
+}
+
 step "Build minified" {
   exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }

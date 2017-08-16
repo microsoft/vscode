@@ -27,6 +27,9 @@ step "Get Electron" \
 step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js --arch=$ARCH
 
+step "Hygiene" \
+	npm run gulp -- hygiene
+
 step "Build minified" \
 	npm run gulp -- "vscode-linux-$ARCH-min"
 
