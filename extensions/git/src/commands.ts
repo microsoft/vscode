@@ -441,7 +441,7 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		await this.model.add(resources);
+		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
 	}
 
 	@command('git.stageAll')
@@ -561,7 +561,7 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		await this.model.revert(resources);
+		await this.runByRepository(resources, async (repository, resources) => repository.revert(resources));
 	}
 
 	@command('git.unstageAll')
@@ -667,7 +667,7 @@ export class CommandCenter {
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		await this.model.clean(resources);
+		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
 	}
 
 	@command('git.cleanAll')
@@ -1347,6 +1347,38 @@ export class CommandCenter {
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
+	}
+
+	private runByRepository<T>(resources: Uri, fn: (repository: Repository, resources: Uri) => Promise<T>): Promise<T[]>;
+	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
+	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
+		const resources = arg instanceof Uri ? [arg] : arg;
+		const isSingleResource = arg instanceof Uri;
+
+		const groups = resources.reduce((result, resource) => {
+			const repository = this.model.getRepository(resource);
+
+			// TODO@Joao: what should happen?
+			if (!repository) {
+				console.warn('Could not find git repository for ', resource);
+				return result;
+			}
+
+			const tuple = result.filter(p => p[0] === repository)[0];
+
+			if (tuple) {
+				tuple.resources.push(resource);
+			} else {
+				result.push({ repository, resources: [resource] });
+			}
+
+			return result;
+		}, [] as { repository: Repository, resources: Uri[] }[]);
+
+		const promises = groups
+			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
+
+		return Promise.all(promises);
 	}
 
 	dispose(): void {

@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, window, QuickPickItem, Disposable, SourceControlResourceGroup } from 'vscode';
-import { Repository, IRepository, State } from './repository';
+import { Repository, State } from './repository';
 import { memoize } from './decorators';
 import { toDisposable, filterEvent, once } from './util';
 import * as path from 'path';
@@ -20,7 +20,7 @@ class RepositoryPick implements QuickPickItem {
 	constructor(protected repositoryRoot: Uri, public readonly repository: Repository) { }
 }
 
-export class Model implements IRepository {
+export class Model {
 
 	private repositories: Map<Uri, Repository> = new Map<Uri, Repository>();
 
@@ -83,55 +83,5 @@ export class Model implements IRepository {
 		}
 
 		return undefined;
-	}
-
-	private runByRepository<T>(resources: Uri, fn: (repository: Repository, resources: Uri) => Promise<T>): Promise<T[]>;
-	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
-	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
-		const resources = arg instanceof Uri ? [arg] : arg;
-		const isSingleResource = arg instanceof Uri;
-
-		const groups = resources.reduce((result, resource) => {
-			const repository = this.getRepository(resource);
-
-			// TODO@Joao: what should happen?
-			if (!repository) {
-				console.warn('Could not find git repository for ', resource);
-				return result;
-			}
-
-			const tuple = result.filter(p => p[0] === repository)[0];
-
-			if (tuple) {
-				tuple.resources.push(resource);
-			} else {
-				result.push({ repository, resources: [resource] });
-			}
-
-			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
-
-		const promises = groups
-			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
-
-		return Promise.all(promises);
-	}
-
-	// IRepository
-
-	async add(resources: Uri[]): Promise<void> {
-		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
-	}
-
-	async stage(resource: Uri, contents: string): Promise<void> {
-		await this.runByRepository(resource, async (repository, uri) => repository.stage(uri, contents));
-	}
-
-	async revert(resources: Uri[]): Promise<void> {
-		await this.runByRepository(resources, async (repository, resources) => repository.revert(resources));
-	}
-
-	async clean(resources: Uri[]): Promise<void> {
-		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
 	}
 }

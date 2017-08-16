@@ -263,18 +263,11 @@ export interface CommitOptions {
 	signCommit?: boolean;
 }
 
-export interface IRepository {
-	add(resources: Uri[]): Promise<void>;
-	stage(resource: Uri, contents: string): Promise<void>;
-	revert(resources: Uri[]): Promise<void>;
-	clean(resources: Uri[]): Promise<void>;
-}
-
 export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
 }
 
-export class Repository implements IRepository, Disposable {
+export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
