@@ -138,11 +138,11 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 
 	public run(): TPromise<any> {
 		if (!this.contextService.hasWorkspace()) {
-			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL).run();
+			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
 		}
 
 		if (this.contextService.hasFolderWorkspace()) {
-			return this.instantiationService.createInstance(NewWorkspaceFromExistingAction, NewWorkspaceFromExistingAction.ID, NewWorkspaceFromExistingAction.LABEL).run();
+			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 		}
 
 		const folders = super.pickFolders(mnemonicLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
@@ -156,7 +156,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 }
 
-class NewWorkspaceAction extends Action {
+class NewWorkspaceAction extends BaseWorkspacesAction {
 
 	static ID = 'workbench.action.newWorkspace';
 	static LABEL = nls.localize('newWorkspace', "New Workspace...");
@@ -164,25 +164,7 @@ class NewWorkspaceAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.windowService.newWorkspace();
-	}
-}
-
-class NewWorkspaceFromExistingAction extends BaseWorkspacesAction {
-
-	static ID = 'workbench.action.newWorkspaceFromExisting';
-	static LABEL = nls.localize('newWorkspaceFormExisting', "New Workspace From Existing...");
-
-	constructor(
-		id: string,
-		label: string,
+		private presetRoots: URI[],
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -193,12 +175,10 @@ class NewWorkspaceFromExistingAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		if (this.contextService.hasFolderWorkspace()) {
-			let folders = this.pickFolders(mnemonicLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
-			if (folders && folders.length) {
-				if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "To open multiple folders, window reload is required."))) {
-					return this.createWorkspace([this.contextService.getWorkspace().roots[0], ...folders.map(folder => URI.file(folder))]);
-				}
+		const folders = this.pickFolders(mnemonicLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+		if (folders && folders.length) {
+			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "To open multiple folders, window reload is required."))) {
+				return this.createWorkspace([...this.presetRoots, ...folders.map(folder => URI.file(folder))]);
 			}
 		}
 
