@@ -147,7 +147,6 @@ const configurationValueWhitelist = [
 	'window.zoomLevel',
 	'files.autoSave',
 	'files.hotExit',
-	'typescript.check.tscVersion',
 	'files.associations',
 	'workbench.statusBar.visible',
 	'files.trimTrailingWhitespace',

@@ -5,12 +5,16 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { MainThreadErrorsShape } from '../node/extHost.protocol';
+import { MainThreadErrorsShape, MainContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadErrors extends MainThreadErrorsShape {
+@extHostNamedCustomer(MainContext.MainThreadErrors)
+export class MainThreadErrors implements MainThreadErrorsShape {
 
-	public onUnexpectedExtHostError(err: any): void {
-		errors.onUnexpectedError(err);
+	public dispose(): void {
 	}
 
+	public $onUnexpectedExtHostError(err: any): void {
+		errors.onUnexpectedError(err);
+	}
 }

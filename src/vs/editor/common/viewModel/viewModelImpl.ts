@@ -20,6 +20,7 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { Color } from 'vs/base/common/color';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -439,6 +440,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.validatePosition(position);
 	}
 
+	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
+		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
+		if (this.model.getEOL().length === 2) {
+			// This model uses CRLF, so the delta must take that into account
+			if (deltaOffset < 0) {
+				deltaOffset -= lineFeedCnt;
+			} else {
+				deltaOffset += lineFeedCnt;
+			}
+		}
+
+		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
+		const resultOffset = modelAnchorOffset + deltaOffset;
+		return this.model.getPositionAt(resultOffset);
+	}
+
 	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
 		let newLineCharacter = this.model.getEOL();
 
@@ -533,7 +550,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let colorMap = TokenizationRegistry.getColorMap();
 		let result: string[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = colorMap[i].toRGBHex();
+			result[i] = Color.Format.CSS.formatHex(colorMap[i]);
 		}
 		return result;
 	}

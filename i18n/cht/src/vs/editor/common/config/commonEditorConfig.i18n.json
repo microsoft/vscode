@@ -46,6 +46,7 @@
 	"autoClosingBrackets": "控制編輯器是否應在左括號後自動插入右括號",
 	"formatOnType": "控制編輯器是否應在輸入一行後自動格式化",
 	"formatOnPaste": "控制編輯器是否應自動設定貼上的內容格式。格式器必須可供使用，而且格式器應該能夠設定文件中一個範圍的格式。",
+	"autoIndent": "控制當使用者輸入, 貼上或移行時，編輯器必須自動調整縮排\n語言的縮排規則必須可用",
 	"suggestOnTriggerCharacters": "控制輸入觸發字元時，是否應自動顯示建議",
 	"acceptSuggestionOnEnter": "控制除了 'Tab' 外，是否也藉由按下 'Enter' 接受建議。如此可避免混淆要插入新行或接受建議。設定值'smart'表示在文字變更同時，只透過Enter接受建議。",
 	"acceptSuggestionOnCommitCharacter": "控制認可字元是否應接受建議。例如在 JavaScript 中，分號 (';') 可以是接受建議並鍵入該字元的認可字元。",

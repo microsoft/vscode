@@ -155,6 +155,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/extensions",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/files",
 			"project": "vscode-workbench"
 		},

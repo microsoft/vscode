@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "複合の名前。起動構成のドロップダウン メニューに表示されます。",
 	"app.launch.json.compounds.configurations": "この複合の一部として開始される構成の名前。",
 	"debugNoType": "デバッグ アダプター 'type' は省略不可で、'string' 型でなければなりません。",
-	"DebugConfig.failed": "'launch.json' ファイルを '.vscode' フォルダー ({0}) 内に作成できません。",
-	"selectDebug": "環境の選択"
+	"selectDebug": "環境の選択",
+	"DebugConfig.failed": "'launch.json' ファイルを '.vscode' フォルダー ({0}) 内に作成できません。"
 }

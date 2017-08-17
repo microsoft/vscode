@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "Utolsó kijelölés áthelyezése a következő keresési találatra",
 	"moveSelectionToPreviousFindMatch": "Utolsó kijelölés áthelyezése az előző keresési találatra",
 	"selectAllOccurrencesOfFindMatch": "Az összes keresési találat kijelölése",
-	"changeAll.label": "Minden előfordulás módosítása"
+	"changeAll.label": "Minden előfordulás módosítása",
+	"showNextFindTermAction": "Következő keresési kifejezés megjelenítése",
+	"showPreviousFindTermAction": "Előző keresési kifejezés megjelenítése"
 }

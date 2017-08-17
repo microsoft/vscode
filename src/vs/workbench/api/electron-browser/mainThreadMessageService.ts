@@ -9,16 +9,21 @@ import { IMessageService, IChoiceService } from 'vs/platform/message/common/mess
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
-import { MainThreadMessageServiceShape } from '../node/extHost.protocol';
+import { MainThreadMessageServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import * as vscode from 'vscode';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadMessageService extends MainThreadMessageServiceShape {
+@extHostNamedCustomer(MainContext.MainThreadMessageService)
+export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IMessageService private _messageService: IMessageService,
 		@IChoiceService private _choiceService: IChoiceService
 	) {
-		super();
+	}
+
+	public dispose(): void {
 	}
 
 	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {

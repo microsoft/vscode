@@ -18,7 +18,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 
-export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipantShape {
+export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;
 	private _workspace: MainThreadWorkspaceShape;
@@ -27,7 +27,6 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 	private _thresholds: { timeout: number; errors: number; };
 
 	constructor(documents: ExtHostDocuments, workspace: MainThreadWorkspaceShape, thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }) {
-		super();
 		this._documents = documents;
 		this._workspace = workspace;
 		this._thresholds = thresholds;
@@ -149,7 +148,7 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 				}
 			}
 
-			// apply edits iff any and iff document
+			// apply edits if any and if document
 			// didn't change somehow in the meantime
 			if (edits.length === 0) {
 				return undefined;

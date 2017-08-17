@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes } from './git';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
@@ -119,6 +119,28 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	private get tooltip(): string {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
+			case Status.MODIFIED: return localize('modified', "Modified");
+			case Status.INDEX_ADDED: return localize('index added', "Index Added");
+			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
+			case Status.DELETED: return localize('deleted', "Deleted");
+			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
+			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
+			case Status.UNTRACKED: return localize('untracked', "Untracked");
+			case Status.IGNORED: return localize('ignored', "Ignored");
+			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			default: return '';
+		}
+	}
+
 	private get strikeThrough(): boolean {
 		switch (this.type) {
 			case Status.DELETED:
@@ -141,10 +163,11 @@ export class Resource implements SourceControlResourceState {
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
+		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
 
-		return { strikeThrough, faded, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	constructor(
@@ -214,7 +237,9 @@ export enum Operation {
 	GetCommitTemplate = 1 << 15,
 	DeleteBranch = 1 << 16,
 	Merge = 1 << 17,
-	Ignore = 1 << 18
+	Ignore = 1 << 18,
+	Tag = 1 << 19,
+	Stash = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -290,6 +315,7 @@ export interface CommitOptions {
 	all?: boolean;
 	amend?: boolean;
 	signoff?: boolean;
+	signCommit?: boolean;
 }
 
 export class Model implements Disposable {
@@ -465,6 +491,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
 
+	async tag(name: string, message?: string): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -509,6 +539,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}
 
+	async pushTags(remote?: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
+	}
+
 	@throttle
 	async sync(): Promise<void> {
 		await this.run(Operation.Sync, async () => {
@@ -530,6 +564,18 @@ export class Model implements Disposable {
 
 			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
 		});
+	}
+
+	async getStashes(): Promise<Stash[]> {
+		return await this.repository.getStashes();
+	}
+
+	async createStash(message?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	}
+
+	async popStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}
 
 	async getCommitTemplate(): Promise<string> {

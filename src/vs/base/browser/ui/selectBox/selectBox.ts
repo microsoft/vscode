@@ -20,11 +20,16 @@ export interface ISelectBoxStyles {
 	selectBorder?: Color;
 }
 
-const defaultStyles = {
+export const defaultStyles = {
 	selectBackground: Color.fromHex('#3C3C3C'),
 	selectForeground: Color.fromHex('#F0F0F0'),
 	selectBorder: Color.fromHex('#3C3C3C')
 };
+
+export interface ISelectData {
+	selected: string;
+	index: number;
+}
 
 export class SelectBox extends Widget {
 
@@ -32,7 +37,7 @@ export class SelectBox extends Widget {
 	private options: string[];
 	private selected: number;
 	private container: HTMLElement;
-	private _onDidSelect: Emitter<string>;
+	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private selectBackground: Color;
 	private selectForeground: Color;
@@ -46,7 +51,7 @@ export class SelectBox extends Widget {
 
 		this.setOptions(options, selected);
 		this.toDispose = [];
-		this._onDidSelect = new Emitter<string>();
+		this._onDidSelect = new Emitter<ISelectData>();
 
 		this.selectBackground = styles.selectBackground;
 		this.selectForeground = styles.selectForeground;
@@ -54,7 +59,10 @@ export class SelectBox extends Widget {
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
-			this._onDidSelect.fire(e.target.value);
+			this._onDidSelect.fire({
+				index: e.target.selectedIndex,
+				selected: e.target.value
+			});
 		}));
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
 			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
@@ -64,7 +72,7 @@ export class SelectBox extends Widget {
 		}));
 	}
 
-	public get onDidSelect(): Event<string> {
+	public get onDidSelect(): Event<ISelectData> {
 		return this._onDidSelect.event;
 	}
 

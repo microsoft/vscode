@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "복합의 이름입니다. 구성 시작 드롭 다운 메뉴에 표시됩니다.",
 	"app.launch.json.compounds.configurations": "이 복합의 일부로 시작되는 구성의 이름입니다.",
 	"debugNoType": "디버그 어댑터 '형식'은 생략할 수 없으며 '문자열' 형식이어야 합니다.",
-	"DebugConfig.failed": "'.vscode' 폴더({0}) 내에 'launch.json' 파일을 만들 수 없습니다.",
-	"selectDebug": "환경 선택"
+	"selectDebug": "환경 선택",
+	"DebugConfig.failed": "'.vscode' 폴더({0}) 내에 'launch.json' 파일을 만들 수 없습니다."
 }

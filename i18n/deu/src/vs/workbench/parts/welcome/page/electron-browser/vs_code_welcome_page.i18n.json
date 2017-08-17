@@ -16,6 +16,7 @@
 	"welcomePage.help": "Hilfe",
 	"welcomePage.keybindingsCheatsheet": "Druckbare Tastaturübersicht",
 	"welcomePage.introductoryVideos": "Einführungsvideos",
+	"welcomePage.tipsAndTricks": "Tipps und Tricks",
 	"welcomePage.productDocumentation": "Produktdokumentation",
 	"welcomePage.gitHubRepository": "GitHub-Repository",
 	"welcomePage.stackOverflow": "Stack Overflow",
@@ -31,13 +32,9 @@
 	"welcomePage.colorThemeDescription": "Passen Sie das Aussehen des Editors und Ihres Codes an Ihre Wünsche an.",
 	"welcomePage.learn": "Lernen",
 	"welcomePage.showCommands": "Alle Befehle suchen und ausführen",
+	"welcomePage.showCommandsDescription": "Über die Befehlspalette ({0}) schnell auf Befehle zugreifen und nach Befehlen suchen",
 	"welcomePage.interfaceOverview": "Überblick über die Schnittstelle",
 	"welcomePage.interfaceOverviewDescription": "Erhalten Sie eine visuelle Überlagerung, die die wichtigsten Komponenten der Benutzeroberfläche hervorhebt.",
 	"welcomePage.interactivePlayground": "Interaktiver Playground",
-	"welcomePage.interactivePlaygroundDescription": "Testen Sie die wichtigsten Editorfunktionen in einer kurzen exemplarischen Vorgehensweise.",
-	"welcomePage.quickLinks": "Direktlinks",
-	"welcomePage.keybindingsReference": "Referenz für Tastenkombinationen",
-	"welcomePage.keybindingsReferenceDescription": "Eine druckbare PDF mit den wichtigsten Tastenkombinationen",
-	"welcomePage.configureSettings": "Einstellungen konfigurieren",
-	"welcomePage.configureSettingsDescription": "Optimieren Sie die Einstellungen, um VS Code bestmöglich zu nutzen."
+	"welcomePage.interactivePlaygroundDescription": "Testen Sie die wichtigsten Editorfunktionen in einer kurzen exemplarischen Vorgehensweise."
 }

@@ -253,6 +253,8 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
 
 		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
+		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
+		this._contentDomNode.domNode.setAttribute('aria-label', text);
 	}
 
 	public hide(): void {

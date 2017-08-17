@@ -340,6 +340,8 @@ export interface ContributedTask extends CommonTask, ConfigurationProperties {
 
 	defines: TaskIdentifier;
 
+	hasDefinedMatchers: boolean;
+
 	/**
 	 * The command configuration
 	 */

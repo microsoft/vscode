@@ -33,6 +33,11 @@ export interface Remote {
 	url: string;
 }
 
+export interface Stash {
+	index: number;
+	description: string;
+}
+
 export enum RefType {
 	Head,
 	RemoteHead,
@@ -277,7 +282,10 @@ export const GitErrorCodes = {
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
 	BranchNotFullyMerged: 'BranchNotFullyMerged',
-	NoRemoteReference: 'NoRemoteReference'
+	NoRemoteReference: 'NoRemoteReference',
+	NoLocalChanges: 'NoLocalChanges',
+	NoStashFound: 'NoStashFound',
+	LocalChangesOverwritten: 'LocalChangesOverwritten'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -574,7 +582,7 @@ export class Repository {
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -612,7 +620,7 @@ export class Repository {
 		}
 	}
 
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean, signCommit?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (opts.all) {
@@ -625,6 +633,10 @@ export class Repository {
 
 		if (opts.signoff) {
 			args.push('--signoff');
+		}
+
+		if (opts.signCommit) {
+			args.push('-S');
 		}
 
 		try {
@@ -675,6 +687,18 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async tag(name: string, message?: string): Promise<void> {
+		let args = ['tag'];
+
+		if (message) {
+			args = [...args, '-a', name, '-m', message];
+		} else {
+			args = [...args, name];
+		}
+
+		await this.run(args);
 	}
 
 	async clean(paths: string[]): Promise<void> {
@@ -786,11 +810,15 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
 		const args = ['push'];
 
 		if (setUpstream) {
 			args.push('-u');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {
@@ -808,6 +836,44 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			}
+
+			throw err;
+		}
+	}
+
+	async createStash(message?: string): Promise<void> {
+		try {
+			const args = ['stash', 'save'];
+
+			if (message) {
+				args.push('--', message);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No local changes to save/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			}
+
+			throw err;
+		}
+	}
+
+	async popStash(index?: number): Promise<void> {
+		try {
+			const args = ['stash', 'pop'];
+
+			if (typeof index === 'string') {
+				args.push(`stash@{${index}}`);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
 			}
 
 			throw err;
@@ -899,6 +965,18 @@ export class Repository {
 			.filter(line => !!line)
 			.map(fn)
 			.filter(ref => !!ref) as Ref[];
+	}
+
+	async getStashes(): Promise<Stash[]> {
+		const result = await this.run(['stash', 'list']);
+		const regex = /^stash@{(\d+)}:(.+)$/;
+		const rawStashes = result.stdout.trim().split('\n')
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
+
+		return rawStashes;
 	}
 
 	async getRemotes(): Promise<Remote[]> {

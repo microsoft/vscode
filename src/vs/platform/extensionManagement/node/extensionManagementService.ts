@@ -32,7 +32,7 @@ import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
 function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
-	return new Promise((c, e) => {
+	return new TPromise((c, e) => {
 		try {
 			const manifest = JSON.parse(raw);
 			const metadata = manifest.__metadata || null;
@@ -432,7 +432,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private preUninstallExtension(id: string): TPromise<void> {
 		const extensionPath = path.join(this.extensionsPath, id);
 		return pfs.exists(extensionPath)
-			.then(exists => exists ? null : Promise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
+			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => this._onUninstallExtension.fire(id));
 	}
 

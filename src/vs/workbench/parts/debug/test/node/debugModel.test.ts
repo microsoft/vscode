@@ -168,7 +168,7 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.name, threadName2);
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCallStack().length, 0);
-		assert.equal(thread2.stoppedDetails.reason, stoppedReason);
+		assert.equal(thread2.stoppedDetails.reason, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter

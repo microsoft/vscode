@@ -11,5 +11,7 @@
 	"noSettingsFound": "Sonuç Yok",
 	"oneSettingFound": "1 ayar eşleşti",
 	"settingsFound": "{0} ayar eşleşti",
+	"fileEditorWithInputAriaLabel": "{0}. Metin dosyası düzenleyici.",
+	"fileEditorAriaLabel": "Metin dosyası düzenleyici.",
 	"preferencesAriaLabel": "Varsayılan tercihler. Salt okunabilir metin editörü."
 }

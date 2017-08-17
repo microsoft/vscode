@@ -201,9 +201,13 @@ declare module 'vscode' {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
-		 * is also possible to provide a custom regular expression. *Note* that a
-		 * custom regular expression must not match the empty string and that it will
-		 * be ignored if it does.
+		 * is also possible to provide a custom regular expression.
+		 *
+		 * * *Note 1:* A custom regular expression must not match the empty string and
+		 * if it does, it will be ignored.
+		 * * *Note 2:* A custom regular expression will fail to match multiline strings
+		 * and in the name of speed regular expressions should not match words with
+		 * spaces. Use [`TextLine.text`](#TextLine.text) for more complex, non-wordy, scenarios.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *
@@ -743,6 +747,11 @@ declare module 'vscode' {
 		 * with the next editor or if it will be kept.
 		 */
 		preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the [editor](#TextEditor).
+		 */
+		selection?: Range;
 	}
 
 	/**
@@ -1073,19 +1082,19 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * Show the text editor.
+		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use [window.showTextDocument](#window.showTextDocument)
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
+		 * instead. This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
 		/**
-		 * Hide the text editor.
+		 * ~~Hide the text editor.~~
 		 *
-		 * @deprecated **This method is deprecated.** Use the command 'workbench.action.closeActiveEditor' instead.
+		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		hide(): void;
@@ -1486,7 +1495,7 @@ declare module 'vscode' {
 		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
-		onDidSelectItem?<T extends QuickPickItem>(item: T | string): any;
+		onDidSelectItem?(item: QuickPickItem | string): any;
 	}
 
 	/**
@@ -1997,9 +2006,9 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * @deprecated Please use the constructor taking a [location](#Location) object.
+		 * ~~Creates a new symbol information object.~~
 		 *
-		 * Creates a new symbol information object.
+		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
@@ -2607,7 +2616,7 @@ declare module 'vscode' {
 		commitCharacters?: string[];
 
 		/**
-		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
+		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
 		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
@@ -2942,24 +2951,52 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents the workspace configuration.
+	 * The configuration target
+	 */
+	export enum ConfigurationTarget {
+		/**
+		 * Global configuration
+		*/
+		Global = 1,
+
+		/**
+		 * Workspace configuration
+		 */
+		Workspace = 2,
+
+		/**
+		 * Workspace folder configuration
+		 */
+		WorkspaceFolder = 3
+	}
+
+	/**
+	 * Represents the configuration. It is a merged view of
 	 *
-	 * The workspace configuration is a merged view: Configurations of the current [workspace](#workspace.rootPath)
-	 * (if available), files like `launch.json`, and the installation-wide configuration. Workspace specific values
-	 * shadow installation-wide values.
+	 * - Default configuration
+	 * - Global configuration
+	 * - Workspace configuration (if available)
+	 * - Workspace folder configuration of the requested resource (if available)
 	 *
-	 * *Note:* The merged configuration of the current [workspace](#workspace.rootPath)
-	 * also contains settings from files like `launch.json` and `tasks.json`. Their basename will be
+	 * *Global configuration* comes from User Settings and shadows Defaults.
+	 *
+	 * *Workspace configuration* comes from Workspace Settings and shadows Global configuration.
+	 *
+	 * *Workspace Folder configuration* comes from `.vscode` folder under one of the [workspace folders](#workspace.workspaceFolders).
+	 *
+	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
 	 * part of the section identifier. The following snippets shows how to retrieve all configurations
 	 * from `launch.json`:
 	 *
 	 * ```ts
 	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch');
+	 * const config = workspace.getConfiguration('launch', vscode.window.activeTextEditor.document.uri);
 	 *
 	 * // retrieve values
 	 * const values = config.get('configurations');
 	 * ```
+	 *
+	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 	 */
 	export interface WorkspaceConfiguration {
 
@@ -2980,7 +3017,6 @@ declare module 'vscode' {
 		 */
 		get<T>(section: string, defaultValue: T): T;
 
-
 		/**
 		 * Check if this configuration has a certain value.
 		 *
@@ -2991,10 +3027,14 @@ declare module 'vscode' {
 
 		/**
 		 * Retrieve all information about a configuration setting. A configuration value
-		 * often consists of a *default* value, a global or installation-wide value, and
-		 * a workspace-specific value. The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
+		 * often consists of a *default* value, a global or installation-wide value,
+		 * a workspace-specific value and a folder-specific value.
+		 *
+		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overwritten by `globalValue`,
-		 * `globalValue` overwritten by `workspaceValue`.
+		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
+		 * Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
+		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
 		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
@@ -3002,24 +3042,40 @@ declare module 'vscode' {
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @return Information about a configuration setting or `undefined`.
 		 */
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } | undefined;
+		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, workspaceFolderValue?: T } | undefined;
 
 		/**
-		 * Update a configuration value. A value can be changed for the current
-		 * [workspace](#workspace.rootPath) only, or globally for all instances of the
-		 * editor. The updated configuration values are persisted.
+		 * Update a configuration value. The updated configuration values are persisted.
 		 *
-		 * *Note 1:* Setting an installation-wide value (`global: true`) in the presence of
-		 * a more specific workspace value has no observable effect in that workspace, but
-		 * in others.
+		 * A value can be changed in
+		 *
+		 * - [Global configuration](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
+		 * - [Workspace configuration](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
+		 * - [Workspace folder configuration](#ConfigurationTarget.WorkspaceFolder): Changes the value for the
+		 * [Workspace folder](#workspace.workspaceFolders) to which the current [configuration](#WorkspaceConfiguration) is scoped to.
+		 *
+		 * *Note 1:* Setting a global value in the presence of a more specific workspace value
+		 * has no observable effect in that workspace, but in others. Setting a workspace value
+		 * in the presence of a more specific folder value has no observable effect for the resources
+		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
+		 * [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 		 *
 		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
+		 * Will throw error when
+		 * - Writing a configuration which is not registered.
+		 * - Writing a configuration to workspace or folder target when no workspace is opened
+		 * - Writing a configuration to folder target when there is no folder settings
+		 * - Writing to folder target without passing a resource when getting the configuration (`workspace.getConfiguration(section, resource)`)
+		 * - Writing a window configuration to folder target
+		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
-		 * @param global When `true` changes the configuration value for all instances of the editor.
+		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
+		 *	If `undefined` or `null` or `false` configuration target is `ConfigurationTarget.Workspace`.
+		 *	If `true` configuration target is `ConfigurationTarget.Global`.
 		 */
-		update(section: string, value: any, global?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -3259,10 +3315,9 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * ~~Reveal this channel in the UI.~~
 		 *
-		 * @deprecated This method is **deprecated** and the overload with
-		 * just one parameter should be used (`show(preserveFocus?: boolean): void`).
+		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
 		 * @param column This argument is **deprecated** and will be ignored.
 		 * @param preserveFocus When `true` the channel will not take focus.
@@ -3470,13 +3525,13 @@ declare module 'vscode' {
 
 		/**
 		 * A memento object that stores state in the context
-		 * of the currently opened [workspace](#workspace.rootPath).
+		 * of the currently opened [workspace](#workspace.workspaceFolders).
 		 */
 		workspaceState: Memento;
 
 		/**
 		 * A memento object that stores state independent
-		 * of the current opened [workspace](#workspace.rootPath).
+		 * of the current opened [workspace](#workspace.workspaceFolders).
 		 */
 		globalState: Memento;
 
@@ -3645,7 +3700,7 @@ declare module 'vscode' {
 	 */
 	export interface TaskDefinition {
 		/**
-		 * The task definition descibing the task provided by an extension.
+		 * The task definition describing the task provided by an extension.
 		 * Usually a task provider defines more properties to identify
 		 * a task. They need to be defined in the package.json of the
 		 * extension under the 'taskDefinitions' extension point. The npm
@@ -3683,7 +3738,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The execution of a task happens as a external process
+	 * The execution of a task happens as an external process
 	 * without shell interaction.
 	 */
 	export class ProcessExecution {
@@ -3780,7 +3835,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new task.
 		 *
-		 * @param definition The task definition as defined in the taskDefintions extension point.
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -3838,7 +3893,7 @@ declare module 'vscode' {
 
 	/**
 	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 * A task provider is registered via #workspace.registerTaskProvider.
 	 */
 	export interface TaskProvider {
 		/**
@@ -3849,10 +3904,14 @@ declare module 'vscode' {
 		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
 
 		/**
-		 * Resolves a task the has no execution set.
+		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
+		 * often created from information found in the `task.json`-file. Such tasks miss
+		 * the information on how to execute them and a task provider must fill in
+		 * the missing information in the `resolveTask`-method.
+		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
-		 * @return the resolved task
+		 * @return The resolved task
 		 */
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
@@ -4051,14 +4110,25 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
-		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
-		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 * Show the given document in a text editor. [Options](#TextDocumentShowOptions) can be provided
+		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
 		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
+		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
+		 *
+		 * @see [openTextDocument](#openTextDocument)
+		 *
+		 * @param uri A resource identifier.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
@@ -4277,10 +4347,10 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * @deprecated This function **deprecated**. Use `withProgress` instead.
-		 *
 		 * ~~Show progress in the Source Control viewlet while running the given callback and while
 		 * its returned promise isn't resolve or rejected.~~
+		 *
+		 * @deprecated Use `withProgress` instead.
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
@@ -4592,6 +4662,44 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
+	 */
+	export interface WorkspaceFoldersChangeEvent {
+		/**
+		 * Added workspace folders.
+		 */
+		readonly added: WorkspaceFolder[];
+
+		/**
+		 * Removed workspace folders.
+		 */
+		readonly removed: WorkspaceFolder[];
+	}
+
+	/**
+	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
+	 * are equal which means there is no notion of an active or master workspace folder.
+	 */
+	export interface WorkspaceFolder {
+
+		/**
+		 * The associated URI for this workspace folder.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The name of this workspace folder. Defaults to
+		 * the basename its [uri-path](#Uri.path)
+		 */
+		readonly name: string;
+
+		/**
+		 * The ordinal number of this workspace folder.
+		 */
+		readonly index: number;
+	}
+
+	/**
 	 * Namespace for dealing with the current workspace. A workspace is the representation
 	 * of the folder that has been opened. There is no workspace when just a file but not a
 	 * folder has been opened.
@@ -4603,12 +4711,58 @@ declare module 'vscode' {
 	export namespace workspace {
 
 		/**
+		 * ~~The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.~~
+		 *
+		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
+		 *
+		 * @readonly
+		 */
+		export let rootPath: string | undefined;
+
+		/**
+		 * List of workspace folders or `undefined` when no folder is open.
+		 * *Note* that the first entry corresponds to the value of `rootPath`.
+		 *
+		 * @readonly
+		 */
+		export let workspaceFolders: WorkspaceFolder[] | undefined;
+
+		/**
+		 * An event that is emitted when a workspace folder is added or removed.
+		 */
+		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+
+		/**
+		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource. When the resource
+		 * is a workspace folder itself, its parent workspace folder or `undefined` is returned.
+		 *
+		 * @param uri An uri.
+		 * @return A workspace folder or `undefined`
+		 */
+		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+
+		/**
+		 * Returns a path that is relative to the workspace folder or folders.
+		 *
+		 * When there are no [workspace folders](#workspace.workspaceFolders) or when the path
+		 * is not contained in them, the input is returned.
+		 *
+		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
+		 * @param includeWorkspaceFolder When `true` and when the given path is contained inside a
+		 * workspace folder the name of the workspace is prepended. Defaults to `true` when there are
+		 * multiple workspace folders and `false` otherwise.
+		 * @return A path relative to the root or the input.
+		 */
+		export function asRelativePath(pathOrUri: string | Uri, includeWorkspaceFolder?: boolean): string;
+
+		/**
 		 * Creates a file system watcher.
 		 *
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
 		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
-		 * *Note* that only files within the current [workspace](#workspace.rootPath) can be watched.
+		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
 		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
@@ -4617,25 +4771,6 @@ declare module 'vscode' {
 		 * @return A new file system watcher instance.
 		 */
 		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
-
-		/**
-		 * The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.
-		 *
-		 * @readonly
-		 */
-		export let rootPath: string | undefined;
-
-		/**
-		 * Returns a path that is relative to the workspace root.
-		 *
-		 * When there is no [workspace root](#workspace.rootPath) or when the path
-		 * is not a child of that folder, the input is returned.
-		 *
-		 * @param pathOrUri A path or uri. When a uri is given its [fsPath](#Uri.fsPath) is used.
-		 * @return A path relative to the root or the input.
-		 */
-		export function asRelativePath(pathOrUri: string | Uri): string;
 
 		/**
 		 * Find files in the workspace.
@@ -4764,16 +4899,19 @@ declare module 'vscode' {
 		export const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
-		 * Get a configuration object.
+		 * Get a workspace configuration object.
 		 *
 		 * When a section-identifier is provided only that part of the configuration
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
 		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
+		 * When a resource is provided, configuration scoped to that resource is returned.
+		 *
 		 * @param section A dot-separated identifier.
-		 * @return The full workspace configuration or a subset.
+		 * @param resource A resource for which the configuration is asked for
+		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
@@ -5168,6 +5306,12 @@ declare module 'vscode' {
 		readonly faded?: boolean;
 
 		/**
+		 * The title for a specific
+		 * [source control resource state](#SourceControlResourceState).
+		 */
+		readonly tooltip?: string;
+
+		/**
 		 * The light theme decorations.
 		 */
 		readonly light?: SourceControlResourceThemableDecorations;
@@ -5348,12 +5492,17 @@ declare module 'vscode' {
 	export interface DebugSession {
 
 		/**
-		 * The debug session's type from the debug configuration.
+		 * The unique ID of this debug session.
+		 */
+		readonly id: string;
+
+		/**
+		 * The debug session's type from the [debug configuration](#DebugConfiguration).
 		 */
 		readonly type: string;
 
 		/**
-		 * The debug session's name from the debug configuration.
+		 * The debug session's name from the [debug configuration](#DebugConfiguration).
 		 */
 		readonly name: string;
 
@@ -5364,20 +5513,70 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A custom Debug Adapter Protocol event received from a [debug session](#DebugSession).
+	 */
+	export interface DebugSessionCustomEvent {
+		/**
+		 * The [debug session](#DebugSession) for which the custom event was received.
+		 */
+		session: DebugSession;
+
+		/**
+		 * Type of event.
+		 */
+		event: string;
+
+		/**
+		 * Event specific information.
+		 */
+		body?: any;
+	}
+
+	/**
 	 * Namespace for dealing with debug sessions.
 	 */
 	export namespace debug {
 
 		/**
-		 * An [event](#Event) which fires when a debug session has terminated.
+		 * Start debugging by using either a named launch or named compound configuration,
+		 * or by directly passing a [DebugConfiguration](#DebugConfiguration).
+		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
+		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
+		 * Folder specific variables used in the configuration (e.g. '${workspaceRoot}') are resolved against the given folder.
+		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
+		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
+		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
-		export const onDidTerminateDebugSession: Event<DebugSession>;
+		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration): Thenable<boolean>;
 
 		/**
-		 * Create a new debug session based on the given configuration.
-		 * @param configuration
+		 * The currently active [debug session](#DebugSession) or `undefined`. The active debug session is the one
+		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
+		 * If no debug session is active, the value is `undefined`.
 		 */
-		export function createDebugSession(configuration: DebugConfiguration): Thenable<DebugSession>;
+		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
+		 * has changed. *Note* that the event also fires when the active debug session changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when a new [debug session](#DebugSession) has been started.
+		 */
+		export const onDidStartDebugSession: Event<DebugSession>;
+
+		/**
+		 * An [event](#Event) which fires when a custom DAP event is received from the [debug session](#DebugSession).
+		 */
+		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
+
+		/**
+		 * An [event](#Event) which fires when a [debug session](#DebugSession) has terminated.
+		 */
+		export const onDidTerminateDebugSession: Event<DebugSession>;
 	}
 
 	/**

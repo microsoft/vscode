@@ -36,6 +36,7 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import Event, { Emitter } from 'vs/base/common/event';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { onUnexpectedError } from "vs/base/common/errors";
 
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
@@ -294,7 +295,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
+		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
 		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
 
 		keybindingsExtPoint.setHandler((extensions) => {

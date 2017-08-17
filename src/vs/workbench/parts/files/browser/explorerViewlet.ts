@@ -66,7 +66,7 @@ export class ExplorerViewlet extends ComposedViewsViewlet {
 		this.registerViews();
 		this.onConfigurationUpdated();
 		this._register(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
-		this._register(this.contextService.onDidChangeWorkspaceRoots(e => this.updateTitleArea()));
+		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
 	public create(parent: Builder): TPromise<void> {

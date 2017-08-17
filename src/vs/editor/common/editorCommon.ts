@@ -684,7 +684,7 @@ export interface ITextModel {
 	getFullModelRange(): Range;
 
 	/**
-	 * Returns iff the model was disposed or not.
+	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
 
@@ -820,6 +820,11 @@ export interface ITokenizedModel extends ITextModel {
 	forceTokenization(lineNumber: number): void;
 
 	/**
+	 * Get the line number of the first line whose tokens might be inaccurate.
+	 * @internal
+	 */
+	getFirstInvalidLineNumber(): number;
+	/**
 	 * Get the tokens for the line `lineNumber`.
 	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
@@ -875,19 +880,21 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	findMatchingBracketUp(bracket: string, position: IPosition): Range;
 
-	// /**
-	//  * Find the first bracket in the model before `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	//  */
-	// findPrevBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 * @internal
+	 */
+	findPrevBracket(position: IPosition): IFoundBracket;
 
-	// /**
-	//  * Find the first bracket in the model after `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	//  */
-	// findNextBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 * @internal
+	 */
+	findNextBracket(position: IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1173,7 +1180,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	onBeforeDetached(): void;
 
 	/**
-	 * Returns iff this model is attached to an editor or not.
+	 * Returns if this model is attached to an editor or not.
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;

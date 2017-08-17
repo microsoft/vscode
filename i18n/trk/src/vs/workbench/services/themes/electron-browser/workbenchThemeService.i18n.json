@@ -28,5 +28,6 @@
 	"iconThemeError": "Dosya simgesi teması bilinmiyor veya yüklenmemiş.",
 	"workbenchColors": "Şu an seçili renk temasındaki renkleri geçersiz kılar.",
 	"workbenchColors.deprecated": "Ayar, artık deneysel değildir ve 'workbench.colorCustomizations' olarak yeniden adlandırılmıştır",
-	"workbenchColors.deprecatedDescription": "Bunun yerine 'workbench.colorCustomizations' kullanın"
+	"workbenchColors.deprecatedDescription": "Bunun yerine 'workbench.colorCustomizations' kullanın",
+	"editorColors": "Şu an seçili renk temasındaki düzenleyici renklerini ve yazı tipi stilini geçersiz kılar."
 }

@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "使用其參數簽章完成函式。",
 	"typescript.tsdk.desc": "指定資料夾路徑，其中包含要使用的 tsserver 和 lib*.d.ts 檔案。",
 	"typescript.disableAutomaticTypeAcquisition": "停用自動類型取得。需要 TypeScript >= 2.0.6，並需要在變更後重新啟動。",
-	"typescript.check.tscVersion": "請檢查全域安裝 TypeScript 編譯器 (例如 tsc) 是否不同於使用的 TypeScript 語言服務。",
 	"typescript.tsserver.log": "允許 TS 伺服器記錄到檔案。此記錄可用來診斷 TS 伺服器問題。記錄可能包含檔案路徑、原始程式碼及您專案中可能具有敏感性的其他資訊。",
 	"typescript.tsserver.trace": "允許將訊息追蹤傳送到 TS 伺服器。此追蹤可用來診斷 TS 伺服器問題。追蹤可能包含檔案路徑、原始程式碼及您專案中可能具有敏感性的其他資訊。",
 	"typescript.validate.enable": "啟用/停用 TypeScript 驗證。",
@@ -28,6 +27,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "定義範非空白左右大括弧間的空格處理。需要 TypeScript >= 2.3.0。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "定義範本字串左右大括弧間的空格處理。需要 TypeScript >= 2.0.6。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "定義 JSX 運算式左右大括弧間的空格處理。需要 TypeScript >= 2.0.6。",
+	"format.insertSpaceAfterTypeAssertion": "定義在 TypeScript 內類型宣告後空格處理。需要 TypeScript >= 2.4。",
 	"format.placeOpenBraceOnNewLineForFunctions": "定義是否將左大括弧放入函式的新行。",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "定義是否將左大括弧放入控制區塊的新行。",
 	"javascript.validate.enable": "啟用/停用 JavaScript 驗證。",
@@ -44,5 +44,7 @@
 	"typescript.npm": "指定用於自動類型取得的 NPM 可執行檔路徑。TypeScript 必須 >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "檢查是否已安裝NPM用以取得自動類型擷取.",
 	"javascript.nameSuggestions": "從JavaScript推薦表檔案中啟用/停用包含唯一檔名",
-	"typescript.tsc.autoDetect": "控制 tsc 工作的自動偵測為開啟或關閉。"
+	"typescript.tsc.autoDetect": "控制 tsc 工作的自動偵測為開啟或關閉。",
+	"typescript.problemMatchers.tsc.label": "TypeScript 問題",
+	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)"
 }

@@ -260,6 +260,19 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, with selection', function () {
+		return createRandomFile('foo\nbar\nbar').then(file => {
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc, { selection: new vscode.Range(new vscode.Position(1, 1), new vscode.Position(1, 2)) }).then(editor => {
+					assert.equal(editor.selection.start.line, 1);
+					assert.equal(editor.selection.start.character, 1);
+					assert.equal(editor.selection.end.line, 1);
+					assert.equal(editor.selection.end.character, 2);
+				});
+			});
+		});
+	});
+
 	test('registerTextDocumentContentProvider, simple', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {

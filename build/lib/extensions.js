@@ -26,6 +26,7 @@ function fromLocal(extensionPath) {
             .map(function (fileName) { return path.join(extensionPath, fileName); })
             .map(function (filePath) { return new File({
             path: filePath,
+            stat: fs.statSync(filePath),
             base: extensionPath,
             contents: fs.createReadStream(filePath)
         }); });

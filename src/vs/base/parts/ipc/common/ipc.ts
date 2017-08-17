@@ -138,7 +138,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 		try {
 			promise = channel.call(request.name, request.arg);
 		} catch (err) {
-			promise = Promise.wrapError(err);
+			promise = TPromise.wrapError(err);
 		}
 
 		const id = request.id;
@@ -238,7 +238,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private doRequest(request: IRequest): Promise {
 		const id = request.raw.id;
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.handlers[id] = response => {
 				switch (response.type) {
 					case MessageType.ResponseSuccess:
@@ -273,7 +273,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private bufferRequest(request: IRequest): Promise {
 		let flushedRequest: Promise = null;
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.bufferedRequests.push(request);
 
 			request.flush = () => {
@@ -478,7 +478,7 @@ export type Deserializer<T, R> = (raw: R) => T;
 export function eventToCall<T>(event: Event<T>, serializer: Serializer<T, any> = t => t): TPromise<void> {
 	let disposable: IDisposable;
 
-	return new Promise(
+	return new TPromise(
 		(c, e, p) => disposable = event(t => p(serializer(t))),
 		() => disposable.dispose()
 	);

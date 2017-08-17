@@ -87,6 +87,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					toLineNumber: this.getLineCount()
 				}]
 			});
+
+			if (this._shouldAutoTokenize()) {
+				this._warmUpTokens();
+			}
 		});
 
 		this._revalidateTokensTimeout = -1;
@@ -163,6 +167,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		return result;
+	}
+
+	public getFirstInvalidLineNumber(): number {
+		return this._invalidLineStartIndex + 1;
 	}
 
 	public forceTokenization(lineNumber: number): void {
@@ -254,16 +262,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	_warmUpTokens(): void {
 		// Warm up first 100 lines (if it takes less than 50ms)
 		var maxLineNumber = Math.min(100, this.getLineCount());
-		var toLineNumber = maxLineNumber;
-		for (var lineNumber = 1; lineNumber <= maxLineNumber; lineNumber++) {
-			var text = this._lines[lineNumber - 1].text;
-			if (text.length >= 200) {
-				// This line is over 200 chars long, so warm up without it
-				toLineNumber = lineNumber - 1;
-				break;
-			}
-		}
-		this._revalidateTokensNow(toLineNumber);
+		this._revalidateTokensNow(maxLineNumber);
 
 		if (this._invalidLineStartIndex < this._lines.length) {
 			this._beginBackgroundTokenization();

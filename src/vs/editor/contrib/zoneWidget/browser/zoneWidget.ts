@@ -35,7 +35,7 @@ export interface IStyles {
 	arrowColor?: Color;
 }
 
-const defaultColor = Color.fromRGBA(new RGBA(0, 122, 204));
+const defaultColor = new Color(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
 	showArrow: true,

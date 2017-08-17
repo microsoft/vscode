@@ -231,10 +231,10 @@ suite('SnippetController2', function () {
 		model.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
 
-		ctrl.insert('import ${2:${1:module}} from \'${1: module }\'$0');
+		ctrl.insert('import ${2:${1:module}} from \'${1:module}\'$0');
 
 		assertContextKeys(contextKeys, true, false, true);
-		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 29));
+		assertSelections(editor, new Selection(1, 8, 1, 14), new Selection(1, 21, 1, 27));
 
 		ctrl.insert('foo');
 		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(1, 21, 1, 21));

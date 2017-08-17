@@ -827,11 +827,12 @@ export class ChangeModeAction extends Action {
 		let galleryAction: Action;
 		if (fileResource) {
 			const ext = paths.extname(fileResource.fsPath) || paths.basename(fileResource.fsPath);
-
-			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
-			if (galleryAction.enabled) {
-				picks.unshift(galleryAction);
-			}
+			// Disabled see issue https://github.com/Microsoft/vscode/issues/31972
+			//
+			// galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
+			// if (galleryAction.enabled) {
+			// 	picks.unshift(galleryAction);
+			// }
 
 			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
 			picks.unshift(configureModeSettings);

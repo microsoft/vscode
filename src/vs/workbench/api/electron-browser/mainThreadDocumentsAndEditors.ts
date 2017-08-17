@@ -11,12 +11,20 @@ import { delta } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { extHostCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { MainThreadDocuments } from "vs/workbench/api/electron-browser/mainThreadDocuments";
+import { MainThreadEditors } from "vs/workbench/api/electron-browser/mainThreadEditors";
+import { IModeService } from "vs/editor/common/services/modeService";
+import { IFileService } from "vs/platform/files/common/files";
+import { ITextModelService } from "vs/editor/common/services/resolverService";
+import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
+import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import { ITelemetryService } from "vs/platform/telemetry/common/telemetry";
 
 namespace cmp {
 	export function compareModels(a: IModel, b: IModel): number {
@@ -115,11 +123,10 @@ class MainThreadDocumentAndEditorStateComputer {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
 	) {
-		this._modelService.onModelAdded(this._updateState, this, this._toDispose);
-		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
+		this._modelService.onModelAdded(this.updateState, this, this._toDispose);
+		this._modelService.onModelRemoved(this.updateState, this, this._toDispose);
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
-		// this._updateState();
 	}
 
 	dispose(): void {
@@ -127,10 +134,10 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidAddEditor(e: ICommonCodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
-		this._updateState();
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this.updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this.updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this.updateState()));
+		this.updateState();
 	}
 
 	private _onDidRemoveEditor(e: ICommonCodeEditor): void {
@@ -138,11 +145,11 @@ class MainThreadDocumentAndEditorStateComputer {
 		if (sub) {
 			this._toDisposeOnEditorRemove.delete(e.getId());
 			sub.dispose();
-			this._updateState();
+			this.updateState();
 		}
 	}
 
-	private _updateState(): void {
+	updateState(): void {
 
 		// models: ignore too large models
 		const models = this._modelService.getModels();
@@ -205,6 +212,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 }
 
+@extHostCustomer
 export class MainThreadDocumentsAndEditors {
 
 	private _toDispose: IDisposable[];
@@ -223,18 +231,39 @@ export class MainThreadDocumentsAndEditors {
 	readonly onDocumentRemove: Event<string[]> = this._onDocumentRemove.event;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IModelService private _modelService: IModelService,
 		@ITextFileService private _textFileService: ITextFileService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
-		@IThreadService threadService: IThreadService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IModeService modeService: IModeService,
+		@IFileService fileService: IFileService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentsAndEditors);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
 		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(_modelService, codeEditorService, _workbenchEditorService);
+
+		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
+		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
+
+		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService);
+		extHostContext.set(MainContext.MainThreadEditors, mainThreadEditors);
+
 		this._toDispose = [
+			mainThreadDocuments,
+			mainThreadEditors,
 			this._stateComputer,
-			this._stateComputer.onDidChangeState(this._onDelta, this)
+			this._stateComputer.onDidChangeState(this._onDelta, this),
+			this._onTextEditorAdd,
+			this._onTextEditorRemove,
+			this._onDocumentAdd,
+			this._onDocumentRemove,
 		];
+
+		this._stateComputer.updateState();
 	}
 
 	dispose(): void {

@@ -385,20 +385,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
-		let screenReaderMessage: string = null;
-		// if (oldState) {
-		// 	screenReaderMessage = ScreenReaderMessageGenerator.generateMessage(
-		// 		source,
-		// 		this._model,
-		// 		oldState.modelVersionId,
-		// 		oldState.cursorState[0].modelState.selection,
-		// 		newState.modelVersionId,
-		// 		newState.cursorState[0].modelState.selection
-		// 	);
-		// }
-
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange, screenReaderMessage)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 
 		// Only after the view has been notified, let the rest of the world know...
 		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));

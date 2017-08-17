@@ -270,6 +270,11 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
+
+			// Make sure to revert untitled so that they do not restore
+			// see https://github.com/Microsoft/vscode/issues/29572
+			this.untitledEditorService.revertAll();
+
 			return this.noVeto({ cleanUpBackups: true });
 		}
 

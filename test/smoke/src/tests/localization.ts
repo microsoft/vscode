@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testLocalization() {
-	context('Localization', () => {
+	describe('Localization', () => {
 		afterEach(async function () {
 			return await app.stop();
 		});

@@ -6,24 +6,76 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
 import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
 export function OneGetThreadService(thing: any): IThreadService {
 	return {
-		_serviceBrand: undefined,
 		get<T>(): T {
 			return thing;
 		},
-		set<T>(): void {
-			throw new Error();
-		}
+		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
+			return value;
+		},
+		assertRegistered: undefined
 	};
 }
 
-export class TestThreadService extends AbstractThreadService implements IThreadService {
-	public _serviceBrand: any;
+declare var Proxy; // TODO@TypeScript
 
+export abstract class AbstractTestThreadService {
+
+	private _isMain: boolean;
+	protected _locals: { [id: string]: any; };
+	private _proxies: { [id: string]: any; } = Object.create(null);
+
+	constructor(isMain: boolean) {
+		this._isMain = isMain;
+		this._locals = Object.create(null);
+		this._proxies = Object.create(null);
+	}
+
+	public handle(rpcId: string, methodName: string, args: any[]): any {
+		if (!this._locals[rpcId]) {
+			throw new Error('Unknown actor ' + rpcId);
+		}
+		let actor = this._locals[rpcId];
+		let method = actor[methodName];
+		if (typeof method !== 'function') {
+			throw new Error('Unknown method ' + methodName + ' on actor ' + rpcId);
+		}
+		return method.apply(actor, args);
+	}
+
+	get<T>(identifier: ProxyIdentifier<T>): T {
+		if (!this._proxies[identifier.id]) {
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		}
+		return this._proxies[identifier.id];
+	}
+
+	private _createProxy<T>(id: string): T {
+		let handler = {
+			get: (target, name) => {
+				return (...myArgs: any[]) => {
+					return this._callOnRemote(id, name, myArgs);
+				};
+			}
+		};
+		return new Proxy({}, handler);
+	}
+
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
+		if (identifier.isMain !== this._isMain) {
+			throw new Error('Mismatch in object registration!');
+		}
+		this._locals[identifier.id] = value;
+		return value;
+	}
+
+	protected abstract _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
+}
+
+export class TestThreadService extends AbstractTestThreadService implements IThreadService {
 	constructor() {
 		super(false);
 	}
@@ -101,5 +153,9 @@ export class TestThreadService extends AbstractThreadService implements IThreadS
 				return TPromise.wrapError(err);
 			});
 		});
+	}
+
+	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		throw new Error('Not implemented!');
 	}
 }
