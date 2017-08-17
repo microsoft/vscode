@@ -12,7 +12,7 @@ import { findGit, Git, IGit } from './git';
 import { Repository } from './repository';
 import { Model } from './model';
 import { CommandCenter } from './commands';
-// import { GitContentProvider } from './contentProvider';
+import { GitContentProvider } from './contentProvider';
 // import { AutoFetcher } from './autofetch';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
@@ -56,12 +56,12 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	// const contentProvider = new GitContentProvider(repository);
+	const contentProvider = new GitContentProvider(model);
 	// const autoFetcher = new AutoFetcher(repository);
 
 	disposables.push(
 		commandCenter,
-		// contentProvider,
+		contentProvider,
 		// autoFetcher,
 		// repository
 	);
