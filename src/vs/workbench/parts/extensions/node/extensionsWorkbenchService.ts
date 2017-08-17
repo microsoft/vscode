@@ -813,8 +813,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		const extensionId = match[1];
 
-		this.queryGallery({ names: [extensionId] })
-			.then(result => {
+		this.queryLocal().then(local => {
+			if (local.some(local => local.id === extensionId)) {
+				return TPromise.as(null);
+			}
+
+			return this.queryGallery({ names: [extensionId] }).then(result => {
 				if (result.total < 1) {
 					return TPromise.as(null);
 				}
@@ -826,20 +830,16 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						nls.localize('install', "Install"),
 						nls.localize('cancel', "Cancel")
 					];
-					return this.choiceService.choose(Severity.Info, message, options, 2, false)
-						.then<void>(value => {
-							if (value === 0) {
-								const promises: TPromise<any>[] = [];
-								if (this.local.every(local => local.id !== extension.id)) {
-									promises.push(this.install(extension));
-								}
-								return TPromise.join(promises);
-							}
+					return this.choiceService.choose(Severity.Info, message, options, 2, false).then<void>(value => {
+						if (value !== 0) {
 							return TPromise.as(null);
-						});
+						}
+
+						return this.install(extension);
+					});
 				});
-			})
-			.done(undefined, error => this.onError(error));
+			});
+		}).done(undefined, error => this.onError(error));
 	}
 
 	dispose(): void {
