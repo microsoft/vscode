@@ -734,7 +734,8 @@ class ColorProviderAdapter {
 				return {
 					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
 					availableFormats: availableFormats,
-					range: TypeConverters.fromRange(ci.range)
+					range: TypeConverters.fromRange(ci.range),
+					renderDecorator: ci.renderDecorator
 				};
 			});
 

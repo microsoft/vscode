@@ -9,8 +9,8 @@ import * as path from 'path';
 import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { activateColorDecorations, ColorProvider } from './colorDecorators';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
+import { ColorProvider } from "./colorDecorators";
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -122,10 +122,8 @@ export function activate(context: ExtensionContext) {
 		let isDecoratorEnabled = (languageId: string) => {
 			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
 		};
-		disposable = activateColorDecorations(colorRequestor, { json: true }, isDecoratorEnabled);
-		context.subscriptions.push(disposable);
 
-		context.subscriptions.push(languages.registerColorProvider('json', new ColorProvider(colorRequestor)));
+		context.subscriptions.push(languages.registerColorProvider('json', new ColorProvider(colorRequestor, { json: true }, isDecoratorEnabled)));
 	});
 
 	// Push the disposable to the context's subscriptions so that the

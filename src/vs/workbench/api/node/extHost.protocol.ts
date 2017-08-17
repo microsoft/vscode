@@ -474,6 +474,7 @@ export interface IRawColorInfo {
 	color: [number, number, number, number];
 	availableFormats: (number | [number, number])[];
 	range: IRange;
+	renderDecorator: boolean;
 }
 
 export type IRawColorFormatMap = [number, string][];

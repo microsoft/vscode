@@ -303,7 +303,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 							return {
 								color,
 								formatters,
-								range: documentColor.range
+								range: documentColor.range,
+								renderDecorator: documentColor.renderDecorator
 							};
 						});
 					});
