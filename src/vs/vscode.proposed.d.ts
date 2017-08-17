@@ -276,14 +276,6 @@ declare module 'vscode' {
 
 	// SCM
 
-	export interface Command {
-
-		/**
-		 * An icon for the command, when represented in the UI.
-		 */
-		iconPath?: string | Uri;
-	}
-
 	export interface SourceControlResourceState {
 
 		/**
@@ -339,13 +331,5 @@ declare module 'vscode' {
 		 * instance as the first argument.
 		 */
 		overflowCommands?: Command[];
-
-		/**
-		 * Optional context commands.
-		 *
-		 * By default, the commands will be invoked with this SourceControl
-		 * instance as the first argument.
-		 */
-		contextCommands?: Command[];
 	}
 }
