@@ -627,7 +627,7 @@ export function initializeExtensionApi(extensionService: ExtHostExtensionService
 function createExtensionPathIndex(extensionService: ExtHostExtensionService): TPromise<TrieMap<IExtensionDescription>> {
 
 	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
+	const trie = new TrieMap<IExtensionDescription>();
 	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
 		if (!ext.main) {
 			return undefined;
