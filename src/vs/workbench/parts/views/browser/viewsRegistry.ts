@@ -99,10 +99,18 @@ export const ViewsRegistry: IViewsRegistry = new class {
 	}
 
 	deregisterViews(ids: string[], location: ViewLocation): void {
-		const viewsToDeregister = this._views.get(location).filter(view => ids.indexOf(view.id) !== -1);
-		if (viewsToDeregister.length) {
-			this._views.set(location, this._views.get(location).filter(view => ids.indexOf(view.id) === -1));
+		const views = this._views.get(location);
+
+		if (!views) {
+			return;
 		}
+
+		const viewsToDeregister = views.filter(view => ids.indexOf(view.id) !== -1);
+
+		if (viewsToDeregister.length) {
+			this._views.set(location, views.filter(view => ids.indexOf(view.id) === -1));
+		}
+
 		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
