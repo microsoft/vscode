@@ -1246,24 +1246,36 @@ export class CompareResourcesAction extends Action {
 	constructor(
 		resource: URI,
 		tree: ITree,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel());
+		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel(resource, contextService, environmentService));
 
 		this.tree = tree;
 		this.resource = resource;
 	}
 
-	private static computeLabel(): string {
+	private static computeLabel(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
 		if (globalResourceToCompare) {
-			return nls.localize('compareWith', "Compare with '{0}'", paths.basename(globalResourceToCompare.fsPath));
+			let leftResourceName = paths.basename(globalResourceToCompare.fsPath);
+			let rightResourceName = paths.basename(resource.fsPath);
+
+			// If the file names are identical, add more context by looking at the parent folder
+			if (leftResourceName === rightResourceName) {
+				const folderPaths = labels.shorten([
+					labels.getPathLabel(paths.dirname(globalResourceToCompare.fsPath), contextService, environmentService),
+					labels.getPathLabel(paths.dirname(resource.fsPath), contextService, environmentService)
+				]);
+
+				leftResourceName = paths.join(folderPaths[0], leftResourceName);
+				rightResourceName = paths.join(folderPaths[1], rightResourceName);
+			}
+
+			return nls.localize('compareWith', "Compare '{0}' with '{1}'", leftResourceName, rightResourceName);
 		}
 
 		return nls.localize('compareFiles', "Compare Files");
-	}
-
-	public getLabel(): string {
-		return CompareResourcesAction.computeLabel();
 	}
 
 	_isEnabled(): boolean {
