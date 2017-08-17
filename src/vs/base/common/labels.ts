@@ -110,6 +110,7 @@ export function tildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const home = '~';
 export function shorten(paths: string[]): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
@@ -130,7 +131,7 @@ export function shorten(paths: string[]): string[] {
 
 		match = true;
 
-		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
@@ -138,6 +139,9 @@ export function shorten(paths: string[]): string[] {
 		} else if (path.indexOf(nativeSep) === 0) {
 			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
 			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(home) === 0) {
+			prefix = path.substr(0, path.indexOf(home) + home.length);
+			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
