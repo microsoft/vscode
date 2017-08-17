@@ -667,7 +667,7 @@ export class TerminalInstance implements ITerminalInstance {
 						args = this._shellLaunchConfig.args;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (a.indexOf(' ') !== -1) {
+							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
 								return `'${a}'`;
 							}
 							return a;
