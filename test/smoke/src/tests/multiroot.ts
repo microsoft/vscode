@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
 import { CommonActions } from '../areas/common';
 
 let app: SpectronApplication;
@@ -15,7 +15,7 @@ export function testMultiRoot() {
 	describe('Multi Root', () => {
 
 		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [CODE_WORKSPACE_PATH]);
+			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
 			common = new CommonActions(app);
 
 			return await app.start();
