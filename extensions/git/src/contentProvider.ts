@@ -51,8 +51,6 @@ export class GitContentProvider {
 	}
 
 	private fireChangeEvents(): void {
-		this.changedRepositoryRoots.clear();
-
 		Object.keys(this.cache).forEach(key => {
 			const uri = this.cache[key].uri;
 			const fsPath = uri.fsPath;
@@ -64,6 +62,8 @@ export class GitContentProvider {
 				}
 			}
 		});
+
+		this.changedRepositoryRoots.clear();
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {

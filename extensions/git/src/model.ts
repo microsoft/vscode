@@ -42,9 +42,10 @@ export class Model {
 
 		this.repositories.set(root, repository);
 
-		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.NotAGitRepository);
+		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.Disposed);
 		const disappearListener = onDidDisappearRepository(() => disposable.dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
+
 		const disposable = toDisposable(once(() => {
 			disappearListener.dispose();
 			changeListener.dispose();
@@ -105,30 +106,6 @@ export class Model {
 
 		return undefined;
 	}
-
-	// private async assertIdleState(): Promise<void> {
-	// 	if (this.state === State.Idle) {
-	// 		return;
-	// 	}
-
-	// 	const disposables: Disposable[] = [];
-	// 	const repositoryRoot = await this.git.getRepositoryRoot(this.workspaceRoot.fsPath);
-	// 	this.repository = this.git.open(repositoryRoot);
-
-	// 	const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
-	// 	const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
-
-	// 	onRelevantGitChange(this.onFSChange, this, disposables);
-	// 	onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
-
-	// 	const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.path));
-	// 	onNonGitChange(this.onFSChange, this, disposables);
-
-	// 	this.repositoryDisposable = combinedDisposable(disposables);
-	// 	this.isRepositoryHuge = false;
-	// 	this.didWarnAboutLimit = false;
-	// 	this.state = State.Idle;
-	// }
 
 	dispose(): void {
 		for (let [, repository] of this.repositories) {
