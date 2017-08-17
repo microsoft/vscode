@@ -273,4 +273,58 @@ declare module 'vscode' {
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
+
+	// SCM
+
+	export interface Command {
+
+		/**
+		 * An icon for the command, when represented in the UI.
+		 */
+		iconPath?: string | Uri;
+	}
+
+	export interface SourceControlResourceState {
+
+		/**
+		 * Optional inline commands.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional context commands.
+		 */
+		contextCommands?: Command[];
+	}
+
+	export interface SourceControlResourceGroup {
+
+		/**
+		 * Optional inline commands.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional context commands.
+		 */
+		contextCommands?: Command[];
+	}
+
+	export interface SourceControl {
+
+		/**
+		 * Optional inline commands.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional overflow commands.
+		 */
+		overflowCommands?: Command[];
+
+		/**
+		 * Optional context commands.
+		 */
+		contextCommands?: Command[];
+	}
 }
