@@ -834,7 +834,7 @@ declare module monaco.editor {
 	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
-	 * Get markers for owner ant/or resource
+	 * Get markers for owner and/or resource
 	 * @returns {IMarker[]} list of markers
 	 * @param filter
 	 */

@@ -195,7 +195,7 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
 }
 
 /**
- * Get markers for owner ant/or resource
+ * Get markers for owner and/or resource
  * @returns {IMarker[]} list of markers
  * @param filter
  */
