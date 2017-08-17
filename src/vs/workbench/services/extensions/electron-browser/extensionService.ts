@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
@@ -30,7 +31,7 @@ import { IMessagePassingProtocol } from "vs/base/parts/ipc/common/ipc";
 import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
 import { IWindowService } from "vs/platform/windows/common/windows";
 import { Action } from "vs/base/common/actions";
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { IDisposable } from "vs/base/common/lifecycle";
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -55,14 +56,22 @@ export class ExtensionService implements IExtensionService {
 	private readonly _barrier: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsStatus: { [id: string]: IExtensionsStatus };
+	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
+
+
+	// --- Members used per extension host process
+
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
-
-	// winjs believes a proxy is a promise because it has a `then` method,
-	// so wrap the result in an object.
-	private _proxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
+	private _extensionHostProcessWorker: ExtensionHostProcessWorker;
+	private _extensionHostProcessThreadService: MainThreadService;
+	private _extensionHostProcessCustomers: IDisposable[];
+	/**
+	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
+	 */
+	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -77,86 +86,148 @@ export class ExtensionService implements IExtensionService {
 		this._barrier = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsStatus = {};
-		this._alreadyActivatedEvents = Object.create(null);
+		this._allRequestedActivateEvents = Object.create(null);
 
-		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this);
-		extensionHostProcessWorker.onCrashed(([code, signal]) => {
-			const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
-				await this._windowService.openDevTools();
-				return false;
-			});
+		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		this._extensionHostProcessWorker = null;
+		this._extensionHostProcessThreadService = null;
+		this._extensionHostProcessCustomers = [];
+		this._extensionHostProcessProxy = null;
 
-			let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover.");
-			if (code === 87) {
-				message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive. Please reload the window to recover.");
+		this._startExtensionHostProcess([]);
+		this._scanAndHandleExtensions();
+	}
+
+	private _stopExtensionHostProcess(): void {
+		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		if (this._extensionHostProcessWorker) {
+			this._extensionHostProcessWorker.dispose();
+			this._extensionHostProcessWorker = null;
+		}
+		if (this._extensionHostProcessThreadService) {
+			// this._extensionHostProcessThreadService.dispose(); // TODO@rehost
+			this._extensionHostProcessThreadService = null;
+		}
+		for (let i = 0, len = this._extensionHostProcessCustomers.length; i < len; i++) {
+			const customer = this._extensionHostProcessCustomers[i];
+			try {
+				customer.dispose();
+			} catch (err) {
+				errors.onUnexpectedError(err);
 			}
-			this._messageService.show(Severity.Error, {
-				message: message,
-				actions: [
-					openDevTools,
-					this._instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
-				]
-			});
+		}
+		this._extensionHostProcessCustomers = [];
+		this._extensionHostProcessProxy = null;
+	}
 
-			console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-		});
-		this._proxy = extensionHostProcessWorker.start().then(
+	private _startExtensionHostProcess(initialActivationEvents: string[]): void {
+		this._stopExtensionHostProcess();
+
+		this._extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this);
+		this._extensionHostProcessWorker.onCrashed(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start().then(
 			(protocol) => {
-				return { value: this._begin(protocol) };
+				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
 				console.error('Error received from starting extension host');
 				console.error(err);
+				return null;
 			}
 		);
-
-		this._scanAndHandleExtensions();
+		this._extensionHostProcessProxy.then(() => {
+			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent));
+		});
 	}
 
-	private _begin(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
+	private _onExtensionHostCrashed(code: number, signal: string): void {
+		const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, (): TPromise<boolean> => {
+			return this._windowService.openDevTools().then(() => false);
+		});
 
-		const threadService = this._instantiationService.createInstance(MainThreadService, protocol);
-		const extHostContext: IExtHostContext = threadService;
+		const restart = new Action('restart', nls.localize('restart', "Restart Extension Host"), '', true, (): TPromise<boolean> => {
+			this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+			return TPromise.as(true);
+		});
+
+		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
+		this._stopExtensionHostProcess();
+
+		let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly.");
+		if (code === 87) {
+			message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive.");
+		}
+		this._messageService.show(Severity.Error, {
+			message: message,
+			actions: [
+				openDevTools,
+				restart
+			]
+		});
+	}
+
+	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
+
+		this._extensionHostProcessThreadService = this._instantiationService.createInstance(MainThreadService, protocol);
+		const extHostContext: IExtHostContext = this._extensionHostProcessThreadService;
 
 		// Named customers
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
 		for (let i = 0, len = namedCustomers.length; i < len; i++) {
 			const [id, ctor] = namedCustomers[i];
-			threadService.set(id, this._instantiationService.createInstance(ctor, extHostContext));
+			const instance = this._instantiationService.createInstance(ctor, extHostContext);
+			this._extensionHostProcessCustomers.push(instance);
+			this._extensionHostProcessThreadService.set(id, instance);
 		}
 
 		// Customers
 		const customers = ExtHostCustomersRegistry.getCustomers();
 		for (let i = 0, len = customers.length; i < len; i++) {
 			const ctor = customers[i];
-			this._instantiationService.createInstance(ctor, extHostContext);
+			const instance = this._instantiationService.createInstance(ctor, extHostContext);
+			this._extensionHostProcessCustomers.push(instance);
 		}
 
 		// Check that no named customers are missing
 		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => MainContext[key]);
-		threadService.assertRegistered(expected);
+		this._extensionHostProcessThreadService.assertRegistered(expected);
 
-		return threadService.get(ExtHostContext.ExtHostExtensionService);
+		return this._extensionHostProcessThreadService.get(ExtHostContext.ExtHostExtensionService);
 	}
 
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		if (this._barrier.isOpen) {
+			// Extensions have been scanned and interpreted
+
+			if (!this._registry.containsActivationEvent(activationEvent)) {
+				// There is no extension that is interested in this activation event
+				return NO_OP_VOID_PROMISE;
+			}
+
+			// Record the fact that this activationEvent was requested (in case of a restart)
+			this._allRequestedActivateEvents[activationEvent] = true;
+
 			return this._activateByEvent(activationEvent);
 		} else {
+			// Extensions have not been scanned yet.
+
+			// Record the fact that this activationEvent was requested (in case of a restart)
+			this._allRequestedActivateEvents[activationEvent] = true;
+
 			return this._barrier.wait().then(() => this._activateByEvent(activationEvent));
 		}
 	}
 
 	protected _activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._alreadyActivatedEvents[activationEvent]) {
+		if (this._extensionHostProcessFinishedActivateEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
-		return this._proxy.then((proxy) => {
+		return this._extensionHostProcessProxy.then((proxy) => {
 			return proxy.value.$activateByEvent(activationEvent);
 		}).then(() => {
-			this._alreadyActivatedEvents[activationEvent] = true;
+			this._extensionHostProcessFinishedActivateEvents[activationEvent] = true;
 		});
 	}
 
