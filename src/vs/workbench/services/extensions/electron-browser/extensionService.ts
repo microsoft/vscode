@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
-import { localize } from 'vs/nls';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from "vs/workbench/services/extensions/node/extensionDescriptionRegistry";
@@ -28,6 +28,9 @@ import { MainThreadService } from "vs/workbench/services/thread/electron-browser
 import { Barrier } from "vs/workbench/services/extensions/node/barrier";
 import { IMessagePassingProtocol } from "vs/base/parts/ipc/common/ipc";
 import { ExtHostCustomersRegistry } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { IWindowService } from "vs/platform/windows/common/windows";
+import { Action } from "vs/base/common/actions";
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -68,6 +71,7 @@ export class ExtensionService implements IExtensionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		this._registry = null;
 		this._barrier = new Barrier();
@@ -75,10 +79,36 @@ export class ExtensionService implements IExtensionService {
 		this._extensionsStatus = {};
 		this._alreadyActivatedEvents = Object.create(null);
 
-		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker);
-		this._proxy = extensionHostProcessWorker.start(this).then((protocol) => {
-			return { value: this._begin(protocol) };
+		const extensionHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this);
+		extensionHostProcessWorker.onCrashed(([code, signal]) => {
+			const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
+				await this._windowService.openDevTools();
+				return false;
+			});
+
+			let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover.");
+			if (code === 87) {
+				message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive. Please reload the window to recover.");
+			}
+			this._messageService.show(Severity.Error, {
+				message: message,
+				actions: [
+					openDevTools,
+					this._instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
+				]
+			});
+
+			console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		});
+		this._proxy = extensionHostProcessWorker.start().then(
+			(protocol) => {
+				return { value: this._begin(protocol) };
+			},
+			(err) => {
+				console.error('Error received from starting extension host');
+				console.error(err);
+			}
+		);
 
 		this._scanAndHandleExtensions();
 	}
@@ -242,14 +272,14 @@ export class ExtensionService implements IExtensionService {
 			});
 			userExtensions.forEach((userExtension) => {
 				if (result.hasOwnProperty(userExtension.id)) {
-					log.warn(userExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+					log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
 				}
 				result[userExtension.id] = userExtension;
 			});
 			developedExtensions.forEach(developedExtension => {
-				log.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
 				if (result.hasOwnProperty(developedExtension.id)) {
-					log.warn(developedExtension.extensionFolderPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+					log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
 				}
 				result[developedExtension.id] = developedExtension;
 			});

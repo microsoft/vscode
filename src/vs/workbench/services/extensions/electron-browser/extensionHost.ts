@@ -11,7 +11,6 @@ import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -23,22 +22,26 @@ import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import { debounceEvent, mapEvent, any } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { IExtensionService } from "vs/platform/extensions/common/extensions";
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 import { isEqual } from "vs/base/common/paths";
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
 
 export class ExtensionHostProcessWorker {
+
+	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
+
+	private readonly _toDispose: IDisposable[];
 
 	private readonly _isExtensionDevHost: boolean;
 	private readonly _isExtensionDevDebug: boolean;
@@ -49,27 +52,24 @@ export class ExtensionHostProcessWorker {
 	private _lastExtensionHostError: string;
 	private _terminating: boolean;
 
-	// Resources, in order they get acquired/created:
+	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
 
-	private extensionService: ExtensionService;
-
 	constructor(
+		/* intentionally not injected */private readonly _extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IBroadcastService private readonly _broadcastService: IBroadcastService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService
-
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -85,15 +85,23 @@ export class ExtensionHostProcessWorker {
 		this._extensionHostConnection = null;
 		this._messageProtocol = null;
 
+		this._toDispose = [];
+		this._toDispose.push(this._onCrashed);
+		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
 
-		// TODO@rehost
-		this._lifecycleService.onWillShutdown(this._onWillShutdown, this);
+		const globalExitListener = () => this.terminate();
+		process.once('exit', globalExitListener);
+		this._toDispose.push({
+			dispose: () => {
+				process.removeListener('exit', globalExitListener);
+			}
+		});
+	}
 
-		// TODO@rehost
-		this._lifecycleService.onShutdown(reason => this.terminate());
-
-		// TODO@rehost
-		_broadcastService.onBroadcast(b => this._onBroadcast(b));
+	public dispose(): void {
+		this.terminate();
 	}
 
 	private _onBroadcast(broadcast: IBroadcast): void {
@@ -114,15 +122,13 @@ export class ExtensionHostProcessWorker {
 		}
 	}
 
-	public start(extensionService: ExtensionService): TPromise<IMessagePassingProtocol> {
+	public start(): TPromise<IMessagePassingProtocol> {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
 		if (!this._messageProtocol) {
-			this.extensionService = extensionService;
-
 			this._messageProtocol = TPromise.join<any>([this._tryListenOnPipe(), this._tryFindDebugPort()]).then((data: [string, number]) => {
 				const pipeName = data[0];
 				// The port will be 0 if there's no need to debug or if a free port was not found
@@ -189,13 +195,8 @@ export class ExtensionHostProcessWorker {
 				});
 
 				// Lifecycle
-				const globalExitListener = () => this.terminate();
-				process.once('exit', globalExitListener);
 				this._extensionHostProcess.on('error', (err) => this._onExtHostProcessError(err));
-				this._extensionHostProcess.on('exit', (code: number, signal: string) => {
-					process.removeListener('exit', globalExitListener);
-					this._onExtHostProcessExit(code, signal);
-				});
+				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
 				if (this._isExtensionDevHost && port) {
@@ -334,7 +335,7 @@ export class ExtensionHostProcessWorker {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this.extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -417,24 +418,7 @@ export class ExtensionHostProcessWorker {
 
 		// Unexpected termination
 		if (!this._isExtensionDevHost) {
-			const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
-				await this._windowService.openDevTools();
-				return false;
-			});
-
-			let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover.");
-			if (code === 87) {
-				message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive. Please reload the window to recover.");
-			}
-			this._messageService.show(Severity.Error, {
-				message: message,
-				actions: [
-					openDevTools,
-					this._instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
-				]
-			});
-
-			console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
+			this._onCrashed.fire([code, signal]);
 		}
 
 		// Expected development extension termination: When the extension host goes down we also shutdown the window
@@ -454,18 +438,46 @@ export class ExtensionHostProcessWorker {
 		}
 		this._terminating = true;
 
+		dispose(this._toDispose);
+
 		if (!this._messageProtocol) {
 			// .start() was not called
 			return;
 		}
 
 		this._messageProtocol.then((protocol) => {
+
+			// Send the extension host a request to terminate itself
+			// (graceful termination)
 			protocol.send({
 				type: '__$terminate'
 			});
-		});
 
-		// TODO@rehost: install a timer to clean up OS resources
+			// Give the extension host 60s, after which we will
+			// try to kill the process and release any resources
+			setTimeout(() => this._cleanResources(), 60 * 1000);
+
+		}, (err) => {
+
+			// Establishing a protocol with the extension host failed, so
+			// try to kill the process and release any resources.
+			this._cleanResources();
+		});
+	}
+
+	private _cleanResources(): void {
+		if (this._namedPipeServer) {
+			this._namedPipeServer.close();
+			this._namedPipeServer = null;
+		}
+		if (this._extensionHostConnection) {
+			this._extensionHostConnection.end();
+			this._extensionHostConnection = null;
+		}
+		if (this._extensionHostProcess) {
+			this._extensionHostProcess.kill();
+			this._extensionHostProcess = null;
+		}
 	}
 
 	private _onWillShutdown(event: ShutdownEvent): void {
