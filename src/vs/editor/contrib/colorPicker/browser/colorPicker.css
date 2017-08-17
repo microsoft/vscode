@@ -115,17 +115,3 @@
 	height: 150px;
 	pointer-events: none;
 }
-
-.colorBox::before {
-	content: ' ';
-	border: solid 0.1em #000;
-	margin: 0.1em 0.2em 0 0.2em;
-	width: 0.8em;
-	height: 0.8em;
-	box-sizing: border-box;
-	display: inline-block;
-}
-
-.vs-dark .colorBox::before {
-	border: solid 0.1em #eee;
-}
