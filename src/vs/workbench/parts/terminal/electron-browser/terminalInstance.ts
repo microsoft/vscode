@@ -768,7 +768,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		this._process.on('exit', listener);
+		if (this._process) {
+			this._process.on('exit', listener);
+		}
 		return {
 			dispose: () => {
 				if (this._process) {
