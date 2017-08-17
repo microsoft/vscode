@@ -44,6 +44,7 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	scores?: { [key: string]: number };
 }
 
 export interface IPreferencesEditorModel<T> {
@@ -53,10 +54,14 @@ export interface IPreferencesEditorModel<T> {
 	dispose(): void;
 }
 
+export type IGroupFilter = (group: ISettingsGroup) => boolean;
+export type ISettingFilter = (setting: ISetting) => IRange[];
+
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult;
+	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -68,13 +73,13 @@ export interface IPreferencesService {
 	_serviceBrand: any;
 
 	defaultSettingsResource: URI;
-	defaultResourceSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
 	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	disownPreferencesEditorModel(editorModel: IPreferencesEditorModel<any>): void;
 
 	openGlobalSettings(): TPromise<IEditor>;
 	openWorkspaceSettings(): TPromise<IEditor>;

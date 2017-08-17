@@ -29,6 +29,7 @@ import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/pa
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { PreferencesSearchProvider } from 'vs/workbench/parts/preferences/browser/preferencesSearch';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/common/editorCommonExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -56,7 +57,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
@@ -107,6 +108,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderers;
 
 	private delayedFilterLogging: Delayer<void>;
+	private onInput: Emitter<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -125,6 +127,11 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
+		this.onInput = new Emitter();
+
+		debounceEvent(this.onInput.event, (l, e) => e, 200, /*leading=*/true)(() => {
+			this.filterPreferences(this.searchWidget.getValue().trim());
+		});
 	}
 
 	public createEditor(parent: Builder): void {
@@ -138,7 +145,7 @@ export class PreferencesEditor extends BaseEditor {
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
 			focusKey: this.focusSettingsContextKey
 		}));
-		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
+		this._register(this.searchWidget.onDidChange(value => this.onInput.fire()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
@@ -232,7 +239,7 @@ export class PreferencesEditor extends BaseEditor {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
-			this.filterPreferences(this.searchWidget.getValue());
+			this.onInput.fire();
 		});
 	}
 
@@ -300,13 +307,14 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(filter: string) {
-		const count = this.preferencesRenderers.filterPreferences(filter);
-		const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
-		this.searchWidget.showMessage(message, count);
-		if (count === 0) {
-			this.latestEmptyFilters.push(filter);
-		}
-		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
+		this.preferencesRenderers.filterPreferences(filter).then(count => {
+			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
+			this.searchWidget.showMessage(message, count);
+			if (count === 0) {
+				this.latestEmptyFilters.push(filter);
+			}
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
+		});
 	}
 
 	private showSearchResultsMessage(count: number): string {
@@ -380,6 +388,7 @@ class PreferencesRenderers extends Disposable {
 	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
 	private _editablePreferencesRenderer: IPreferencesRenderer<ISetting>;
 	private _settingsNavigator: SettingsNavigator;
+	private _filtersInProgress: TPromise<any>[];
 
 	private _disposables: IDisposable[] = [];
 
@@ -405,19 +414,41 @@ class PreferencesRenderers extends Disposable {
 		this._editablePreferencesRenderer = editableSettingsRenderer;
 	}
 
-	public filterPreferences(filter: string): number {
-		const defaultPreferencesFilterResult = this._filterPreferences(filter, this._defaultPreferencesRenderer);
-		const editablePreferencesFilterResult = this._filterPreferences(filter, this._editablePreferencesRenderer);
+	public filterPreferences(filter: string): TPromise<number> {
+		if (this._filtersInProgress) {
+			// Resolved/rejected promises have no .cancel()
+			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
+		}
 
-		const defaultPreferencesFilteredGroups = defaultPreferencesFilterResult ? defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
-		const editablePreferencesFilteredGroups = editablePreferencesFilterResult ? editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
-		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
-		this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
+		const searchProvider = new PreferencesSearchProvider(filter);
+		this._filtersInProgress = [
+			this._filterPreferences(filter, searchProvider, this._defaultPreferencesRenderer),
+			this._filterPreferences(filter, searchProvider, this._editablePreferencesRenderer)];
 
-		return consolidatedSettings.length;
+		return TPromise.join<IFilterResult>(this._filtersInProgress).then(filterResults => {
+			this._filtersInProgress = null;
+			const defaultPreferencesFilterResult = filterResults[0];
+			const editablePreferencesFilterResult = filterResults[1];
+
+			const defaultPreferencesFilteredGroups = defaultPreferencesFilterResult ? defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
+			const editablePreferencesFilteredGroups = editablePreferencesFilterResult ? editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
+			const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
+
+			if (defaultPreferencesFilterResult && defaultPreferencesFilterResult.scores) {
+				this._settingsNavigator = null;
+			} else {
+				this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
+			}
+
+			return consolidatedSettings.length;
+		});
 	}
 
 	public focusNextPreference(forward: boolean = true) {
+		if (!this._settingsNavigator) {
+			return;
+		}
+
 		const setting = forward ? this._settingsNavigator.next() : this._settingsNavigator.previous();
 		this._focusPreference(setting, this._defaultPreferencesRenderer);
 		this._focusPreference(setting, this._editablePreferencesRenderer);
@@ -427,13 +458,19 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>): IFilterResult {
-		let filterResult = null;
+	private _filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
-			filterResult = filter ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).filterSettings(filter) : null;
-			preferencesRenderer.filterPreferences(filterResult);
+			const prefSearchP = filter ?
+				searchProvider.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel) :
+				TPromise.wrap(null);
+
+			return prefSearchP.then(filterResult => {
+				preferencesRenderer.filterPreferences(filterResult);
+				return filterResult;
+			});
 		}
-		return filterResult;
+
+		return TPromise.wrap(null);
 	}
 
 	private _focusPreference(preference: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
@@ -839,7 +876,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
 					if (preferencesRenderer.associatedPreferencesModel) {
-						preferencesRenderer.associatedPreferencesModel.dispose();
+						this.preferencesService.disownPreferencesEditorModel(preferencesRenderer.associatedPreferencesModel);
 					}
 					preferencesRenderer.dispose();
 				}
