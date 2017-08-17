@@ -476,6 +476,10 @@ export interface CompletionItem {
 	 */
 	documentation?: string;
 	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	command?: modes.Command;
+	/**
 	 * A string that should be used when comparing this item
 	 * with other items. When `falsy` the [label](#CompletionItem.label)
 	 * is used.
@@ -599,6 +603,7 @@ class SuggestAdapter {
 			type: convertKind(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
+			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
 			snippetType: 'internal'
