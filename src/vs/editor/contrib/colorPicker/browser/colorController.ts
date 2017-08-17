@@ -41,6 +41,9 @@ export class ColorController extends Disposable implements IEditorContribution {
 			let decorations = [];
 
 			for (let i = 0; i < colorInfos.length; i++) {
+				if (!colorInfos[i].renderDecorator) {
+					continue;
+				}
 				const { red, green, blue, alpha } = colorInfos[i].color;
 				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
 				let subKey = hash(rgba).toString(16);

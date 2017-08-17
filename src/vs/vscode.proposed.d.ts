@@ -180,14 +180,19 @@ declare module 'vscode' {
 		availableFormats: ColorFormat[];
 
 		/**
+		 * Controls whether the color decorator is rendered.
+		 */
+		renderDecorator: boolean;
+
+		/**
 		 * Creates a new color range.
 		 *
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
-		 * @param availableFormats The other formats this color range supports the color to be formatted in.
+		 * @param renderDecorator Controls whether the color decorator is rendered.
 		 */
-		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
+		constructor(range: Range, color: Color, availableFormats: ColorFormat[], renderDecorator: boolean);
 	}
 
 	/**
