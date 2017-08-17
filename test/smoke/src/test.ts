@@ -23,6 +23,7 @@ describe('Smoke:', () => {
 	testDataMigration();
 	testDataLoss();
 	testExplorer();
+	testMultiRoot(); // only enabled in insiders
 	testConfigViews();
 	testSearch();
 	testCSS();
@@ -35,6 +36,5 @@ describe('Smoke:', () => {
 	testExtensions();
 	testLocalization();
 	if (process.env.VSCODE_EDITION === 'insiders') {
-		testMultiRoot(); // only enabled in insiders
 	}
 });
