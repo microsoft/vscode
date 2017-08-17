@@ -336,13 +336,13 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string): Promise<string> {
+	async clone(url: string, parentPath: string): Promise<{ folderName: string, child: cp.ChildProcess }> {
 		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
-		await this.exec(parentPath, ['clone', url, folderPath]);
-		return folderPath;
+		const child = this.stream(parentPath, ['clone', '--progress', url, folderPath]);
+		return Promise.resolve({ folderName, child });
 	}
 
 	async getRepositoryRoot(path: string): Promise<string> {
