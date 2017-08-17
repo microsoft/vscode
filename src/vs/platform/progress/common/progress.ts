@@ -39,10 +39,10 @@ export const emptyProgress: IProgress<any> = Object.freeze({ report() { } });
 
 export class Progress<T> implements IProgress<T> {
 
-	private _callback: () => void;
+	private _callback: (data: T) => void;
 	private _value: T;
 
-	constructor(callback: () => void) {
+	constructor(callback: (data: T) => void) {
 		this._callback = callback;
 	}
 
@@ -52,7 +52,7 @@ export class Progress<T> implements IProgress<T> {
 
 	report(item: T) {
 		this._value = item;
-		this._callback();
+		this._callback(this._value);
 	}
 }
 

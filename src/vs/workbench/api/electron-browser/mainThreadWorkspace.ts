@@ -12,7 +12,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -100,6 +100,53 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- save & edit resources ---
+
+	private readonly _searchProvider = new Map<number, IDisposable>();
+	private readonly _searchSession = new Map<number, { resolve: Function, reject: Function, progress: Function }>();
+	private _searchSessionIdPool: number = 0;
+
+	$registerSearchProvider(handle: number, type: number): void {
+		this._searchProvider.set(handle, this._searchService.registerSearchResultProvider({
+			search: (query) => {
+				if (query.type !== type) {
+					return null;
+				}
+				const session = ++this._searchSessionIdPool;
+				return new PPromise<any, any>((resolve, reject, progress) => {
+					this._searchSession.set(session, { resolve, reject, progress });
+					this._proxy.$startSearch(handle, session, query);
+				}, () => {
+					this._proxy.$cancelSearch(handle, session);
+				});
+			}
+		}));
+	}
+
+	$unregisterSearchProvider(handle: number): void {
+		const registration = this._searchProvider.get(handle);
+		if (registration) {
+			registration.dispose();
+			this._searchProvider.delete(handle);
+		}
+	}
+
+	$updateSearchSession(session: number, data): void {
+		if (this._searchSession.has(session)) {
+			this._searchSession.get(session).progress(data);
+		}
+	}
+
+	$finishSearchSession(session: number, err?: any): void {
+		if (this._searchSession.has(session)) {
+			const { resolve, reject } = this._searchSession.get(session);
+			this._searchSession.delete(session);
+			if (err) {
+				reject(err);
+			} else {
+				resolve();
+			}
+		}
+	}
 
 	$saveAll(includeUntitled?: boolean): Thenable<boolean> {
 		return this._textFileService.saveAll(includeUntitled).then(result => {

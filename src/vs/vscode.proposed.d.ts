@@ -16,6 +16,10 @@ declare module 'vscode' {
 		writeContents(resource: Uri, contents: string): void | Thenable<void>;
 	}
 
+	export interface SearchProvider {
+		provideSearchResults(query: any, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
+	}
+
 	export namespace workspace {
 
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
