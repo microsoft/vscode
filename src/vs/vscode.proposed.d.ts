@@ -288,11 +288,17 @@ declare module 'vscode' {
 
 		/**
 		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceState
+		 * instance as the first argument.
 		 */
 		inlineCommands?: Command[];
 
 		/**
 		 * Optional context commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceState
+		 * instance as the first argument.
 		 */
 		contextCommands?: Command[];
 	}
@@ -301,11 +307,17 @@ declare module 'vscode' {
 
 		/**
 		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceGroup
+		 * instance as the first argument.
 		 */
 		inlineCommands?: Command[];
 
 		/**
 		 * Optional context commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceGroup
+		 * instance as the first argument.
 		 */
 		contextCommands?: Command[];
 	}
@@ -314,16 +326,25 @@ declare module 'vscode' {
 
 		/**
 		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControl
+		 * instance as the first argument.
 		 */
 		inlineCommands?: Command[];
 
 		/**
 		 * Optional overflow commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControl
+		 * instance as the first argument.
 		 */
 		overflowCommands?: Command[];
 
 		/**
 		 * Optional context commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControl
+		 * instance as the first argument.
 		 */
 		contextCommands?: Command[];
 	}
