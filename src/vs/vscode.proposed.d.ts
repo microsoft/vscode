@@ -14,14 +14,13 @@ declare module 'vscode' {
 
 		resolveContents(resource: Uri): string | Thenable<string>;
 		writeContents(resource: Uri, contents: string): void | Thenable<void>;
-	}
 
-	export interface SearchProvider {
-		provideSearchResults(query: any, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
+		// -- search
+		// todo@joh - extract into its own provider?
+		findFiles(query: string, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 

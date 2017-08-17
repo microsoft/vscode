@@ -104,7 +104,7 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			const providerPromises = this.resultProvider.map(provider => provider.search(query).then(e => e,
+			const providerPromises = this.resultProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
 					// single provider fail. fail all?
@@ -134,6 +134,9 @@ export class SearchService implements ISearchService {
 				// TODO@joh
 				// sorting, disjunct results, individual stats/limit?
 				for (const value of values) {
+					if (!value) {
+						continue;
+					}
 					result.limitHit = value.limitHit || result.limitHit;
 					for (const match of value.results) {
 						if (!localResults.has(match.resource)) {

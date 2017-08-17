@@ -212,7 +212,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	private _handlePool = 0;
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
-	private readonly _searchProvider = new Map<number, vscode.SearchProvider>();
 	private readonly _searchSession = new Map<number, CancellationTokenSource>();
 
 	registerFileSystemProvider(authority: string, provider: vscode.FileSystemProvider): vscode.Disposable {
@@ -236,19 +235,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return asWinJsPromise(token => provider.writeContents(resource, content));
 	}
 
-	registerSearchProvider(provider: vscode.SearchProvider): vscode.Disposable {
-		const handle = ++this._handlePool;
-		this._searchProvider.set(handle, provider);
-		return new Disposable(() => this._fsProvider.delete(handle));
-	}
-
-	$startSearch(handle: number, session: number, query): void {
-		const provider = this._searchProvider.get(handle);
+	$startSearch(handle: number, session: number, query: string): void {
+		const provider = this._fsProvider.get(handle);
 		const source = new CancellationTokenSource();
 		const progress = new Progress<any>(chunk => this._proxy.$updateSearchSession(session, chunk));
 
 		this._searchSession.set(session, source);
-		TPromise.wrap(provider.provideSearchResults(query, progress, source.token)).then(() => {
+		TPromise.wrap(provider.findFiles(query, progress, source.token)).then(() => {
 			this._proxy.$finishSearchSession(session);
 		}, err => {
 			this._proxy.$finishSearchSession(session, err);
