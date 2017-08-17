@@ -617,7 +617,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
@@ -640,7 +640,8 @@ export class DebugService implements debug.IDebugService {
 					config = configOrName;
 				}
 				if (launch) {
-					manager.selectConfiguration(launch, typeof configOrName === 'string' ? configOrName : undefined, true);
+					// in the drop down the name of the top most compound takes precedence over the launch config name
+					manager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
 				}
 
 				if (compound) {
@@ -649,7 +650,7 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
 				}
 				if (configOrName && !config) {
 					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
