@@ -41,7 +41,7 @@ export class TypeScriptVersion {
 		// Allow TS developers to provide custom version
 		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 		if (tsdkVersion) {
-			return new API(tsdkVersion);
+			return API.fromVersionString(tsdkVersion);
 		}
 
 		return undefined;
@@ -78,7 +78,7 @@ export class TypeScriptVersion {
 		if (!desc || !desc.version) {
 			return undefined;
 		}
-		return desc.version ? new API(desc.version) : undefined;
+		return desc.version ? API.fromVersionString(desc.version) : undefined;
 	}
 }
 
