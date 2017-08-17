@@ -82,6 +82,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
+	get inlineCommands(): Command[] | undefined { return this.features.inlineCommands; }
+	get overflowCommands(): Command[] | undefined { return this.features.overflowCommands; }
+	get contextCommands(): Command[] | undefined { return this.features.contextCommands; }
 
 	private _onDidChangeCommitTemplate = new Emitter<string>();
 	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }

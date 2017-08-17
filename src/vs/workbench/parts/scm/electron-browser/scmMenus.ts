@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -19,6 +19,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getSCMResourceContextKey } from './scmUtil';
 
 class SwitchProviderAction extends Action {
@@ -55,6 +56,25 @@ class InstallAdditionalSCMProviders extends Action {
 	}
 }
 
+export class CommandAction extends Action {
+
+	constructor(
+		id: string,
+		title: string,
+		iconClass: string,
+		private args: any[],
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, title, iconClass, true);
+	}
+
+	run(): TPromise<any> {
+		return this.commandService.executeCommand(this.id, ...this.args);
+	}
+}
+
+// class CommandActionItem extends
+
 export class SCMMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
@@ -70,7 +90,8 @@ export class SCMMenus implements IDisposable {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ISCMService private scmService: ISCMService,
 		@IMenuService private menuService: IMenuService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -106,7 +127,26 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getTitleActions(): IAction[] {
-		return this.titleActions;
+		const provider = this.scmService.activeProvider;
+		const commands = (provider && provider.inlineCommands) || [];
+		const inlineActions = commands.map(command => {
+			// TODO@joao this is ugly
+			// we want to get a hold of the iconClass what surely is an _internal_command_delegation command
+
+			const commandId = command.id === '_internal_command_delegation'
+				? command.arguments[1]
+				: command.id;
+
+			const commandAction = MenuRegistry.getCommand(commandId);
+			const iconClass = commandAction && commandAction.iconClass || '';
+			const args = command.arguments || [];
+			const commandActionTitle = commandAction && commandAction.title || '';
+			const title = command.tooltip || command.title || (typeof commandActionTitle === 'string' ? commandActionTitle : commandActionTitle.value) || '';
+
+			return new CommandAction(command.id, title, iconClass, args, this.commandService);
+		});
+
+		return [...inlineActions, ...this.titleActions];
 	}
 
 	getTitleSecondaryActions(): IAction[] {

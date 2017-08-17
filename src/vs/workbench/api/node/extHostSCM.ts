@@ -230,6 +230,54 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this._handle, { statusBarCommands: internal });
 	}
 
+	private _inlineCommands: vscode.Command[] | undefined = undefined;
+
+	get inlineCommands(): vscode.Command[] | undefined {
+		return this._inlineCommands;
+	}
+
+	set inlineCommands(inlineCommands: vscode.Command[] | undefined) {
+		this._inlineCommands = inlineCommands;
+
+		const internal = (inlineCommands || [])
+			.map(c => ({ ...c, arguments: [this, ...(c.arguments || [])] }))
+			.map(c => this._commands.toInternal(c));
+
+		this._proxy.$updateSourceControl(this._handle, { inlineCommands: internal });
+	}
+
+	private _overflowCommands: vscode.Command[] | undefined = undefined;
+
+	get overflowCommands(): vscode.Command[] | undefined {
+		return this._overflowCommands;
+	}
+
+	set overflowCommands(overflowCommands: vscode.Command[] | undefined) {
+		this._overflowCommands = overflowCommands;
+
+		const internal = (overflowCommands || [])
+			.map(c => ({ ...c, arguments: [this, ...(c.arguments || [])] }))
+			.map(c => this._commands.toInternal(c));
+
+		this._proxy.$updateSourceControl(this._handle, { overflowCommands: internal });
+	}
+
+	private _contextCommands: vscode.Command[] | undefined = undefined;
+
+	get contextCommands(): vscode.Command[] | undefined {
+		return this._contextCommands;
+	}
+
+	set contextCommands(contextCommands: vscode.Command[] | undefined) {
+		this._contextCommands = contextCommands;
+
+		const internal = (contextCommands || [])
+			.map(c => ({ ...c, arguments: [this, ...(c.arguments || [])] }))
+			.map(c => this._commands.toInternal(c));
+
+		this._proxy.$updateSourceControl(this._handle, { contextCommands: internal });
+	}
+
 	private _handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(

@@ -299,6 +299,9 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
 	statusBarCommands?: modes.Command[];
+	inlineCommands?: modes.Command[];
+	overflowCommands?: modes.Command[];
+	contextCommands?: modes.Command[];
 }
 
 export interface SCMGroupFeatures {
