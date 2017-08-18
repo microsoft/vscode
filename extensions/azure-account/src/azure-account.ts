@@ -23,7 +23,7 @@ const localize = nls.loadMessageBundle();
 const defaultEnvironment = (<any>AzureEnvironment).Azure;
 const commonTenantId = 'common';
 const authorityHostUrl = defaultEnvironment.activeDirectoryEndpointUrl;
-const clientId = '818dee8b-8777-4f45-afc3-f7cc977caae2';
+const clientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 const authorityUrl = `${authorityHostUrl}${commonTenantId}`;
 const resource = defaultEnvironment.activeDirectoryResourceId;
 
