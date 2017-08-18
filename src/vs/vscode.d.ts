@@ -5448,7 +5448,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @param id A unique `id` for the source control. Something short, eg: `git`.
+		 * @param id An `id` for the source control. Something short, eg: `git`.
 		 * @param label A human-readable string for the source control. Eg: `Git`.
 		 * @return An instance of [source control](#SourceControl).
 		 */

@@ -269,8 +269,6 @@ export interface GitResourceGroup extends SourceControlResourceGroup {
 
 export class Repository implements Disposable {
 
-	private static handle = 0;
-
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
@@ -360,10 +358,9 @@ export class Repository implements Disposable {
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		const id = `git${Repository.handle++}`;
 		const label = `Git - ${path.basename(repository.root)}`;
 
-		this._sourceControl = scm.createSourceControl(id, label);
+		this._sourceControl = scm.createSourceControl('git', label);
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
 		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
