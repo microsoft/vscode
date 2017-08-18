@@ -17,6 +17,7 @@ export interface AzureLogin {
 	readonly onSessionsChanged: Event<void>;
 	readonly filters: AzureResourceFilter[];
 	readonly onFiltersChanged: Event<void>;
+	readonly credentials: Credentials;
 }
 
 export interface AzureSession {
@@ -31,4 +32,10 @@ export interface AzureResourceFilter {
 	readonly subscription: SubscriptionModels.Subscription;
 	readonly allResourceGroups: boolean;
 	readonly resourceGroups: ResourceModels.ResourceGroup[];
+}
+
+export interface Credentials {
+	readSecret(service: string, account: string): Thenable<string | undefined>;
+	writeSecret(service: string, account: string, secret: string): Thenable<void>;
+	deleteSecret(service: string, account: string): Thenable<boolean>;
 }
