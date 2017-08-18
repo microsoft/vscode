@@ -273,4 +273,63 @@ declare module 'vscode' {
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
+
+	// SCM
+
+	export interface SourceControlResourceState {
+
+		/**
+		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceState
+		 * instance as the first argument.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional context commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceState
+		 * instance as the first argument.
+		 */
+		contextCommands?: Command[];
+	}
+
+	export interface SourceControlResourceGroup {
+
+		/**
+		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceGroup
+		 * instance as the first argument.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional context commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControlResourceGroup
+		 * instance as the first argument.
+		 */
+		contextCommands?: Command[];
+	}
+
+	export interface SourceControl {
+
+		/**
+		 * Optional inline commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControl
+		 * instance as the first argument.
+		 */
+		inlineCommands?: Command[];
+
+		/**
+		 * Optional overflow commands.
+		 *
+		 * By default, the commands will be invoked with this SourceControl
+		 * instance as the first argument.
+		 */
+		overflowCommands?: Command[];
+	}
 }

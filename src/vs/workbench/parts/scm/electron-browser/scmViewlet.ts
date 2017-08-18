@@ -118,7 +118,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.count.setCount(group.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
-		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -188,7 +188,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
 		template.actionBar.context = resource;
-		template.actionBar.push(this.scmMenus.getResourceActions(resource));
+		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 

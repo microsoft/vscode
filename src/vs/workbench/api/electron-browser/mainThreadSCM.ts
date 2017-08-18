@@ -19,6 +19,9 @@ import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostC
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
+	get inlineCommands(): Command[] | undefined { return this.features.inlineCommands; }
+	get contextCommands(): Command[] | undefined { return this.features.contextCommands; }
+
 	constructor(
 		private sourceControlHandle: number,
 		private handle: number,
@@ -44,10 +47,12 @@ class MainThreadSCMResource implements ISCMResource {
 		private sourceControlHandle: number,
 		private groupHandle: number,
 		private handle: number,
-		public sourceUri: URI,
-		public command: Command | undefined,
-		public resourceGroup: ISCMResourceGroup,
-		public decorations: ISCMResourceDecorations
+		readonly sourceUri: URI,
+		readonly command: Command | undefined,
+		readonly resourceGroup: ISCMResourceGroup,
+		readonly decorations: ISCMResourceDecorations,
+		readonly inlineCommands: Command[],
+		readonly contextCommands: Command[]
 	) { }
 
 	toJSON(): any {
@@ -82,6 +87,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
+	get inlineCommands(): Command[] | undefined { return this.features.inlineCommands; }
+	get overflowCommands(): Command[] | undefined { return this.features.overflowCommands; }
 
 	private _onDidChangeCommitTemplate = new Emitter<string>();
 	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
@@ -156,7 +163,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
+			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded, inlineCommands, contextCommands] = rawResource;
 			const icon = icons[0];
 			const iconDark = icons[1] || icon;
 			const decorations = {
@@ -174,7 +181,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 				URI.parse(sourceUri),
 				command,
 				group,
-				decorations
+				decorations,
+				inlineCommands,
+				contextCommands
 			);
 		});
 

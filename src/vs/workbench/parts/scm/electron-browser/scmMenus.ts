@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -19,7 +19,9 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getSCMResourceContextKey } from './scmUtil';
+import { Command } from 'vs/editor/common/modes';
 
 class SwitchProviderAction extends Action {
 
@@ -55,6 +57,33 @@ class InstallAdditionalSCMProviders extends Action {
 	}
 }
 
+export class CommandAction extends Action {
+
+	private args: any[];
+	private commandService: ICommandService;
+
+	constructor(
+		command: Command,
+		@ICommandService commandService: ICommandService
+	) {
+		const commandId = command.id === '_internal_command_delegation' ? command.arguments[1] : command.id;
+		const commandAction = MenuRegistry.getCommand(commandId);
+		const iconClass = commandAction && commandAction.iconClass || '';
+		const commandActionTitle = commandAction && commandAction.title || '';
+		const title = command.tooltip || command.title || (typeof commandActionTitle === 'string' ? commandActionTitle : commandActionTitle.value) || '';
+
+		super(command.id, title, iconClass, true);
+		this.args = command.arguments || [];
+		this.commandService = commandService;
+	}
+
+	run(): TPromise<any> {
+		return this.commandService.executeCommand(this.id, ...this.args);
+	}
+}
+
+// class CommandActionItem extends
+
 export class SCMMenus implements IDisposable {
 
 	private disposables: IDisposable[] = [];
@@ -70,7 +99,8 @@ export class SCMMenus implements IDisposable {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ISCMService private scmService: ISCMService,
 		@IMenuService private menuService: IMenuService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
@@ -106,21 +136,27 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getTitleActions(): IAction[] {
-		return this.titleActions;
+		const provider = this.scmService.activeProvider;
+		const commands = (provider && provider.inlineCommands) || [];
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...inlineActions, ...this.titleActions];
 	}
 
 	getTitleSecondaryActions(): IAction[] {
+		const provider = this.scmService.activeProvider;
+		const commands = (provider && provider.overflowCommands) || [];
+		const overflowActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		let result = [...overflowActions, ...this.titleSecondaryActions];
+
 		const providerSwitchActions: IAction[] = this.scmService.providers
 			.map(p => new SwitchProviderAction(p, this.scmService));
 
-		let result = [];
-
-		if (this.titleSecondaryActions.length > 0) {
-			result = result.concat(this.titleSecondaryActions);
-		}
 		if (providerSwitchActions.length > 0) {
 			providerSwitchActions.push(new Separator());
 		}
+
 		providerSwitchActions.push(new InstallAdditionalSCMProviders(this.viewletService));
 
 		if (result.length > 0) {
@@ -133,19 +169,31 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getResourceGroupActions(group: ISCMResourceGroup): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, group).primary;
+		const commands = group.inlineCommands || [];
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...inlineActions, ...this.getActions(MenuId.SCMResourceGroupContext, group).primary];
 	}
 
 	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, group).secondary;
+		const commands = group.contextCommands || [];
+		const contextActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...contextActions, ...this.getActions(MenuId.SCMResourceGroupContext, group).secondary];
 	}
 
 	getResourceActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).primary;
+		const commands = resource.inlineCommands || [];
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...inlineActions, ...this.getActions(MenuId.SCMResourceContext, resource).primary];
 	}
 
 	getResourceContextActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).secondary;
+		const commands = resource.contextCommands || [];
+		const contextActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...contextActions, ...this.getActions(MenuId.SCMResourceContext, resource).secondary];
 	}
 
 	private static readonly NoActions = { primary: [], secondary: [] };

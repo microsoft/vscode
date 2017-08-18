@@ -187,7 +187,7 @@ export class CommandsConverter {
 			ObjectIdentifier.mixin(result, id);
 
 			result.id = '_internal_command_delegation';
-			result.arguments = [id];
+			result.arguments = [id, command.command];
 		}
 
 		if (command.tooltip) {

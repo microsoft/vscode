@@ -299,10 +299,14 @@ export interface SCMProviderFeatures {
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
 	statusBarCommands?: modes.Command[];
+	inlineCommands?: modes.Command[];
+	overflowCommands?: modes.Command[];
 }
 
 export interface SCMGroupFeatures {
 	hideWhenEmpty?: boolean;
+	inlineCommands?: modes.Command[];
+	contextCommands?: modes.Command[];
 }
 
 export type SCMRawResource = [
@@ -312,7 +316,9 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+	modes.Command[] /*inline commands*/,
+	modes.Command[] /*context commands*/
 ];
 
 export interface MainThreadSCMShape extends IDisposable {

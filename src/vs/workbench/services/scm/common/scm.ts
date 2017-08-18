@@ -32,6 +32,8 @@ export interface ISCMResource {
 	readonly sourceUri: URI;
 	readonly command?: Command;
 	readonly decorations: ISCMResourceDecorations;
+	readonly inlineCommands?: Command[];
+	readonly contextCommands?: Command[];
 }
 
 export interface ISCMResourceGroup {
@@ -39,6 +41,8 @@ export interface ISCMResourceGroup {
 	readonly label: string;
 	readonly id: string;
 	readonly resources: ISCMResource[];
+	readonly inlineCommands?: Command[];
+	readonly contextCommands?: Command[];
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -51,6 +55,8 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeCommitTemplate?: Event<string>;
 	readonly acceptInputCommand?: Command;
 	readonly statusBarCommands?: Command[];
+	readonly inlineCommands?: Command[];
+	readonly overflowCommands?: Command[];
 
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
