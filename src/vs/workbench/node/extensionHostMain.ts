@@ -51,6 +51,7 @@ export class ExtensionHostMain {
 		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
 		// error forwarding and stack trace scanning
+		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
@@ -59,17 +60,15 @@ export class ExtensionHostMain {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
 					extension = extension || map.findSubstr(stackTrace[0].getFileName());
 				}
-				let name = error.name || 'Error';
-				if (extension) {
-					name = `[${extension.id}] ${name}`;
-				}
-				return `${name}: ${error.message}${stackTraceMessage}`;
+				extensionErrors.set(error, extension);
+				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
-			mainThreadErrors.$onUnexpectedExtHostError(data);
+			const extension = extensionErrors.get(err);
+			mainThreadErrors.$onUnexpectedError(data, extension && extension.id);
 		});
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s

@@ -47,6 +47,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from "vs/base/common/lifecycle";
+import { SerializedError } from "vs/base/common/errors";
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -189,7 +190,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedExtHostError(err: any): void;
+	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
