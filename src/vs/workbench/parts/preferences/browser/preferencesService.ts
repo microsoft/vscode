@@ -340,15 +340,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
 
-	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
+	private createIfNotExists(resource: URI, contents: string): TPromise<any> {
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
 				});
 			}
 
-			return TPromise.wrapError<boolean>(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

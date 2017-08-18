@@ -458,7 +458,7 @@ class WelcomePage {
 					})
 				]
 			});
-		}).then<void>(null, err => {
+		}).then(null, err => {
 			this.telemetryService.publicLog(strings.installedEvent, {
 				from: telemetryFrom,
 				extensionId: extensionSuggestion.id,

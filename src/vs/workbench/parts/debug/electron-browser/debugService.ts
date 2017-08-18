@@ -656,7 +656,7 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
 				}
 
-				return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
+				return manager.getStartSessionCommand(config ? config.type : undefined).then<any>(commandAndType => {
 					if (noDebug && config) {
 						config.noDebug = true;
 					}
@@ -753,13 +753,15 @@ export class DebugService implements debug.IDebugService {
 				});
 			}, err => {
 				if (!this.contextService.hasWorkspace()) {
-					return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+					return undefined;
 				}
 
 				return this.configurationManager.selectedLaunch.openConfigFile(false).then(openend => {
 					if (openend) {
 						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
 					}
+					return undefined;
 				});
 			})
 		);

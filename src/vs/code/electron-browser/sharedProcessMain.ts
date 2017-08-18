@@ -138,7 +138,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 function setupIPC(hook: string): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(hook).then<Server>(null, err => {
+		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
 				return TPromise.wrapError(err);
 			}

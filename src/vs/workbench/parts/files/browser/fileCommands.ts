@@ -215,12 +215,12 @@ function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat 
 
 		return withFocussedOpenEditorsViewItem(accessor).then(res => {
 			if (res) {
-				return res.item;
+				return res.item as FileStat | OpenEditor;
 			}
 
 			return void 0;
 		});
-	}) as TPromise<FileStat | OpenEditor>; // TypeScript fail
+	});
 };
 
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {

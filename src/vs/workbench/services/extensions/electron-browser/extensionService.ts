@@ -356,7 +356,7 @@ export class ExtensionService implements IExtensionService {
 			});
 
 			return Object.keys(result).map(name => result[name]);
-		}).then<IExtensionDescription[]>(null, err => {
+		}).then(null, err => {
 			log.error('', err);
 			return [];
 		});

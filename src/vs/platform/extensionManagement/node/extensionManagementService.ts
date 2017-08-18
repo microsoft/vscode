@@ -55,7 +55,7 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 			.then(raw => parseManifest(raw)),
 		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
-			.then<string>(null, err => err.code !== 'ENOENT' ? TPromise.wrapError(err) : '{}')
+			.then(null, err => err.code !== 'ENOENT' ? TPromise.wrapError<string>(err) : '{}')
 			.then(raw => JSON.parse(raw))
 	];
 
@@ -294,13 +294,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
 		return this.removeOutdatedExtensions().then(() => {
-			return this.scanUserExtensions().then<void>(installed => {
+			return this.scanUserExtensions().then(installed => {
 				const promises = installed
 					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
 					.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
 				return TPromise.join(promises);
 			});
-		});
+		}).then(() => { /* drop resolved value */ });
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
@@ -575,7 +575,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.obsoleteFileLimiter.queue(() => {
 			let result: T = null;
 			return pfs.readFile(this.obsoletePath, 'utf8')
-				.then<string>(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
+				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(obsolete => { result = fn(obsolete); return obsolete; })
 				.then(obsolete => {

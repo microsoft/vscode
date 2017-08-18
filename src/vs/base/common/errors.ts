@@ -132,24 +132,24 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
-export function onUnexpectedError(e: any): void {
-
+export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedExternalError(e: any): void {
-
+export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T> {
-	return promise.then<T>(null, onUnexpectedError);
+export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
+	return promise.then(null, onUnexpectedError);
 }
 
 export function transformErrorForSerialization(error: any): any {
