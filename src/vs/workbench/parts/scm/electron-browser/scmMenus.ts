@@ -21,6 +21,7 @@ import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/work
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getSCMResourceContextKey } from './scmUtil';
+import { Command } from 'vs/editor/common/modes';
 
 class SwitchProviderAction extends Action {
 
@@ -58,14 +59,22 @@ class InstallAdditionalSCMProviders extends Action {
 
 export class CommandAction extends Action {
 
+	private args: any[];
+	private commandService: ICommandService;
+
 	constructor(
-		id: string,
-		title: string,
-		iconClass: string,
-		private args: any[],
-		@ICommandService private commandService: ICommandService
+		command: Command,
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, title, iconClass, true);
+		const commandId = command.id === '_internal_command_delegation' ? command.arguments[1] : command.id;
+		const commandAction = MenuRegistry.getCommand(commandId);
+		const iconClass = commandAction && commandAction.iconClass || '';
+		const commandActionTitle = commandAction && commandAction.title || '';
+		const title = command.tooltip || command.title || (typeof commandActionTitle === 'string' ? commandActionTitle : commandActionTitle.value) || '';
+
+		super(command.id, title, iconClass, true);
+		this.args = command.arguments || [];
+		this.commandService = commandService;
 	}
 
 	run(): TPromise<any> {
@@ -129,38 +138,25 @@ export class SCMMenus implements IDisposable {
 	getTitleActions(): IAction[] {
 		const provider = this.scmService.activeProvider;
 		const commands = (provider && provider.inlineCommands) || [];
-		const inlineActions = commands.map(command => {
-			// TODO@joao this is ugly
-			// we want to get a hold of the iconClass what surely is an _internal_command_delegation command
-
-			const commandId = command.id === '_internal_command_delegation'
-				? command.arguments[1]
-				: command.id;
-
-			const commandAction = MenuRegistry.getCommand(commandId);
-			const iconClass = commandAction && commandAction.iconClass || '';
-			const args = command.arguments || [];
-			const commandActionTitle = commandAction && commandAction.title || '';
-			const title = command.tooltip || command.title || (typeof commandActionTitle === 'string' ? commandActionTitle : commandActionTitle.value) || '';
-
-			return new CommandAction(command.id, title, iconClass, args, this.commandService);
-		});
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
 
 		return [...inlineActions, ...this.titleActions];
 	}
 
 	getTitleSecondaryActions(): IAction[] {
+		const provider = this.scmService.activeProvider;
+		const commands = (provider && provider.overflowCommands) || [];
+		const overflowActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		let result = [...overflowActions, ...this.titleSecondaryActions];
+
 		const providerSwitchActions: IAction[] = this.scmService.providers
 			.map(p => new SwitchProviderAction(p, this.scmService));
 
-		let result = [];
-
-		if (this.titleSecondaryActions.length > 0) {
-			result = result.concat(this.titleSecondaryActions);
-		}
 		if (providerSwitchActions.length > 0) {
 			providerSwitchActions.push(new Separator());
 		}
+
 		providerSwitchActions.push(new InstallAdditionalSCMProviders(this.viewletService));
 
 		if (result.length > 0) {
