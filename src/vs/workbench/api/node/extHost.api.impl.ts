@@ -47,7 +47,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
-import { realpath } from 'fs';
 import { MainContext, ExtHostContext, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
@@ -621,30 +620,7 @@ class Extension<T> implements vscode.Extension<T> {
 }
 
 export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): TPromise<void> {
-	return createExtensionPathIndex(extensionService).then(trie => defineAPI(apiFactory, trie));
-}
-
-function createExtensionPathIndex(extensionService: ExtHostExtensionService): TPromise<TrieMap<IExtensionDescription>> {
-
-	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>();
-	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
-		if (!ext.main) {
-			return undefined;
-		}
-		return new TPromise((resolve, reject) => {
-			realpath(ext.extensionFolderPath, (err, path) => {
-				if (err) {
-					reject(err);
-				} else {
-					trie.insert(path, ext);
-					resolve(void 0);
-				}
-			});
-		});
-	});
-
-	return TPromise.join(extensions).then(() => trie);
+	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {

@@ -12,6 +12,7 @@ import { join } from 'path';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { IExtensionDescription } from "vs/platform/extensions/common/extensions";
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
@@ -49,9 +50,27 @@ export class ExtensionHostMain {
 		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
 
-		// Error forwarding
+		// error forwarding and stack trace scanning
+		this._extensionService.getExtensionPathIndex().then(map => {
+			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+				let stackTraceMessage = '';
+				let extension: IExtensionDescription;
+				for (const call of stackTrace) {
+					stackTraceMessage += `\n\tat ${call.toString()}`;
+					extension = extension || map.findSubstr(stackTrace[0].getFileName());
+				}
+				let name = error.name || 'Error';
+				if (extension) {
+					name = `[${extension.id}] ${name}`;
+				}
+				return `${name}: ${error.message}${stackTraceMessage}`;
+			};
+		});
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => mainThreadErrors.$onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
+		errors.setUnexpectedErrorHandler(err => {
+			const data = errors.transformErrorForSerialization(err);
+			mainThreadErrors.$onUnexpectedExtHostError(data);
+		});
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
 		if (!initData.environment.isExtensionDevelopmentDebug) {
