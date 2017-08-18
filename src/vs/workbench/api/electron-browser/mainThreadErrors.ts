@@ -14,7 +14,14 @@ export class MainThreadErrors implements MainThreadErrorsShape {
 	public dispose(): void {
 	}
 
-	public $onUnexpectedExtHostError(err: any): void {
+	public $onUnexpectedExtHostError(err: any | errors.SerializedError): void {
+		if (err.$isError) {
+			const { name, message, stack } = err;
+			err = new Error();
+			err.name = name;
+			err.message = message;
+			err.stack = stack;
+		}
 		errors.onUnexpectedError(err);
 	}
 }

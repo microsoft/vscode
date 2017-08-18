@@ -152,6 +152,15 @@ export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | 
 	return promise.then(null, onUnexpectedError);
 }
 
+export interface SerializedError {
+	readonly $isError: true;
+	readonly name: string;
+	readonly message: string;
+	readonly stack: string;
+}
+
+export function transformErrorForSerialization(error: Error): SerializedError;
+export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let { name, message } = error;
