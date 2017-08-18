@@ -105,7 +105,7 @@ export class ExtensionService implements IExtensionService {
 			this._extensionHostProcessWorker = null;
 		}
 		if (this._extensionHostProcessThreadService) {
-			// this._extensionHostProcessThreadService.dispose(); // TODO@rehost
+			this._extensionHostProcessThreadService.dispose();
 			this._extensionHostProcessThreadService = null;
 		}
 		for (let i = 0, len = this._extensionHostProcessCustomers.length; i < len; i++) {
