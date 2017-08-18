@@ -222,8 +222,13 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): TPromise<string[]>;
 }
 
+export interface MainThreadMessageOptions {
+	extensionId?: string;
+	modal?: boolean;
+}
+
 export interface MainThreadMessageServiceShape extends IDisposable {
-	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
