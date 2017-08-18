@@ -301,7 +301,6 @@ export interface SCMProviderFeatures {
 	statusBarCommands?: modes.Command[];
 	inlineCommands?: modes.Command[];
 	overflowCommands?: modes.Command[];
-	contextCommands?: modes.Command[];
 }
 
 export interface SCMGroupFeatures {

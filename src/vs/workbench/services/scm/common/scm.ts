@@ -53,7 +53,6 @@ export interface ISCMProvider extends IDisposable {
 	readonly statusBarCommands?: Command[];
 	readonly inlineCommands?: Command[];
 	readonly overflowCommands?: Command[];
-	readonly contextCommands?: Command[];
 
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
