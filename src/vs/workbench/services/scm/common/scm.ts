@@ -32,6 +32,8 @@ export interface ISCMResource {
 	readonly sourceUri: URI;
 	readonly command?: Command;
 	readonly decorations: ISCMResourceDecorations;
+	readonly inlineCommands?: Command[];
+	readonly contextCommands?: Command[];
 }
 
 export interface ISCMResourceGroup {

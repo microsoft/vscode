@@ -316,7 +316,9 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+	modes.Command[] /*inline commands*/,
+	modes.Command[] /*context commands*/
 ];
 
 export interface MainThreadSCMShape extends IDisposable {

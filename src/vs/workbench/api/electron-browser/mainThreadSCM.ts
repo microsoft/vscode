@@ -47,10 +47,12 @@ class MainThreadSCMResource implements ISCMResource {
 		private sourceControlHandle: number,
 		private groupHandle: number,
 		private handle: number,
-		public sourceUri: URI,
-		public command: Command | undefined,
-		public resourceGroup: ISCMResourceGroup,
-		public decorations: ISCMResourceDecorations
+		readonly sourceUri: URI,
+		readonly command: Command | undefined,
+		readonly resourceGroup: ISCMResourceGroup,
+		readonly decorations: ISCMResourceDecorations,
+		readonly inlineCommands: Command[],
+		readonly contextCommands: Command[]
 	) { }
 
 	toJSON(): any {
@@ -161,7 +163,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
+			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded, inlineCommands, contextCommands] = rawResource;
 			const icon = icons[0];
 			const iconDark = icons[1] || icon;
 			const decorations = {
@@ -179,7 +181,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 				URI.parse(sourceUri),
 				command,
 				group,
-				decorations
+				decorations,
+				inlineCommands,
+				contextCommands
 			);
 		});
 

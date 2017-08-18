@@ -183,11 +183,17 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getResourceActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).primary;
+		const commands = resource.inlineCommands || [];
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...inlineActions, ...this.getActions(MenuId.SCMResourceContext, resource).primary];
 	}
 
 	getResourceContextActions(resource: ISCMResource): IAction[] {
-		return this.getActions(MenuId.SCMResourceContext, resource).secondary;
+		const commands = resource.contextCommands || [];
+		const contextActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...contextActions, ...this.getActions(MenuId.SCMResourceContext, resource).secondary];
 	}
 
 	private static readonly NoActions = { primary: [], secondary: [] };

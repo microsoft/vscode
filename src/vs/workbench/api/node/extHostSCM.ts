@@ -128,7 +128,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+			const inlineCommands = (r.inlineCommands || [])
+				.map(c => this._commands.toInternal({ ...c, arguments: [r, ...(c.arguments || [])] }));
+
+			const contextCommands = (r.inlineCommands || [])
+				.map(c => this._commands.toInternal({ ...c, arguments: [r, ...(c.arguments || [])] }));
+
+			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded, inlineCommands, contextCommands] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
