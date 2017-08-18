@@ -391,7 +391,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		try {
-			const headers = await this.commonHTTPHeaders;
+			const headers = {
+				...await this.commonHTTPHeaders,
+				Accept: '*/*;api-version=4.0-preview.1'
+			};
+
 			await this.requestService.request({
 				type: 'POST',
 				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
