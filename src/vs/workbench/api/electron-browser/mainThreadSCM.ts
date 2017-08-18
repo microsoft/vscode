@@ -19,6 +19,9 @@ import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostC
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
+	get inlineCommands(): Command[] | undefined { return this.features.inlineCommands; }
+	get contextCommands(): Command[] | undefined { return this.features.contextCommands; }
+
 	constructor(
 		private sourceControlHandle: number,
 		private handle: number,

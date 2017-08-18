@@ -305,6 +305,8 @@ export interface SCMProviderFeatures {
 
 export interface SCMGroupFeatures {
 	hideWhenEmpty?: boolean;
+	inlineCommands?: modes.Command[];
+	contextCommands?: modes.Command[];
 }
 
 export type SCMRawResource = [

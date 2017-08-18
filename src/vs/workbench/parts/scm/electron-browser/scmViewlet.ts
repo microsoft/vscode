@@ -118,7 +118,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.count.setCount(group.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
-		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
+		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {

@@ -39,6 +39,8 @@ export interface ISCMResourceGroup {
 	readonly label: string;
 	readonly id: string;
 	readonly resources: ISCMResource[];
+	readonly inlineCommands?: Command[];
+	readonly contextCommands?: Command[];
 }
 
 export interface ISCMProvider extends IDisposable {

@@ -134,6 +134,38 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
 	}
 
+	private _inlineCommands: vscode.Command[] | undefined = undefined;
+
+	get inlineCommands(): vscode.Command[] | undefined {
+		return this._inlineCommands;
+	}
+
+	set inlineCommands(inlineCommands: vscode.Command[] | undefined) {
+		this._inlineCommands = inlineCommands;
+
+		const internal = (inlineCommands || [])
+			.map(c => ({ ...c, arguments: [this, ...(c.arguments || [])] }))
+			.map(c => this._commands.toInternal(c));
+
+		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { inlineCommands: internal });
+	}
+
+	private _contextCommands: vscode.Command[] | undefined = undefined;
+
+	get contextCommands(): vscode.Command[] | undefined {
+		return this._contextCommands;
+	}
+
+	set contextCommands(contextCommands: vscode.Command[] | undefined) {
+		this._contextCommands = contextCommands;
+
+		const internal = (contextCommands || [])
+			.map(c => ({ ...c, arguments: [this, ...(c.arguments || [])] }))
+			.map(c => this._commands.toInternal(c));
+
+		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { contextCommands: internal });
+	}
+
 	private _handle: GroupHandle = ExtHostSourceControlResourceGroup._handlePool++;
 	get handle(): GroupHandle {
 		return this._handle;

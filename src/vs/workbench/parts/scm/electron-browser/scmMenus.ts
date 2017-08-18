@@ -169,11 +169,17 @@ export class SCMMenus implements IDisposable {
 	}
 
 	getResourceGroupActions(group: ISCMResourceGroup): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, group).primary;
+		const commands = group.inlineCommands || [];
+		const inlineActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...inlineActions, ...this.getActions(MenuId.SCMResourceGroupContext, group).primary];
 	}
 
 	getResourceGroupContextActions(group: ISCMResourceGroup): IAction[] {
-		return this.getActions(MenuId.SCMResourceGroupContext, group).secondary;
+		const commands = group.contextCommands || [];
+		const contextActions = commands.map(command => new CommandAction(command, this.commandService));
+
+		return [...contextActions, ...this.getActions(MenuId.SCMResourceGroupContext, group).secondary];
 	}
 
 	getResourceActions(resource: ISCMResource): IAction[] {
