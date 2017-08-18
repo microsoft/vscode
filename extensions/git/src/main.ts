@@ -9,7 +9,6 @@ import * as nls from 'vscode-nls';
 const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
-import { Repository } from './repository';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
@@ -33,20 +32,13 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model();
+	const model = new Model(git);
 	disposables.push(model);
 
 	if (!enabled) {
 		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
-	}
-
-	for (const folder of workspace.workspaceFolders || []) {
-		const repositoryRoot = await git.getRepositoryRoot(folder.uri.fsPath);
-		const repository = new Repository(git.open(repositoryRoot));
-
-		model.register(repository);
 	}
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
@@ -63,7 +55,6 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		commandCenter,
 		contentProvider,
 		// autoFetcher,
-		// repository
 	);
 
 	await checkGitVersion(info);

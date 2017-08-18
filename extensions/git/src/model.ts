@@ -5,19 +5,20 @@
 
 'use strict';
 
-import { Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup } from 'vscode';
-import { Repository, State } from './repository';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor } from 'vscode';
+import { Repository } from './repository';
 import { memoize } from './decorators';
-import { toDisposable, filterEvent, once } from './util';
+import { dispose } from './util';
+import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string { return path.basename(this.repositoryRoot); }
-	@memoize get description(): string { return path.dirname(this.repositoryRoot); }
-	constructor(protected repositoryRoot: string, public readonly repository: Repository) { }
+	@memoize get label(): string { return path.basename(this.repository.root); }
+	@memoize get description(): string { return path.dirname(this.repository.root); }
+	constructor(public readonly repository: Repository) { }
 }
 
 export interface ModelChangeEvent {
@@ -25,47 +26,101 @@ export interface ModelChangeEvent {
 	uri: Uri;
 }
 
+interface OpenRepository extends Disposable {
+	repository: Repository;
+}
+
 export class Model {
 
 	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
 	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
 
-	private repositories: Map<string, Repository> = new Map<string, Repository>();
+	private openRepositories: OpenRepository[] = [];
+	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
-	register(repository: Repository): Disposable {
-		const root = repository.root;
+	private disposables: Disposable[] = [];
 
-		if (this.repositories.has(root)) {
-			// TODO@Joao: what should happen?
-			throw new Error('Cant register repository with the same URI');
+	constructor(private git: Git) {
+		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
+
+		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
+		this.onDidChangeVisibleTextEditors(window.visibleTextEditors);
+	}
+
+	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
+		const possibleRepositoryFolders = added
+			.filter(folder => !this.getOpenRepository(folder.uri));
+
+		const activeRepositoriesList = window.visibleTextEditors
+			.map(editor => this.getRepository(editor.document.uri))
+			.filter(repository => !!repository) as Repository[];
+
+		const activeRepositories = new Set<Repository>(activeRepositoriesList);
+		const openRepositoriesToDispose = removed
+			.map(folder => this.getOpenRepository(folder.uri))
+			.filter(r => !!r && !activeRepositories.has(r.repository)) as OpenRepository[];
+
+		console.log('lets dispose', openRepositoriesToDispose);
+
+		possibleRepositoryFolders.forEach(p => this.findRepository(p.uri.fsPath));
+		openRepositoriesToDispose.forEach(r => r.dispose());
+	}
+
+	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
+		editors.forEach(editor => {
+			const uri = editor.document.uri;
+
+			if (uri.scheme !== 'file') {
+				return;
+			}
+
+			const repository = this.getRepository(uri);
+
+			if (repository) {
+				return;
+			}
+
+			this.findRepository(path.dirname(uri.fsPath));
+		});
+	}
+
+	private async findRepository(dirPath: string): Promise<void> {
+		try {
+			const repositoryRoot = await this.git.getRepositoryRoot(dirPath);
+			const repository = new Repository(this.git.open(repositoryRoot));
+
+			this.open(repository);
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				return;
+			}
+
+			console.error('Failed to find repository:', err);
 		}
+	}
 
-		this.repositories.set(root, repository);
-
-		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.Disposed);
-		const disappearListener = onDidDisappearRepository(() => disposable.dispose());
+	private open(repository: Repository): void {
+		// const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.Disposed);
+		// const disappearListener = onDidDisappearRepository(() => disposable.dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
-
-		const disposable = toDisposable(once(() => {
-			disappearListener.dispose();
+		const dispose = () => {
+			// disappearListener.dispose();
 			changeListener.dispose();
-			this.repositories.delete(root);
-		}));
+			repository.dispose();
+			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
+		};
 
-		return disposable;
+		const openRepository = { repository, dispose };
+		this.openRepositories.push(openRepository);
 	}
 
 	async pickRepository(): Promise<Repository | undefined> {
-		if (this.repositories.size === 0) {
+		if (this.openRepositories.length === 0) {
 			throw new Error(localize('no repositories', "There are no available repositories"));
 		}
 
-		// TODO@joao enable this code
-		// if (this.repositories.size === 1) {
-		// 	return this.repositories.values().next().value;
-		// }
-
-		const picks = Array.from(this.repositories.entries(), ([uri, model]) => new RepositoryPick(uri, model));
+		const picks = this.openRepositories.map(e => new RepositoryPick(e.repository));
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
@@ -76,6 +131,14 @@ export class Model {
 	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
 	getRepository(resource: Uri): Repository | undefined;
 	getRepository(hint: any): Repository | undefined {
+		const liveRepository = this.getOpenRepository(hint);
+		return liveRepository && liveRepository.repository;
+	}
+
+	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
+	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
+	private getOpenRepository(resource: Uri): OpenRepository | undefined;
+	private getOpenRepository(hint: any): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
 		}
@@ -83,24 +146,26 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
-			for (let [root, repository] of this.repositories) {
-				const relativePath = path.relative(root, resourcePath);
+			for (const liveRepository of this.openRepositories) {
+				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
 
 				if (!/^\./.test(relativePath)) {
-					return repository;
+					return liveRepository;
 				}
 			}
 
 			return undefined;
 		}
 
-		for (let [, repository] of this.repositories) {
+		for (const liveRepository of this.openRepositories) {
+			const repository = liveRepository.repository;
+
 			if (hint === repository.sourceControl) {
-				return repository;
+				return liveRepository;
 			}
 
 			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
-				return repository;
+				return liveRepository;
 			}
 		}
 
@@ -108,10 +173,7 @@ export class Model {
 	}
 
 	dispose(): void {
-		for (let [, repository] of this.repositories) {
-			repository.dispose();
-		}
-
-		this.repositories.clear();
+		[...this.openRepositories].forEach(r => r.dispose());
+		this.disposables = dispose(this.disposables);
 	}
 }

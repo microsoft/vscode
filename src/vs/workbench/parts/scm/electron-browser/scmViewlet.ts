@@ -228,7 +228,8 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 class SourceControlViewDescriptor implements IViewDescriptor {
 
 	get provider(): ISCMProvider { return this._provider; }
-	get id(): string { return this._provider.id; }
+	// TODO@joao change this so we dont need IDS
+	get id(): string { return this._provider.label; }
 	get name(): string { return this._provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
@@ -438,8 +439,11 @@ export class SCMViewlet extends ComposedViewsViewlet {
 			return;
 		}
 
-		const ids = providers.map(provider => provider.id);
+		// TODO@joao change this so we dont need ids
+		const ids = providers.map(provider => provider.label);
 		const views = providers.map(provider => new SourceControlViewDescriptor(provider));
+
+		// console.log(provider.label);
 
 		ViewsRegistry.registerViews(views);
 		this.providerChangeDisposable = toDisposable(() => ViewsRegistry.deregisterViews(ids, ViewLocation.SCM));

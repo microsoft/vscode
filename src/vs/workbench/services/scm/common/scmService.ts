@@ -108,6 +108,8 @@ export class SCMService implements ISCMService {
 			if (this.activeProvider === provider) {
 				this.activeProvider = this._providers[0];
 			}
+
+			this._onDidChangeProviders.fire();
 		});
 	}
 
