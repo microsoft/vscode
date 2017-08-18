@@ -32,7 +32,7 @@ function getPropertyValue(color: Color, variable: string): number | undefined {
 		case 'blue':
 			return color.rgba.b / 255;
 		case 'alpha':
-			return color.rgba.a / 255;
+			return color.rgba.a;
 		case 'hue':
 			return color.hsla.h / 360;
 		case 'saturation':
