@@ -113,20 +113,22 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _toDispose: IDisposable[] = [];
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _onDidChangeState = new Emitter<DocumentAndEditorStateDelta>();
 	private _currentState: DocumentAndEditorState;
 
-	readonly onDidChangeState: Event<DocumentAndEditorStateDelta> = this._onDidChangeState.event;
-
 	constructor(
+		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
 		@IModelService private _modelService: IModelService,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
 	) {
-		this._modelService.onModelAdded(this.updateState, this, this._toDispose);
-		this._modelService.onModelRemoved(this.updateState, this, this._toDispose);
+		this._modelService.onModelAdded(this._updateState, this, this._toDispose);
+		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
+
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
+		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
+
+		this._updateState();
 	}
 
 	dispose(): void {
@@ -134,10 +136,10 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidAddEditor(e: ICommonCodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this.updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this.updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this.updateState()));
-		this.updateState();
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
+		this._updateState();
 	}
 
 	private _onDidRemoveEditor(e: ICommonCodeEditor): void {
@@ -145,11 +147,11 @@ class MainThreadDocumentAndEditorStateComputer {
 		if (sub) {
 			this._toDisposeOnEditorRemove.delete(e.getId());
 			sub.dispose();
-			this.updateState();
+			this._updateState();
 		}
 	}
 
-	updateState(): void {
+	private _updateState(): void {
 
 		// models: ignore too large models
 		const models = this._modelService.getModels();
@@ -207,7 +209,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		const delta = DocumentAndEditorState.compute(this._currentState, newState);
 		if (!delta.isEmpty) {
 			this._currentState = newState;
-			this._onDidChangeState.fire(delta);
+			this._onDidChangeState(delta);
 		}
 	}
 }
@@ -244,7 +246,6 @@ export class MainThreadDocumentsAndEditors {
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(_modelService, codeEditorService, _workbenchEditorService);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
@@ -252,18 +253,18 @@ export class MainThreadDocumentsAndEditors {
 		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService);
 		extHostContext.set(MainContext.MainThreadEditors, mainThreadEditors);
 
+		// It is expected that the ctor of the state computer calls our `_onDelta`.
+		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, _workbenchEditorService);
+
 		this._toDispose = [
 			mainThreadDocuments,
 			mainThreadEditors,
 			this._stateComputer,
-			this._stateComputer.onDidChangeState(this._onDelta, this),
 			this._onTextEditorAdd,
 			this._onTextEditorRemove,
 			this._onDocumentAdd,
 			this._onDocumentRemove,
 		];
-
-		this._stateComputer.updateState();
 	}
 
 	dispose(): void {
