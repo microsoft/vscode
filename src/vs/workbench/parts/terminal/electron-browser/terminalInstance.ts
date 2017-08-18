@@ -560,8 +560,23 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
-		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		let envFromConfig: IStringDictionary<string>;
+		if (platform.isWindows) {
+			envFromConfig = { ...process.env };
+			for (let configKey in this._configHelper.config.env['windows']) {
+				let actualKey = configKey;
+				for (let envKey in envFromConfig) {
+					if (configKey.toLowerCase() === envKey.toLowerCase()) {
+						actualKey = envKey;
+						break;
+					}
+				}
+				envFromConfig[actualKey] = this._configHelper.config.env['windows'][configKey];
+			}
+		} else {
+			const platformKey = platform.isMacintosh ? 'osx' : 'linux';
+			envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		}
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
