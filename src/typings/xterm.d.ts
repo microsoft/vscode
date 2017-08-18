@@ -6,7 +6,7 @@
 declare module 'xterm' {
 	type LinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
 
-	class Terminal {
+	export class Terminal {
 		cols: number;
 		rows: number;
 		ydisp: number;
@@ -192,6 +192,4 @@ declare module 'xterm' {
 		 */
 		static loadAddon(addon: string): void;
 	}
-
-	export = Terminal;
 }
