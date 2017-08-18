@@ -5,7 +5,7 @@
 
 import { window, ExtensionContext, commands, credentials } from 'vscode';
 import { AzureLoginHelper } from './azure-account';
-import { AzureLogin } from './typings/azure-account.api';
+import { AzureAccount } from './typings/azure-account.api';
 import * as opn from 'opn';
 import * as nls from 'vscode-nls';
 
@@ -26,7 +26,7 @@ function createAccount() {
 	opn('https://azure.microsoft.com/en-us/free');
 }
 
-function createStatusBarItem(api: AzureLogin) {
+function createStatusBarItem(api: AzureAccount) {
 	const statusBarItem = window.createStatusBarItem();
 	function updateStatusBar() {
 		switch (api.status) {

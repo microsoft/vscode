@@ -16,7 +16,7 @@ import * as copypaste from 'copy-paste';
 import * as nls from 'vscode-nls';
 
 import { window, commands, credentials, EventEmitter, MessageItem, ExtensionContext, workspace, ConfigurationTarget } from 'vscode';
-import { AzureLogin, AzureSession, AzureLoginStatus, AzureResourceFilter } from './typings/azure-account.api';
+import { AzureAccount, AzureSession, AzureLoginStatus, AzureResourceFilter } from './typings/azure-account.api';
 
 const localize = nls.loadMessageBundle();
 
@@ -57,7 +57,7 @@ interface TokenResponse {
 	_authority: string;
 }
 
-interface AzureLoginWriteable extends AzureLogin {
+interface AzureAccountWriteable extends AzureAccount {
 	status: AzureLoginStatus;
 }
 
@@ -88,7 +88,7 @@ export class AzureLoginHelper {
 			.catch(console.error);
 	}
 
-	api: AzureLogin = {
+	api: AzureAccount = {
 		status: 'Initializing',
 		onStatusChanged: this.onStatusChanged.event,
 		sessions: [],
@@ -145,7 +145,7 @@ export class AzureLoginHelper {
 
 	private beginLoggingIn() {
 		if (this.api.status !== 'LoggedIn') {
-			(<AzureLoginWriteable>this.api).status = 'LoggingIn';
+			(<AzureAccountWriteable>this.api).status = 'LoggingIn';
 			this.onStatusChanged.fire(this.api.status);
 		}
 	}
@@ -153,7 +153,7 @@ export class AzureLoginHelper {
 	private updateStatus() {
 		const status = this.api.sessions.length ? 'LoggedIn' : 'LoggedOut';
 		if (this.api.status !== status) {
-			(<AzureLoginWriteable>this.api).status = status;
+			(<AzureAccountWriteable>this.api).status = status;
 			this.onStatusChanged.fire(this.api.status);
 		}
 	}

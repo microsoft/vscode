@@ -10,7 +10,7 @@ import { SubscriptionModels, ResourceModels } from 'azure-arm-resource';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
-export interface AzureLogin {
+export interface AzureAccount {
 	readonly status: AzureLoginStatus;
 	readonly onStatusChanged: Event<AzureLoginStatus>;
 	readonly sessions: AzureSession[];
