@@ -18,9 +18,9 @@
       "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.3.1.tgz"
     },
     "vscode-languageclient": {
-      "version": "3.4.0-next.4",
+      "version": "3.4.0-next.10",
       "from": "vscode-languageclient@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.4.0-next.4.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.4.0-next.10.tgz"
     },
     "vscode-languageserver-types": {
       "version": "3.3.0",

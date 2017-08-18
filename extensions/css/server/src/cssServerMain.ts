@@ -57,7 +57,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		return !!c;
 	}
 	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
-	scopedSettingsSupport = hasClientCapability('workspace.getConfiguration');
+	scopedSettingsSupport = hasClientCapability('workspace.configuration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -94,8 +94,8 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
-			let configRequestParam = { scopeUris: [textDocument.uri], sections: [textDocument.languageId] };
-			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => s[0][0]);
+			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
+			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => s[0]);
 			documentSettings[textDocument.uri] = promise;
 		}
 		return promise;
