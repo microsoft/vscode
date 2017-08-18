@@ -141,6 +141,7 @@ export class ExtensionHostProcessWorker {
 						VERBOSE_LOGGING: true,
 						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
+						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						ELECTRON_NO_ASAR: '1'
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
