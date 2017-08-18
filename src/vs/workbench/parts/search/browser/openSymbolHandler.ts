@@ -26,6 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
+import { uniqueFilter } from 'vs/base/common/arrays';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -40,6 +41,21 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		@IEnvironmentService private _environmentService: IEnvironmentService
 	) {
 		super(editorService);
+	}
+
+	public getId(): string {
+		const loc = this._bearing.location;
+		return [
+			'SymbolEntry',
+			this._bearing.name,
+			this._bearing.containerName,
+			this._bearing.kind,
+			loc.uri.toString(),
+			loc.range.startLineNumber,
+			loc.range.startColumn,
+			loc.range.endLineNumber,
+			loc.range.endColumn,
+		].join(':');
 	}
 
 	public getLabel(): string {
@@ -165,11 +181,13 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	private doGetResults(searchValue: string): TPromise<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue).then(tuples => {
-			const result: SymbolEntry[] = [];
+			let result: SymbolEntry[] = [];
 			for (let tuple of tuples) {
 				const [provider, bearings] = tuple;
 				this.fillInSymbolEntries(result, provider, bearings, searchValue);
 			}
+
+			result = result.filter(uniqueFilter<SymbolEntry>(s => s.getId()));
 
 			// Sort (Standalone only)
 			if (!this.options.skipSorting) {
