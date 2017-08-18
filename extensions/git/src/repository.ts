@@ -10,6 +10,7 @@ import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCode
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
+import { AutoFetcher } from './autofetch';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
@@ -375,6 +376,8 @@ export class Repository implements Disposable {
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
+
+		this.disposables.push(new AutoFetcher(this));
 
 		this.updateCommitTemplate();
 		this.status();

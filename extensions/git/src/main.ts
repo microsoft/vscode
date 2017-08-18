@@ -12,7 +12,6 @@ import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
-// import { AutoFetcher } from './autofetch';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -47,14 +46,9 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	const contentProvider = new GitContentProvider(model);
-	// const autoFetcher = new AutoFetcher(repository);
-
 	disposables.push(
-		commandCenter,
-		contentProvider,
-		// autoFetcher,
+		new CommandCenter(git, model, outputChannel, telemetryReporter),
+		new GitContentProvider(model),
 	);
 
 	await checkGitVersion(info);
