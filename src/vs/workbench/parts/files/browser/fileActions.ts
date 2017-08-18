@@ -1326,7 +1326,10 @@ export abstract class BaseSaveFileAction extends BaseErrorReportingAction {
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.doRun(context).then(() => true, error => this.onError(error));
+		return this.doRun(context).then(() => true, error => {
+			this.onError(error);
+			return null;
+		});
 	}
 
 	protected abstract doRun(context?: any): TPromise<boolean>;
