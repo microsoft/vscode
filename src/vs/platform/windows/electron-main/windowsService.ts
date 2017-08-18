@@ -124,6 +124,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			this.windowsMainService.createAndOpenWorkspace(codeWindow, folders, path);
+		}
+
+		return TPromise.as(null);
+	}
+
 	toggleFullScreen(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 

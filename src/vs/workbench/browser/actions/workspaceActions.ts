@@ -186,8 +186,9 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	private createWorkspace(folders: URI[]): TPromise<void> {
-		return this.workspacesService.createWorkspace(distinct(folders.map(folder => folder.toString(true /* encoding */))))
-			.then(({ configPath }) => this.windowsService.openWindow([configPath]));
+		const workspaceFolders = distinct(folders.map(folder => folder.toString(true /* encoding */)));
+
+		return this.windowService.createAndOpenWorkspace(workspaceFolders);
 	}
 }
 
@@ -250,14 +251,9 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 	private saveFolderWorkspace(configPath: string): TPromise<void> {
 		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "To save workspace, window reload is required."))) {
-			// Create workspace first
-			this.workspacesService.createWorkspace(this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */)))
-				.then(workspaceIdentifier => {
-					// Save the workspace in new location
-					return this.workspacesService.saveWorkspace(workspaceIdentifier, configPath)
-						// Open the saved workspace
-						.then(({ configPath }) => this.windowsService.openWindow([configPath]));
-				});
+			const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */));
+
+			return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 		}
 
 		return TPromise.as(null);

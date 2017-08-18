@@ -882,6 +882,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	toggleFullScreen(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1011,6 +1015,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	openWorkspace(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
