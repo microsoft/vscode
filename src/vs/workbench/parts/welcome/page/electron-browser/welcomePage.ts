@@ -23,6 +23,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -194,6 +195,7 @@ class WelcomePage {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IThemeService private themeService: IThemeService,
+		@IExperimentService private experimentService: IExperimentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
@@ -313,6 +315,12 @@ class WelcomePage {
 				}
 			};
 		}));
+
+		if (this.experimentService.getExperiments().deployToAzureQuickLink) {
+			container.querySelector('.showInterfaceOverview').remove();
+		} else {
+			container.querySelector('.deployToAzure').remove();
+		}
 	}
 
 	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
