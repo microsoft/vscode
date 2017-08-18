@@ -1210,6 +1210,11 @@ export class GlobalCompareResourcesAction extends Action {
 					resource = (input as IResourceInput).resource;
 				}
 
+				// Cannot compare file with self - exclude active file
+				if (!!resource && resource === globalResourceToCompare) {
+					return void 0;
+				}
+
 				if (!resource) {
 					return void 0; // only support to compare with files and untitled
 				}
