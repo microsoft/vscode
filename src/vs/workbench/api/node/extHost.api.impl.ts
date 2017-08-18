@@ -506,7 +506,7 @@ export function createApiFactory(
 		};
 
 		// namespace: credentials
-		const credentials: typeof vscode.credentials = {
+		const credentials = {
 			readSecret(service: string, account: string): Thenable<string | undefined> {
 				return extHostCredentials.readSecret(service, account);
 			},
@@ -530,7 +530,6 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
-			credentials,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
@@ -584,8 +583,8 @@ export function createApiFactory(
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
-		if (!extension.enableProposedApi) {
-			delete api.credentials; // Instead of error to avoid #31854
+		if (extension.enableProposedApi && extension.isBuiltin) {
+			api['credentials'] = credentials;
 		}
 		return api;
 	};
