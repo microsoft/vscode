@@ -16,11 +16,21 @@ import { getCSSMode } from './cssMode';
 import { getJavascriptMode } from './javascriptMode';
 import { getHTMLMode } from './htmlMode';
 
+export interface Settings {
+	css?: any;
+	html?: any;
+	javascript?: any;
+}
+
+export interface SettingProvider {
+	getDocumentSettings(textDocument: TextDocument): Thenable<Settings>;
+}
+
 export interface LanguageMode {
 	getId();
-	configure?: (options: any) => void;
-	doValidation?: (document: TextDocument) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position) => CompletionList;
+	configure?: (options: Settings) => void;
+	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
@@ -29,7 +39,7 @@ export interface LanguageMode {
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
-	format?: (document: TextDocument, range: Range, options: FormattingOptions) => TextEdit[];
+	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
 	findColorSymbols?: (document: TextDocument) => Range[];
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
