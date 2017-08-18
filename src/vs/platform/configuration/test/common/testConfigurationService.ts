@@ -17,7 +17,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 
 	private configuration = Object.create(null);
 
-	private configurationByRoot: TrieMap<any> = new TrieMap<any>(TrieMap.PathSplitter);
+	private configurationByRoot: TrieMap<any> = new TrieMap<any>();
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.as(this.getConfiguration());

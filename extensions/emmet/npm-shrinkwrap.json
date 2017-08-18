@@ -4,8 +4,8 @@
   "dependencies": {
     "@emmetio/css-parser": {
       "version": "0.4.0",
-      "from": "@emmetio/css-parser@>=0.4.0 <0.5.0",
-      "resolved": "https://registry.npmjs.org/@emmetio/css-parser/-/css-parser-0.4.0.tgz"
+      "from": "ramya-rao-a/css-parser#vscode",
+      "resolved": "git://github.com/ramya-rao-a/css-parser.git#370c480ac103bd17c7bcfb34bf5d577dc40d3660"
     },
     "@emmetio/extract-abbreviation": {
       "version": "0.1.3",

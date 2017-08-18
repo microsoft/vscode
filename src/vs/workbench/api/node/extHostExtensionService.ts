@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
+import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from "vs/workbench/api/node/extHostExtensionActivator";
 import { Barrier } from "vs/workbench/services/extensions/node/barrier";
 import { ExtHostThreadService } from "vs/workbench/services/thread/node/extHostThreadService";
@@ -105,7 +105,7 @@ class ExtensionStoragePath {
 	}
 }
 
-export class ExtHostExtensionService {
+export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private readonly _barrier: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;

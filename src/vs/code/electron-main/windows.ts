@@ -1171,21 +1171,6 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
-	public newWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
-		const folders = dialog.showOpenDialog(window ? window.win : void 0, {
-			buttonLabel: mnemonicLabel(localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")),
-			title: localize('selectWorkspace', "Select Folders for Workspace"),
-			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-			defaultPath: this.getWorkspaceDialogDefaultPath(window ? (window.openedWorkspace || window.openedFolderPath) : void 0)
-		});
-
-		if (folders && folders.length) {
-			this.workspacesService.createWorkspace(folders.map(folder => URI.file(folder).toString(true /* encoding */))).then(workspace => {
-				this.open({ context: OpenContext.DIALOG, cli: this.environmentService.args, pathsToOpen: [workspace.configPath] });
-			});
-		}
-	}
-
 	public openWorkspace(window: CodeWindow = this.getLastActiveWindow()): void {
 		let defaultPath: string;
 		if (window && window.openedWorkspace && !this.workspacesService.isUntitledWorkspace(window.openedWorkspace)) {

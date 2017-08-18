@@ -238,7 +238,7 @@ export class TrieMap<E> {
 	private readonly _splitter: (s: string) => string[];
 	private _root = new Node<E>();
 
-	constructor(splitter: (s: string) => string[]) {
+	constructor(splitter: (s: string) => string[] = TrieMap.PathSplitter) {
 		this._splitter = s => splitter(s).filter(s => Boolean(s));
 	}
 
