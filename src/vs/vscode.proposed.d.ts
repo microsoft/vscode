@@ -126,8 +126,12 @@ declare module 'vscode' {
 		 */
 		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
 
-		// TODO: this isn't needed. this is a parsing util. remove
-		static fromHex(hex: string): Color;
+		/**
+		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
+		 * <code>null</code> is returned if the string does not match one of the supported formats.
+		 * @param hex a string to parse
+		 */
+		static fromHex(hex: string): Color | null;
 	}
 
 	/**
@@ -227,5 +231,46 @@ declare module 'vscode' {
 
 	export namespace languages {
 		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	}
+
+	export namespace debug {
+		/**
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
+		 * More than one provider can be registered for the same type.
+		 *
+		 * @param type The debug type for which the provider is registered.
+		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+	}
+
+	/**
+	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
+	 * and allows to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider is registered via #workspace.registerDebugConfigurationProvider.
+	 */
+	export interface DebugConfigurationProvider {
+		/**
+		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
+		 * registered for the same type, debug configurations are concatenated in arbitrary order.
+		 *
+		 * @param folder The workspace folder for which the configurations are used or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return An array of [debug configurations](#DebugConfiguration).
+		 */
+		provideDebugConfigurations?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugConfiguration[]>;
+
+		/**
+		 * Resolves a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration.
+		 */
+		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 }

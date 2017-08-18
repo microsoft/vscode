@@ -251,6 +251,21 @@
         "command": "git.ignore",
         "title": "%command.ignore%",
         "category": "Git"
+      },
+      {
+        "command": "git.stash",
+        "title": "%command.stash%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashPop",
+        "title": "%command.stashPop%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashPopLatest",
+        "title": "%command.stashPopLatest%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -402,6 +417,18 @@
         {
           "command": "git.showOutput",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPop",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPopLatest",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         }
       ],
       "scm/title": [
@@ -501,7 +528,22 @@
         },
         {
           "command": "git.showOutput",
-          "group": "5_output",
+          "group": "6_output",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stash",
+          "group": "5_stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPop",
+          "group": "5_stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPopLatest",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         }
       ],
@@ -728,6 +770,16 @@
         "git.enableCommitSigning": {
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
+          "default": false
+        },
+        "git.discardAllScope": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked",
+            "prompt"
+          ],
+          "description": "%config.discardAllScope%",
           "default": false
         }
       }

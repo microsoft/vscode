@@ -368,7 +368,7 @@ export interface IBaseStat {
 export interface IFileStat extends IBaseStat {
 
 	/**
-	 * The resource is a directory. Iff {{true}}
+	 * The resource is a directory. if {{true}}
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;

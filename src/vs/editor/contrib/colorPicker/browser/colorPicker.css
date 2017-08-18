@@ -27,7 +27,7 @@
 .colorpicker-header .picked-color {
 	width: 216px;
 	text-align: center;
-	line-height: 20px;
+	line-height: 24px;
 	cursor: pointer;
 	color: white;
 	flex: 1;

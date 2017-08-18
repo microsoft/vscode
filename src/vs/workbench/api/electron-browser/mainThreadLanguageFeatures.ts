@@ -7,7 +7,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import { IReadOnlyModel, ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -16,31 +15,38 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IColorFormatMap } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorFormatMap, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape {
+@extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
+export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
 
 	private _proxy: ExtHostLanguageFeaturesShape;
 	private _heapService: IHeapService;
 	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
-	private _formatters: Map<number, modes.IColorFormatter>;
+	private _formatters: Map<number, ColorFormatter>;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IHeapService heapService: IHeapService,
 		@IModeService modeService: IModeService,
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostLanguageFeatures);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;
-		this._formatters = new Map<number, modes.IColorFormatter>();
+		this._formatters = new Map<number, ColorFormatter>();
+	}
+
+	dispose(): void {
+		for (const key in this._registrations) {
+			this._registrations[key].dispose();
+		}
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -278,8 +284,13 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then(documentColors => {
 						return documentColors.map(documentColor => {
-							const formatters = documentColor.availableFormats
-								.map(f => this._formatters.get(f));
+							const formatters = documentColor.availableFormats.map(f => {
+								if (typeof f === 'number') {
+									return this._formatters.get(f);
+								} else {
+									return new CombinedColorFormatter(this._formatters.get(f[0]), this._formatters.get(f[1]));
+								}
+							});
 
 							const [red, green, blue, alpha] = documentColor.color;
 							const color = {
@@ -302,20 +313,8 @@ export class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesShape 
 		return TPromise.as(null);
 	}
 
-	$registerColorFormats(formats: IColorFormatMap): TPromise<any> {
-		formats.forEach(f => {
-			const raw = f[1];
-			let formatter: modes.IColorFormatter;
-
-			if (typeof raw === 'string') {
-				formatter = new ColorFormatter(raw);
-			} else {
-				formatter = new CombinedColorFormatter(new ColorFormatter(raw[0]), new ColorFormatter(raw[1]));
-			}
-
-			this._formatters.set(f[0], formatter);
-		});
-
+	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any> {
+		formats.forEach(f => this._formatters.set(f[0], new ColorFormatter(f[1])));
 		return TPromise.as(null);
 	}
 

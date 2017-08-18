@@ -17,7 +17,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5870,
 			"restart": true,
 			"outFiles": [
@@ -28,7 +28,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Shared Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5871,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -37,7 +37,7 @@
 		{
 			"type": "node",
 			"request": "attach",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"name": "Attach to Search process",
 			"port": 7890,
 			"outFiles": [
@@ -48,7 +48,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5874,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -58,7 +58,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5875,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -127,7 +127,7 @@
 			},
 			"urlFilter": "*index.html*",
 			"runtimeArgs": [
-				"--debug=5875"
+				"--inspect=5875"
 			],
 			"webRoot": "${workspaceRoot}"
 		},
@@ -147,7 +147,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Unit Tests",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
 			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {

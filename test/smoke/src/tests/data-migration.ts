@@ -16,7 +16,7 @@ export function testDataMigration() {
 		return;
 	}
 
-	context('Data Migration', () => {
+	describe('Data Migration', () => {
 
 		afterEach(async function () {
 			await app.stop();

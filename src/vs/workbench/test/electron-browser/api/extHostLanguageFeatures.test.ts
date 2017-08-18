@@ -17,7 +17,6 @@ import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestThreadService } from './testThreadService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -44,6 +43,7 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
+import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -67,16 +67,21 @@ suite('ExtHostLanguageFeatures', function () {
 	suiteSetup(() => {
 
 		threadService = new TestThreadService();
-		let instantiationService = new TestInstantiationService();
-		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IMarkerService, MarkerService);
-		instantiationService.stub(IHeapService, {
-			_serviceBrand: undefined,
-			trackRecursive(args) {
-				// nothing
-				return args;
-			}
-		});
+
+		// Use IInstantiationService to get typechecking when instantiating
+		let inst: IInstantiationService;
+		{
+			let instantiationService = new TestInstantiationService();
+			instantiationService.stub(IMarkerService, MarkerService);
+			instantiationService.stub(IHeapService, {
+				_serviceBrand: undefined,
+				trackRecursive(args) {
+					// nothing
+					return args;
+				}
+			});
+			inst = instantiationService;
+		}
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -99,7 +104,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		const commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
@@ -107,7 +112,7 @@ suite('ExtHostLanguageFeatures', function () {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
+		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
 	});
 
 	suiteTeardown(() => {

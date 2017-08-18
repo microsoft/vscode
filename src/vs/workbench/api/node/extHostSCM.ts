@@ -8,9 +8,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
@@ -71,7 +70,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private static _handlePool: number = 0;
 	private _resourceHandlePool: number = 0;
-	private _resourceStates: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+	private _resourceStates: vscode.SourceControlResourceState[] = [];
+	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 
 	get id(): string {
 		return this._id;
@@ -97,12 +97,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { hideWhenEmpty });
 	}
 
+	get resourceStates(): vscode.SourceControlResourceState[] {
+		return [...this._resourceStates];
+	}
+
 	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourceStates.clear();
+		this._resourceStatesMap.clear();
+		this._resourceStates = [...resources];
 
 		const rawResources = resources.map(r => {
 			const handle = this._resourceHandlePool++;
-			this._resourceStates.set(handle, r);
+			this._resourceStatesMap.set(handle, r);
 
 			const sourceUri = r.resourceUri.toString();
 			const command = this._commands.toInternal(r.command);
@@ -119,10 +124,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				icons.push(darkIconPath);
 			}
 
+			const tooltip = (r.decorations && r.decorations.tooltip) || '';
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
+			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
@@ -144,7 +150,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
-		return this._resourceStates.get(handle);
+		return this._resourceStatesMap.get(handle);
 	}
 
 	dispose(): void {
@@ -271,10 +277,10 @@ export class ExtHostSCM {
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		private _commands: ExtHostCommands
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadSCM);
+		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 
 		_commands.registerArgumentProcessor({

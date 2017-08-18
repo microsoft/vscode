@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testIntegratedTerminal() {
-	context('Integrated Terminal', () => {
+	describe('Integrated Terminal', () => {
 		let terminal: IntegratedTerminal;
 
 		beforeEach(async function () {

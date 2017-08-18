@@ -894,8 +894,8 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
-	public toggleExpansion(element: any): WinJS.Promise {
-		return this.isExpanded(element) ? this.collapse(element) : this.expand(element);
+	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
 	public toggleExpansionAll(elements: any[]): WinJS.Promise {

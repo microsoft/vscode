@@ -23,7 +23,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'openWorkspace', arg: number): TPromise<void>;
-	call(command: 'newWorkspace', arg: number): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
@@ -79,7 +78,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'openWorkspace': return this.service.openWorkspace(arg);
-			case 'newWorkspace': return this.service.newWorkspace(arg);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
@@ -157,10 +155,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	openWorkspace(windowId: number): TPromise<void> {
 		return this.channel.call('openWorkspace', windowId);
-	}
-
-	newWorkspace(windowId: number): TPromise<void> {
-		return this.channel.call('newWorkspace', windowId);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {

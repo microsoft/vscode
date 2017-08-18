@@ -866,7 +866,7 @@ export class ExplorerView extends CollapsibleView {
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, e => this.messageService.show(Severity.Error, e));
+		}, e => { this.messageService.show(Severity.Error, e); });
 	}
 
 	private hasSelection(resource: URI): FileStat {

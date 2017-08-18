@@ -33,6 +33,11 @@ export interface Remote {
 	url: string;
 }
 
+export interface Stash {
+	index: number;
+	description: string;
+}
+
 export enum RefType {
 	Head,
 	RemoteHead,
@@ -277,7 +282,10 @@ export const GitErrorCodes = {
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
 	BranchNotFullyMerged: 'BranchNotFullyMerged',
-	NoRemoteReference: 'NoRemoteReference'
+	NoRemoteReference: 'NoRemoteReference',
+	NoLocalChanges: 'NoLocalChanges',
+	NoStashFound: 'NoStashFound',
+	LocalChangesOverwritten: 'LocalChangesOverwritten'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -834,6 +842,44 @@ export class Repository {
 		}
 	}
 
+	async createStash(message?: string): Promise<void> {
+		try {
+			const args = ['stash', 'save'];
+
+			if (message) {
+				args.push('--', message);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No local changes to save/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			}
+
+			throw err;
+		}
+	}
+
+	async popStash(index?: number): Promise<void> {
+		try {
+			const args = ['stash', 'pop'];
+
+			if (typeof index === 'string') {
+				args.push(`stash@{${index}}`);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
+			}
+
+			throw err;
+		}
+	}
+
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
@@ -919,6 +965,18 @@ export class Repository {
 			.filter(line => !!line)
 			.map(fn)
 			.filter(ref => !!ref) as Ref[];
+	}
+
+	async getStashes(): Promise<Stash[]> {
+		const result = await this.run(['stash', 'list']);
+		const regex = /^stash@{(\d+)}:(.+)$/;
+		const rawStashes = result.stdout.trim().split('\n')
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
+
+		return rawStashes;
 	}
 
 	async getRemotes(): Promise<Remote[]> {

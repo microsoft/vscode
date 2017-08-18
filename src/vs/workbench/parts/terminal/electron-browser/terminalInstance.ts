@@ -667,7 +667,7 @@ export class TerminalInstance implements ITerminalInstance {
 						args = this._shellLaunchConfig.args;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (a.indexOf(' ') !== -1) {
+							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
 								return `'${a}'`;
 							}
 							return a;
@@ -768,7 +768,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		this._process.on('exit', listener);
+		if (this._process) {
+			this._process.on('exit', listener);
+		}
 		return {
 			dispose: () => {
 				if (this._process) {
@@ -890,6 +892,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {
+		if (!title) {
+			return;
+		}
 		if (eventFromProcess) {
 			title = path.basename(title);
 			if (platform.isWindows) {

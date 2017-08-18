@@ -59,8 +59,8 @@ export interface IIPCOptions {
 	/**
 	 * See https://github.com/Microsoft/vscode/issues/27665
 	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-	 * e.g. Launching the extension host process with `--debug-brk=xxx` and then forking a process from the extension host
-	 * results in the forked process inheriting `--debug-brk=xxx`.
+	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
+	 * results in the forked process inheriting `--inspect-brk=xxx`.
 	 */
 	freshExecArgv?: boolean;
 
@@ -138,11 +138,11 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			if (this.options && typeof this.options.debug === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
+				forkOpts.execArgv = ['--nolazy', '--inspect=' + this.options.debug];
 			}
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
-				forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
+				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);

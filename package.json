@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.16.0",
-  "electronVersion": "1.6.6",
+  "electronVersion": "1.7.4",
   "distro": "724097db097bfde7796fcca70aaac83ba80a95f8",
   "author": {
     "name": "Microsoft Corporation"
@@ -32,8 +32,10 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
+    "keytar": "^4.0.3",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
+    "native-watchdog": "0.1.0",
     "node-pty": "0.6.9",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
@@ -59,7 +61,7 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
-    "electron-mksnapshot": "1.6.0",
+    "electron-mksnapshot": "~1.7.0",
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
@@ -93,7 +95,6 @@
     "is": "^3.1.0",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
-    "keytar": "^4.0.3",
     "lazy.js": "^0.4.2",
     "mime": "1.2.11",
     "minimatch": "^2.0.10",

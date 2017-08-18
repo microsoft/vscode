@@ -532,7 +532,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const firstOptions = assign({}, options, { url: asset.uri });
 
 			return this.requestService.request(firstOptions)
-				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError(new Error('expected 200')))
+				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
 				.then(null, err => {
 					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
 					this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });

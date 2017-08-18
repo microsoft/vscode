@@ -433,4 +433,28 @@ suite('Editor Contrib - Block Comment Command', () => {
 			new Selection(1, 5, 2, 4)
 		);
 	});
+
+	test('bug #30358', function () {
+		testBlockCommentCommand(
+			[
+				'<0 start 0> middle end',
+			],
+			new Selection(1, 20, 1, 23),
+			[
+				'<0 start 0> middle <0 end 0>'
+			],
+			new Selection(1, 23, 1, 26)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 start 0> middle <0 end 0>'
+			],
+			new Selection(1, 13, 1, 19),
+			[
+				'<0 start 0> <0 middle 0> <0 end 0>'
+			],
+			new Selection(1, 16, 1, 22)
+		);
+	});
 });

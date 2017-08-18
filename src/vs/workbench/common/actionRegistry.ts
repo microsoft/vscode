@@ -49,12 +49,12 @@ export interface IWorkbenchActionRegistry {
 	getWorkbenchActions(): SyncActionDescriptor[];
 
 	/**
-	 * Returns the alias associated with the given action or null iff none.
+	 * Returns the alias associated with the given action or null if none.
 	 */
 	getAlias(actionId: string): string;
 
 	/**
-	 * Returns the category for the given action or null iff none.
+	 * Returns the category for the given action or null if none.
 	 */
 	getCategory(actionId: string): string;
 }

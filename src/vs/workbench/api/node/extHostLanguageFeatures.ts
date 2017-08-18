@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
@@ -19,7 +18,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IColorFormatMap } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -668,57 +667,53 @@ class LinkProviderAdapter {
 
 class ColorProviderAdapter {
 
-	private _proxy: MainThreadLanguageFeaturesShape;
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DocumentColorProvider;
-	private _formatStorageMap: Map<vscode.ColorFormat, number>;
-	private _formatStorageIndex;
+	private static _colorFormatHandlePool: number = 0;
 
-	constructor(proxy: MainThreadLanguageFeaturesShape, documents: ExtHostDocuments, provider: vscode.DocumentColorProvider) {
-		this._proxy = proxy;
-		this._documents = documents;
-		this._provider = provider;
-		this._formatStorageMap = new Map<vscode.ColorFormat, number>();
-		this._formatStorageIndex = 0;
-	}
+	constructor(
+		private _proxy: MainThreadLanguageFeaturesShape,
+		private _documents: ExtHostDocuments,
+		private _colorFormatCache: Map<string, number>,
+		private _provider: vscode.DocumentColorProvider
+	) { }
 
 	provideColors(resource: URI): TPromise<IRawColorInfo[]> {
 		const doc = this._documents.getDocumentData(resource).document;
-		const colorFormats: IColorFormatMap = [];
-		const getCachedId = (format: vscode.ColorFormat) => {
-			let cachedId = this._formatStorageMap.get(format);
-			if (cachedId === undefined) {
-				cachedId = this._formatStorageIndex;
-				this._formatStorageMap.set(format, cachedId);
-				this._formatStorageIndex += 1;
-
-				if (typeof format === 'string') { // Append to format list for registration
-					colorFormats.push([cachedId, format]);
-				} else {
-					colorFormats.push([cachedId, [format.opaque, format.transparent]]);
-				}
+		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
+			if (!Array.isArray(colors)) {
+				return [];
 			}
 
-			return cachedId;
-		};
+			const newRawColorFormats: IRawColorFormatMap = [];
+			const getFormatId = (format: string) => {
+				let id = this._colorFormatCache.get(format);
 
-		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (Array.isArray(colors)) {
-				const colorInfos: IRawColorInfo[] = [];
-				colors.forEach(ci => {
-					const availableFormats = ci.availableFormats.map(f => getCachedId(f));
+				if (typeof id !== 'number') {
+					id = ColorProviderAdapter._colorFormatHandlePool++;
+					this._colorFormatCache.set(format, id);
+					newRawColorFormats.push([id, format]);
+				}
 
-					colorInfos.push({
-						color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha],
-						availableFormats: availableFormats,
-						range: TypeConverters.fromRange(ci.range)
-					});
+				return id;
+			};
+
+			const colorInfos: IRawColorInfo[] = colors.map(ci => {
+				const availableFormats = ci.availableFormats.map(format => {
+					if (typeof format === 'string') {
+						return getFormatId(format);
+					} else {
+						return [getFormatId(format.opaque), getFormatId(format.transparent)] as [number, number];
+					}
 				});
 
-				this._proxy.$registerColorFormats(colorFormats);
-				return colorInfos;
-			}
-			return undefined;
+				return {
+					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
+					availableFormats: availableFormats,
+					range: TypeConverters.fromRange(ci.range)
+				};
+			});
+
+			this._proxy.$registerColorFormats(newRawColorFormats);
+			return colorInfos;
 		});
 	}
 }
@@ -728,7 +723,7 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
-export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
+export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
@@ -738,16 +733,16 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
+	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
+		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;
@@ -1013,7 +1008,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, provider));
+		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
 		this._proxy.$registerDocumentColorProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

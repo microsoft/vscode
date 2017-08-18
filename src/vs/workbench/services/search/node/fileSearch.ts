@@ -697,10 +697,10 @@ class AbsoluteAndRelativeParsedExpression {
 			.forEach(key => {
 				if (path.isAbsolute(key)) {
 					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
-					absoluteGlobExpr[key] = true;
+					absoluteGlobExpr[key] = expr[key];
 				} else {
 					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
-					relativeGlobExpr[key] = true;
+					relativeGlobExpr[key] = expr[key];
 				}
 			});
 

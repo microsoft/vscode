@@ -684,7 +684,7 @@ export interface ITextModel {
 	getFullModelRange(): Range;
 
 	/**
-	 * Returns iff the model was disposed or not.
+	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
 
@@ -819,6 +819,11 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	forceTokenization(lineNumber: number): void;
 
+	/**
+	 * Get the line number of the first line whose tokens might be inaccurate.
+	 * @internal
+	 */
+	getFirstInvalidLineNumber(): number;
 	/**
 	 * Get the tokens for the line `lineNumber`.
 	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
@@ -1175,7 +1180,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	onBeforeDetached(): void;
 
 	/**
-	 * Returns iff this model is attached to an editor or not.
+	 * Returns if this model is attached to an editor or not.
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;

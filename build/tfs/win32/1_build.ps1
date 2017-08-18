@@ -19,6 +19,10 @@ step "Install dependencies" {
   exec { & npm install }
 }
 
+step "Hygiene" {
+  exec { & npm run gulp -- hygiene }
+}
+
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
 step "Mix in repository from vscode-distro" {
   exec { & npm run gulp -- mixin }
@@ -33,12 +37,12 @@ step "Install distro dependencies" {
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
+  exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }
 
-step "Create loader snapshot" {
-  exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
-}
+# step "Create loader snapshot" {
+#   exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
+# }
 
 step "Run unit tests" {
   exec { & .\scripts\test.bat --build --reporter dot }

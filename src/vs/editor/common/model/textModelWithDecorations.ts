@@ -879,23 +879,15 @@ export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelD
 
 let lastStaticId = 0;
 
-// TODO@Joao
-// This was introduced to solve the color problem.
-// We don't want to expose colors in decorations, although
-// we piggyback on decorations to implement colors in the model.
-export interface IModelDecorationExtraOptions {
-	__extraOptions?: any;
-}
-
 export class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
 
-	public static register(options: editorCommon.IModelDecorationOptions & IModelDecorationExtraOptions): ModelDecorationOptions {
+	public static register(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(++lastStaticId, options);
 	}
 
-	public static createDynamic(options: editorCommon.IModelDecorationOptions & IModelDecorationExtraOptions): ModelDecorationOptions {
+	public static createDynamic(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(0, options);
 	}
 
@@ -913,9 +905,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	readonly inlineClassName: string;
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
-	readonly extraOptions: any;
 
-	private constructor(staticId: number, options: editorCommon.IModelDecorationOptions & IModelDecorationExtraOptions) {
+	private constructor(staticId: number, options: editorCommon.IModelDecorationOptions) {
 		this.staticId = staticId;
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
@@ -930,10 +921,6 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : strings.empty;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : strings.empty;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : strings.empty;
-
-		if (options.__extraOptions) {
-			this.extraOptions = options.__extraOptions;
-		}
 	}
 
 	public equals(other: ModelDecorationOptions): boolean {
@@ -955,7 +942,6 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 			&& markedStringsEquals(this.hoverMessage, other.hoverMessage)
 			&& markedStringsEquals(this.glyphMarginHoverMessage, other.glyphMarginHoverMessage)
 			&& this.overviewRuler.equals(other.overviewRuler)
-			&& this.extraOptions === other.extraOptions
 		);
 	}
 }
