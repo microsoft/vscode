@@ -10,7 +10,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
-import XTermTerminal = require('xterm');
+import { Terminal as XTermTerminal } from 'xterm';
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
