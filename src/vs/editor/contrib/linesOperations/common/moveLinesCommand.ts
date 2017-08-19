@@ -98,7 +98,7 @@ export class MoveLinesCommand implements ICommand {
 
 				let insertingText = movingLineText;
 
-				if (this.isAutoIndent(model, s)) {
+				if (this.shouldAutoIndent(model, s)) {
 					let movingLineMatchResult = this.matchEnterRule(model, indentConverter, tabSize, movingLineNumber, s.startLineNumber - 1);
 					// if s.startLineNumber - 1 matches onEnter rule, we still honor that.
 					if (movingLineMatchResult !== null) {
@@ -178,7 +178,7 @@ export class MoveLinesCommand implements ICommand {
 				// Insert line that needs to be moved after
 				builder.addEditOperation(new Range(s.endLineNumber, model.getLineMaxColumn(s.endLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)), '\n' + movingLineText);
 
-				if (this.isAutoIndent(model, s)) {
+				if (this.shouldAutoIndent(model, s)) {
 					virtualModel.getLineContent = (lineNumber: number) => {
 						if (lineNumber === movingLineNumber) {
 							return model.getLineContent(s.startLineNumber);
@@ -261,7 +261,6 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
-		// TODO@Peng TODO@forceTokenization: getEnterAction forces tokenization
 		let enter = LanguageConfigurationRegistry.getEnterAction(model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
 
 		if (enter) {
@@ -298,8 +297,12 @@ export class MoveLinesCommand implements ICommand {
 		return str.replace(/^\s+/, '');
 	}
 
-	private isAutoIndent(model: ITokenizedModel, selection: Selection) {
+	private shouldAutoIndent(model: ITokenizedModel, selection: Selection) {
 		if (!this._autoIndent) {
+			return false;
+		}
+		// if it's not easy to tokenize, we stop auto indent.
+		if (!model.isCheapToTokenize(selection.startLineNumber)) {
 			return false;
 		}
 		let languageAtSelectionStart = model.getLanguageIdAtPosition(selection.startLineNumber, 1);
