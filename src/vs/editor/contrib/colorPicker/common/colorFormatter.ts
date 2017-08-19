@@ -56,7 +56,7 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;
 
-			return (normalize(value, min, max) | 0).toString();
+			return (normalize(value, min, max).toFixed(0)).toString();
 		} else if (type === 'x' || type === 'X') {
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;

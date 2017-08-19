@@ -55,12 +55,12 @@ suite('ColorFormatter', () => {
 		assert.equal(rgb.format(color), 'rgb(255, 127, 0)');
 
 		const rgba = new ColorFormatter('rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})');
-		assert.equal(rgba.format(color), 'rgba(255, 127, 0, 0)');
+		assert.equal(rgba.format(color), 'rgba(255, 127, 0, 1)');
 
 		const hex = new ColorFormatter('#{red:X}{green:X}{blue:X}');
 		assert.equal(hex.format(color), '#FF7F00');
 
 		const hsla = new ColorFormatter('hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})');
-		assert.equal(hsla.format(color), 'hsla(30, 100%, 50%, 0)');
+		assert.equal(hsla.format(color), 'hsla(30, 100%, 50%, 1)');
 	});
 });
