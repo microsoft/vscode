@@ -261,6 +261,7 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		let maxColumn = model.getLineMaxColumn(validPrecedingLine);
+		// TODO@Peng TODO@forceTokenization: getEnterAction forces tokenization
 		let enter = LanguageConfigurationRegistry.getEnterAction(model, new Range(validPrecedingLine, maxColumn, validPrecedingLine, maxColumn));
 
 		if (enter) {

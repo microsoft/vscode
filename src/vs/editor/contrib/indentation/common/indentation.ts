@@ -423,7 +423,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		const model = this.editor.getModel();
-		if (model.getFirstInvalidLineNumber() < range.getStartPosition().lineNumber) {
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
 		const { tabSize, insertSpaces } = model.getOptions();
