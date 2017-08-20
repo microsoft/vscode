@@ -72,9 +72,13 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			const currentHtmlNode = <HtmlNode>currentNode;
 			if (currentHtmlNode
 				&& currentHtmlNode.close
-				&& currentHtmlNode.name === 'style'
 				&& getInnerRange(currentHtmlNode).contains(position)) {
-				return 'css';
+				if (currentHtmlNode.name === 'style') {
+					return 'css';
+				}
+				if (currentHtmlNode.name === 'script') {
+					return;
+				}
 			}
 		}
 
