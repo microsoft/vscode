@@ -1,7 +1,11 @@
 # VS Code Smoke Testing
-The following command is used to run the tests: `npm test -- --latest "path/to/binary"`.
+
+- Run `npm install`
+- Start the tests: `npm test -- --latest "path/to/binary"`.
 
 If you want to include 'Data Migration' area tests use  `npm test -- --latest path/to/binary --stable path/to/currentStable` respectively.
+
+Detailed prerequisites and running steps are described [in our smoke test wiki](https://github.com/Microsoft/vscode/wiki/Smoke-Test#automated-smoke-test).
 
 # Architecture
 * `main.js` is used to prepare all smoke test dependencies (fetching key bindings and 'Express' repository, running `npm install` there).
@@ -41,3 +45,18 @@ To add new test, `./test/${area}.ts` should be updated. The same instruction-sty
 }
 ```
 2. In main.js add `--debug-brk=9999` as a first argument to the place where `out/mocha-runner.js` is spawned.
+
+# Screenshots
+Almost on every automated test action it captures a screenshot. These help to determine an issue, if smoke test fails. The normal workflow is that you understand what code is doing and then try to match it up with screenshots obtained from the test.
+
+# Running "Out of Sources"
+If you did a fix in VS Code that you need in order for the smoke test to succeed, here is how you can run the smoke test against the sources of VS Code:
+* Set related environment variables in the console:
+  * `export NODE_ENV=development`
+  * `export VSCODE_DEV=1`
+  * `export VSCODE_CLI=1`
+* open `application.ts`
+  * pass in the vscode folder as argument to the application
+  * e.g. instead of `args: args` type `args: ['/Users/bpasero/Development/vscode', ...args]`
+* run `npm test -- --latest <path to electron>`
+  * e.g. on macOS: `npm test -- --latest <path to vscode>/.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron`

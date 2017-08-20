@@ -182,18 +182,6 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function indexOfIgnoreCase(haystack: string, needle: string, position: number = 0): number {
-	let index = haystack.indexOf(needle, position);
-	if (index < 0) {
-		if (position > 0) {
-			haystack = haystack.substr(position);
-		}
-		needle = escapeRegExpCharacters(needle);
-		index = haystack.search(new RegExp(needle, 'i'));
-	}
-	return index;
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;
@@ -249,7 +237,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export let canNormalize = typeof ((<any>'').normalize) === 'function';
+export const canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
 const normalizedCache = new BoundedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {

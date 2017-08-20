@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Funções completas com a assinatura do parâmetro.",
 	"typescript.tsdk.desc": "Especifica o caminho da pasta que contém os arquivos tsserver e lib*.d.ts para usar.",
 	"typescript.disableAutomaticTypeAcquisition": "Desabilita a aquisição automática de tipo. Requer TypeScript > = 2.0.6 e um reinício depois da alteração.",
-	"typescript.check.tscVersion": "Verifica se um ima instalação global do compilador TypeScript (por exemplo, tsc) difere do serviço de linguagem TypeScript usado.",
 	"typescript.tsserver.log": "Habilita o log do servidor TS para um arquivo. Este log pode ser usado para diagnosticar problemas do servidor de TS. O log pode conter caminhos de arquivo, código-fonte e outras informações potencialmente confidenciais do seu projeto.",
 	"typescript.tsserver.trace": "Habilita o rastreamento de mensagens enviadas para o servidor de TS. Este rastreamento pode ser usado para diagnosticar problemas do servidor de TS. O rastreamento pode conter caminhos de arquivo, código-fonte e outras informações potencialmente confidenciais do seu projeto.",
 	"typescript.validate.enable": "Habilita/Desabilita a validação TypeScript.",
@@ -28,6 +27,7 @@
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Define a manipulação de espaços após abrir e antes de fechar chaves não vazias. Requer TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Define a manipulação de espaços após abrir e antes de fechar chaves de cadeias de caracteres de modelos. Requer TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Define a manipulação de espaços após abrir e antes de fechar chaves de expressões JSX. Requer TypeScript >= 2.0.6.",
+	"format.insertSpaceAfterTypeAssertion": "Define a manipulação de espaços após asserções de tipo em TypeScript. Requer TypeScript >= 2,4.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Define-se uma chave de abertura é colocada em uma nova linha para funções ou não.",
 	"format.placeOpenBraceOnNewLineForControlBlocks": "Define-se uma chave de abertura é colocada em uma nova linha para blocos de controle ou não.",
 	"javascript.validate.enable": "Habilitar/Desabilitar validação JavaScript.",
@@ -44,5 +44,7 @@
 	"typescript.npm": "Especifica o caminho para o executável do NPM usado para Aquisição de Tipo Automático. Requer TypeScript > = 2.3.4.",
 	"typescript.check.npmIsInstalled": "Verificar se o NPM está instalado para aquisição automática de tipo.",
 	"javascript.nameSuggestions": "Habilitar/desabilitar incluindo nomes exclusivos do arquivo nas listas de sugestão de JavaScript.",
-	"typescript.tsc.autoDetect": "Controla se a auto-detecção de tarefas tsc estão ligadas ou desligadas."
+	"typescript.tsc.autoDetect": "Controla se a auto-detecção de tarefas tsc estão ligadas ou desligadas.",
+	"typescript.problemMatchers.tsc.label": "Problemas TypeScript",
+	"typescript.problemMatchers.tscWatch.label": "Problemas TypeScript (modo observação)"
 }

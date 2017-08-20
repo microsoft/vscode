@@ -13,5 +13,7 @@
 	"appStalled": "Pencere artık yanıt vermiyor",
 	"appStalledDetail": "Pencereyi yeniden açabilir, kapatabilir veya bekleyebilirsiniz.",
 	"appCrashed": "Pencere kilitlendi",
-	"appCrashedDetail": "Verdiğimiz rahatsızlıktan dolayı özür dileriz! Pencereyi yeniden açıp kaldığınız yerden devam edebilirsiniz."
+	"appCrashedDetail": "Verdiğimiz rahatsızlıktan dolayı özür dileriz! Pencereyi yeniden açıp kaldığınız yerden devam edebilirsiniz.",
+	"openFile": "Dosya Aç",
+	"openFolder": "Klasör Aç"
 }

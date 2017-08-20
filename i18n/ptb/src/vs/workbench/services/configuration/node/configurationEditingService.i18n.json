@@ -7,11 +7,10 @@
 	"open": "Abrir configurações",
 	"close": "Fechar",
 	"saveAndRetry": "Salvar as configurações e tentar novamente",
-	"errorUnknownKey": "Não é possível gravar no arquivo de configuração (chave desconhecida)",
-	"errorInvalidTarget": "Não é possível gravar no arquivo de configuração (destino inválido)",
-	"errorNoWorkspaceOpened": "Não é possível gravar em configurações porque nenhuma pasta está aberta. Por favor, abra uma pasta primeiro e tente novamente.",
 	"errorInvalidConfiguration": "Não é possível gravar em configurações. Por favor abra **User Settings** para corrigir erros/avisos no arquivo e tente novamente.",
 	"errorInvalidConfigurationWorkspace": "Não é possível gravar em configurações. Por favor abra **Workspace Settings** para corrigir erros/avisos no arquivo e tente novamente.",
 	"errorConfigurationFileDirty": "Não é possível gravar em configurações, porque o arquivo foi alterado. Por favor, salve o arquivo **User Settings** e tente novamente.",
-	"errorConfigurationFileDirtyWorkspace": "Não é possível gravar em configurações, porque o arquivo foi alterado. Por favor, salve o arquivo **Workspace Settings** e tente novamente."
+	"errorConfigurationFileDirtyWorkspace": "Não é possível gravar em configurações, porque o arquivo foi alterado. Por favor, salve o arquivo **Workspace Settings** e tente novamente.",
+	"userTarget": "Configurações de Usuário",
+	"workspaceTarget": "Configurações de Espaço de Trabalho"
 }

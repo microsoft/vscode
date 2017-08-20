@@ -24,6 +24,7 @@
 	"default": "Predeterminado",
 	"debuggers": "Depuradores ({0})",
 	"debugger name": "Nombre",
+	"debugger type": "Tipo",
 	"views": "Vistas ({0})",
 	"view id": "Id.",
 	"view name": "Nombre",

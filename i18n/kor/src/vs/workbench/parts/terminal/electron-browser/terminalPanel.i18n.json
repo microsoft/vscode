@@ -7,5 +7,6 @@
 	"copy": "복사",
 	"createNewTerminal": "새 터미널",
 	"paste": "붙여넣기",
+	"selectAll": "모두 선택",
 	"clear": "지우기"
 }

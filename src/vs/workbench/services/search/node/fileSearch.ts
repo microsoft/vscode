@@ -9,8 +9,10 @@ import * as childProcess from 'child_process';
 import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import fs = require('fs');
-import paths = require('path');
+import path = require('path');
+import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 import scorer = require('vs/base/common/scorer');
 import objects = require('vs/base/common/objects');
@@ -62,7 +64,7 @@ export class FileWalker {
 	private cmdForkResultTime: number;
 	private cmdResultCount: number;
 
-	private folderExcludePatterns: Map<string, glob.ParsedExpression>;
+	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression;
 
 	private walkedPaths: { [path: string]: boolean; };
@@ -86,20 +88,23 @@ export class FileWalker {
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
-		this.folderExcludePatterns = new Map<string, glob.ParsedExpression>();
+		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
 
 		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = objects.assign({}, this.config.excludePattern || {}, folderQuery.excludePattern || {});
+			const folderExcludeExpression: glob.IExpression = objects.assign({}, folderQuery.excludePattern || {}, this.config.excludePattern || {});
 
 			// Add excludes for other root folders
 			config.folderQueries
 				.map(rootFolderQuery => rootFolderQuery.folder)
 				.filter(rootFolder => rootFolder !== folderQuery.folder)
-				.forEach(rootFolder => {
-					folderExcludeExpression[paths.join(rootFolder, '**/*')] = true;
+				.forEach(otherRootFolder => {
+					// Exclude nested root folders
+					if (isEqualOrParent(otherRootFolder, folderQuery.folder)) {
+						folderExcludeExpression[path.relative(folderQuery.folder, otherRootFolder)] = true;
+					}
 				});
 
-			this.folderExcludePatterns.set(folderQuery.folder, glob.parse(folderExcludeExpression, { trimForExclusions: true }));
+			this.folderExcludePatterns.set(folderQuery.folder, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, folderQuery.folder));
 		});
 	}
 
@@ -121,7 +126,7 @@ export class FileWalker {
 				this.resultCount++;
 				onResult({
 					relativePath: this.filePattern,
-					basename: paths.basename(this.filePattern),
+					basename: path.basename(this.filePattern),
 					size
 				});
 
@@ -134,7 +139,7 @@ export class FileWalker {
 			// For each extra file
 			if (extraFiles) {
 				extraFiles.forEach(extraFilePath => {
-					const basename = paths.basename(extraFilePath);
+					const basename = path.basename(extraFilePath);
 					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
 						return; // excluded
 					}
@@ -275,10 +280,9 @@ export class FileWalker {
 	 * Public for testing.
 	 */
 	public spawnFindCmd(folderQuery: IFolderSearch) {
-		// Does this actually work for absolute paths for other roots?
 		const excludePattern = this.folderExcludePatterns.get(folderQuery.folder);
-		const basenames = glob.getBasenameTerms(excludePattern);
-		const pathTerms = glob.getPathTerms(excludePattern);
+		const basenames = excludePattern.getBasenameTerms();
+		const pathTerms = excludePattern.getPathTerms();
 		let args = ['-L', '.'];
 		if (basenames.length || pathTerms.length) {
 			args.push('-not', '(', '(');
@@ -375,13 +379,13 @@ export class FileWalker {
 
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
-			const basename = paths.basename(this.filePattern);
+			const basename = path.basename(this.filePattern);
 			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
 		}
 
 		function add(relativePath: string) {
-			const basename = paths.basename(relativePath);
-			const dirname = paths.dirname(relativePath);
+			const basename = path.basename(relativePath);
+			const dirname = path.dirname(relativePath);
 			let entries = pathToEntries[dirname];
 			if (!entries) {
 				entries = pathToEntries[dirname] = [];
@@ -410,7 +414,7 @@ export class FileWalker {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern.test(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
 					continue;
 				}
 
@@ -449,7 +453,7 @@ export class FileWalker {
 					onResult({
 						base: folderQuery.folder,
 						relativePath: this.filePattern,
-						basename: paths.basename(this.filePattern),
+						basename: path.basename(this.filePattern),
 						size
 					});
 				}
@@ -476,7 +480,7 @@ export class FileWalker {
 	}
 
 	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
-		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
+		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
 			return clb(false);
 		}
 
@@ -486,11 +490,11 @@ export class FileWalker {
 	}
 
 	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
-		if (!this.filePattern || paths.isAbsolute(this.filePattern)) {
+		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
 			return clb(null);
 		}
 
-		const absolutePath = paths.join(basePath, this.filePattern);
+		const absolutePath = path.join(basePath, this.filePattern);
 
 		return fs.stat(absolutePath, (error, stat) => {
 			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
@@ -517,13 +521,13 @@ export class FileWalker {
 			}
 
 			// Check exclude pattern
-			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(paths.sep) : file;
-			if (this.folderExcludePatterns.get(folderQuery.folder)(currentRelativePath, file, () => siblings)) {
+			let currentRelativePath = relativeParentPath ? [relativeParentPath, file].join(path.sep) : file;
+			if (this.folderExcludePatterns.get(folderQuery.folder).test(currentRelativePath, file, () => siblings)) {
 				return clb(null, undefined);
 			}
 
 			// Use lstat to detect links
-			let currentAbsolutePath = [rootFolder, currentRelativePath].join(paths.sep);
+			let currentAbsolutePath = [rootFolder, currentRelativePath].join(path.sep);
 			fs.lstat(currentAbsolutePath, (error, lstat) => {
 				if (error || this.isCanceled || this.isLimitHit) {
 					return clb(null, undefined);
@@ -666,5 +670,72 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 
 	public cancel(): void {
 		this.walker.cancel();
+	}
+}
+
+/**
+ * This class exists to provide one interface on top of two ParsedExpressions, one for absolute expressions and one for relative expressions.
+ * The absolute and relative expressions don't "have" to be kept separate, but this keeps us from having to path.join every single
+ * file searched, it's only used for a text search with a searchPath
+ */
+class AbsoluteAndRelativeParsedExpression {
+	private absoluteParsedExpr: glob.ParsedExpression;
+	private relativeParsedExpr: glob.ParsedExpression;
+
+	constructor(expr: glob.IExpression, private root: string) {
+		this.init(expr);
+	}
+
+	/**
+	 * Split the IExpression into its absolute and relative components, and glob.parse them separately.
+	 */
+	private init(expr: glob.IExpression): void {
+		let absoluteGlobExpr: glob.IExpression;
+		let relativeGlobExpr: glob.IExpression;
+		Object.keys(expr)
+			.filter(key => expr[key])
+			.forEach(key => {
+				if (path.isAbsolute(key)) {
+					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
+					absoluteGlobExpr[key] = expr[key];
+				} else {
+					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
+					relativeGlobExpr[key] = expr[key];
+				}
+			});
+
+		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
+		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
+	}
+
+	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {
+		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, siblingsFn)) ||
+			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, siblingsFn));
+	}
+
+	public getBasenameTerms(): string[] {
+		const basenameTerms = [];
+		if (this.absoluteParsedExpr) {
+			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
+		}
+
+		if (this.relativeParsedExpr) {
+			basenameTerms.push(...glob.getBasenameTerms(this.relativeParsedExpr));
+		}
+
+		return basenameTerms;
+	}
+
+	public getPathTerms(): string[] {
+		const pathTerms = [];
+		if (this.absoluteParsedExpr) {
+			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
+		}
+
+		if (this.relativeParsedExpr) {
+			pathTerms.push(...glob.getPathTerms(this.relativeParsedExpr));
+		}
+
+		return pathTerms;
 	}
 }

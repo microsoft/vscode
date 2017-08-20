@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument } from 'vscode';
+import * as parse from 'parse-color';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -107,6 +108,12 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 				if (document && document.version === documentVersion && contentUri === document.uri.toString()) {
 					let decorations = ranges.slice(0, MAX_DECORATORS).map(range => {
 						let color = document.getText(range);
+						if (color[0] === '#' && (color.length === 5 || color.length === 9)) {
+							let c = Color.fromHex(color);
+							if (c) {
+								color = `rgba(${c.red}, ${c.green}, ${c.blue}, ${c.alpha})`;
+							}
+						}
 						return <DecorationOptions>{
 							range: range,
 							renderOptions: {
@@ -123,4 +130,43 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	}
 
 	return Disposable.from(...disposables);
+}
+
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
+	}
+};
+
+export class ColorProvider implements DocumentColorProvider {
+
+	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
+
+	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
+		const ranges = await this.decoratorProvider(document.uri.toString());
+		const result = [];
+		for (let range of ranges) {
+			let color;
+			const value = document.getText(range);
+			if (value[0] === '#') {
+				color = Color.fromHex(value);
+			} else {
+				const parsedColor = parse(value);
+				if (parsedColor && parsedColor.rgba) {
+					const [red, green, blue, alpha] = parsedColor.rgba;
+					color = new Color(red, green, blue, alpha);
+				}
+			}
+			if (color) {
+				result.push(new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
+			}
+		}
+		return result;
+	}
 }

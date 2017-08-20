@@ -34,7 +34,7 @@ export function compareFileNames(one: string, other: string): number {
 	return noIntlCompareFileNames(one, other);
 }
 
-const FileNameMatch = /^([^.]*)(\.(.*))?$/;
+const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
 export function noIntlCompareFileNames(one: string, other: string): number {
 	let oneMatch = FileNameMatch.exec(one.toLowerCase());
@@ -55,6 +55,61 @@ export function noIntlCompareFileNames(one: string, other: string): number {
 	}
 
 	return oneExtension < otherExtension ? -1 : 1;
+}
+
+export function compareFileExtensions(one: string, other: string): number {
+	if (intlFileNameCollator) {
+		const oneMatch = one ? FileNameMatch.exec(one) : [];
+		const otherMatch = other ? FileNameMatch.exec(other) : [];
+
+		const oneName = oneMatch[1] || '';
+		const oneExtension = oneMatch[3] || '';
+
+		const otherName = otherMatch[1] || '';
+		const otherExtension = otherMatch[3] || '';
+
+		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
+
+		if (result === 0) {
+			// Using the numeric option in the collator will
+			// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+			if (intlFileNameCollatorIsNumeric && oneExtension !== otherExtension) {
+				return oneExtension < otherExtension ? -1 : 1;
+			}
+
+			// Extensions are equal, compare filenames
+			result = intlFileNameCollator.compare(oneName, otherName);
+
+			if (intlFileNameCollatorIsNumeric && result === 0 && oneName !== otherName) {
+				return oneName < otherName ? -1 : 1;
+			}
+		}
+
+		return result;
+	}
+
+	return noIntlCompareFileExtensions(one, other);
+}
+
+function noIntlCompareFileExtensions(one: string, other: string): number {
+	const oneMatch = one ? FileNameMatch.exec(one.toLowerCase()) : [];
+	const otherMatch = other ? FileNameMatch.exec(other.toLowerCase()) : [];
+
+	const oneName = oneMatch[1] || '';
+	const oneExtension = oneMatch[3] || '';
+
+	const otherName = otherMatch[1] || '';
+	const otherExtension = otherMatch[3] || '';
+
+	if (oneExtension !== otherExtension) {
+		return oneExtension < otherExtension ? -1 : 1;
+	}
+
+	if (oneName === otherName) {
+		return 0;
+	}
+
+	return oneName < otherName ? -1 : 1;
 }
 
 export function comparePaths(one: string, other: string): number {

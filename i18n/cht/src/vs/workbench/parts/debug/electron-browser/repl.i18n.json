@@ -7,5 +7,6 @@
 	"replAriaLabel": "「讀取、求值、輸出」迴圈面板",
 	"actions.repl.historyPrevious": "上一筆記錄",
 	"actions.repl.historyNext": "下一筆記錄",
-	"actions.repl.acceptInput": "REPL 接受輸入"
+	"actions.repl.acceptInput": "REPL 接受輸入",
+	"actions.repl.copyAll": "偵錯: 主控台全部複製"
 }

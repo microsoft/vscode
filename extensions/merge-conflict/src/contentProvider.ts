@@ -24,9 +24,10 @@ export default class MergeConflictContentProvider implements vscode.TextDocument
 
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string | null> {
 		try {
-			const [start, end] = JSON.parse(uri.query) as { line: number, character: number }[];
+			const { scheme, range } = JSON.parse(uri.query) as { scheme: string; range: { line: number, character: number }[] };
+			const [start, end] = range;
 
-			const document = await vscode.workspace.openTextDocument(uri.with({ scheme: 'file', query: '' }));
+			const document = await vscode.workspace.openTextDocument(uri.with({ scheme, query: '' }));
 			const text = document.getText(new vscode.Range(start.line, start.character, end.line, end.character));
 			return text;
 		}

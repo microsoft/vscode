@@ -27,7 +27,7 @@ const MULTIROOT_QUERIES: IFolderSearch[] = [
 	{ folder: MORE_FIXTURES }
 ];
 
-suite('Search', () => {
+suite('FileSearchEngine', () => {
 
 	test('Files: *.js', function (done: () => void) {
 		let engine = new FileSearchEngine({
@@ -489,6 +489,30 @@ suite('Search', () => {
 			done();
 		});
 	});
+
+	test('Files: no dupes in nested folders', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: [
+				{ folder: EXAMPLES_FIXTURES },
+				{ folder: path.join(EXAMPLES_FIXTURES, 'subfolder') }
+			],
+			filePattern: 'subfile.txt'
+		});
+
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 1);
+			done();
+		});
+	});
+});
+
+suite('FileWalker', () => {
 
 	test('Find: exclude subfolder', function (done: () => void) {
 		if (platform.isWindows) {

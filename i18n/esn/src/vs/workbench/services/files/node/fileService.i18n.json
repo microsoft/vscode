@@ -6,9 +6,13 @@
 {
 	"fileInvalidPath": "Recurso de archivo no válido ({0})",
 	"fileIsDirectoryError": "El archivo es un directorio ({0})",
+	"fileNotModifiedError": "Archivo no modificado desde",
+	"fileTooLargeError": "Archivo demasiado grande para abrirlo",
 	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto",
 	"fileNotFoundError": "Archivo no encontrado ({0})",
+	"fileMoveConflict": "No se puede mover o copiar. El archivo ya existe en la ubicación de destino. ",
 	"unableToMoveCopyError": "No se puede mover o copiar. El archivo reemplazaría a la carpeta que lo contiene.",
 	"foldersCopyError": "No se pueden copiar carpetas en el área de trabajo. Seleccione archivos individuales para copiarlos.",
+	"fileModifiedError": "Archivo Modificado Desde",
 	"fileReadOnlyError": "El archivo es de solo lectura"
 }

@@ -10,12 +10,12 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -156,12 +156,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, strikeThrough, faded] = rawResource;
+			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
 			const icon = icons[0];
 			const iconDark = icons[1] || icon;
 			const decorations = {
 				icon: icon && URI.parse(icon),
 				iconDark: iconDark && URI.parse(iconDark),
+				tooltip,
 				strikeThrough,
 				faded
 			};
@@ -204,7 +205,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 }
 
-export class MainThreadSCM extends MainThreadSCMShape {
+@extHostNamedCustomer(MainContext.MainThreadSCM)
+export class MainThreadSCM implements MainThreadSCMShape {
 
 	private _proxy: ExtHostSCMShape;
 	private _sourceControls: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
@@ -212,16 +214,27 @@ export class MainThreadSCM extends MainThreadSCMShape {
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ISCMService private scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostSCM);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
 
 		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this._disposables);
 		this.scmService.input.onDidChange(this._proxy.$onInputBoxValueChange, this._proxy, this._disposables);
+	}
+
+	dispose(): void {
+		Object.keys(this._sourceControls)
+			.forEach(id => this._sourceControls[id].dispose());
+		this._sourceControls = Object.create(null);
+
+		Object.keys(this._sourceControlDisposables)
+			.forEach(id => this._sourceControlDisposables[id].dispose());
+		this._sourceControlDisposables = Object.create(null);
+
+		this._disposables = dispose(this._disposables);
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string): void {
@@ -311,13 +324,5 @@ export class MainThreadSCM extends MainThreadSCMShape {
 	private onDidChangeProvider(provider: ISCMProvider): void {
 		const handle = Object.keys(this._sourceControls).filter(handle => this._sourceControls[handle] === provider)[0];
 		this._proxy.$onActiveSourceControlChange(handle && parseInt(handle));
-	}
-
-	dispose(): void {
-		Object.keys(this._sourceControls)
-			.forEach(id => this._sourceControls[id].dispose());
-
-		this._sourceControls = Object.create(null);
-		this._disposables = dispose(this._disposables);
 	}
 }

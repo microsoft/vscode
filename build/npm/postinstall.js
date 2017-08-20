@@ -24,6 +24,7 @@ npmInstall('extensions'); // node modules shared by all extensions
 const extensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
+	'azure-account',
 	'json',
 	'configuration-editing',
 	'extension-editing',

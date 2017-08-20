@@ -15,7 +15,8 @@
         "id": "csharp",
         "extensions": [
           ".cs",
-          ".csx"
+          ".csx",
+          ".cake"
         ],
         "aliases": [
           "C#",

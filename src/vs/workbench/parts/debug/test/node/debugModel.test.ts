@@ -168,7 +168,7 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.name, threadName2);
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCallStack().length, 0);
-		assert.equal(thread2.stoppedDetails.reason, stoppedReason);
+		assert.equal(thread2.stoppedDetails.reason, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
@@ -353,24 +353,18 @@ suite('Debug - Model', () => {
 	test('repl output', () => {
 		model.appendToRepl('first line\n', severity.Error);
 		model.appendToRepl('second line', severity.Error);
-		model.appendToRepl('second line', severity.Error);
-		model.appendToRepl('third line', severity.Warning);
 		model.appendToRepl('third line', severity.Warning);
 		model.appendToRepl('fourth line', severity.Error);
 
 		let elements = <OutputElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[0].value, 'first line');
-		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
 		assert.equal(elements[1].value, 'second line');
-		assert.equal(elements[1].counter, 2);
 		assert.equal(elements[1].severity, severity.Error);
 		assert.equal(elements[2].value, 'third line');
-		assert.equal(elements[2].counter, 2);
 		assert.equal(elements[2].severity, severity.Warning);
 		assert.equal(elements[3].value, 'fourth line');
-		assert.equal(elements[3].counter, 1);
 		assert.equal(elements[3].severity, severity.Error);
 
 		model.appendToRepl('1', severity.Warning);

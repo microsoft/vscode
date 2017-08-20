@@ -12,7 +12,6 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { once } from 'vs/base/common/event';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from "vs/platform/windows/electron-main/windows";
 
@@ -115,16 +114,7 @@ export class LaunchService implements ILaunchService {
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance
 		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
-			const windowId = usedWindows[0].id;
-
-			return new TPromise<void>((c, e) => {
-				const onceWindowClose = once(this.windowsService.onWindowClose);
-				onceWindowClose(id => {
-					if (id === windowId) {
-						c(null);
-					}
-				});
-			});
+			return this.windowsService.waitForWindowClose(usedWindows[0].id);
 		}
 
 		return TPromise.as(null);

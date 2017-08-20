@@ -100,7 +100,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace2().roots.length : 0;
+		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace().roots.length : 0;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -128,7 +128,7 @@ export class FileService implements IFileService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots.length : 0;
+		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
 
 		let restartWorkspaceWatcher = false;
 		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {
@@ -166,7 +166,7 @@ export class FileService implements IFileService {
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace2().roots.length > 1) {
+		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().roots.length > 1) {
 			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 
@@ -348,27 +348,48 @@ export class FileService implements IFileService {
 
 				// 3.) check to add UTF BOM
 				return addBomPromise.then(addBom => {
-					let writeFilePromise: TPromise<void>;
 
-					// Write fast if we do UTF 8 without BOM
-					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
-					}
+					// 4.) set contents and resolve
+					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'w' }).then(undefined, error => {
+						if (!exists || error.code !== 'EPERM' || !isWindows) {
+							return TPromise.wrapError(error);
+						}
 
-					// Otherwise use encoding lib
-					else {
-						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFile(absolutePath, encoded);
-					}
+						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+						// (see https://github.com/Microsoft/vscode/issues/931)
 
-					// 4.) set contents
-					return writeFilePromise.then(() => {
+						// 5.) truncate
+						return pfs.truncate(absolutePath, 0).then(() => {
 
-						// 5.) resolve
-						return this.resolve(resource);
+							// 6.) set contents (this time with r+ mode) and resolve again
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'r+' });
+						});
 					});
 				});
 			});
+		});
+	}
+
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+		let writeFilePromise: TPromise<void>;
+
+		// Write fast if we do UTF 8 without BOM
+		if (!addBOM && encodingToWrite === encoding.UTF8) {
+			writeFilePromise = pfs.writeFile(absolutePath, value, options);
+		}
+
+		// Otherwise use encoding lib
+		else {
+			const encoded = encoding.encode(value, encodingToWrite, { addBOM });
+			writeFilePromise = pfs.writeFile(absolutePath, encoded, options);
+		}
+
+		// set contents
+		return writeFilePromise.then(() => {
+
+			// resolve
+			return this.resolve(resource);
 		});
 	}
 

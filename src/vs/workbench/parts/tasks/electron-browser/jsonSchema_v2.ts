@@ -120,7 +120,13 @@ const group: IJSONSchema = {
 			}
 		},
 	],
-	enum: [{ kind: 'build', isDefault: true }, { kind: 'test', isDefault: true }, 'build', 'test', 'none'],
+	enum: [
+		{ kind: 'build', isDefault: true },
+		{ kind: 'test', isDefault: true },
+		'build',
+		'test',
+		'none'
+	],
 	enumDescriptions: [
 		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the tasks as the default build task.'),
 		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the tasks as the default test task.'),
@@ -216,6 +222,10 @@ let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
 taskDescription.properties.identifier = Objects.deepClone(identifier);
+taskDescription.properties.type = Objects.deepClone(taskType);
+taskDescription.properties.presentation = Objects.deepClone(presentation);
+taskDescription.properties.terminal = terminal;
+taskDescription.properties.group = Objects.deepClone(group);
 definitions.showOutputType.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.showOputput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'
@@ -223,6 +233,10 @@ definitions.showOutputType.deprecationMessage = nls.localize(
 definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.echoCommand.deprecated',
 	'The property echoCommand is deprecated. Use the echo property inside the presentation property instead. See also the 1.14 release notes.'
+);
+definitions.taskDescription.properties.suppressTaskName.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.suppressTaskName.deprecated',
+	'The property suppressTaskName is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
 );
 definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.isBuildCommand.deprecated',
@@ -232,10 +246,6 @@ definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.lo
 	'JsonSchema.tasks.isTestCommand.deprecated',
 	'The property isTestCommand is deprecated. Use the group property instead. See also the 1.14 release notes.'
 );
-taskDescription.properties.type = Objects.deepClone(taskType);
-taskDescription.properties.presentation = Objects.deepClone(presentation);
-taskDescription.properties.terminal = terminal;
-taskDescription.properties.group = Objects.deepClone(group);
 
 taskDefinitions.push({
 	$ref: '#/definitions/taskDescription'
@@ -255,6 +265,15 @@ definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClon
 definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
 definitions.taskRunnerConfiguration.properties.group = Objects.deepClone(group);
 definitions.taskRunnerConfiguration.properties.presentation = Objects.deepClone(presentation);
+definitions.taskRunnerConfiguration.properties.suppressTaskName.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.suppressTaskName.deprecated',
+	'The property suppressTaskName is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
+);
+definitions.taskRunnerConfiguration.properties.taskSelector.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.taskSelector.deprecated',
+	'The property taskSelector is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
+);
+
 let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
 delete osSpecificTaskRunnerConfiguration.properties.tasks;
 osSpecificTaskRunnerConfiguration.additionalProperties = false;

@@ -12,13 +12,16 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, IRootProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
+import { Schemas } from "vs/base/common/network";
+import { FileKind } from "vs/platform/files/common/files";
 
 export interface IEditorLabel {
 	name: string;
@@ -27,7 +30,7 @@ export interface IEditorLabel {
 }
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
-	isFolder?: boolean;
+	fileKind?: FileKind;
 }
 
 export class ResourceLabel extends IconLabel {
@@ -72,10 +75,10 @@ export class ResourceLabel extends IconLabel {
 		const newResource = label ? label.resource : void 0;
 		const oldResource = this.label ? this.label.resource : void 0;
 
-		const newIsFolder = options ? options.isFolder : false;
-		const oldIsFolder = this.options ? this.options.isFolder : false;
+		const newFileKind = options ? options.fileKind : void 0;
+		const oldFileKind = this.options ? this.options.fileKind : void 0;
 
-		if (newIsFolder !== oldIsFolder) {
+		if (newFileKind !== oldFileKind) {
 			return true; // same resource but different kind (file, folder)
 		}
 
@@ -126,7 +129,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		if (!this.computedIconClasses) {
-			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.isFolder);
+			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
 		}
 
 		let extraClasses = this.computedIconClasses.slice(0);
@@ -165,23 +168,43 @@ export class EditorLabel extends ResourceLabel {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	root?: uri;
 }
 
 export class FileLabel extends ResourceLabel {
 
+	constructor(
+		container: HTMLElement,
+		options: IIconLabelCreationOptions,
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService modeService: IModeService,
+		@IModelService modelService: IModelService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	) {
+		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
+	}
+
 	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
+		const hidePath = options.hidePath || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		const rootProvider: IRootProvider = options.root ? {
+			getRoot(): uri { return options.root; },
+			getWorkspace(): { roots: uri[]; } { return { roots: [options.root] }; },
+		} : this.contextService;
 		this.setLabel({
 			resource,
 			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
-			description: !options.hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0
+			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : void 0
 		}, options);
 	}
 }
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, isFolder?: boolean): string[] {
+export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
-	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
+	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
 	let path: string;
 	if (resource) {
@@ -192,7 +215,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 		const basename = cssEscape(paths.basename(path).toLowerCase());
 
 		// Folders
-		if (isFolder) {
+		if (fileKind === FileKind.FOLDER) {
 			classes.push(`${basename}-name-folder-icon`);
 		}
 

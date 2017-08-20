@@ -121,6 +121,16 @@ export class DiffReview extends Disposable {
 			}
 			this._render();
 		}));
+		this._register(diffEditor.getOriginalEditor().onDidFocusEditor(() => {
+			if (this._isVisible) {
+				this.hide();
+			}
+		}));
+		this._register(diffEditor.getModifiedEditor().onDidFocusEditor(() => {
+			if (this._isVisible) {
+				this.hide();
+			}
+		}));
 		this._register(dom.addStandardDisposableListener(this.domNode.domNode, 'click', (e) => {
 			e.preventDefault();
 
@@ -152,6 +162,7 @@ export class DiffReview extends Disposable {
 				e.equals(KeyCode.Escape)
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
 				|| e.equals(KeyMod.Alt | KeyCode.Escape)
+				|| e.equals(KeyMod.Shift | KeyCode.Escape)
 			) {
 				e.preventDefault();
 				this.hide();
@@ -185,6 +196,8 @@ export class DiffReview extends Disposable {
 				}
 			}
 			index = (this._diffs.length + currentIndex - 1);
+		} else {
+			index = this._findDiffIndex(this._diffEditor.getPosition());
 		}
 
 		if (this._diffs.length === 0) {
@@ -216,6 +229,8 @@ export class DiffReview extends Disposable {
 				}
 			}
 			index = (currentIndex + 1);
+		} else {
+			index = this._findDiffIndex(this._diffEditor.getPosition());
 		}
 
 		if (this._diffs.length === 0) {
@@ -232,14 +247,20 @@ export class DiffReview extends Disposable {
 	}
 
 	private accept(): void {
+		let jumpToLineNumber = -1;
 		let current = this._getCurrentFocusedRow();
 		if (current) {
 			let lineNumber = parseInt(current.getAttribute('data-line'), 10);
 			if (!isNaN(lineNumber)) {
-				this._diffEditor.setPosition(new Position(lineNumber, 1));
+				jumpToLineNumber = lineNumber;
 			}
 		}
 		this.hide();
+
+		if (jumpToLineNumber !== -1) {
+			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
+			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1));
+		}
 	}
 
 	private hide(): void {

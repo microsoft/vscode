@@ -74,8 +74,7 @@ export class RipgrepEngine {
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
-				const relativePath = path.relative('/', match.path);
-				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
@@ -140,19 +139,6 @@ export class RipgrepEngine {
 	 */
 	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
-		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
-			// Not really a useful message to show in the UI
-			return undefined;
-		}
-
-		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
-		// Only show it if it's from a search path.
-		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
-		const noSuchFileMatch = firstLine.match(reg);
-		if (noSuchFileMatch) {
-			const errorPath = noSuchFileMatch[1];
-			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
-		}
 
 		if (strings.startsWith(firstLine, 'Error parsing regex')) {
 			return firstLine;
@@ -387,7 +373,7 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
+		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
 		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
@@ -399,9 +385,10 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 }
 
 function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs: string[] = [];
+	const globArgs = [];
 	folderQueries.forEach(folderQuery => {
-		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
+		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
+		const result = globExprsToRgGlobs(totalIncludePattern, folderQuery.folder);
 		globArgs.push(...result.globArgs);
 	});
 
@@ -417,7 +404,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
 			key = getAbsoluteGlob(folder, key);
 
 			if (typeof value === 'boolean' && value) {
-				globArgs.push(key);
+				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {
 				if (!siblingClauses) {
 					siblingClauses = {};
@@ -437,23 +424,31 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolutePathKey = path.join(folder, key);
-	const root = paths.getRoot(folder);
+	let absolute = paths.isAbsolute(key) ?
+		key :
+		path.join(folder, key);
+
+	absolute = strings.rtrim(absolute, '\\');
+	absolute = strings.rtrim(absolute, '/');
+
+	return absolute;
+}
+
+export function fixDriveC(path: string): string {
+	const root = paths.getRoot(path);
 	return root.toLowerCase() === 'c:/' ?
-		absolutePathKey.replace(/^c:[/\\]/i, '/') :
-		absolutePathKey;
+		path.replace(/^c:[/\\]/i, '/') :
+		path;
 }
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	if (config.includePattern) {
-		// I don't think includePattern can have siblingClauses
-		foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
-			args.push('-g', globArg);
-		});
-	}
+	// includePattern can't have siblingClauses
+	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
+		args.push('-g', globArg);
+	});
 
 	let siblingClauses: glob.IExpression;
 	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);
@@ -505,12 +500,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	if (config.searchPaths && config.searchPaths.length) {
-		args.push(...config.searchPaths);
-	} else {
-		args.push(...config.folderQueries.map(q => q.folder));
-	}
-
+	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
 	return { globArgs: args, siblingClauses };

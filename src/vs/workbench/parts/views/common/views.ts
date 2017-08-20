@@ -39,7 +39,7 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	onDidChange: Event<ITreeItem | undefined | null>;
+	onDidChange: Event<ITreeItem[] | undefined | null>;
 
 	getElements(): TPromise<ITreeItem[]>;
 

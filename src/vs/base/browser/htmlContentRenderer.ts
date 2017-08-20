@@ -5,7 +5,8 @@
 
 'use strict';
 
-import DOM = require('vs/base/browser/dom');
+import { localize } from 'vs/nls';
+import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -117,8 +118,12 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 		href = removeMarkdownEscapes(href);
 		if (!href || href.match(/^data:|javascript:/i)) {
 			return text;
+		} else if (href.match(/^command:/i)) {
+			return `<a href="#" data-href="${href}" title="${localize('hover.command', "Click to execute command")}">${text}&nbsp;<span class="octicon octicon-terminal"></span></a>`;
+
+		} else {
+			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		}
-		return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 	};
 	renderer.paragraph = (text): string => {
 		return `<p>${text}</p>`;
@@ -126,7 +131,7 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			let value = options.codeBlockRenderer(lang, code);
+			const value = options.codeBlockRenderer(lang, code);
 			if (typeof value === 'string') {
 				return value;
 			}
@@ -136,15 +141,15 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 				// but update the node with the real result later.
 				const id = defaultGenerator.nextId();
 				TPromise.join([value, withInnerHTML]).done(values => {
-					let strValue = values[0] as string;
-					let span = element.querySelector(`span[data-code="${id}"]`);
+					const strValue = values[0] as string;
+					const span = element.querySelector(`div[data-code="${id}"]`);
 					if (span) {
 						span.innerHTML = strValue;
 					}
 				}, err => {
 					// ignore
 				});
-				return `<span data-code="${id}">${escape(code)}</span>`;
+				return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 			}
 
 			return code;

@@ -8,6 +8,7 @@
 	"requirestring": "`{0}` özelliği zorunludur ve `string` türünde olmalıdır",
 	"optstring": "`{0}` özelliği atlanabilir veya `string` türünde olmalıdır",
 	"vscode.extension.contributes.keybindings.command": "Tuş bağı tetiklendiğinde çalıştırılacak komutun tanımlayıcısı.",
+	"vscode.extension.contributes.keybindings.key": "Tuş veya tuş dizisi (tuşları artı işaretiyle veya boşluk dizisiyle ayırın, ör. bir akor için Ctrl+O ve Ctrl+L).",
 	"vscode.extension.contributes.keybindings.mac": "Mac'e özel tuş veya tuş dizisi.",
 	"vscode.extension.contributes.keybindings.linux": "Linux'a özel tuş veya tuş dizisi.",
 	"vscode.extension.contributes.keybindings.win": "Windows'a özel tuş veya tuş dizisi.",

@@ -11,5 +11,7 @@
 	"noSettingsFound": "Keine Ergebnisse",
 	"oneSettingFound": "1 Einstellung zugeordnet",
 	"settingsFound": "{0} Einstellungen zugeordnet",
+	"fileEditorWithInputAriaLabel": "{0}. Textdatei-Editor.",
+	"fileEditorAriaLabel": "Textdatei-Editor",
 	"preferencesAriaLabel": "Standardeinstellungen. Schreibgeschützter Text-Editor."
 }

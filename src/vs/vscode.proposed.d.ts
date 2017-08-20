@@ -7,358 +7,18 @@
 
 declare module 'vscode' {
 
-	export interface WorkspaceFoldersChangeEvent {
-		readonly addedFolders: Uri[];
-		readonly removedFolders: Uri[];
+	// todo@joh discover files etc
+	export interface FileSystemProvider {
+		// todo@joh -> added, deleted, renamed, changed
+		onDidChange: Event<Uri>;
+
+		resolveContents(resource: Uri): string | Thenable<string>;
+		writeContents(resource: Uri, contents: string): void | Thenable<void>;
 	}
 
 	export namespace workspace {
 
-		/**
-		* List of workspace folders or `undefined` when no folder is open. The *first*
-		* element in the array is equal to the [`rootPath`](#workspace.rootPath)
-		*/
-		export let workspaceFolders: Uri[] | undefined;
-
-		/**
-		 * An event that is emitted when a workspace folder is added or removed.
-		 */
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-	}
-
-	/**
-	 * Controls the behaviour of the terminal's visibility.
-	 */
-	export enum TaskRevealKind {
-		/**
-		 * Always brings the terminal to front if the task is executed.
-		 */
-		Always = 1,
-
-		/**
-		 * Only brings the terminal to front if a problem is detected executing the task
-		 * (e.g. the task couldn't be started because).
-		 */
-		Silent = 2,
-
-		/**
-		 * The terminal never comes to front when the task is executed.
-		 */
-		Never = 3
-	}
-
-	/**
-	 * Controls how the task channel is used between tasks
-	 */
-	export enum TaskPanelKind {
-
-		/**
-		 * Shares a panel with other tasks. This is the default.
-		 */
-		Shared = 1,
-
-		/**
-		 * Uses a dedicated panel for this tasks. The panel is not
-		 * shared with other tasks.
-		 */
-		Dedicated = 2,
-
-		/**
-		 * Creates a new panel whenever this task is executed.
-		 */
-		New = 3
-	}
-
-	/**
-	 * Controls how the task is presented in the UI.
-	 */
-	export interface TaskPresentationOptions {
-		/**
-		 * Controls whether the task output is reveal in the user interface.
-		 * Defaults to `RevealKind.Always`.
-		 */
-		reveal?: TaskRevealKind;
-
-		/**
-		 * Controls whether the command associated with the task is echoed
-		 * in the user interface.
-		 */
-		echo?: boolean;
-
-		/**
-		 * Controls whether the panel showing the task output is taking focus.
-		 */
-		focus?: boolean;
-
-		/**
-		 * Controls if the task panel is used for this task only (dedicated),
-		 * shared between tasks (shared) or if a new panel is created on
-		 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
-		 */
-		panel?: TaskPanelKind;
-	}
-
-	/**
-	 * A grouping for tasks. The editor by default supports the
-	 * 'Clean', 'Build', 'RebuildAll' and 'Test' group.
-	 */
-	export class TaskGroup {
-
-		/**
-		 * The clean task group;
-		 */
-		public static Clean: TaskGroup;
-
-		/**
-		 * The build task group;
-		 */
-		public static Build: TaskGroup;
-
-		/**
-		 * The rebuild all task group;
-		 */
-		public static RebuildAll: TaskGroup;
-
-		/**
-		 * The test all task group;
-		 */
-		public static Test: TaskGroup;
-
-		private constructor(id: string, label: string);
-	}
-
-
-	/**
-	 * A structure that defines a task kind in the system.
-	 * The value must be JSON-stringifyable.
-	 */
-	export interface TaskDefinition {
-		/**
-		 * The task definition descibing the task provided by an extension.
-		 * Usually a task provider defines more properties to identify
-		 * a task. They need to be defined in the package.json of the
-		 * extension under the 'taskDefinitions' extension point. The npm
-		 * task definition for example looks like this
-		 * ```typescript
-		 * interface NpmTaskDefinition extends TaskDefinition {
-		 *     script: string;
-		 * }
-		 * ```
-		 */
-		readonly type: string;
-	}
-
-	/**
-	 * Options for a process execution
-	 */
-	export interface ProcessExecutionOptions {
-		/**
-		 * The current working directory of the executed program or shell.
-		 * If omitted the tools current workspace root is used.
-		 */
-		cwd?: string;
-
-		/**
-		 * The additional environment of the executed program or shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-	}
-
-	/**
-	 * The execution of a task happens as a external process
-	 * without shell interaction.
-	 */
-	export class ProcessExecution {
-
-		/**
-		 * Creates a process execution.
-		 *
-		 * @param process The process to start.
-		 * @param options Optional options for the started process.
-		 */
-		constructor(process: string, options?: ProcessExecutionOptions);
-
-		/**
-		 * Creates a process execution.
-		 *
-		 * @param process The process to start.
-		 * @param args Arguments to be passed to the process.
-		 * @param options Optional options for the started process.
-		 */
-		constructor(process: string, args: string[], options?: ProcessExecutionOptions);
-
-		/**
-		 * The process to be executed.
-		 */
-		process: string;
-
-		/**
-		 * The arguments passed to the process. Defaults to an empty array.
-		 */
-		args: string[];
-
-		/**
-		 * The process options used when the process is executed.
-		 * Defaults to undefined.
-		 */
-		options?: ProcessExecutionOptions;
-	}
-
-	/**
-	 * Options for a shell execution
-	 */
-	export interface ShellExecutionOptions {
-		/**
-		 * The shell executable.
-		 */
-		executable?: string;
-
-		/**
-		 * The arguments to be passed to the shell executable used to run the task.
-		 */
-		shellArgs?: string[];
-
-		/**
-		 * The current working directory of the executed shell.
-		 * If omitted the tools current workspace root is used.
-		 */
-		cwd?: string;
-
-		/**
-		 * The additional environment of the executed shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-	}
-
-
-	export class ShellExecution {
-		/**
-		 * Creates a process execution.
-		 *
-		 * @param commandLine The command line to execute.
-		 * @param options Optional options for the started the shell.
-		 */
-		constructor(commandLine: string, options?: ShellExecutionOptions);
-
-		/**
-		 * The shell command line
-		 */
-		commandLine: string;
-
-		/**
-		 * The shell options used when the command line is executed in a shell.
-		 * Defaults to undefined.
-		 */
-		options?: ShellExecutionOptions;
-	}
-
-	/**
-	 * A task to execute
-	 */
-	export class Task {
-
-		/**
-		 * Creates a new task.
-		 *
-		 * @param definition The task definition as defined in the taskDefintions extension point.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
-		 */
-		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
-
-		/**
-		 * The task's definition.
-		 */
-		definition: TaskDefinition;
-
-		/**
-		 * The task's name
-		 */
-		name: string;
-
-		/**
-		 * The task's execution engine
-		 */
-		execution: ProcessExecution | ShellExecution;
-
-		/**
-		 * Whether the task is a background task or not.
-		 */
-		isBackground: boolean;
-
-		/**
-		 * A human-readable string describing the source of this
-		 * shell task, e.g. 'gulp' or 'npm'.
-		 */
-		source?: string;
-
-		/**
-		 * The task group this tasks belongs to. See TaskGroup
-		 * for a predefined set of available groups.
-		 * Defaults to undefined meaning that the task doesn't
-		 * belong to any special group.
-		 */
-		group?: TaskGroup;
-
-		/**
-		 * The presentation options. Defaults to an empty literal.
-		 */
-		presentationOptions: TaskPresentationOptions;
-
-		/**
-		 * The problem matchers attached to the task. Defaults to an empty
-		 * array.
-		 */
-		problemMatchers: string[];
-	}
-
-	/**
-	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registerd via #workspace.registerTaskProvider.
-	 */
-	export interface TaskProvider {
-		/**
-		 * Provides tasks.
-		 * @param token A cancellation token.
-		 * @return an array of tasks
-		 */
-		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
-
-		/**
-		 * Resolves a task the has no execution set.
-		 * @param task The task to resolve.
-		 * @param token A cancellation token.
-		 * @return the resolved task
-		 */
-		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
-	}
-
-	export namespace workspace {
-		/**
-		 * Register a task provider.
-		 *
-		 * @param type The task kind type this provider is registered for.
-		 * @param provider A task provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
-
-
-		export function getConfiguration2(section?: string, resource?: Uri): WorkspaceConfiguration2;
-	}
-
-	export interface WorkspaceConfiguration2 extends WorkspaceConfiguration {
-
-		inspect<T>(section: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T, folderValue?: T } | undefined;
-
+		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {
@@ -395,115 +55,188 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	export interface Terminal {
+	/**
+	 * Represents a color in RGBA space.
+	 */
+	export class Color {
 
 		/**
-		 * The name of the terminal.
+		 * The red component of this color in the range [0-1].
 		 */
-		readonly name: string;
+		readonly red: number;
 
 		/**
-		 * The process ID of the shell process.
+		 * The green component of this color in the range [0-1].
 		 */
-		readonly processId: Thenable<number>;
+		readonly green: number;
 
 		/**
-		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal.
+		 * The blue component of this color in the range [0-1].
+		 */
+		readonly blue: number;
+
+		/**
+		 * The alpha component of this color in the range [0-1].
+		 */
+		readonly alpha: number;
+
+		constructor(red: number, green: number, blue: number, alpha: number);
+
+		/**
+		 * Creates a color from the HSLA space.
 		 *
-		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
+		 * @param hue The hue component in the range [0-1].
+		 * @param saturation The saturation component in the range [0-1].
+		 * @param luminance The luminance component in the range [0-1].
+		 * @param alpha The alpha component in the range [0-1].
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
 
 		/**
-		 * Show the terminal panel and reveal this terminal in the UI.
-		 *
-		 * @param preserveFocus When `true` the terminal will not take focus.
+		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
+		 * <code>null</code> is returned if the string does not match one of the supported formats.
+		 * @param hex a string to parse
 		 */
-		show(preserveFocus?: boolean): void;
-
-		/**
-		 * Hide the terminal panel if this terminal is currently showing.
-		 */
-		hide(): void;
-
-		/**
-		 * Dispose and free associated resources.
-		 */
-		dispose(): void;
-
-		/**
-		 * Experimental API that allows listening to the raw data stream coming from the terminal's
-		 * pty process (including ANSI escape sequences).
-		 *
-		 * @param callback The callback that is triggered when data is sent to the terminal.
-		 */
-		onData(callback: (data: string) => any): void;
+		static fromHex(hex: string): Color | null;
 	}
 
 	/**
-	 * Namespace for dealing with debug sessions.
+	 * A color format is either a single format or a combination of two
+	 * formats: an opaque one and a transparent one. The format itself
+	 * is a string representation of how the color can be formatted. It
+	 * supports the use of placeholders, similar to how snippets work.
+	 * Each placeholder, surrounded by curly braces `{}`, requires a
+	 * variable name and can optionally specify a number format and range
+	 * for that variable's value.
+	 *
+	 * Supported variables:
+	 *  - `red`
+	 *  - `green`
+	 *  - `blue`
+	 *  - `hue`
+	 *  - `saturation`
+	 *  - `luminance`
+	 *  - `alpha`
+	 *
+	 * Supported number formats:
+	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
+	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
+	 *  - `d`, decimal. Default range is `[0-255]`.
+	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
+	 *
+	 * The default number format is float. The default number range is `[0-1]`.
+	 *
+	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
+	 * different formats would format it:
+	 *
+	 *  - CSS RGB
+	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
+	 *   - Output: `rgb(255, 127, 0)`
+	 *
+	 *  - CSS RGBA
+	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
+	 *   - Output: `rgba(255, 127, 0, 1)`
+	 *
+	 *  - CSS Hexadecimal
+	 *   - Format: `#{red:X}{green:X}{blue:X}`
+	 *   - Output: `#FF7F00`
+	 *
+	 *  - CSS HSLA
+	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
+	 *   - Output: `hsla(30, 100%, 50%, 1)`
 	 */
+	export type ColorFormat = string | { opaque: string, transparent: string };
+
+	/**
+	 * Represents a color range from a document.
+	 */
+	export class ColorRange {
+
+		/**
+		 * The range in the document where this color appers.
+		 */
+		range: Range;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		color: Color;
+
+		/**
+		 * The other formats this color range supports the color to be formatted in.
+		 */
+		availableFormats: ColorFormat[];
+
+		/**
+		 * Creates a new color range.
+		 *
+		 * @param range The range the color appears in. Must not be empty.
+		 * @param color The value of the color.
+		 * @param format The format in which this color is currently formatted.
+		 * @param availableFormats The other formats this color range supports the color to be formatted in.
+		 */
+		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
+	}
+
+	/**
+	 * The document color provider defines the contract between extensions and feature of
+	 * picking and modifying colors in the editor.
+	 */
+	export interface DocumentColorProvider {
+
+		/**
+		 * Provide colors for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of [color ranges](#ColorRange) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
+	}
+
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	}
+
 	export namespace debug {
-
 		/**
-		 * An [event](#Event) which fires when a debug session has terminated.
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
+		 * More than one provider can be registered for the same type.
+		 *
+		 * @param type The debug type for which the provider is registered.
+		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export const onDidTerminateDebugSession: Event<DebugSession>;
-
-		/**
-		 * Create a new debug session based on the given launchConfig.
-		 * @param launchConfig
-		 */
-		export function createDebugSession(launchConfig: DebugConfiguration): Thenable<DebugSession>;
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
 	}
 
 	/**
-	 * Configuration for a debug session.
+	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
+	 * and allows to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider is registered via #workspace.registerDebugConfigurationProvider.
 	 */
-	export interface DebugConfiguration {
+	export interface DebugConfigurationProvider {
 		/**
-		 * The type for the debug session.
+		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
+		 * registered for the same type, debug configurations are concatenated in arbitrary order.
+		 *
+		 * @param folder The workspace folder for which the configurations are used or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return An array of [debug configurations](#DebugConfiguration).
 		 */
-		type: string;
+		provideDebugConfigurations?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugConfiguration[]>;
 
 		/**
-		 * An optional name for the debug session.
+		 * Resolves a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration.
 		 */
-		name?: string;
-
-		/**
-		 * The request type of the debug session.
-		 */
-		request: string;
-
-		/**
-		 * Additional debug type specific properties.
-		 */
-		[key: string]: any;
-	}
-
-	/**
-	 * A debug session.
-	 */
-	export interface DebugSession {
-
-		/**
-		 * The debug session's type from the debug configuration.
-		 */
-		readonly type: string;
-
-		/**
-		 * The debug session's name from the debug configuration.
-		 */
-		readonly name: string;
-
-		/**
-		 * Send a custom request to the debug adapter.
-		 */
-		customRequest(command: string, args?: any): Thenable<any>;
+		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 }

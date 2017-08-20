@@ -7,6 +7,7 @@
 import * as crypto from 'crypto';
 
 import URI from 'vs/base/common/uri';
+import { Color as BaseColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
@@ -488,14 +489,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { }
-
 export class WorkspaceEdit {
 
-	private _values: [Uri, TextEdit[]][] = [];
+	private _values: [URI, TextEdit[]][] = [];
 	private _index = new Map<string, number>();
 
-	replace(uri: Uri, range: Range, newText: string): void {
+	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
 		let array = this.get(uri);
 		if (array) {
@@ -505,19 +504,19 @@ export class WorkspaceEdit {
 		}
 	}
 
-	insert(resource: Uri, position: Position, newText: string): void {
+	insert(resource: URI, position: Position, newText: string): void {
 		this.replace(resource, new Range(position, position), newText);
 	}
 
-	delete(resource: Uri, range: Range): void {
+	delete(resource: URI, range: Range): void {
 		this.replace(resource, range, '');
 	}
 
-	has(uri: Uri): boolean {
+	has(uri: URI): boolean {
 		return this._index.has(uri.toString());
 	}
 
-	set(uri: Uri, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[]): void {
 		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
@@ -527,12 +526,12 @@ export class WorkspaceEdit {
 		}
 	}
 
-	get(uri: Uri): TextEdit[] {
+	get(uri: URI): TextEdit[] {
 		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
-	entries(): [Uri, TextEdit[]][] {
+	entries(): [URI, TextEdit[]][] {
 		return this._values;
 	}
 
@@ -1015,6 +1014,59 @@ export class DocumentLink {
 	}
 }
 
+export class Color {
+	readonly red: number;
+	readonly green: number;
+	readonly blue: number;
+	readonly alpha: number;
+
+	constructor(red: number, green: number, blue: number, alpha: number) {
+		this.red = red;
+		this.green = green;
+		this.blue = blue;
+		this.alpha = alpha;
+	}
+
+	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
+		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
+		return new Color(color.r, color.g, color.b, color.a);
+	}
+
+	static fromHex(hex: string): Color | null {
+		let baseColor = BaseColor.Format.CSS.parseHex(hex);
+		if (baseColor) {
+			const rgba = baseColor.rgba;
+			return new Color(rgba.r, rgba.g, rgba.b, rgba.a);
+		}
+		return null;
+	}
+}
+
+export type IColorFormat = string | { opaque: string, transparent: string };
+
+export class ColorRange {
+	range: Range;
+
+	color: Color;
+
+	availableFormats: IColorFormat[];
+
+	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
+		if (color && !(color instanceof Color)) {
+			throw illegalArgument('color');
+		}
+		if (availableFormats && !Array.isArray(availableFormats)) {
+			throw illegalArgument('availableFormats');
+		}
+		if (!Range.isRange(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.color = color;
+		this.availableFormats = availableFormats;
+	}
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 
@@ -1040,9 +1092,9 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Build: TaskGroup = new TaskGroup('build', 'Build');
 
-	public static RebuildAll: TaskGroup = new TaskGroup('rebuildAll', 'RebuildAll');
+	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
-	public static Test: TaskGroup = new TaskGroup('clean', 'Clean');
+	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
 	constructor(id: string, label: string) {
 		if (typeof id !== 'string') {
@@ -1158,6 +1210,7 @@ export class Task implements vscode.Task {
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
+	private _hasDefinedMatchers: boolean;
 	private _isBackground: boolean;
 	private _source: string;
 	private _group: TaskGroup;
@@ -1170,10 +1223,13 @@ export class Task implements vscode.Task {
 		this.execution = execution;
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
+			this._hasDefinedMatchers = true;
 		} else if (Array.isArray(problemMatchers)) {
 			this._problemMatchers = problemMatchers;
+			this._hasDefinedMatchers = true;
 		} else {
 			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
 		}
 		this._isBackground = false;
 	}
@@ -1227,9 +1283,16 @@ export class Task implements vscode.Task {
 
 	set problemMatchers(value: string[]) {
 		if (!Array.isArray(value)) {
-			value = [];
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+			return;
 		}
 		this._problemMatchers = value;
+		this._hasDefinedMatchers = true;
+	}
+
+	get hasDefinedMatchers(): boolean {
+		return this._hasDefinedMatchers;
 	}
 
 	get isBackground(): boolean {
@@ -1248,10 +1311,6 @@ export class Task implements vscode.Task {
 	}
 
 	set source(value: string) {
-		if (value === void 0 || value === null) {
-			this._source = undefined;
-			return;
-		}
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
@@ -1290,7 +1349,7 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
-	iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 
@@ -1310,4 +1369,12 @@ export class ThemeColor {
 	constructor(id: string) {
 		this.id = id;
 	}
+}
+
+export enum ConfigurationTarget {
+	Global = 1,
+
+	Workspace = 2,
+
+	WorkspaceFolder = 3
 }

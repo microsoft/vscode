@@ -176,7 +176,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 				// Listen to content changes
-				this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged());
+				this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
 
 				return model;
 			});

@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "光标所在行四周边框的背景颜色。",
 	"rangeHighlight": "突出显示范围的背景颜色，例如 \"Quick Open\" 和“查找”功能。",
 	"caret": "编辑器光标颜色。",
+	"editorCursorBackground": "编辑器光标的背景色。可以自定义块型光标覆盖字符的颜色。",
 	"editorWhitespaces": "编辑器中空白字符颜色。",
 	"editorIndentGuides": "编辑器缩进参考线颜色。",
 	"editorLineNumbers": "编辑器行号颜色。",

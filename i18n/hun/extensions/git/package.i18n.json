@@ -9,6 +9,7 @@
 	"command.refresh": "Frissítés",
 	"command.openChange": "Módosítások megnyitása",
 	"command.openFile": "Fájl megnyitása",
+	"command.openHEADFile": "Fájl megnyitása (HEAD)",
 	"command.stage": "Módosítások előjegyzése beadásra",
 	"command.stageAll": "Összes módosítás előjegyzése beadásra",
 	"command.stageSelectedRanges": "Kijelölt területek előjegyzése beadásra",
@@ -27,13 +28,16 @@
 	"command.checkout": "Checkout adott helyre...",
 	"command.branch": "Ág létrehozása...",
 	"command.deleteBranch": "Új ág létrehozása",
+	"command.merge": "Ág beolvasztása...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
+	"command.pullFrom": "Pullozás...",
 	"command.push": "Push",
 	"command.pushTo": "Push adott helyre...",
 	"command.sync": "Szinkronizálás",
 	"command.publish": "Ág publikálása",
 	"command.showOutput": "Git-kimenet megjelenítése",
+	"command.ignore": "Fájl hozzáadása a .gitignore-hoz",
 	"config.enabled": "Meghatározza, hogy a git engedélyezve van-e",
 	"config.path": "A git végrehajtható fájl elérési útja",
 	"config.autorefresh": "Meghatározza, hogy engedélyezve van-e az automatikus frissítés",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "Meghatározza, hogy milyen típusú ágak jelenjenek meg a `Checkout adott helyről... ` parancs futtatása esetén. Az  `all` esetén az összes ref megjelenik, `local` esetén csak a helyi ágak, `tags` esetén csak a címkék, `remote` esetén pedig csak a távoli ágak.",
 	"config.ignoreLegacyWarning": "Régi gittel kapcsolatos figyelmeztetés figyelmen kívül hagyása",
 	"config.ignoreLimitWarning": "Túl sok módosítás esetén megjelenő figyelmeztetés figyelmen kívül hagyása",
-	"config.defaultCloneDirectory": "Git-forráskódtárak klónozásának alapértelmezett helye."
+	"config.defaultCloneDirectory": "Git-forráskódtárak klónozásának alapértelmezett helye.",
+	"config.enableSmartCommit": "Összes módosítás beadása (commit), ha nincsenek előjegyzett módosítások."
 }

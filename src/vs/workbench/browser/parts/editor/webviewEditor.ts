@@ -23,7 +23,8 @@ interface HtmlPreviewEditorViewStates {
 /**
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class WebviewEditor extends BaseEditor {
+export abstract class BaseWebviewEditor extends BaseEditor {
+
 	constructor(
 		id: string,
 		telemetryService: ITelemetryService,

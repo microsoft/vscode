@@ -19,7 +19,7 @@ export interface ILabelProvider {
 
 export interface IRootProvider {
 	getRoot(resource: URI): URI;
-	getWorkspace2(): {
+	getWorkspace(): {
 		roots: URI[];
 	};
 }
@@ -40,7 +40,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	// return early if we can resolve a relative path label from the root
 	const baseResource = rootProvider ? rootProvider.getRoot(resource) : null;
 	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace2().roots.length > 1;
+		const hasMultipleRoots = rootProvider.getWorkspace().roots.length > 1;
 
 		let pathLabel: string;
 		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
@@ -110,6 +110,7 @@ export function tildify(path: string, userHome: string): string {
  */
 const ellipsis = '\u2026';
 const unc = '\\\\';
+const home = '~';
 export function shorten(paths: string[]): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
@@ -130,7 +131,7 @@ export function shorten(paths: string[]): string[] {
 
 		match = true;
 
-		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc) later
+		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
@@ -138,6 +139,9 @@ export function shorten(paths: string[]): string[] {
 		} else if (path.indexOf(nativeSep) === 0) {
 			prefix = path.substr(0, path.indexOf(nativeSep) + nativeSep.length);
 			path = path.substr(path.indexOf(nativeSep) + nativeSep.length);
+		} else if (path.indexOf(home) === 0) {
+			prefix = path.substr(0, path.indexOf(home) + home.length);
+			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
@@ -295,4 +299,16 @@ export function template(template: string, values: { [key: string]: string | ISe
 		// accept any TEXT and VARIABLE
 		return true;
 	}).map(segment => segment.value).join('');
+}
+
+export function mnemonicLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (!platform.isWindows || forceDisableMnemonics) {
+		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
+	}
+
+	return label.replace(/&&/g, '&');
+}
+
+export function unmnemonicLabel(label: string): string {
+	return label.replace(/&/g, '&&');
 }

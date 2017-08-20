@@ -20,7 +20,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -162,7 +162,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
 		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
@@ -196,7 +196,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			sortByScore: true
 		};
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace2().roots : [];
+		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
 		const query = this.queryBuilder.file(folderResources, options);
 		this.searchService.extendQuery(query);
 

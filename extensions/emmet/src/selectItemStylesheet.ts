@@ -12,7 +12,9 @@ export function nextItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	if (!currentNode) {
 		currentNode = <CssNode>rootNode;
 	}
-
+	if (!currentNode) {
+		return;
+	}
 	// Full property is selected, so select full property value next
 	if (currentNode.type === 'property' && startOffset.isEqual(currentNode.start) && endOffset.isEqual(currentNode.end)) {
 		return getSelectionFromProperty(currentNode, editor.document, startOffset, endOffset, true, 'next');
@@ -52,6 +54,9 @@ export function prevItemStylesheet(startOffset: vscode.Position, endOffset: vsco
 	let currentNode = <CssNode>getNode(rootNode, startOffset);
 	if (!currentNode) {
 		currentNode = rootNode;
+	}
+	if (!currentNode) {
+		return;
 	}
 
 	// Full property value is selected, so select the whole property next

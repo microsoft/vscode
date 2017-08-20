@@ -4,35 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { Node } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { isStyleSheet } from 'vscode-emmet-helper';
-import { getNode } from './util';
+import { getNode, parseDocument, validate } from './util';
 
 export function mergeLines() {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return;
-	}
-	if (isStyleSheet(editor.document.languageId)) {
+	if (!validate(false)) {
 		return;
 	}
 
-	let rootNode: Node = parse(new DocumentStreamReader(editor.document));
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
-	editor.edit(editBuilder => {
+
+	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			editBuilder.replace(rangeToReplace, textToReplaceWith);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+			if (textEdit) {
+				editBuilder.replace(textEdit.range, textEdit.newText);
+			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
 	let startNodeToUpdate: Node;
 	let endNodeToUpdate: Node;
 
@@ -43,8 +39,15 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		endNodeToUpdate = getNode(rootNode, selection.end, true);
 	}
 
-	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.getText(rangeToReplace).replace(/\r\n|\n/g, '').replace(/>\s*</g, '><');
+	if (!startNodeToUpdate || !endNodeToUpdate || startNodeToUpdate.start.line === endNodeToUpdate.end.line) {
+		return;
+	}
 
-	return [rangeToReplace, textToReplaceWith];
+	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
+	let textToReplaceWith = document.lineAt(startNodeToUpdate.start.line).text.substr(startNodeToUpdate.start.character);
+	for (let i = startNodeToUpdate.start.line + 1; i <= endNodeToUpdate.end.line; i++) {
+		textToReplaceWith += document.lineAt(i).text.trim();
+	}
+
+	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
 }

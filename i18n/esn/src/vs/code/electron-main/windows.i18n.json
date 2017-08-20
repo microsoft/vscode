@@ -13,5 +13,7 @@
 	"appStalled": "La ventana ha dejado de responder.",
 	"appStalledDetail": "Puede volver a abrir la ventana, cerrarla o seguir esperando.",
 	"appCrashed": "La ventana se bloqueó",
-	"appCrashedDetail": "Sentimos las molestias. Puede volver a abrir la ventana para continuar donde se detuvo."
+	"appCrashedDetail": "Sentimos las molestias. Puede volver a abrir la ventana para continuar donde se detuvo.",
+	"openFile": "Abrir archivo",
+	"openFolder": "Abrir carpeta"
 }

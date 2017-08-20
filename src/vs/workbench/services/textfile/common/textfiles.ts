@@ -266,7 +266,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
-	 * @return true iff the resource was saved.
+	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
@@ -274,7 +274,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the provided resource asking the user for a file name.
 	 *
 	 * @param resource the resource to save as.
-	 * @return true iff the file was saved.
+	 * @return true if the file was saved.
 	 */
 	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
@@ -293,7 +293,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
-	revert(resource: URI, force?: boolean): TPromise<boolean>;
+	revert(resource: URI, options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Reverts all the provided resources and returns a promise with the operation result.

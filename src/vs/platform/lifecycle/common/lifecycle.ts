@@ -96,3 +96,34 @@ export const NullLifecycleService: ILifecycleService = {
 	onWillShutdown: Event.None,
 	onShutdown: Event.None
 };
+
+// Shared veto handling across main and renderer
+export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+	if (vetos.length === 0) {
+		return TPromise.as(false);
+	}
+
+	const promises: TPromise<void>[] = [];
+	let lazyValue = false;
+
+	for (let valueOrPromise of vetos) {
+
+		// veto, done
+		if (valueOrPromise === true) {
+			return TPromise.as(true);
+		}
+
+		if (TPromise.is(valueOrPromise)) {
+			promises.push(valueOrPromise.then(value => {
+				if (value) {
+					lazyValue = true; // veto, done
+				}
+			}, err => {
+				onError(err); // error, treated like a veto, done
+				lazyValue = true;
+			}));
+		}
+	}
+
+	return TPromise.join(promises).then(() => lazyValue);
+}

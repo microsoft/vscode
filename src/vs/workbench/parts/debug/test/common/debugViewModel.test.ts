@@ -12,7 +12,7 @@ suite('Debug - View Model', () => {
 	let model: ViewModel;
 
 	setup(() => {
-		model = new ViewModel('mockconfiguration');
+		model = new ViewModel();
 	});
 
 	teardown(() => {
@@ -26,7 +26,7 @@ suite('Debug - View Model', () => {
 		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, mockSession);
 		const thread = new Thread(process, 'myThread', 1);
 		const frame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: undefined, endLineNumber: undefined }, 0);
-		model.setFocusedStackFrame(frame, process);
+		model.setFocusedStackFrame(frame, process, false);
 
 		assert.equal(model.focusedStackFrame.getId(), frame.getId());
 		assert.equal(model.focusedThread.threadId, 1);
@@ -46,14 +46,5 @@ suite('Debug - View Model', () => {
 		assert.equal(model.isMultiProcessView(), false);
 		model.setMultiProcessView(true);
 		assert.equal(model.isMultiProcessView(), true);
-	});
-
-	test('selected configuration name', () => {
-		model.onDidSelectConfiguration(name => {
-			assert.equal(name, 'configName');
-		});
-		assert.equal(model.selectedConfigurationName, 'mockconfiguration');
-		model.setSelectedConfigurationName('configName');
-		assert.equal(model.selectedConfigurationName, 'configName');
 	});
 });

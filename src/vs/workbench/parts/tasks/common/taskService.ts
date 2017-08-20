@@ -21,6 +21,7 @@ export namespace TaskServiceEvents {
 	export let Inactive: string = 'inactive';
 	export let ConfigChanged: string = 'configChanged';
 	export let Terminated: string = 'terminated';
+	export let Changed: string = 'changed';
 }
 
 export interface ITaskProvider {
@@ -29,6 +30,11 @@ export interface ITaskProvider {
 
 export interface RunOptions {
 	attachProblemMatcher?: boolean;
+}
+
+export interface CustomizationProperties {
+	group?: string | { kind?: string; isDefault?: boolean; };
+	problemMatcher?: string | string[];
 }
 
 export interface ITaskService extends IEventEmitter {
@@ -54,7 +60,7 @@ export interface ITaskService extends IEventEmitter {
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
 
 	canCustomize(): boolean;
-	customize(task: Task, properties?: { problemMatcher: string | string[] }, openConfig?: boolean): TPromise<void>;
+	customize(task: Task, properties?: {}, openConfig?: boolean): TPromise<void>;
 
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;

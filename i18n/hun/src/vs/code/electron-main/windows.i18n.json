@@ -13,5 +13,7 @@
 	"appStalled": "Az ablak nem válaszol",
 	"appStalledDetail": "Bezárhatja vagy újranyithatja az ablakot vagy várakozhat tovább.",
 	"appCrashed": "Az ablak összeomlott",
-	"appCrashedDetail": "Elnézést kérünk az okozott kellemetlenségért. Nyissa újra az ablakot, ha onnan szeretné folytatni a munkát, ahol abbahagyta."
+	"appCrashedDetail": "Elnézést kérünk az okozott kellemetlenségért. Nyissa újra az ablakot, ha onnan szeretné folytatni a munkát, ahol abbahagyta.",
+	"openFile": "Fájl megnyitása",
+	"openFolder": "Mappa megnyitása"
 }

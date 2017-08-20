@@ -6,6 +6,5 @@
 {
 	"newWindow": "Neues Fenster",
 	"newWindowDesc": "Öffnet ein neues Fenster.",
-	"recentFolders": "Zuletzt verwendete Ordner",
 	"folderDesc": "{0} {1}"
 }

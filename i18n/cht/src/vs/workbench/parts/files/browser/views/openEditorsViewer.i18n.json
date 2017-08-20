@@ -7,6 +7,7 @@
 	"editorGroupAriaLabel": "{0}，編輯器群組",
 	"openEditorAriaLabel": "{0}，開啟編輯器",
 	"saveAll": "全部儲存",
+	"closeAllUnmodified": "關閉未變更的檔案",
 	"closeAll": "全部關閉",
 	"close": "關閉",
 	"closeOthers": "關閉其他"

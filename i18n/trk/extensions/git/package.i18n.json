@@ -9,6 +9,7 @@
 	"command.refresh": "Yenile",
 	"command.openChange": "Değişiklikleri Aç",
 	"command.openFile": "Dosya Aç",
+	"command.openHEADFile": "Dosya Aç (HEAD)",
 	"command.stage": "Değişiklikleri Hazırla",
 	"command.stageAll": "Tüm Değişiklikleri Hazırla",
 	"command.stageSelectedRanges": "Seçili Aralığı Hazırla",
@@ -27,13 +28,16 @@
 	"command.checkout": "Geçiş yap...",
 	"command.branch": "Dal Oluştur...",
 	"command.deleteBranch": "Dalı Sil...",
+	"command.merge": "Dalı Birleştir...",
 	"command.pull": "Çek",
 	"command.pullRebase": "Çek (Yeniden Adresle)",
+	"command.pullFrom": "Şuradan Çek...",
 	"command.push": "Gönder",
 	"command.pushTo": "Gönder...",
 	"command.sync": "Senkronize Et",
 	"command.publish": "Dalı Yayınla",
 	"command.showOutput": "Git Çıktısını Göster",
+	"command.ignore": ".gitignore'a Dosya Ekle",
 	"config.enabled": "Git'in etkinleştirilip etkinleştirilmediği",
 	"config.path": "Çalıştırılabilir Git dosyasının yolu",
 	"config.autorefresh": "Otomatik yenilemenin etkinleştirilip etkinleştirilmediği",
@@ -44,5 +48,6 @@
 	"config.checkoutType": "`Geçiş Yap...` çalıştırılırken listelenecek dal türlerini denetler. `all` tüm başvuruları gösterir, `local` sadece yerel dalları gösterir, `tags` sadece etiketleri gösterir ve `remote` sadece uzak uçbirim dallarını gösterir.",
 	"config.ignoreLegacyWarning": "Eski Git uyarısını görmezden gelir",
 	"config.ignoreLimitWarning": "Bir depoda çok fazla değişiklik var uyarısını görmezden gelir",
-	"config.defaultCloneDirectory": "Bir git deposunun kopyalanacağı varsayılan konum"
+	"config.defaultCloneDirectory": "Bir git deposunun kopyalanacağı varsayılan konum",
+	"config.enableSmartCommit": "Hazırlanan değişiklik yoksa tüm değişiklikleri commit'le."
 }

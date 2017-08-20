@@ -18,7 +18,7 @@ export function makeRandomHexString(length: number): string {
 	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
-		let idx = Math.floor(chars.length * Math.random());
+		const idx = Math.floor(chars.length * Math.random());
 		result += chars[idx];
 	}
 	return result;
@@ -27,6 +27,7 @@ export function makeRandomHexString(length: number): string {
 function generatePipeName(): string {
 	return getPipeName(makeRandomHexString(40));
 }
+
 function getPipeName(name: string): string {
 	const fullName = 'vscode-' + name;
 	if (process.platform === 'win32') {
@@ -43,19 +44,22 @@ export function getTempFile(name: string): string {
 }
 
 
-function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: string, stdErrPipeName: string): any {
+function generatePatchedEnv(
+	env: any,
+	stdInPipeName: string,
+	stdOutPipeName: string,
+	stdErrPipeName: string
+): any {
+	const newEnv = Object.assign({}, env);
+
 	// Set the two unique pipe names and the electron flag as process env
-
-	var newEnv: any = {};
-	for (var key in env) {
-		newEnv[key] = env[key];
-	}
-
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
 	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
 	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
 
+	// Ensure we always have a PATH set
+	newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
 	return newEnv;
 }
 
@@ -67,7 +71,7 @@ export function fork(
 	callback: (error: any, cp: cp.ChildProcess | null) => void,
 ): void {
 
-	var callbackCalled = false;
+	let callbackCalled = false;
 	const resolve = (result: cp.ChildProcess) => {
 		if (callbackCalled) {
 			return;
@@ -90,7 +94,7 @@ export function fork(
 
 
 	const newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
-	var childProcess: cp.ChildProcess;
+	let childProcess: cp.ChildProcess;
 
 	// Begin listening to stderr pipe
 	let stdErrServer = net.createServer((stdErrStream) => {
@@ -115,7 +119,7 @@ export function fork(
 	});
 	stdOutServer.listen(stdOutPipeName);
 
-	var serverClosed = false;
+	let serverClosed = false;
 	const closeServer = () => {
 		if (serverClosed) {
 			return;
@@ -128,8 +132,8 @@ export function fork(
 	// Create the process
 	logger.info('Forking TSServer', `PATH: ${newEnv['PATH']}`);
 
-	const bootstrapperPath = path.join(__dirname, 'electronForkStart');
-	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), <any>{
+	const bootstrapperPath = require.resolve('./electronForkStart');
+	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), {
 		silent: true,
 		cwd: options.cwd,
 		env: newEnv,

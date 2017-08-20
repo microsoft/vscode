@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileChangeType } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -42,12 +42,16 @@ import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextModelService, ITextModelContentProvider } from "vs/editor/common/services/resolverService";
+import { IModelService } from "vs/editor/common/services/modelService";
+import { IModeService } from "vs/editor/common/services/modeService";
+import { IMode } from "vs/editor/common/modes";
 
 export interface IEditableData {
 	action: IAction;
@@ -213,7 +217,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 			});
 		}).done(null, errors.onUnexpectedError);
 
-		return undefined;
+		return void 0;
 	}
 }
 
@@ -846,7 +850,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					if (!overwrite) {
-						return undefined;
+						return void 0;
 					}
 
 					// Run import in sequence
@@ -879,7 +883,8 @@ export class ImportFileAction extends BaseFileAction {
 					return sequence(importPromisesFactory);
 				});
 			}
-			return undefined;
+
+			return void 0;
 		});
 
 		return importPromise.then(() => {
@@ -1042,7 +1047,8 @@ export class DuplicateFileAction extends BaseFileAction {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
-			return undefined;
+
+			return void 0;
 		}, error => this.onError(error));
 
 		return result;
@@ -1240,24 +1246,36 @@ export class CompareResourcesAction extends Action {
 	constructor(
 		resource: URI,
 		tree: ITree,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel());
+		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel(resource, contextService, environmentService));
 
 		this.tree = tree;
 		this.resource = resource;
 	}
 
-	private static computeLabel(): string {
+	private static computeLabel(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
 		if (globalResourceToCompare) {
-			return nls.localize('compareWith', "Compare with '{0}'", paths.basename(globalResourceToCompare.fsPath));
+			let leftResourceName = paths.basename(globalResourceToCompare.fsPath);
+			let rightResourceName = paths.basename(resource.fsPath);
+
+			// If the file names are identical, add more context by looking at the parent folder
+			if (leftResourceName === rightResourceName) {
+				const folderPaths = labels.shorten([
+					labels.getPathLabel(paths.dirname(globalResourceToCompare.fsPath), contextService, environmentService),
+					labels.getPathLabel(paths.dirname(resource.fsPath), contextService, environmentService)
+				]);
+
+				leftResourceName = paths.join(folderPaths[0], leftResourceName);
+				rightResourceName = paths.join(folderPaths[1], rightResourceName);
+			}
+
+			return nls.localize('compareWith', "Compare '{0}' with '{1}'", leftResourceName, rightResourceName);
 		}
 
 		return nls.localize('compareFiles', "Compare Files");
-	}
-
-	public getLabel(): string {
-		return CompareResourcesAction.computeLabel();
 	}
 
 	_isEnabled(): boolean {
@@ -1269,11 +1287,14 @@ export class CompareResourcesAction extends Action {
 
 		// Check if file was deleted or moved meanwhile (explorer only)
 		if (this.tree) {
-			const input: FileStat | Model = this.tree.getInput();
-			const exists = input instanceof Model ? input.findFirst(globalResourceToCompare) : input.find(globalResourceToCompare);
-			if (!exists) {
-				globalResourceToCompare = null;
-				return false;
+			const input = this.tree.getInput();
+			if (input instanceof FileStat || input instanceof Model) {
+				const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
+				if (!exists) {
+					globalResourceToCompare = null;
+
+					return false;
+				}
 			}
 		}
 
@@ -1317,7 +1338,10 @@ export abstract class BaseSaveFileAction extends BaseErrorReportingAction {
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.doRun(context).then(() => true, error => this.onError(error));
+		return this.doRun(context).then(() => true, error => {
+			this.onError(error);
+			return null;
+		});
 	}
 
 	protected abstract doRun(context?: any): TPromise<boolean>;
@@ -1395,7 +1419,7 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 
 				return savePromise.then((target) => {
 					if (!target || target.toString() === source.toString()) {
-						return undefined; // save canceled or same resource used
+						return void 0; // save canceled or same resource used
 					}
 
 					const replaceWith: IResourceInput = {
@@ -1566,7 +1590,8 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 			if (untitledToReopen.length) {
 				return this.editorService.openEditors(untitledToReopen).then(() => true);
 			}
-			return undefined;
+
+			return void 0;
 		});
 	}
 
@@ -1671,7 +1696,7 @@ export class RevertFileAction extends Action {
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, true /* force */);
+			return this.textFileService.revert(resource, { force: true });
 		}
 
 		return TPromise.as(true);
@@ -1821,7 +1846,7 @@ export class OpenFileAction extends Action {
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-		return this.windowService.pickFileAndOpen(false, fileResource ? paths.dirname(fileResource.fsPath) : void 0, data);
+		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
 	}
 }
 
@@ -1843,7 +1868,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true });
+			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
@@ -1988,6 +2013,114 @@ export function getWellFormedFileName(filename: string): string {
 	filename = strings.rtrim(filename, '.');
 
 	return filename;
+}
+
+export class CompareWithSavedAction extends Action implements ITextModelContentProvider {
+
+	public static ID = 'workbench.files.action.compareWithSaved';
+	public static LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
+
+	private static SCHEME = 'showModifications';
+
+	private resource: URI;
+	private fileWatcher: IDisposable;
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IFileService private fileService: IFileService,
+		@IMessageService messageService: IMessageService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService
+	) {
+		super(id, label);
+
+		textModelService.registerTextModelContentProvider(CompareWithSavedAction.SCHEME, this);
+
+		this.enabled = true;
+	}
+
+	public setResource(resource: URI) {
+		this.resource = resource;
+	}
+
+	public run(): TPromise<any> {
+		let resource: URI;
+		if (this.resource) {
+			resource = this.resource;
+		} else {
+			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		}
+
+		if (resource && resource.scheme === 'file') {
+			const name = paths.basename(resource.fsPath);
+			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
+
+			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithSavedAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+		}
+
+		return TPromise.as(true);
+	}
+
+	public provideTextContent(resource: URI): TPromise<IModel> {
+
+		// Make sure our file from disk is resolved up to date
+		return this.resolveEditorModel(resource).then(codeEditorModel => {
+
+			// Make sure to keep contents on disk up to date when it changes
+			if (!this.fileWatcher) {
+				this.fileWatcher = this.fileService.onFileChanges(changes => {
+					if (changes.contains(resource, FileChangeType.UPDATED)) {
+						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, errors.onUnexpectedError); // update model when resource changes
+					}
+				});
+
+				const disposeListener = codeEditorModel.onWillDispose(() => {
+					disposeListener.dispose();
+					this.fileWatcher.dispose();
+					this.fileWatcher = void 0;
+				});
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
+
+		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
+			let codeEditorModel = this.modelService.getModel(resource);
+			if (codeEditorModel) {
+				this.modelService.updateModel(codeEditorModel, content.value);
+			} else if (createAsNeeded) {
+				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
+
+				let mode: TPromise<IMode>;
+				if (fileOnDiskModel) {
+					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+				} else {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+				}
+
+				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		if (this.fileWatcher) {
+			this.fileWatcher.dispose();
+			this.fileWatcher = void 0;
+		}
+	}
 }
 
 // Diagnostics support

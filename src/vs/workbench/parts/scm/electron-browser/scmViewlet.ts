@@ -197,6 +197,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		if (icon) {
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+			template.decorationIcon.title = resource.decorations.tooltip;
 		} else {
 			template.decorationIcon.style.backgroundImage = '';
 		}
