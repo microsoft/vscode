@@ -11,7 +11,6 @@ import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -23,225 +22,240 @@ import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { createServer, Server } from 'net';
+import { createServer, Server, Socket } from 'net';
 import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { IExtensionService } from "vs/platform/extensions/common/extensions";
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
 import { isEqual } from "vs/base/common/paths";
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, ILogEntry, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from "vs/platform/extensions/common/extensionHost";
-
-export class LazyMessagePassingProtol implements IMessagePassingProtocol {
-
-	private _delegate: IMessagePassingProtocol;
-	private _onMessage = new Emitter<any>();
-	private _buffer: any[] = [];
-
-	readonly onMessage: Event<any> = this._onMessage.event;
-
-	send(msg: any): void {
-		if (this._delegate) {
-			this._delegate.send(msg);
-		} else {
-			this._buffer.push(msg);
-		}
-	}
-
-	resolve(delegate: IMessagePassingProtocol): void {
-		this._delegate = delegate;
-		this._delegate.onMessage(data => this._onMessage.fire(data));
-		this._buffer.forEach(this._delegate.send, this._delegate);
-		this._buffer = null;
-	}
-}
+import { IDisposable, dispose } from "vs/base/common/lifecycle";
 
 export class ExtensionHostProcessWorker {
 
-	private extensionHostProcess: ChildProcess;
+	private _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
+	public readonly onCrashed: Event<[number, string]> = this._onCrashed.event;
 
-	private lastExtensionHostError: string;
-	private terminating: boolean;
+	private readonly _toDispose: IDisposable[];
 
-	private isExtensionDevelopmentHost: boolean;
-	private isExtensionDevelopmentTestFromCli: boolean;
-	private isExtensionDevelopmentDebug: boolean;
-	private isExtensionDevelopmentDebugBrk: boolean;
+	private readonly _isExtensionDevHost: boolean;
+	private readonly _isExtensionDevDebug: boolean;
+	private readonly _isExtensionDevDebugBrk: boolean;
+	private readonly _isExtensionDevTestFromCli: boolean;
 
-	readonly messagingProtocol = new LazyMessagePassingProtol();
+	// State
+	private _lastExtensionHostError: string;
+	private _terminating: boolean;
 
-	private extensionService: ExtensionService;
+	// Resources, in order they get acquired/created when .start() is called:
+	private _namedPipeServer: Server;
+	private _extensionHostProcess: ChildProcess;
+	private _extensionHostConnection: Socket;
+	private _messageProtocol: TPromise<IMessagePassingProtocol>;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWindowService private windowService: IWindowService,
-		@IBroadcastService private broadcastService: IBroadcastService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@ICrashReporterService private crashReporterService: ICrashReporterService
-
+		/* intentionally not injected */private readonly _extensionService: IExtensionService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IWindowService private readonly _windowService: IWindowService,
+		@IBroadcastService private readonly _broadcastService: IBroadcastService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
-		this.isExtensionDevelopmentDebug = (typeof environmentService.debugExtensionHost.port === 'number');
-		this.isExtensionDevelopmentDebugBrk = !!environmentService.debugExtensionHost.break;
-		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
+		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
+		this._isExtensionDevDebug = (typeof this._environmentService.debugExtensionHost.port === 'number');
+		this._isExtensionDevDebugBrk = !!this._environmentService.debugExtensionHost.break;
+		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;
 
-		lifecycleService.onWillShutdown(this._onWillShutdown, this);
-		lifecycleService.onShutdown(reason => this.terminate());
+		this._lastExtensionHostError = null;
+		this._terminating = false;
 
-		broadcastService.onBroadcast(b => this.onBroadcast(b));
+		this._namedPipeServer = null;
+		this._extensionHostProcess = null;
+		this._extensionHostConnection = null;
+		this._messageProtocol = null;
+
+		this._toDispose = [];
+		this._toDispose.push(this._onCrashed);
+		this._toDispose.push(this._lifecycleService.onWillShutdown((e) => this._onWillShutdown(e)));
+		this._toDispose.push(this._lifecycleService.onShutdown(reason => this.terminate()));
+		this._toDispose.push(this._broadcastService.onBroadcast(b => this._onBroadcast(b)));
+
+		const globalExitListener = () => this.terminate();
+		process.once('exit', globalExitListener);
+		this._toDispose.push({
+			dispose: () => {
+				process.removeListener('exit', globalExitListener);
+			}
+		});
 	}
 
-	private onBroadcast(broadcast: IBroadcast): void {
+	public dispose(): void {
+		this.terminate();
+	}
+
+	private _onBroadcast(broadcast: IBroadcast): void {
 
 		// Close Ext Host Window Request
-		if (broadcast.channel === EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL && this.isExtensionDevelopmentHost) {
+		if (broadcast.channel === EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL && this._isExtensionDevHost) {
 			const extensionPaths = broadcast.payload as string[];
-			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
-				this.windowService.closeWindow();
+			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this._environmentService.extensionDevelopmentPath, path, !isLinux))) {
+				this._windowService.closeWindow();
 			}
 		}
 
-		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this.isExtensionDevelopmentHost) {
+		if (broadcast.channel === EXTENSION_RELOAD_BROADCAST_CHANNEL && this._isExtensionDevHost) {
 			const extensionPaths = broadcast.payload as string[];
-			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this.environmentService.extensionDevelopmentPath, path, !isLinux))) {
-				this.windowService.reloadWindow();
+			if (Array.isArray(extensionPaths) && extensionPaths.some(path => isEqual(this._environmentService.extensionDevelopmentPath, path, !isLinux))) {
+				this._windowService.reloadWindow();
 			}
 		}
 	}
 
-	public start(extensionService: ExtensionService): TPromise<IMessagePassingProtocol> {
-		this.extensionService = extensionService;
+	public start(): TPromise<IMessagePassingProtocol> {
+		if (this._terminating) {
+			// .terminate() was called
+			return null;
+		}
 
-		return TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
-			const [server, hook] = <[Server, string]>data[0];
-			const port = <number>data[1];
+		if (!this._messageProtocol) {
+			this._messageProtocol = TPromise.join<any>([this._tryListenOnPipe(), this._tryFindDebugPort()]).then((data: [string, number]) => {
+				const pipeName = data[0];
+				// The port will be 0 if there's no need to debug or if a free port was not found
+				const port = data[1];
 
-			const opts = {
-				env: objects.mixin(objects.clone(process.env), {
-					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: true,
-					VSCODE_WINDOW_ID: String(this.windowService.getCurrentWindowId()),
-					VSCODE_IPC_HOOK_EXTHOST: hook,
-					ELECTRON_NO_ASAR: '1'
-				}),
-				// We only detach the extension host on windows. Linux and Mac orphan by default
-				// and detach under Linux and Mac create another process group.
-				// We detach because we have noticed that when the renderer exits, its child processes
-				// (i.e. extension host) is taken down in a brutal fashion by the OS
-				detached: !!isWindows,
-				execArgv: port
-					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--inspect-brk=' : '--inspect=') + port]
-					: undefined,
-				silent: true
-			};
+				const opts = {
+					env: objects.mixin(objects.clone(process.env), {
+						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
+						PIPE_LOGGING: 'true',
+						VERBOSE_LOGGING: true,
+						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
+						VSCODE_IPC_HOOK_EXTHOST: pipeName,
+						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
+						ELECTRON_NO_ASAR: '1'
+					}),
+					// We only detach the extension host on windows. Linux and Mac orphan by default
+					// and detach under Linux and Mac create another process group.
+					// We detach because we have noticed that when the renderer exits, its child processes
+					// (i.e. extension host) are taken down in a brutal fashion by the OS
+					detached: !!isWindows,
+					execArgv: port
+						? ['--nolazy', (this._isExtensionDevDebugBrk ? '--inspect-brk=' : '--inspect=') + port]
+						: undefined,
+					silent: true
+				};
 
-			const crashReporterOptions = this.crashReporterService.getChildProcessStartOptions('extensionHost');
-			if (crashReporterOptions) {
-				opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
-			}
-
-			// Run Extension Host as fork of current process
-			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
-
-			// Catch all output coming from the extension host process
-			type Output = { data: string, format: string[] };
-			this.extensionHostProcess.stdout.setEncoding('utf8');
-			this.extensionHostProcess.stderr.setEncoding('utf8');
-			const onStdout = fromEventEmitter<string>(this.extensionHostProcess.stdout, 'data');
-			const onStderr = fromEventEmitter<string>(this.extensionHostProcess.stderr, 'data');
-			const onOutput = any(
-				mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-				mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
-			);
-
-			// Debounce all output, so we can render it in the Chrome console as a group
-			const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
-				return r
-					? { data: r.data + o.data, format: [...r.format, ...o.format] }
-					: { data: o.data, format: o.format };
-			}, 100);
-
-			// Print out extension host output
-			onDebouncedOutput(data => {
-				console.group('Extension Host');
-				console.log(data.data, ...data.format);
-				console.groupEnd();
-			});
-
-			// Support logging from extension host
-			this.extensionHostProcess.on('message', msg => {
-				if (msg && (<ILogEntry>msg).type === '__$console') {
-					this.logExtensionHostMessage(<ILogEntry>msg);
+				const crashReporterOptions = this._crashReporterService.getChildProcessStartOptions('extensionHost');
+				if (crashReporterOptions) {
+					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
 				}
-			});
 
-			// Lifecycle
-			let onExit = () => this.terminate();
-			process.once('exit', onExit);
-			this.extensionHostProcess.on('error', (err) => this.onError(err));
-			this.extensionHostProcess.on('exit', (code: any, signal: any) => this.onExit(code, signal, onExit));
+				// Run Extension Host as fork of current process
+				this._extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
 
-			// Notify debugger that we are ready to attach to the process if we run a development extension
-			if (this.isExtensionDevelopmentHost && port) {
-				this.broadcastService.broadcast({
-					channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
-					payload: {
-						debugId: this.environmentService.debugExtensionHost.debugId,
-						port
+				// Catch all output coming from the extension host process
+				type Output = { data: string, format: string[] };
+				this._extensionHostProcess.stdout.setEncoding('utf8');
+				this._extensionHostProcess.stderr.setEncoding('utf8');
+				const onStdout = fromEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = fromEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onOutput = any(
+					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
+					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+				);
+
+				// Debounce all output, so we can render it in the Chrome console as a group
+				const onDebouncedOutput = debounceEvent<Output>(onOutput, (r, o) => {
+					return r
+						? { data: r.data + o.data, format: [...r.format, ...o.format] }
+						: { data: o.data, format: o.format };
+				}, 100);
+
+				// Print out extension host output
+				onDebouncedOutput(data => {
+					console.group('Extension Host');
+					console.log(data.data, ...data.format);
+					console.groupEnd();
+				});
+
+				// Support logging from extension host
+				this._extensionHostProcess.on('message', msg => {
+					if (msg && (<ILogEntry>msg).type === '__$console') {
+						this._logExtensionHostMessage(<ILogEntry>msg);
 					}
 				});
-			}
 
-			// Help in case we fail to start it
-			let startupTimeoutHandle: number;
-			if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
-				startupTimeoutHandle = setTimeout(() => {
-					const msg = this.isExtensionDevelopmentDebugBrk
-						? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-						: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+				// Lifecycle
+				this._extensionHostProcess.on('error', (err) => this._onExtHostProcessError(err));
+				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
-					this.messageService.show(Severity.Warning, msg);
-				}, 10000);
-			}
+				// Notify debugger that we are ready to attach to the process if we run a development extension
+				if (this._isExtensionDevHost && port) {
+					this._broadcastService.broadcast({
+						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
+						payload: {
+							debugId: this._environmentService.debugExtensionHost.debugId,
+							port
+						}
+					});
+				}
 
-			// Initialize extension host process with hand shakes
-			return this.tryExtHostHandshake(server).then((protocol) => {
-				clearTimeout(startupTimeoutHandle);
-				return protocol;
+				// Help in case we fail to start it
+				let startupTimeoutHandle: number;
+				if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
+					startupTimeoutHandle = setTimeout(() => {
+						const msg = this._isExtensionDevDebugBrk
+							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+
+						this._messageService.show(Severity.Warning, msg);
+					}, 10000);
+				}
+
+				// Initialize extension host process with hand shakes
+				return this._tryExtHostHandshake().then((protocol) => {
+					clearTimeout(startupTimeoutHandle);
+					return protocol;
+				});
+			});
+		}
+
+		return this._messageProtocol;
+	}
+
+	/**
+	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
+	 */
+	private _tryListenOnPipe(): TPromise<string> {
+		return new TPromise<string>((resolve, reject) => {
+			const pipeName = generateRandomPipeName();
+
+			this._namedPipeServer = createServer();
+			this._namedPipeServer.on('error', reject);
+			this._namedPipeServer.listen(pipeName, () => {
+				this._namedPipeServer.removeListener('error', reject);
+				resolve(pipeName);
 			});
 		});
 	}
 
-	private tryListenOnPipe(): TPromise<[Server, string]> {
-		return new TPromise<[Server, string]>((resolve, reject) => {
-			const server = createServer();
-			server.on('error', reject);
-			const hook = generateRandomPipeName();
-			server.listen(hook, () => {
-				server.removeListener('error', reject);
-				resolve([server, hook]);
-			});
-		});
-	}
-
-	private tryFindDebugPort(): TPromise<number> {
-		const extensionHostPort = this.environmentService.debugExtensionHost.port;
+	/**
+	 * Find a free port if extension host debugging is enabled.
+	 */
+	private _tryFindDebugPort(): TPromise<number> {
+		const extensionHostPort = this._environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
-			return TPromise.wrap<number>(void 0);
+			return TPromise.wrap<number>(0);
 		}
 		return new TPromise<number>((c, e) => {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
@@ -252,7 +266,7 @@ export class ExtensionHostProcessWorker {
 				if (port !== extensionHostPort) {
 					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
 				}
-				if (this.isExtensionDevelopmentDebugBrk) {
+				if (this._isExtensionDevDebugBrk) {
 					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
 				} else {
 					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
@@ -262,61 +276,90 @@ export class ExtensionHostProcessWorker {
 		});
 	}
 
-	private tryExtHostHandshake(server: Server): TPromise<IMessagePassingProtocol> {
+	private _tryExtHostHandshake(): TPromise<IMessagePassingProtocol> {
 
 		return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
-			let handle = setTimeout(() => reject('timeout'), 60 * 1000);
-			server.on('connection', socket => {
+
+			// Wait for the extension host to connect to our named pipe
+			// and wrap the socket in the message passing protocol
+			let handle = setTimeout(() => {
+				this._namedPipeServer.close();
+				this._namedPipeServer = null;
+				reject('timeout');
+			}, 60 * 1000);
+
+			this._namedPipeServer.on('connection', socket => {
 				clearTimeout(handle);
-				const protocol = new Protocol(socket);
-				resolve(protocol);
+				this._namedPipeServer.close();
+				this._namedPipeServer = null;
+				this._extensionHostConnection = socket;
+				resolve(new Protocol(this._extensionHostConnection));
 			});
-			// }).then(protocol => {
-			// 	return protocol;
 
-		}).then(protocol => {
+		}).then((protocol) => {
 
+			// 1) wait for the incoming `ready` event and send the initialization data.
+			// 2) wait for the incoming `initialized` event.
 			return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
-				protocol.onMessage(msg => {
+
+				let handle = setTimeout(() => {
+					reject('timeout');
+				}, 60 * 1000);
+
+				const disposable = protocol.onMessage(msg => {
+
 					if (msg === 'ready') {
-						// 1) Host is ready to receive messages, initialize it
-						return this.createExtHostInitData().then(data => protocol.send(stringify(data)));
-					} else if (msg === 'initialized') {
-						// 2) Host is initialized
-						this.messagingProtocol.resolve(protocol);
-						resolve(protocol);
+						// 1) Extension Host is ready to receive messages, initialize it
+						this._createExtHostInitData().then(data => protocol.send(stringify(data)));
+						return;
 					}
-					return undefined;
+
+					if (msg === 'initialized') {
+						// 2) Extension Host is initialized
+
+						clearTimeout(handle);
+
+						// stop listening for messages here
+						disposable.dispose();
+
+						// release this promise
+						resolve(protocol);
+						return;
+					}
+
+					console.error(`received unexpected message during handshake phase from the extension host: `, msg);
 				});
+
 			});
+
 		});
 	}
 
-	private createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join<any>([this.telemetryService.getTelemetryInfo(), this.extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
-			let r: IInitData = {
+	private _createExtHostInitData(): TPromise<IInitData> {
+		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
-					isExtensionDevelopmentDebug: this.isExtensionDevelopmentDebug,
-					appSettingsHome: this.environmentService.appSettingsHome,
-					disableExtensions: this.environmentService.disableExtensions,
-					userExtensionsHome: this.environmentService.extensionsPath,
-					extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
-					extensionTestsPath: this.environmentService.extensionTestsPath,
+					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
+					appSettingsHome: this._environmentService.appSettingsHome,
+					disableExtensions: this._environmentService.disableExtensions,
+					userExtensionsHome: this._environmentService.extensionsPath,
+					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
+					extensionTestsPath: this._environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApiForAll: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
-					enableProposedApiFor: this.environmentService.args['enable-proposed-api'] || []
+					enableProposedApiForAll: !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
+					enableProposedApiFor: this._environmentService.args['enable-proposed-api'] || []
 				},
-				workspace: <IWorkspaceData>this.contextService.getWorkspace(),
+				workspace: <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
-				configuration: this.configurationService.getConfigurationData(),
+				configuration: this._configurationService.getConfigurationData(),
 				telemetryInfo
 			};
 			return r;
 		});
 	}
 
-	private logExtensionHostMessage(logEntry: ILogEntry) {
+	private _logExtensionHostMessage(logEntry: ILogEntry) {
 		let args = [];
 		try {
 			let parsed = JSON.parse(logEntry.arguments);
@@ -336,83 +379,105 @@ export class ExtensionHostProcessWorker {
 		}
 
 		// Send to local console unless we run tests from cli
-		if (!this.isExtensionDevelopmentTestFromCli) {
+		if (!this._isExtensionDevTestFromCli) {
 			console[logEntry.severity].apply(console, consoleArgs);
 		}
 
 		// Log on main side if running tests from cli
-		if (this.isExtensionDevelopmentTestFromCli) {
-			this.windowsService.log(logEntry.severity, ...args);
+		if (this._isExtensionDevTestFromCli) {
+			this._windowsService.log(logEntry.severity, ...args);
 		}
 
 		// Broadcast to other windows if we are in development mode
-		else if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
-			this.broadcastService.broadcast({
+		else if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
+			this._broadcastService.broadcast({
 				channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 				payload: {
 					logEntry,
-					debugId: this.environmentService.debugExtensionHost.debugId
+					debugId: this._environmentService.debugExtensionHost.debugId
 				}
 			});
 		}
 	}
 
-	private onError(err: any): void {
+	private _onExtHostProcessError(err: any): void {
 		let errorMessage = toErrorMessage(err);
-		if (errorMessage === this.lastExtensionHostError) {
+		if (errorMessage === this._lastExtensionHostError) {
 			return; // prevent error spam
 		}
 
-		this.lastExtensionHostError = errorMessage;
+		this._lastExtensionHostError = errorMessage;
 
-		this.messageService.show(Severity.Error, nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
+		this._messageService.show(Severity.Error, nls.localize('extensionHostProcess.error', "Error from the extension host: {0}", errorMessage));
 	}
 
-	private onExit(code: any, signal: any, onProcessExit: any): void {
-		process.removeListener('exit', onProcessExit);
+	private _onExtHostProcessExit(code: number, signal: string): void {
+		if (this._terminating) {
+			// Expected termination path (we asked the process to terminate)
+			return;
+		}
 
-		if (!this.terminating) {
+		// Unexpected termination
+		if (!this._isExtensionDevHost) {
+			this._onCrashed.fire([code, signal]);
+		}
 
-			// Unexpected termination
-			if (!this.isExtensionDevelopmentHost) {
-				const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, async (): TPromise<boolean> => {
-					await this.windowService.openDevTools();
-					return false;
-				});
+		// Expected development extension termination: When the extension host goes down we also shutdown the window
+		else if (!this._isExtensionDevTestFromCli) {
+			this._windowService.closeWindow();
+		}
 
-				let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover.");
-				if (code === 87) {
-					message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive. Please reload the window to recover.");
-				}
-				this.messageService.show(Severity.Error, {
-					message: message,
-					actions: [
-						openDevTools,
-						this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)
-					]
-				});
-
-				console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-			}
-
-			// Expected development extension termination: When the extension host goes down we also shutdown the window
-			else if (!this.isExtensionDevelopmentTestFromCli) {
-				this.windowService.closeWindow();
-			}
-
-			// When CLI testing make sure to exit with proper exit code
-			else {
-				ipc.send('vscode:exit', code);
-			}
+		// When CLI testing make sure to exit with proper exit code
+		else {
+			ipc.send('vscode:exit', code);
 		}
 	}
 
 	public terminate(): void {
-		this.terminating = true;
-		if (this.extensionHostProcess) {
-			this.messagingProtocol.send({
+		if (this._terminating) {
+			return;
+		}
+		this._terminating = true;
+
+		dispose(this._toDispose);
+
+		if (!this._messageProtocol) {
+			// .start() was not called
+			return;
+		}
+
+		this._messageProtocol.then((protocol) => {
+
+			// Send the extension host a request to terminate itself
+			// (graceful termination)
+			protocol.send({
 				type: '__$terminate'
 			});
+
+			// Give the extension host 60s, after which we will
+			// try to kill the process and release any resources
+			setTimeout(() => this._cleanResources(), 60 * 1000);
+
+		}, (err) => {
+
+			// Establishing a protocol with the extension host failed, so
+			// try to kill the process and release any resources.
+			this._cleanResources();
+		});
+	}
+
+	private _cleanResources(): void {
+		if (this._namedPipeServer) {
+			this._namedPipeServer.close();
+			this._namedPipeServer = null;
+		}
+		if (this._extensionHostConnection) {
+			this._extensionHostConnection.end();
+			this._extensionHostConnection = null;
+		}
+		if (this._extensionHostProcess) {
+			this._extensionHostProcess.kill();
+			this._extensionHostProcess = null;
 		}
 	}
 
@@ -420,11 +485,11 @@ export class ExtensionHostProcessWorker {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
-		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebug) {
-			this.broadcastService.broadcast({
+		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug) {
+			this._broadcastService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: {
-					debugId: this.environmentService.debugExtensionHost.debugId
+					debugId: this._environmentService.debugExtensionHost.debugId
 				}
 			});
 

@@ -207,6 +207,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							});
 						}, err => {
 							// ignore
+							return null;
 						});
 					}
 				}

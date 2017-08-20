@@ -78,10 +78,10 @@ class TscTaskProvider implements vscode.TaskProvider {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
 			if (path.basename(editor.document.fileName).match(/^tsconfig\.(.\.)?json$/)) {
-				const path = editor.document.uri;
+				const uri = editor.document.uri;
 				return [{
-					path: path.fsPath,
-					workspaceFolder: vscode.workspace.getWorkspaceFolder(path)
+					path: uri.fsPath,
+					workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)
 				}];
 			}
 		}
@@ -103,10 +103,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 			const { configFileName } = res.body;
 			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-				const path = vscode.Uri.file(configFileName);
-				const folder = vscode.workspace.getWorkspaceFolder(path);
+				const normalizedConfigPath = path.normalize(configFileName);
+				const uri = vscode.Uri.file(normalizedConfigPath);
+				const folder = vscode.workspace.getWorkspaceFolder(uri);
 				return [{
-					path: configFileName,
+					path: normalizedConfigPath,
 					workspaceFolder: folder
 				}];
 			}

@@ -85,7 +85,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}
-			return TPromise.wrapError(new Error('cannot create debug session'));
+			return TPromise.wrapError<DebugSessionUUID>(new Error('cannot create debug session'));
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});

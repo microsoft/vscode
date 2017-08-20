@@ -182,18 +182,6 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function indexOfIgnoreCase(haystack: string, needle: string, position: number = 0): number {
-	let index = haystack.indexOf(needle, position);
-	if (index < 0) {
-		if (position > 0) {
-			haystack = haystack.substr(position);
-		}
-		needle = escapeRegExpCharacters(needle);
-		index = haystack.search(new RegExp(needle, 'i'));
-	}
-	return index;
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;

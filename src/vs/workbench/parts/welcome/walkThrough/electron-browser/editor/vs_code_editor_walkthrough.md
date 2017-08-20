@@ -144,13 +144,13 @@ You can greatly accelerate your editing through the use of snippets.  Simply sta
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use Emmet simply press tab after a valid piece for Emmet syntax and the expansion will occur.  Try it by pressing tab after `ul>li.item$*5` to see Emmet in action.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. To use Emmet simply run the command `Emmet: Expand Abbreviation` with cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
 
 ```html
 ul>li.item$*5
 ```
 
->**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions.  Emmet can also be enabled for additional languages via the `emmet.syntaxProfiles` [setting](command:workbench.action.openGlobalSettings).
+>**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions. To expand Emmet abbreviations and snippets using the `tab` key use the `emmet.triggerExpansionOnTab` [setting](command:workbench.action.openGlobalSettings). Check out the docs on [Emmet in VS Code](https://code.visualstudio.com/docs/editor/emmet) to learn more.
 
 
 

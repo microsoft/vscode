@@ -167,6 +167,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 		if (options.length === 0) {
 			options.push(nls.localize('noConfigurations', "No Configurations"));
+			this.executeOnSelect.push(() => false);
 		}
 		options.push(StartDebugActionItem.SEPARATOR);
 		this.executeOnSelect.push(undefined);

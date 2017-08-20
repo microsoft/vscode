@@ -511,10 +511,14 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public reload(cli?: ParsedArgs): void {
+	public reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
 
-		// Inherit current properties but overwrite some
-		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
+		// If config is not provided, copy our current one
+		if (!configuration) {
+			configuration = objects.mixin({}, this.currentConfig);
+		}
+
+		// Delete some properties we do not want during reload
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;

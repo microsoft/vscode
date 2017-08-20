@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testSearch() {
-	context('Search', () => {
+	describe('Search', () => {
 		let search: Search;
 
 		beforeEach(async function () {

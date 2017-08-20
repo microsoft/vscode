@@ -403,7 +403,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			return editor;
 
-		}, e => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
+		}, e => {
+			this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e);
+			return null;
+		});
 	}
 
 	private doCreateEditor(group: EditorGroup, descriptor: IEditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -513,7 +516,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Fullfill promise with Editor that is being used
 			return editor;
 
-		}, e => this.doHandleSetInputError(e, group, editor, input, options, monitor));
+		}, e => {
+			this.doHandleSetInputError(e, group, editor, input, options, monitor);
+			return null;
+		});
 	}
 
 	private doHandleSetInputError(e: Error | IMessageWithAction, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {

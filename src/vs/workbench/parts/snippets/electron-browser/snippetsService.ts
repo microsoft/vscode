@@ -187,7 +187,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.forceTokenization(position.lineNumber);
+		model.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		let { language } = this._modeService.getLanguageIdentifier(languageId);
 		if (!this._modeService.getLanguageName(language)) {

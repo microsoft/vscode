@@ -57,8 +57,8 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	newWorkspace(win?: ICodeWindow): void;
 	openWorkspace(win?: ICodeWindow): void;
+	createAndOpenWorkspace(win: ICodeWindow, folders?: string[], path?: string): void;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;

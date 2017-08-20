@@ -195,12 +195,17 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
+export enum StatisticType {
+	Uninstall = 'uninstall'
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryMetadata): TPromise<string>;

@@ -25,6 +25,10 @@ export abstract class AbstractThreadService implements IDispatcher {
 		this._rpcProtocol.setDispatcher(this);
 	}
 
+	public dispose(): void {
+		this._rpcProtocol.dispose();
+	}
+
 	public invoke(proxyId: string, methodName: string, args: any[]): any {
 		if (!this._locals[proxyId]) {
 			throw new Error('Unknown actor ' + proxyId);

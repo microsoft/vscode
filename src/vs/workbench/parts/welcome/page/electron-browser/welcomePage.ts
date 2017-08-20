@@ -23,6 +23,7 @@ import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -114,8 +115,10 @@ export class WelcomePageAction extends Action {
 
 interface ExtensionSuggestion {
 	name: string;
+	title?: string;
 	id: string;
 	isKeymap?: boolean;
+	isCommand?: boolean;
 }
 
 const extensionPacks: ExtensionSuggestion[] = [
@@ -124,6 +127,7 @@ const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.python', "Python"), id: 'donjayamanne.python' },
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
+	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
 	{ name: localize('welcomePage.docker', "Docker"), id: 'PeterJausovec.vscode-docker' },
 ];
 
@@ -191,6 +195,7 @@ class WelcomePage {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IThemeService private themeService: IThemeService,
+		@IExperimentService private experimentService: IExperimentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
@@ -310,6 +315,12 @@ class WelcomePage {
 				}
 			};
 		}));
+
+		if (this.experimentService.getExperiments().deployToAzureQuickLink) {
+			container.querySelector('.showInterfaceOverview').remove();
+		} else {
+			container.querySelector('.deployToAzure').remove();
+		}
 	}
 
 	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
@@ -322,23 +333,28 @@ class WelcomePage {
 
 				const a = document.createElement('a');
 				a.innerText = extension.name;
-				a.title = extension.isKeymap ? localize('welcomePage.installKeymap', "Install {0} keymap", extension.name) : localize('welcomePage.installExtensionPack', "Install additional support for {0}", extension.name);
-				a.classList.add('installExtension');
-				a.setAttribute('data-extension', extension.id);
-				a.href = 'javascript:void(0)';
-				a.addEventListener('click', e => {
-					this.installExtension(extension, strings);
-					e.preventDefault();
-					e.stopPropagation();
-				});
-				list.appendChild(a);
+				a.title = extension.title || (extension.isKeymap ? localize('welcomePage.installKeymap', "Install {0} keymap", extension.name) : localize('welcomePage.installExtensionPack', "Install additional support for {0}", extension.name));
+				if (extension.isCommand) {
+					a.href = `command:${extension.id}`;
+					list.appendChild(a);
+				} else {
+					a.classList.add('installExtension');
+					a.setAttribute('data-extension', extension.id);
+					a.href = 'javascript:void(0)';
+					a.addEventListener('click', e => {
+						this.installExtension(extension, strings);
+						e.preventDefault();
+						e.stopPropagation();
+					});
+					list.appendChild(a);
 
-				const span = document.createElement('span');
-				span.innerText = extension.name;
-				span.title = extension.isKeymap ? localize('welcomePage.installedKeymap', "{0} keymap is already installed", extension.name) : localize('welcomePage.installedExtensionPack', "{0} support is already installed", extension.name);
-				span.classList.add('enabledExtension');
-				span.setAttribute('data-extension', extension.id);
-				list.appendChild(span);
+					const span = document.createElement('span');
+					span.innerText = extension.name;
+					span.title = extension.isKeymap ? localize('welcomePage.installedKeymap', "{0} keymap is already installed", extension.name) : localize('welcomePage.installedExtensionPack', "{0} support is already installed", extension.name);
+					span.classList.add('enabledExtension');
+					span.setAttribute('data-extension', extension.id);
+					list.appendChild(span);
+				}
 			});
 		}
 	}
@@ -450,7 +466,7 @@ class WelcomePage {
 					})
 				]
 			});
-		}).then<void>(null, err => {
+		}).then(null, err => {
 			this.telemetryService.publicLog(strings.installedEvent, {
 				from: telemetryFrom,
 				extensionId: extensionSuggestion.id,

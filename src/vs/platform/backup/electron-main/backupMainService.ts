@@ -97,10 +97,28 @@ export class BackupMainService implements IBackupMainService {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier): string {
+	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string {
 		this.pushBackupPathsSync(workspace, this.backups.rootWorkspaces);
 
-		return path.join(this.backupHome, workspace.id);
+		const backupPath = path.join(this.backupHome, workspace.id);
+
+		if (migrateFrom) {
+			this.moveBackupFolderSync(backupPath, migrateFrom);
+		}
+
+		return backupPath;
+	}
+
+	private moveBackupFolderSync(backupPath: string, moveFromPath: string): void {
+		if (!fs.existsSync(moveFromPath)) {
+			return;
+		}
+
+		try {
+			fs.renameSync(moveFromPath, backupPath);
+		} catch (ex) {
+			this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
+		}
 	}
 
 	public registerFolderBackupSync(folderPath: string): string {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -278,9 +278,12 @@ export class CommandCenter {
 		}
 
 		const clonePromise = this.git.clone(url, parentPath);
-		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+
 
 		try {
+			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+
 			const repositoryPath = await clonePromise;
 
 			const open = localize('openrepo', "Open Repository");

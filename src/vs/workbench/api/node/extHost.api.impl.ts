@@ -47,7 +47,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
-import { realpath } from 'fs';
 import { MainContext, ExtHostContext, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
@@ -326,13 +325,13 @@ export function createApiFactory(
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
 			showInformationMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
+				return extHostMessageService.showMessage(extension.id, Severity.Info, message, first, rest);
 			},
 			showWarningMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Warning, message, first, rest);
+				return extHostMessageService.showMessage(extension.id, Severity.Warning, message, first, rest);
 			},
 			showErrorMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Error, message, first, rest);
+				return extHostMessageService.showMessage(extension.id, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -367,7 +366,7 @@ export function createApiFactory(
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
+				return extHostMessageService.showMessage(extension.id, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 		};
 
@@ -507,7 +506,7 @@ export function createApiFactory(
 		};
 
 		// namespace: credentials
-		const credentials: typeof vscode.credentials = {
+		const credentials = {
 			readSecret(service: string, account: string): Thenable<string | undefined> {
 				return extHostCredentials.readSecret(service, account);
 			},
@@ -531,7 +530,6 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
-			credentials,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
@@ -585,8 +583,8 @@ export function createApiFactory(
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
-		if (!extension.enableProposedApi) {
-			delete api.credentials; // Instead of error to avoid #31854
+		if (extension.enableProposedApi && extension.isBuiltin) {
+			api['credentials'] = credentials;
 		}
 		return api;
 	};
@@ -621,30 +619,7 @@ class Extension<T> implements vscode.Extension<T> {
 }
 
 export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): TPromise<void> {
-	return createExtensionPathIndex(extensionService).then(trie => defineAPI(apiFactory, trie));
-}
-
-function createExtensionPathIndex(extensionService: ExtHostExtensionService): TPromise<TrieMap<IExtensionDescription>> {
-
-	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
-	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
-		if (!ext.main) {
-			return undefined;
-		}
-		return new TPromise((resolve, reject) => {
-			realpath(ext.extensionFolderPath, (err, path) => {
-				if (err) {
-					reject(err);
-				} else {
-					trie.insert(path, ext);
-					resolve(void 0);
-				}
-			});
-		});
-	});
-
-	return TPromise.join(extensions).then(() => trie);
+	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {

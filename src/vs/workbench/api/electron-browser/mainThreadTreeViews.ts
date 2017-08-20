@@ -62,7 +62,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(elements => {
 				this.postGetElements(null, elements);
 				return elements;
-			}, err => this.messageService.show(Severity.Error, err));
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+				return null;
+			});
 	}
 
 	getChildren(treeItem: ITreeItem): TPromise<ITreeItem[]> {
@@ -73,7 +76,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(children => {
 				this.postGetElements(treeItem.handle, children);
 				return children;
-			}, err => this.messageService.show(Severity.Error, err));
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+				return null;
+			});
 	}
 
 	refresh(treeItemHandles: number[]) {

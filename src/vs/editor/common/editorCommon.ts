@@ -820,10 +820,19 @@ export interface ITokenizedModel extends ITextModel {
 	forceTokenization(lineNumber: number): void;
 
 	/**
-	 * Get the line number of the first line whose tokens might be inaccurate.
+	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
+	 * This is based on a heuristic.
 	 * @internal
 	 */
-	getFirstInvalidLineNumber(): number;
+	tokenizeIfCheap(lineNumber: number): void;
+
+	/**
+	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
+	 * This is based on a heuristic.
+	 * @internal
+	 */
+	isCheapToTokenize(lineNumber: number): boolean;
+
 	/**
 	 * Get the tokens for the line `lineNumber`.
 	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.

@@ -39,7 +39,7 @@ export interface IFindStartOptions {
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
-export const CONTEXT_FIND_INPUT_FOCUSSED = new RawContextKey<boolean>('findInputFocussed', false);
+export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -1131,7 +1131,7 @@ export class ShowNextFindTermAction extends MatchFindAction {
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowNextFindTermKeybinding.primary,
 				mac: ShowNextFindTermKeybinding.mac,
 				win: ShowNextFindTermKeybinding.win,
@@ -1156,7 +1156,7 @@ export class ShpwPreviousFindTermAction extends MatchFindAction {
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowPreviousFindTermKeybinding.primary,
 				mac: ShowPreviousFindTermKeybinding.mac,
 				win: ShowPreviousFindTermKeybinding.win,

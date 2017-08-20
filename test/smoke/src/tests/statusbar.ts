@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testStatusbar() {
-	context('Status Bar', () => {
+	describe('Status Bar', () => {
 		let statusBar: StatusBar;
 
 		beforeEach(async function () {

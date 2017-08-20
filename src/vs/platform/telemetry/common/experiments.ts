@@ -6,31 +6,46 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export interface ITelemetryExperiments {
+export interface IExperiments {
+	deployToAzureQuickLink: boolean;
 }
 
-const defaultExperiments: ITelemetryExperiments = {
-};
+export const IExperimentService = createDecorator<IExperimentService>('experimentService');
 
-export function loadExperiments(accessor?: ServicesAccessor): ITelemetryExperiments {
+export interface IExperimentService {
 
-	// shortcut since there are currently no experiments (should introduce separate service to load only once)
-	if (!accessor) {
-		return {};
+	_serviceBrand: any;
+
+	getExperiments(): IExperiments;
+}
+
+export class ExperimentService implements IExperimentService {
+
+	_serviceBrand: any;
+
+	private experiments: IExperiments;
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) { }
+
+	getExperiments() {
+		if (!this.experiments) {
+			this.experiments = loadExperiments(this.storageService, this.configurationService);
+		}
+		return this.experiments;
 	}
-
-	const storageService = accessor.get(IStorageService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	let {
-	} = splitExperimentsRandomness(storageService);
-
-	return applyOverrides(defaultExperiments, configurationService);
 }
 
-function applyOverrides(experiments: ITelemetryExperiments, configurationService: IConfigurationService): ITelemetryExperiments {
+function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): IExperiments {
+	const experiments = splitExperimentsRandomness(storageService);
+	return applyOverrides(experiments, configurationService);
+}
+
+function applyOverrides(experiments: IExperiments, configurationService: IConfigurationService): IExperiments {
 	const experimentsConfig = getExperimentsOverrides(configurationService);
 	Object.keys(experiments).forEach(key => {
 		if (key in experimentsConfig) {
@@ -40,14 +55,14 @@ function applyOverrides(experiments: ITelemetryExperiments, configurationService
 	return experiments;
 }
 
-function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
+function splitExperimentsRandomness(storageService: IStorageService): IExperiments {
 	const random1 = getExperimentsRandomness(storageService);
 	const [random2, /* showTaskDocumentation */] = splitRandom(random1);
-	const [random3, /* openUntitledFile */] = splitRandom(random2);
-	const [random4, /* mergeQuickLinks */] = splitRandom(random3);
-	// tslint:disable-next-line:no-unused-variable (https://github.com/Microsoft/TypeScript/issues/16628)
-	const [random5, /* enableWelcomePage */] = splitRandom(random4);
+	const [/* random3 */, deployToAzureQuickLink] = splitRandom(random2);
+	// const [random4, /* mergeQuickLinks */] = splitRandom(random3);
+	// const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
+		deployToAzureQuickLink
 	};
 }
 
@@ -68,7 +83,7 @@ function splitRandom(random: number): [number, boolean] {
 	return [scaled - i, i === 1];
 }
 
-function getExperimentsOverrides(configurationService: IConfigurationService): ITelemetryExperiments {
+function getExperimentsOverrides(configurationService: IConfigurationService): IExperiments {
 	const config: any = configurationService.getConfiguration('telemetry');
 	return config && config.experiments || {};
 }

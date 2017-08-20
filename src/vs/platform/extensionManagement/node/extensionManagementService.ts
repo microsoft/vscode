@@ -13,11 +13,12 @@ import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
-	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType
+	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
+	StatisticType
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -55,7 +56,7 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 		pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 			.then(raw => parseManifest(raw)),
 		pfs.readFile(path.join(extensionPath, 'package.nls.json'), 'utf8')
-			.then<string>(null, err => err.code !== 'ENOENT' ? TPromise.wrapError(err) : '{}')
+			.then(null, err => err.code !== 'ENOENT' ? TPromise.wrapError<string>(err) : '{}')
 			.then(raw => JSON.parse(raw))
 	];
 
@@ -223,9 +224,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private rollback(localExtension: ILocalExtension, dependecies: IGalleryExtension[]): TPromise<void> {
-		return this.doUninstall(localExtension.id)
+		return this.doUninstall(localExtension)
 			.then(() => this.filterOutUninstalled(dependecies))
-			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i.id))))
+			.then(installed => TPromise.join(installed.map((i) => this.doUninstall(i))))
 			.then(() => null);
 	}
 
@@ -294,21 +295,21 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
 		return this.removeOutdatedExtensions().then(() => {
-			return this.scanUserExtensions().then<void>(installed => {
+			return this.scanUserExtensions().then(installed => {
 				const promises = installed
 					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
 					.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
 				return TPromise.join(promises);
 			});
-		});
+		}).then(() => { /* drop resolved value */ });
 	}
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
-		return this.preUninstallExtension(extension.id)
+		return this.preUninstallExtension(extension)
 			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.promptAndUninstall(extension, installed, force))
-			.then(() => this.postUninstallExtension(extension.id),
+			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(extension.id, error);
+				this.postUninstallExtension(extension, error);
 				return TPromise.wrapError(error);
 			});
 	}
@@ -370,7 +371,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		if (dependents.length) {
 			return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 		}
-		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d.id))]).then(() => null);
+		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d))]).then(() => null);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -419,21 +420,21 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return installed.filter(e => e.manifest.extensionDependencies && e.manifest.extensionDependencies.indexOf(getGalleryExtensionIdFromLocal(extension)) !== -1);
 	}
 
-	private doUninstall(id: string): TPromise<void> {
-		return this.preUninstallExtension(id)
-			.then(() => this.uninstallExtension(id))
-			.then(() => this.postUninstallExtension(id),
+	private doUninstall(extension: ILocalExtension): TPromise<void> {
+		return this.preUninstallExtension(extension)
+			.then(() => this.uninstallExtension(extension.id))
+			.then(() => this.postUninstallExtension(extension),
 			error => {
-				this.postUninstallExtension(id, error);
+				this.postUninstallExtension(extension, error);
 				return TPromise.wrapError(error);
 			});
 	}
 
-	private preUninstallExtension(id: string): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, id);
+	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
+		const extensionPath = path.join(this.extensionsPath, extension.id);
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
-			.then(() => this._onUninstallExtension.fire(id));
+			.then(() => this._onUninstallExtension.fire(extension.id));
 	}
 
 	private uninstallExtension(id: string): TPromise<void> {
@@ -443,8 +444,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(() => this.unsetObsolete(id));
 	}
 
-	private postUninstallExtension(id: string, error?: any): TPromise<void> {
-		return this._onDidUninstallExtension.fire({ id, error });
+	private async postUninstallExtension(extension: ILocalExtension, error?: any): TPromise<void> {
+		if (!error) {
+			await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
+		}
+
+		this._onDidUninstallExtension.fire({ id: extension.id, error });
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
@@ -476,7 +481,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		const limiter = new Limiter(10);
 
 		return this.scanExtensionFolders(root)
-			.then(extensionIds => Promise.join(extensionIds.map(id => {
+			.then(extensionIds => TPromise.join(extensionIds.map(id => {
 				const extensionPath = path.join(root, id);
 
 				const each = () => pfs.readdir(extensionPath).then(children => {
@@ -575,7 +580,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.obsoleteFileLimiter.queue(() => {
 			let result: T = null;
 			return pfs.readFile(this.obsoletePath, 'utf8')
-				.then<string>(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
+				.then(null, err => err.code === 'ENOENT' ? TPromise.as('{}') : TPromise.wrapError(err))
 				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(obsolete => { result = fn(obsolete); return obsolete; })
 				.then(obsolete => {

@@ -23,7 +23,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
+import { IExperimentService, ExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -117,6 +117,7 @@ export class WorkbenchShell {
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
+	private experimentService: IExperimentService;
 	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
@@ -208,7 +209,7 @@ export class WorkbenchShell {
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: loadExperiments(),
+			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditors.length,
@@ -262,6 +263,10 @@ export class WorkbenchShell {
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
+
+		// Experiments
+		this.experimentService = instantiationService.createInstance(ExperimentService);
+		serviceCollection.set(IExperimentService, this.experimentService);
 
 		// Telemetry
 		this.sendMachineIdToMain(this.storageService);

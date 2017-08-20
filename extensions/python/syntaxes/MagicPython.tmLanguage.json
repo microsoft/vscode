@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/976e59dcb78cb577e79c8f2117216c06718337e0",
+	"version": "https://github.com/MagicStack/MagicPython/commit/b453f26ed856c9b16a053517c41207e3a72cc7d5",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"fileTypes": [
@@ -260,14 +260,6 @@
 				}
 			}
 		},
-		"codetags": {
-			"match": "(?:\\b(NOTE|XXX|HACK|FIXME|BUG|TODO)\\b)",
-			"captures": {
-				"1": {
-					"name": "keyword.codetag.notation.python"
-				}
-			}
-		},
 		"statement-keyword": {
 			"patterns": [
 				{
@@ -392,8 +384,13 @@
 			]
 		},
 		"member-access": {
-			"begin": "\\.\\s*(?!\\.)",
+			"begin": "(\\.)\\s*(?!\\.)",
 			"end": "(?x)\n  # stop when you've just read non-whitespace followed by non-word\n  # i.e. when finished reading an identifier or function call\n  (?<=\\S)(?=\\W) |\n  # stop when seeing the start of something that's not a word,\n  # i.e. when seeing a non-identifier\n  (^|(?<=\\s))(?=[^\\\\\\w\\s]) |\n  $\n",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.separator.period.python"
+				}
+			},
 			"patterns": [
 				{
 					"include": "#function-call"
@@ -918,29 +915,6 @@
 				}
 			]
 		},
-		"fstring-formatting-braces": {
-			"patterns": [
-				{
-					"comment": "empty braces are illegal",
-					"match": "({)(\\s*?)(})",
-					"captures": {
-						"1": {
-							"name": "constant.character.format.placeholder.other.python"
-						},
-						"2": {
-							"name": "invalid.illegal.brace.python"
-						},
-						"3": {
-							"name": "constant.character.format.placeholder.other.python"
-						}
-					}
-				},
-				{
-					"name": "constant.character.escape.python",
-					"match": "({{|}})"
-				}
-			]
-		},
 		"fstring-formatting-singe-brace": {
 			"name": "invalid.illegal.brace.python",
 			"match": "(}(?!}))"
@@ -949,10 +923,13 @@
 			"comment": "Import statements\n",
 			"patterns": [
 				{
-					"match": "(?x)\n  \\s* \\b(from)\\b (\\s*\\.+\\s*) (import)?\n",
+					"match": "(?x)\n  \\s* \\b(from)\\b \\s*(\\.+)\\s* (import)?\n",
 					"captures": {
 						"1": {
 							"name": "keyword.control.import.python"
+						},
+						"2": {
+							"name": "punctuation.separator.period.python"
 						},
 						"3": {
 							"name": "keyword.control.import.python"
@@ -1077,8 +1054,13 @@
 			}
 		},
 		"member-access-class": {
-			"begin": "\\.\\s*(?!\\.)",
+			"begin": "(\\.)\\s*(?!\\.)",
 			"end": "(?<=\\S)(?=\\W)|$",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.separator.period.python"
+				}
+			},
 			"patterns": [
 				{
 					"include": "#call-wrapper-inheritance"
@@ -1671,7 +1653,7 @@
 		},
 		"magic-variable-names": {
 			"comment": "magic variables which a class/module may have.",
-			"match": "(?x)\n  \\b(\n    __(?:\n      all | bases | builtins | class | code | debug | defaults | dict\n      | doc | file | func | kwdefaults | members\n      | metaclass | methods | module | mro | name\n      | qualname | self | signature | slots | subclasses\n      | version | weakref | wrapped | annotations | classcell\n      | spec | path | package | future\n    )__\n  )\\b\n",
+			"match": "(?x)\n  \\b(\n    __(?:\n      all | bases | builtins | class | code | debug | defaults | dict\n      | doc | file | func | kwdefaults | members\n      | metaclass | methods | module | mro | name\n      | qualname | self | signature | slots | subclasses\n      | version | weakref | wrapped | annotations | classcell\n      | spec | path | package | future | traceback\n    )__\n  )\\b\n",
 			"captures": {
 				"1": {
 					"name": "support.variable.magic.python"
@@ -1766,6 +1748,29 @@
 				},
 				{
 					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"fstring-formatting-braces": {
+			"patterns": [
+				{
+					"comment": "empty braces are illegal",
+					"match": "({)(\\s*?)(})",
+					"captures": {
+						"1": {
+							"name": "constant.character.format.placeholder.other.python"
+						},
+						"2": {
+							"name": "invalid.illegal.brace.python"
+						},
+						"3": {
+							"name": "constant.character.format.placeholder.other.python"
+						}
+					}
+				},
+				{
+					"name": "constant.character.escape.python",
+					"match": "({{|}})"
 				}
 			]
 		},
@@ -1890,6 +1895,14 @@
 					"include": "#regexp-escape-catchall"
 				}
 			]
+		},
+		"codetags": {
+			"match": "(?:\\b(NOTE|XXX|HACK|FIXME|BUG|TODO)\\b)",
+			"captures": {
+				"1": {
+					"name": "keyword.codetag.notation.python"
+				}
+			}
 		},
 		"comments-base": {
 			"name": "comment.line.number-sign.python",

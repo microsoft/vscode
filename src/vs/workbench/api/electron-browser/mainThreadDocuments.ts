@@ -99,10 +99,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
-		this._toDispose.push(this._modelReferenceCollection);
 		this._toDispose.push(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.push(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
+		this._toDispose.push(this._modelReferenceCollection);
+		this._toDispose.push(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
 		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {

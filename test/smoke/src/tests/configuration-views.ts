@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testConfigViews() {
-	context('Configuration and views', () => {
+	describe('Configuration and views', () => {
 		let configView: ConfigurationView;
 
 		beforeEach(async function () {

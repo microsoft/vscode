@@ -47,6 +47,7 @@ export class TypeScriptServiceConfiguration {
 	public readonly npmLocation: string | null;
 	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	public readonly checkJs: boolean;
+	public readonly disableAutomaticTypeAcquisition: boolean;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -60,6 +61,7 @@ export class TypeScriptServiceConfiguration {
 		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
 		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
+		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -67,7 +69,8 @@ export class TypeScriptServiceConfiguration {
 			&& this.localTsdk === other.localTsdk
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
-			&& this.checkJs === other.checkJs;
+			&& this.checkJs === other.checkJs
+			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition;
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
@@ -97,5 +100,9 @@ export class TypeScriptServiceConfiguration {
 
 	private static readNpmLocation(configuration: WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.npm', null);
+	}
+
+	private static readDisableAutomaticTypeAcquisition(configuration: WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
 	}
 }

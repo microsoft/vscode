@@ -47,6 +47,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from "vs/base/common/lifecycle";
+import { SerializedError } from "vs/base/common/errors";
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -189,7 +190,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedExtHostError(err: any): void;
+	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -221,8 +222,13 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): TPromise<string[]>;
 }
 
+export interface MainThreadMessageOptions {
+	extensionId?: string;
+	modal?: boolean;
+}
+
 export interface MainThreadMessageServiceShape extends IDisposable {
-	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {

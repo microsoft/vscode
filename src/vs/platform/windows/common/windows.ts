@@ -42,7 +42,7 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	openWorkspace(windowId: number): TPromise<void>;
-	newWorkspace(windowId: number): TPromise<void>;
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: string[]): TPromise<void>;
@@ -98,7 +98,7 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
-	newWorkspace(): TPromise<void>;
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;

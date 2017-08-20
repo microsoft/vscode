@@ -68,8 +68,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openWorkspace(this.windowId);
 	}
 
-	newWorkspace(): TPromise<void> {
-		return this.windowsService.newWorkspace(this.windowId);
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return this.windowsService.createAndOpenWorkspace(this.windowId, folders, path);
 	}
 
 	closeWindow(): TPromise<void> {

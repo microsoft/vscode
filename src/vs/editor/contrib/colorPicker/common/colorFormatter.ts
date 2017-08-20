@@ -32,7 +32,7 @@ function getPropertyValue(color: Color, variable: string): number | undefined {
 		case 'blue':
 			return color.rgba.b / 255;
 		case 'alpha':
-			return color.rgba.a / 255;
+			return color.rgba.a;
 		case 'hue':
 			return color.hsla.h / 360;
 		case 'saturation':
@@ -56,7 +56,7 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;
 
-			return (normalize(value, min, max) | 0).toString();
+			return (normalize(value, min, max).toFixed(0)).toString();
 		} else if (type === 'x' || type === 'X') {
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;

@@ -16,6 +16,7 @@ export interface IDispatcher {
 
 export class RPCProtocol {
 
+	private _isDisposed: boolean;
 	private _bigHandler: IDispatcher;
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
@@ -23,6 +24,7 @@ export class RPCProtocol {
 	private readonly _multiplexor: RPCMultiplexer;
 
 	constructor(protocol: IMessagePassingProtocol) {
+		this._isDisposed = false;
 		this._bigHandler = null;
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
@@ -30,7 +32,20 @@ export class RPCProtocol {
 		this._multiplexor = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
 	}
 
+	public dispose(): void {
+		this._isDisposed = true;
+
+		// Release all outstanding promises with a canceled error
+		Object.keys(this._pendingRPCReplies).forEach((msgId) => {
+			const pending = this._pendingRPCReplies[msgId];
+			pending.resolveErr(errors.canceled());
+		});
+	}
+
 	private _receiveOneMessage(rawmsg: string): void {
+		if (this._isDisposed) {
+			throw new Error(`disposed`);
+		}
 		let msg = marshalling.parse(rawmsg);
 
 		if (msg.seq) {
@@ -97,6 +112,10 @@ export class RPCProtocol {
 	}
 
 	public callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+		if (this._isDisposed) {
+			return TPromise.wrapError<any>(errors.canceled());
+		}
+
 		let req = String(++this._lastMessageId);
 		let result = new LazyPromise(() => {
 			this._multiplexor.send(MessageFactory.cancel(req));

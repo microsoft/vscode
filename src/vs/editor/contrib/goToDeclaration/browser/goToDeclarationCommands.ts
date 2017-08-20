@@ -103,7 +103,6 @@ export class DefinitionAction extends EditorAction {
 		}, (err) => {
 			// report an error
 			messageService.show(Severity.Error, err);
-			return false;
 		});
 	}
 
