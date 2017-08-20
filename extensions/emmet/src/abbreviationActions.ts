@@ -95,10 +95,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 
 	const editor = vscode.window.activeTextEditor;
 
-	let rootNode = parseDocument(editor.document);
-	if (!rootNode) {
-		return fallbackTab();
-	}
+	let rootNode = parseDocument(editor.document, false);
 
 	// When tabbed on a non empty selection, do not treat it as an emmet abbreviation, and fallback to tab instead
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true && editor.selections.find(x => !x.isEmpty)) {

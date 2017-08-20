@@ -83,6 +83,10 @@ export function parseDocument(document: vscode.TextDocument, showError: boolean 
  * @param includeNodeBoundary
  */
 export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
+	if (!root) {
+		return null;
+	}
+
 	let currentNode = root.firstChild;
 	let foundNode: Node = null;
 
