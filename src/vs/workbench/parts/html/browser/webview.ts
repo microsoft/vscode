@@ -73,7 +73,7 @@ export default class Webview {
 	private _findStarted: boolean = false;
 
 	constructor(
-		private parent: HTMLElement,
+		private _parent: HTMLElement,
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -202,9 +202,9 @@ export default class Webview {
 		this._disposables.push(this._simpleFindWidgetService.register(this._webviewFindWidget, [this._contextKey]));
 		this._disposables.push(this._webviewFindWidget);
 
-		if (parent) {
-			parent.appendChild(this._webviewFindWidget.getDomNode());
-			parent.appendChild(this._webview);
+		if (_parent) {
+			_parent.appendChild(this._webviewFindWidget.getDomNode());
+			_parent.appendChild(this._webview);
 		}
 	}
 
@@ -379,8 +379,8 @@ export default class Webview {
 
 			contents.setZoomFactor(factor);
 
-			const width = this.parent.clientWidth;
-			const height = this.parent.clientHeight;
+			const width = this._parent.clientWidth;
+			const height = this._parent.clientHeight;
 			contents.setSize({
 				normal: {
 					width: Math.floor(width * factor),
@@ -449,30 +449,4 @@ export default class Webview {
 		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
 	}
-	/*
-		public showFind() {
-			this._webviewFindWidget.reveal(true);
-		}
-
-		public hideFind() {
-			this._webviewFindWidget.hide();
-		}
-
-		public showNextFindTerm() {
-			this._webviewFindWidget.showNextFindTerm();
-		}
-
-		public showPreviousFindTerm() {
-			this._webviewFindWidget.showPreviousFindTerm();
-		}
-
-		public nextMatchFindWidget(): void {
-			this._webviewFindWidget.find(false);
-		}
-
-		public previousMatchFindWidget(): void {
-			this._webviewFindWidget.find(true);
-		}
-
-	 */
 }

@@ -50,14 +50,13 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { default as Webview } from 'vs/workbench/parts/html/browser/webview';
+import { default as WebView } from 'vs/workbench/parts/html/browser/webview';
 import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
 /**  A context key that is set when an extension editor webview not have focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
-
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -171,7 +170,7 @@ export class ExtensionEditor extends BaseEditor {
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
-	private activeWebview: Webview;
+	private activeWebview: WebView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -354,7 +353,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, this.simpleFindWidgetService, this.contextKey, webViewOptions);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, this.simpleFindWidgetService, this.contextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 

@@ -9,7 +9,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseWebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { default as Webview } from './webview';
+import { default as WebView } from './webview';
 import { Builder } from 'vs/base/browser/builder';
 
 export interface HtmlPreviewEditorViewState {
@@ -27,7 +27,7 @@ export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_NOT_FOCUSED: ContextKeyExpr = KEYB
 export abstract class WebviewEditor extends BaseWebviewEditor {
 
 	protected _webviewFocusContextKey: IContextKey<boolean>;
-	protected _webview: Webview;
+	protected _webview: WebView;
 	protected content: HTMLElement;
 	protected contextKey: IContextKey<boolean>;
 

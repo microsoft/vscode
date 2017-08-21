@@ -43,7 +43,7 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private _contextViewService: IContextViewService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService,
-		private animate: boolean = true
+		private _animate: boolean = true
 	) {
 		super();
 		this._findInput = this._register(new FindInput(null, this._contextViewService, {
@@ -131,8 +131,8 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 	}
 
+	public abstract find(previous: boolean);
 	protected abstract onInputChanged();
-	protected abstract find(previous: boolean);
 	protected abstract onFocusTrackerFocus();
 	protected abstract onFocusTrackerBlur();
 
@@ -196,7 +196,7 @@ export abstract class SimpleFindWidget extends Widget {
 		setTimeout(() => {
 			dom.addClass(this._domNode, 'visible');
 			this._domNode.setAttribute('aria-hidden', 'false');
-			if (!this.animate) {
+			if (!this._animate) {
 				dom.addClass(this._domNode, 'noanimation');
 			}
 			setTimeout(() => {
@@ -229,11 +229,6 @@ export abstract class SimpleFindWidget extends Widget {
 		if (previous) {
 			this._findInput.setValue(previous);
 		}
-	}
-
-	// Allow subclass to provide find
-	public baseFind(previous: boolean) {
-		this.find(previous);
 	}
 
 }
