@@ -39,7 +39,7 @@ import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/act
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -48,6 +48,11 @@ import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import * as platform from "vs/base/common/platform";
+import { domEvent } from "vs/base/browser/event";
+import { StandardKeyboardEvent } from "vs/base/browser/keyboardEvent";
+import { KeyMod, KeyCode } from "vs/base/common/keyCodes";
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -238,6 +243,8 @@ class SourceControlViewDescriptor implements IViewDescriptor {
 
 class SourceControlView extends CollapsibleView {
 
+	private inputBoxContainer: HTMLElement;
+	private inputBox: InputBox;
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
@@ -249,6 +256,8 @@ class SourceControlView extends CollapsibleView {
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextViewService protected contextViewService: IContextViewService,
+		@ISCMService protected scmService: ISCMService,
 		@IListService protected listService: IListService,
 		@ICommandService protected commandService: ICommandService,
 		@IMessageService protected messageService: IMessageService,
@@ -270,6 +279,36 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	renderBody(container: HTMLElement): void {
+		// Input
+
+		this.inputBoxContainer = append(container, $('.scm-editor'));
+
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
+			flexibleHeight: true
+		});
+		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
+		this.disposables.push(this.inputBox);
+
+		this.inputBox.value = this.scmService.input.value;
+		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
+		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		// this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
+
+		chain(domEvent(this.inputBox.inputElement, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
+			.on(this.onDidAcceptInput, this, this.disposables);
+
+
+		if (this.provider.onDidChangeCommitTemplate) {
+			this.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+		}
+
+		this.updateInputBox();
+
+		// List
+
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
 
@@ -374,6 +413,26 @@ class SourceControlView extends CollapsibleView {
 			.filter(r => isSCMResource(r)) as ISCMResource[];
 	}
 
+	private updateInputBox(): void {
+		if (typeof this.provider.commitTemplate === 'undefined') {
+			return;
+		}
+
+		this.inputBox.value = this.provider.commitTemplate;
+	}
+
+	private onDidAcceptInput(): void {
+		if (!this.provider.acceptInputCommand) {
+			return;
+		}
+
+		const id = this.provider.acceptInputCommand.id;
+		const args = this.provider.acceptInputCommand.arguments;
+
+		this.commandService.executeCommand(id, ...args)
+			.done(undefined, onUnexpectedError);
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
@@ -399,8 +458,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 
 	// private activeProvider: ISCMProvider | undefined;
 	// private cachedDimension: Dimension;
-	// private inputBoxContainer: HTMLElement;
-	// private inputBox: InputBox;
 
 	// private providers = new Map<string, ISCMProvider>();
 	private disposables: IDisposable[] = [];
@@ -442,10 +499,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 	// if (activeProvider) {
 	// 	const disposables = [];
 
-	// 	// if (activeProvider.onDidChangeCommitTemplate) {
-	// 	// 	disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
-	// 	// }
-
 	// 	const id = activeProvider.id;
 	// 	ViewsRegistry.registerViews([new SourceControlViewDescriptor(activeProvider)]);
 
@@ -460,7 +513,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 	// 	this.providerChangeDisposable = EmptyDisposable;
 	// }
 
-	// this.updateInputBox();
 	// this.updateTitleArea();
 	// }
 
@@ -468,26 +520,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		await super.create(parent);
 
 		parent.addClass('scm-viewlet');
-
-		// const root = parent.getHTMLElement();
-		// this.inputBoxContainer = append(root, $('.scm-editor'));
-
-		// this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-		// 	placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
-		// 	flexibleHeight: true
-		// });
-		// this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
-		// this.disposables.push(this.inputBox);
-
-		// this.inputBox.value = this.scmService.input.value;
-		// this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
-		// this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		// this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
-
-		// chain(domEvent(this.inputBox.inputElement, 'keydown'))
-		// 	.map(e => new StandardKeyboardEvent(e))
-		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-		// 	.on(this.onDidAcceptInput, this, this.disposables);
 
 		this.scmService.onDidAddProvider(this.onDidAddProvider, this, this.disposables);
 		this.scmService.onDidRemoveProvider(this.onDidRemoveProvider, this, this.disposables);
@@ -504,34 +536,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
 	}
-
-	// private onDidAcceptInput(): void {
-	// 	if (!this.activeProvider) {
-	// 		return;
-	// 	}
-
-	// 	if (!this.activeProvider.acceptInputCommand) {
-	// 		return;
-	// 	}
-
-	// 	const id = this.activeProvider.acceptInputCommand.id;
-	// 	const args = this.activeProvider.acceptInputCommand.arguments;
-
-	// 	this.commandService.executeCommand(id, ...args)
-	// 		.done(undefined, onUnexpectedError);
-	// }
-
-	// private updateInputBox(): void {
-	// 	if (!this.activeProvider) {
-	// 		return;
-	// 	}
-
-	// 	if (typeof this.activeProvider.commitTemplate === 'undefined') {
-	// 		return;
-	// 	}
-
-	// 	this.inputBox.value = this.activeProvider.commitTemplate;
-	// }
 
 	// layout(dimension: Dimension = this.cachedDimension): void {
 	// 	if (!dimension) {
