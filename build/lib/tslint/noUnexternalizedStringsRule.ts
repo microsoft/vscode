@@ -45,6 +45,8 @@ interface KeyMessagePair {
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
+	private static ImportFailureMessage = 'Do not use double qoutes for imports.';
+
 	private static DOUBLE_QUOTE: string = '"';
 
 	private signatures: Map<boolean>;
@@ -101,7 +103,15 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		let doubleQuoted = text.length >= 2 && text[0] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE && text[text.length - 1] === NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE;
 		let info = this.findDescribingParent(node);
 		// Ignore strings in import and export nodes.
-		if (info && info.ignoreUsage) {
+		if (info && info.isImport && doubleQuoted) {
+			this.addFailureAtNode(
+				node,
+				NoUnexternalizedStringsRuleWalker.ImportFailureMessage,
+				new Lint.Fix(NoUnexternalizedStringsRuleWalker.ImportFailureMessage, [
+					this.createReplacement(node.getStart(), 1, '\''),
+					this.createReplacement(node.getStart() + text.length - 1, 1, '\''),
+				])
+			);
 			return;
 		}
 		let callInfo = info ? info.callInfo : null;
@@ -170,7 +180,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		occurrences.push({ key: keyNode, message: messageNode });
 	}
 
-	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, ignoreUsage?: boolean; } {
+	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } {
 		let parent: ts.Node;
 		while ((parent = node.parent)) {
 			let kind = parent.kind;
@@ -178,7 +188,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				let callExpression = parent as ts.CallExpression;
 				return { callInfo: { callExpression: callExpression, argIndex: callExpression.arguments.indexOf(<any>node) } };
 			} else if (kind === ts.SyntaxKind.ImportEqualsDeclaration || kind === ts.SyntaxKind.ImportDeclaration || kind === ts.SyntaxKind.ExportDeclaration) {
-				return { ignoreUsage: true };
+				return { isImport: true };
 			} else if (kind === ts.SyntaxKind.VariableDeclaration || kind === ts.SyntaxKind.FunctionDeclaration || kind === ts.SyntaxKind.PropertyDeclaration
 				|| kind === ts.SyntaxKind.MethodDeclaration || kind === ts.SyntaxKind.VariableDeclarationList || kind === ts.SyntaxKind.InterfaceDeclaration
 				|| kind === ts.SyntaxKind.ClassDeclaration || kind === ts.SyntaxKind.EnumDeclaration || kind === ts.SyntaxKind.ModuleDeclaration
