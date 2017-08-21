@@ -153,10 +153,10 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource);
+		await this._openResource(resource, undefined, true);
 	}
 
-	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -168,8 +168,8 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preserveFocus: true,
-			preview: preview,
+			preserveFocus,
+			preview,
 			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
@@ -311,6 +311,8 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
+
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -345,7 +347,7 @@ export class CommandCenter {
 				: undefined;
 
 			const opts: TextDocumentShowOptions = {
-				preserveFocus: true,
+				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
@@ -387,6 +389,7 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -415,7 +418,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(resource, preview);
+			await this._openResource(resource, preview, preserveFocus);
 		}
 	}
 
