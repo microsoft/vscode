@@ -327,13 +327,13 @@ export function createApiFactory(
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
 			showInformationMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Info, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
 			showWarningMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Warning, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Warning, message, first, rest);
 			},
 			showErrorMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Error, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -368,7 +368,7 @@ export function createApiFactory(
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(extension.id, Severity.Info, 'Hello Proposed Api!', {}, []);
+				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
 			showOpenDialog: proposedApiFunction(extension, () => {
 				return extHostDialogs.showOpenDialog();

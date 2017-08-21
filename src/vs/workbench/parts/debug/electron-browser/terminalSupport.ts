@@ -125,7 +125,7 @@ export class TerminalSupport {
 			if (args.env) {
 				command += 'env';
 				for (let key in args.env) {
-					command += ` ${quote(key + '=' + args.env[key])}`;
+					command += ` "${key}=${args.env[key]}"`;
 				}
 				command += ' ';
 			}
