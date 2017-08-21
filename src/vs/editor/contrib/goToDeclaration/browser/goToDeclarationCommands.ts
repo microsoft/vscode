@@ -25,6 +25,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class DefinitionActionConfig {
 
@@ -278,6 +279,13 @@ export class GoToImplementationAction extends ImplementationAction {
 				primary: KeyMod.CtrlCmd | KeyCode.F12
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
+		const progressService = accessor.get(IProgressService);
+		const implementationPromise = super.run(accessor, editor);
+		progressService.showWhile(implementationPromise, 250);
+		return implementationPromise;
 	}
 }
 
