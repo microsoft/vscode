@@ -654,7 +654,7 @@ export class CommandCenter {
 				: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
 			const yes = resources.length === 1
 				? localize('discardAll multiple', "Discard 1 File")
-				: localize('discardAll', "Discard ALL {0} Files", resources.length);
+				: localize('discardAll', "Discard All {0} Files", resources.length);
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick !== yes) {
@@ -695,7 +695,7 @@ export class CommandCenter {
 				? localize('yes discard tracked', "Discard 1 Tracked File", trackedResources.length)
 				: localize('yes discard tracked multiple', "Discard {0} Tracked Files", trackedResources.length);
 
-			const yesAll = localize('discardAll', "Discard ALL {0} Files", resources.length);
+			const yesAll = localize('discardAll', "Discard All {0} Files", resources.length);
 			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
 
 			if (pick === yesTracked) {
