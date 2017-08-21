@@ -110,18 +110,23 @@ suite('Debug - Adapter', () => {
 	});
 
 	test('initial config file content', () => {
-		adapter.getInitialConfigurationContent(null).then(content => {
-			const expected = ['{',
-				'	"version": "0.2.0",',
-				'	"configurations": [',
-				'		{',
-				'			"name": "Mock-Debug",',
-				'			"type": "mock",',
-				'			"request": "launch",',
-				'			"program": "readme.md"',
-				'		}',
-				'	]',
-				'}'].join('\n');
+
+		const expected = ['{',
+			'	// Use IntelliSense to learn about possible attributes.',
+			'	// Hover to view descriptions of existing attributes.',
+			'	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387',
+			'	"version": "0.2.0",',
+			'	"configurations": [',
+			'		{',
+			'			"name": "Mock-Debug",',
+			'			"type": "mock",',
+			'			"request": "launch",',
+			'			"program": "readme.md"',
+			'		}',
+			'	]',
+			'}'].join('\n');
+
+		return adapter.getInitialConfigurationContent(null).then(content => {
 			assert.equal(content, expected);
 		}, err => assert.fail());
 	});

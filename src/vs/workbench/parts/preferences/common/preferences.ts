@@ -12,8 +12,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
-import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface ISettingsGroup {
 	id: string;

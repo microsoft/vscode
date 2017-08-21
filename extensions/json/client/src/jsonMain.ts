@@ -9,7 +9,7 @@ import * as path from 'path';
 import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { activateColorDecorations, ColorProvider } from "./colorDecorators";
+import { activateColorDecorations, ColorProvider } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();

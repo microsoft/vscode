@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import { MarkerService } from "vs/platform/markers/common/markerService";
-import { MainThreadDiagnostics } from "vs/workbench/api/electron-browser/mainThreadDiagnostics";
-import URI from "vs/base/common/uri";
+import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { MainThreadDiagnostics } from 'vs/workbench/api/electron-browser/mainThreadDiagnostics';
+import URI from 'vs/base/common/uri';
 
 
 suite('MainThreadDiagnostics', function () {
@@ -21,7 +21,7 @@ suite('MainThreadDiagnostics', function () {
 
 	test('clear markers on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(markerService);
+		let diag = new MainThreadDiagnostics(null, markerService);
 
 		diag.$changeMany('foo', [[URI.file('a'), [{
 			code: '666',

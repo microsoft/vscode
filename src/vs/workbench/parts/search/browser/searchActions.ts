@@ -28,7 +28,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { OS } from 'vs/base/common/platform';
-import { IContextKeyService, ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function isSearchViewletFocussed(viewletService: IViewletService): boolean {
 	let activeViewlet = viewletService.getActiveViewlet();

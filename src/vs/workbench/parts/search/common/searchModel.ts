@@ -494,7 +494,7 @@ export class SearchResult extends Disposable {
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
 	private _folderMatches: FolderMatch[] = [];
-	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>(TrieMap.PathSplitter);
+	private _folderMatchesMap: TrieMap<FolderMatch> = new TrieMap<FolderMatch>();
 	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
@@ -652,7 +652,7 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = new TrieMap<FolderMatch>(TrieMap.PathSplitter);
+		this._folderMatchesMap = new TrieMap<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 

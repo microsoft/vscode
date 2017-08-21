@@ -26,7 +26,7 @@ import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
-import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';

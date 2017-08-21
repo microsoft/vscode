@@ -3471,6 +3471,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -3513,6 +3514,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === ColumnType.Special2) {
@@ -3555,42 +3557,50 @@ suite('autoClosingPairs', () => {
 			}
 
 			// First gif
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste1 = teste\' ok');
 			assert.equal(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste2 = teste \'ok');
 			assert.equal(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste3 = teste" ok');
 			assert.equal(model.getLineContent(3), 'teste3 = teste" ok');
 
 			cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste4 = teste "ok');
 			assert.equal(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste \'');
 			assert.equal(model.getLineContent(5), 'teste \'\'');
 
 			cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste "');
 			assert.equal(model.getLineContent(6), 'teste ""');
 
 			cursor.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste\'');
 			assert.equal(model.getLineContent(7), 'teste\'');
 
 			cursor.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
 		});

@@ -44,7 +44,6 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
-	editor: IEditorInput;
 	name: string;
 	hasAmbiguousName?: boolean;
 	description?: string;
@@ -325,10 +324,14 @@ export class TabsTitleControl extends TitleControl {
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
+			const name = editor.getName();
 			let description = editor.getDescription();
+			if (mapLabelAndDescriptionToDuplicates.has(`${name}${description}`)) {
+				description = editor.getDescription(true); // try verbose description if name+description already exists
+			}
+
 			const item: IEditorInputLabel = {
-				editor,
-				name: editor.getName(),
+				name,
 				description,
 				title: editor.getTitle(Verbosity.LONG)
 			};
@@ -351,7 +354,7 @@ export class TabsTitleControl extends TitleControl {
 				});
 
 				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
 					duplicates.forEach((duplicate, i) => {
 						duplicate.description = shortenedDescriptions[i];
 						duplicate.hasAmbiguousName = true;

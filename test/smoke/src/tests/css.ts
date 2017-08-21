@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
 import { CSS, CSSProblem } from '../areas/css';
 
@@ -13,7 +13,7 @@ let app: SpectronApplication;
 let common: CommonActions;
 
 export function testCSS() {
-	context('CSS', () => {
+	describe('CSS', () => {
 		let css: CSS;
 
 		beforeEach(async function () {

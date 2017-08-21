@@ -62,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
 		const stacks = this.groupService.getStacksModel();
 
-		const restorePromises: TPromise<number>[] = [];
+		const restorePromises: TPromise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {

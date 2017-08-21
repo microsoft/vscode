@@ -13,7 +13,7 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowConfiguration } from "vs/platform/windows/common/windows";
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;

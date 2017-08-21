@@ -22,9 +22,9 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRange } from 'vs/editor/common/core/range';
-import { ITextFileService, StateChange } from "vs/workbench/services/textfile/common/textfiles";
-import { TPromise } from "vs/base/common/winjs.base";
-import { Queue } from "vs/base/common/async";
+import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Queue } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 
 class SettingMatches {

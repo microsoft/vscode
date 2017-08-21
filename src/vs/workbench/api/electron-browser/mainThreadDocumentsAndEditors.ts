@@ -11,12 +11,20 @@ import { delta } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
+import { MainThreadEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 namespace cmp {
 	export function compareModels(a: IModel, b: IModel): number {
@@ -105,21 +113,22 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _toDispose: IDisposable[] = [];
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _onDidChangeState = new Emitter<DocumentAndEditorStateDelta>();
 	private _currentState: DocumentAndEditorState;
 
-	readonly onDidChangeState: Event<DocumentAndEditorStateDelta> = this._onDidChangeState.event;
-
 	constructor(
+		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
 		@IModelService private _modelService: IModelService,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
 	) {
 		this._modelService.onModelAdded(this._updateState, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
+
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
-		// this._updateState();
+		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
+
+		this._updateState();
 	}
 
 	dispose(): void {
@@ -200,11 +209,12 @@ class MainThreadDocumentAndEditorStateComputer {
 		const delta = DocumentAndEditorState.compute(this._currentState, newState);
 		if (!delta.isEmpty) {
 			this._currentState = newState;
-			this._onDidChangeState.fire(delta);
+			this._onDidChangeState(delta);
 		}
 	}
 }
 
+@extHostCustomer
 export class MainThreadDocumentsAndEditors {
 
 	private _toDispose: IDisposable[];
@@ -223,17 +233,37 @@ export class MainThreadDocumentsAndEditors {
 	readonly onDocumentRemove: Event<string[]> = this._onDocumentRemove.event;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IModelService private _modelService: IModelService,
 		@ITextFileService private _textFileService: ITextFileService,
 		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
-		@IThreadService threadService: IThreadService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IModeService modeService: IModeService,
+		@IFileService fileService: IFileService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this._proxy = threadService.get(ExtHostContext.ExtHostDocumentsAndEditors);
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(_modelService, codeEditorService, _workbenchEditorService);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
+
+		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
+		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
+
+		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService);
+		extHostContext.set(MainContext.MainThreadEditors, mainThreadEditors);
+
+		// It is expected that the ctor of the state computer calls our `_onDelta`.
+		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, _workbenchEditorService);
+
 		this._toDispose = [
+			mainThreadDocuments,
+			mainThreadEditors,
 			this._stateComputer,
-			this._stateComputer.onDidChangeState(this._onDelta, this)
+			this._onTextEditorAdd,
+			this._onTextEditorRemove,
+			this._onDocumentAdd,
+			this._onDocumentRemove,
 		];
 	}
 

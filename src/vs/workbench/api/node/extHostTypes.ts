@@ -1029,14 +1029,14 @@ export class Color {
 
 	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
 		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
-		return new Color(color.r, color.g, color.b, color.a / 255);
+		return new Color(color.r, color.g, color.b, color.a);
 	}
 
 	static fromHex(hex: string): Color | null {
 		let baseColor = BaseColor.Format.CSS.parseHex(hex);
 		if (baseColor) {
 			const rgba = baseColor.rgba;
-			return new Color(rgba.r, rgba.g, rgba.b, rgba.a / 255);
+			return new Color(rgba.r, rgba.g, rgba.b, rgba.a);
 		}
 		return null;
 	}

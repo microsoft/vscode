@@ -30,7 +30,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMode } from "vs/editor/common/modes";
+import { IMode } from 'vs/editor/common/modes';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';

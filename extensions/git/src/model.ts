@@ -119,6 +119,28 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	private get tooltip(): string {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
+			case Status.MODIFIED: return localize('modified', "Modified");
+			case Status.INDEX_ADDED: return localize('index added', "Index Added");
+			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
+			case Status.DELETED: return localize('deleted', "Deleted");
+			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
+			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
+			case Status.UNTRACKED: return localize('untracked', "Untracked");
+			case Status.IGNORED: return localize('ignored', "Ignored");
+			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			default: return '';
+		}
+	}
+
 	private get strikeThrough(): boolean {
 		switch (this.type) {
 			case Status.DELETED:
@@ -141,10 +163,11 @@ export class Resource implements SourceControlResourceState {
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
+		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
 
-		return { strikeThrough, faded, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	constructor(

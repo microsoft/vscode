@@ -64,7 +64,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 */
 	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
 
-		model.forceTokenization(startLineNumber);
+		model.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
 
 		const config = LanguageConfigurationRegistry.getComments(languageId);
@@ -266,7 +266,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
-		model.forceTokenization(s.startLineNumber);
+		model.tokenizeIfCheap(s.startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {

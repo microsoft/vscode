@@ -5,16 +5,7 @@
 
 declare module monaco {
 
-	interface Thenable<T> {
-		/**
-		 * Attaches callbacks for the resolution and/or rejection of the Promise.
-		 * @param onfulfilled The callback to execute when the Promise is resolved.
-		 * @param onrejected The callback to execute when the Promise is rejected.
-		 * @returns A Promise for the completion of which ever callback is executed.
-		 */
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-	}
+	type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -56,46 +47,28 @@ declare module monaco {
 	}
 
 
-	/**
-	 * A Promise implementation that supports progress and cancelation.
-	 */
-	export class Promise<V> {
+	export class Promise {
+		// commented out because this conflicts with the native promise
+		// constructor(init: (complete: ValueCallback, error: ErrorCallback, progress: ProgressCallback) => void, oncancel?: any);
 
-		constructor(init: (complete: TValueCallback<V>, error: (err: any) => void, progress: ProgressCallback) => void, oncancel?: any);
+		// commented out to speed up adoption of TPromise
+		// static as(value:any):Promise;
 
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
+		// static join(promises: { [name: string]: Promise; }): Promise;
+		static join(promises: Promise[]): Promise;
+		// static any(promises: Promise[]): Promise;
 
-		public done(success?: (value: V) => void, error?: (err: any) => any, progress?: ProgressCallback): void;
+		// commented out to speed up adoption of TPromise
+		// static timeout(delay:number):Promise;
+
+		// static wrapError(error: Error): Promise;
+		// static is(value: any): value is Thenable<any>;
+		// static addEventListener(type: string, fn: EventCallback): void;
+
+		public then(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): Promise;
+		// public then<U>(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): Promise<U>;
+		public done(success?: ValueCallback, error?: ErrorCallback, progress?: ProgressCallback): void;
 		public cancel(): void;
-
-		public static as(value: null): Promise<null>;
-		public static as(value: undefined): Promise<undefined>;
-		public static as<ValueType>(value: Promise<ValueType>): Promise<ValueType>;
-		public static as<ValueType>(value: Thenable<ValueType>): Thenable<ValueType>;
-		public static as<ValueType>(value: ValueType): Promise<ValueType>;
-
-		public static is(value: any): value is Thenable<any>;
-		public static timeout(delay: number): Promise<void>;
-		public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
-		public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
-		public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
-		public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
-
-		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
-		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
-
-		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
 	}
 
 	export class CancellationTokenSource {

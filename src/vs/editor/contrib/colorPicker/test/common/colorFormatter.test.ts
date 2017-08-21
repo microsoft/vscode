@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Color, RGBA } from 'vs/base/common/color';
+import { Color, RGBA, HSLA } from 'vs/base/common/color';
 import { ColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 
 suite('ColorFormatter', () => {
@@ -62,5 +62,13 @@ suite('ColorFormatter', () => {
 
 		const hsla = new ColorFormatter('hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})');
 		assert.equal(hsla.format(color), 'hsla(30, 100%, 50%, 1)');
+	});
+
+	test('bug#32323', () => {
+		const color = new Color(new HSLA(121, 0.45, 0.29, 0.61));
+		const rgba = color.rgba;
+		const color2 = new Color(new RGBA(rgba.r, rgba.g, rgba.b, rgba.a));
+		const hsla = new ColorFormatter('hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})');
+		assert.equal(hsla.format(color2), 'hsla(121, 45%, 29%, 0.61)');
 	});
 });

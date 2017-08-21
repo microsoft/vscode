@@ -27,7 +27,7 @@ import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { escape } from 'vs/base/common/strings';
-import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 interface WatermarkEntry {
 	text: string;

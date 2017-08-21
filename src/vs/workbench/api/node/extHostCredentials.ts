@@ -7,12 +7,11 @@
 import { MainContext, MainThreadCredentialsShape, ExtHostCredentialsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 
-export class ExtHostCredentials extends ExtHostCredentialsShape {
+export class ExtHostCredentials implements ExtHostCredentialsShape {
 
 	private _proxy: MainThreadCredentialsShape;
 
 	constructor(mainContext: IMainContext) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadCredentials);
 	};
 

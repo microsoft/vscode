@@ -16,10 +16,10 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { isEqual } from "vs/base/common/paths";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isEqual } from 'vs/base/common/paths';
 
 export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 	folders: string[]; // TODO@Ben migration

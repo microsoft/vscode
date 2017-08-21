@@ -10,8 +10,8 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
-import URI from "vs/base/common/uri";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import URI from 'vs/base/common/uri';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;

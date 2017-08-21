@@ -6,12 +6,12 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, FileChangeType } from "vs/platform/files/common/files";
-import { TPromise } from "vs/base/common/winjs.base";
-import Event from "vs/base/common/event";
-import { EventEmitter } from "events";
-import { basename } from "path";
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
+import { EventEmitter } from 'events';
+import { basename } from 'path';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IRemoteFileSystemProvider {
 	onDidChange: Event<URI>;

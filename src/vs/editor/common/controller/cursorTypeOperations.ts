@@ -223,7 +223,7 @@ export class TypeOperations {
 
 				let lineText = model.getLineContent(selection.startLineNumber);
 
-				if (/^\s*$/.test(lineText)) {
+				if (/^\s*$/.test(lineText) && model.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					let possibleTypeText = config.normalizeIndentation(goodIndent);
@@ -286,7 +286,7 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): ICommand {
-		if (model.getFirstInvalidLineNumber() < range.getStartPosition().lineNumber) {
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			let lineText = model.getLineContent(range.startLineNumber);
 			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
@@ -380,9 +380,8 @@ export class TypeOperations {
 			return false;
 		}
 
-		let firstInvalidLineNumber = model.getFirstInvalidLineNumber();
 		for (let i = 0, len = selections.length; i < len; i++) {
-			if (firstInvalidLineNumber < selections[i].getEndPosition().lineNumber) {
+			if (!model.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
 				return false;
 			}
 		}
@@ -528,6 +527,11 @@ export class TypeOperations {
 				}
 			}
 
+			if (!model.isCheapToTokenize(position.lineNumber)) {
+				// Do not force tokenization
+				return false;
+			}
+
 			model.forceTokenization(position.lineNumber);
 			const lineTokens = model.getLineTokens(position.lineNumber);
 
@@ -607,8 +611,7 @@ export class TypeOperations {
 	}
 
 	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]) {
-		let firstInvalidLineNumber = model.getFirstInvalidLineNumber();
-		if (selections.length === 1 && firstInvalidLineNumber >= selections[0].getEndPosition().lineNumber) {
+		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
 			return true;
 		}
 		return false;

@@ -338,7 +338,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					});
 			} else {
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
+				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
 				const color = new Color(rgba);
 
 				const formatters = [...msg.formatters];

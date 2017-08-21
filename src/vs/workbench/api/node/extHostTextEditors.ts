@@ -16,7 +16,7 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
-export class ExtHostEditors extends ExtHostEditorsShape {
+export class ExtHostEditors implements ExtHostEditorsShape {
 
 	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
@@ -38,7 +38,6 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		mainContext: IMainContext,
 		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
-		super();
 		this._proxy = mainContext.get(MainContext.MainThreadEditors);
 		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
 

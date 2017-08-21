@@ -31,7 +31,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;

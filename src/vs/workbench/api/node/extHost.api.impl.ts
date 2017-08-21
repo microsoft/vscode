@@ -8,7 +8,6 @@ import { Emitter } from 'vs/base/common/event';
 import { TrieMap } from 'vs/base/common/map';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as Platform from 'vs/base/common/platform';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -48,10 +47,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
-import { realpath } from 'fs';
-import { MainContext, ExtHostContext, InstanceCollection, IInitData } from './extHost.protocol';
+import { MainContext, ExtHostContext, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -72,37 +73,40 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
  */
 export function createApiFactory(
 	initData: IInitData,
-	threadService: IThreadService,
+	threadService: ExtHostThreadService,
 	extensionService: ExtHostExtensionService,
 	telemetryService: ITelemetryService
 ): IExtensionApiFactory {
 
 	// Addressable instances
-	const col = new InstanceCollection();
-	const extHostHeapService = col.define(ExtHostContext.ExtHostHeapService).set<ExtHostHeapService>(new ExtHostHeapService());
-	const extHostDebugService = col.define(ExtHostContext.ExtHostDebugService).set<ExtHostDebugService>(new ExtHostDebugService(threadService));
-	const extHostDocumentsAndEditors = col.define(ExtHostContext.ExtHostDocumentsAndEditors).set<ExtHostDocumentsAndEditors>(new ExtHostDocumentsAndEditors(threadService));
-	const extHostDocuments = col.define(ExtHostContext.ExtHostDocuments).set<ExtHostDocuments>(new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
-	const extHostDocumentContentProviders = col.define(ExtHostContext.ExtHostDocumentContentProviders).set<ExtHostDocumentContentProvider>(new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
-	const extHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
-	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocumentsAndEditors));
-	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostHeapService));
-	const extHostTreeViews = col.define(ExtHostContext.ExtHostTreeViews).set<ExtHostTreeViews>(new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
-	const extHostWorkspace = col.define(ExtHostContext.ExtHostWorkspace).set<ExtHostWorkspace>(new ExtHostWorkspace(threadService, initData.workspace));
-	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration));
-	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
-	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
-	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
-	const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
-	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
-	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService, extHostCommands));
-	const extHostTask = col.define(ExtHostContext.ExtHostTask).set<ExtHostTask>(new ExtHostTask(threadService));
-	const extHostCredentials = col.define(ExtHostContext.ExtHostCredentials).set<ExtHostCredentials>(new ExtHostCredentials(threadService));
-	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
-	col.finish(false, threadService);
+	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
+	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
+	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
+	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
+	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
+	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService));
+	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
+	const extHostWorkspace = threadService.set(ExtHostContext.ExtHostWorkspace, new ExtHostWorkspace(threadService, initData.workspace));
+	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
+	const extHostConfiguration = threadService.set(ExtHostContext.ExtHostConfiguration, new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration));
+	const extHostDiagnostics = threadService.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(threadService));
+	const languageFeatures = threadService.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
+	const extHostFileSystemEvent = threadService.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
+	const extHostQuickOpen = threadService.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(threadService));
+	const extHostTerminalService = threadService.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(threadService));
+	const extHostSCM = threadService.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(threadService, extHostCommands));
+	const extHostTask = threadService.set(ExtHostContext.ExtHostTask, new ExtHostTask(threadService));
+	const extHostCredentials = threadService.set(ExtHostContext.ExtHostCredentials, new ExtHostCredentials(threadService));
+	threadService.set(ExtHostContext.ExtHostExtensionService, extensionService);
+
+	// Check that no named customers are missing
+	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => ExtHostContext[key]);
+	threadService.assertRegistered(expected);
 
 	// Other instances
 	const extHostMessageService = new ExtHostMessageService(threadService);
+	const extHostDialogs = new ExtHostDialogs(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
 	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
@@ -323,13 +327,13 @@ export function createApiFactory(
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
 			showInformationMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Info, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
 			showWarningMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Warning, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Warning, message, first, rest);
 			},
 			showErrorMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(Severity.Error, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -364,8 +368,11 @@ export function createApiFactory(
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
+				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
+			showOpenDialog: proposedApiFunction(extension, () => {
+				return extHostDialogs.showOpenDialog();
+			})
 		};
 
 		// namespace: workspace
@@ -497,11 +504,14 @@ export function createApiFactory(
 			},
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
-			}
+			},
+			registerDebugConfigurationProvider: proposedApiFunction(extension, (debugType: string, provider: vscode.DebugConfigurationProvider) => {
+				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
+			}),
 		};
 
 		// namespace: credentials
-		const credentials: typeof vscode.credentials = {
+		const credentials = {
 			readSecret(service: string, account: string): Thenable<string | undefined> {
 				return extHostCredentials.readSecret(service, account);
 			},
@@ -525,7 +535,6 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
-			credentials,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
@@ -579,8 +588,8 @@ export function createApiFactory(
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
-		if (!extension.enableProposedApi) {
-			delete api.credentials; // Instead of error to avoid #31854
+		if (extension.enableProposedApi && extension.isBuiltin) {
+			api['credentials'] = credentials;
 		}
 		return api;
 	};
@@ -615,30 +624,7 @@ class Extension<T> implements vscode.Extension<T> {
 }
 
 export function initializeExtensionApi(extensionService: ExtHostExtensionService, apiFactory: IExtensionApiFactory): TPromise<void> {
-	return createExtensionPathIndex(extensionService).then(trie => defineAPI(apiFactory, trie));
-}
-
-function createExtensionPathIndex(extensionService: ExtHostExtensionService): TPromise<TrieMap<IExtensionDescription>> {
-
-	// create trie to enable fast 'filename -> extension id' look up
-	const trie = new TrieMap<IExtensionDescription>(TrieMap.PathSplitter);
-	const extensions = extensionService.getAllExtensionDescriptions().map(ext => {
-		if (!ext.main) {
-			return undefined;
-		}
-		return new TPromise((resolve, reject) => {
-			realpath(ext.extensionFolderPath, (err, path) => {
-				if (err) {
-					reject(err);
-				} else {
-					trie.insert(path, ext);
-					resolve(void 0);
-				}
-			});
-		});
-	});
-
-	return TPromise.join(extensions).then(() => trie);
+	return extensionService.getExtensionPathIndex().then(trie => defineAPI(apiFactory, trie));
 }
 
 function defineAPI(factory: IExtensionApiFactory, extensionPaths: TrieMap<IExtensionDescription>): void {

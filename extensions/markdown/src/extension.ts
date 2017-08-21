@@ -16,7 +16,7 @@ import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
-import { Logger } from "./logger";
+import { Logger } from './logger';
 
 interface IPackageInfo {
 	name: string;

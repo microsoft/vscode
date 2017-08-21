@@ -127,7 +127,7 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 		fontStyle: {
 			type: 'string',
 			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
-			pattern: '^(\\s*\\b(italics|bold|underline))*\\s*$',
+			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
 			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be a combination of \'italic\', \'bold\' and \'underline\''),
 			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 		}

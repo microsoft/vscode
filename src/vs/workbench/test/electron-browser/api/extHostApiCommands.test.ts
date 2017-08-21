@@ -16,7 +16,6 @@ import { Model as EditorModel } from 'vs/editor/common/model/model';
 import { TestThreadService } from './testThreadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -31,7 +30,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -81,7 +80,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
-			instantiationService.stub(IThreadService, threadService);
 			instantiationService.stub(IModelService, <IModelService>{
 				_serviceBrand: IModelService,
 				getModel(): any { return model; },
@@ -125,7 +123,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures));
+		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
 
 		threadService.sync().then(done, done);
 	});

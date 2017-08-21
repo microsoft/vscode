@@ -216,6 +216,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}, (error: Error) => {
 				this.pendingSearch = null;
 				this.messageService.show(Severity.Error, error);
+				return null;
 			});
 
 			return this.pendingSearch;

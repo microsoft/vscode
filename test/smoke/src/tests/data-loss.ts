@@ -5,16 +5,16 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { DataLoss } from "../areas/data-loss";
+import { DataLoss } from '../areas/data-loss';
 
 let app: SpectronApplication;
 let common: CommonActions;
 let dl: DataLoss;
 
 export function testDataLoss() {
-	context('Data Loss', () => {
+	describe('Data Loss', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH], [`--user-data-dir=${USER_DIR}`]);
