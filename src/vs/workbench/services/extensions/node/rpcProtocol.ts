@@ -44,7 +44,8 @@ export class RPCProtocol {
 
 	private _receiveOneMessage(rawmsg: string): void {
 		if (this._isDisposed) {
-			throw new Error(`disposed`);
+			console.warn('Received message after being shutdown: ', rawmsg);
+			return;
 		}
 		let msg = marshalling.parse(rawmsg);
 
