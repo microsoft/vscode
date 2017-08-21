@@ -561,6 +561,11 @@
       "from": "vscode-textmate@3.1.5",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.5.tgz"
     },
+    "windows-process-tree": {
+      "version": "0.1.1",
+      "from": "windows-process-tree@0.1.1",
+      "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.1.tgz"
+    },
     "winreg": {
       "version": "1.2.0",
       "from": "winreg@1.2.0",
