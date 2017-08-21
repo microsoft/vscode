@@ -327,13 +327,13 @@ configurationRegistry.registerConfiguration({
 			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
 			'default': SortOrderConfiguration.DEFAULT,
 			'enumDescriptions': [
-				nls.localize('sortOrder.default', 'Files and directories are sorted by their names, in alphabetical order. Directories are displayed before files.'),
-				nls.localize('sortOrder.mixed', 'Files and directories are sorted by their names, in alphabetical order. Files are interwoven with directories.'),
-				nls.localize('sortOrder.filesFirst', 'Files and directories are sorted by their names, in alphabetical order. Files are displayed before directories.'),
-				nls.localize('sortOrder.type', 'Files and directories are sorted by their extensions, in alphabetical order. Directories are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and directories are sorted by last modified date, in descending order. Directories are displayed before files.')
+				nls.localize('sortOrder.default', 'Files and folders are sorted by their names, in alphabetical order. Folders are displayed before files.'),
+				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names, in alphabetical order. Files are interwoven with folders.'),
+				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names, in alphabetical order. Files are displayed before folders.'),
+				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
-			'description': nls.localize('sortOrder', "Controls sorting order of files and directories in the explorer.")
+			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
 		}
 	}
 });
