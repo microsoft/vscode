@@ -73,35 +73,6 @@ export abstract class BaseWorkspacesAction extends Action {
 		super(id, label);
 	}
 
-	protected handleNotInMultiFolderWorkspaceCase(message: string): boolean {
-		const newWorkspace = { label: mnemonicLabel(nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")), canceled: false };
-		const cancel = { label: nls.localize('cancel', "Cancel"), canceled: true };
-
-		const buttons: { label: string; canceled: boolean; }[] = [];
-		if (isLinux) {
-			buttons.push(cancel, newWorkspace);
-		} else {
-			buttons.push(newWorkspace, cancel);
-		}
-
-		const opts: Electron.ShowMessageBoxOptions = {
-			title: this.environmentService.appNameLong,
-			message,
-			noLink: true,
-			type: 'question',
-			buttons: buttons.map(button => button.label),
-			cancelId: buttons.indexOf(cancel)
-		};
-
-		if (isLinux) {
-			opts.defaultId = 1;
-		}
-
-		const res = this.windowService.showMessageBox(opts);
-
-		return !buttons[res].canceled;
-	}
-
 	protected pickFolders(buttonLabel: string, title: string): string[] {
 		const workspace = this.contextService.getWorkspace();
 		let defaultPath: string;
@@ -177,9 +148,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	public run(): TPromise<any> {
 		const folders = this.pickFolders(mnemonicLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
 		if (folders && folders.length) {
-			if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('addSupported', "To open multiple folders, window reload is required."))) {
-				return this.createWorkspace([...this.presetRoots, ...folders.map(folder => URI.file(folder))]);
-			}
+			return this.createWorkspace([...this.presetRoots, ...folders.map(folder => URI.file(folder))]);
 		}
 
 		return TPromise.as(null);
@@ -250,13 +219,9 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	private saveFolderWorkspace(configPath: string): TPromise<void> {
-		if (this.handleNotInMultiFolderWorkspaceCase(nls.localize('saveNotSupported', "To save workspace, window reload is required."))) {
-			const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */));
+		const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */));
 
-			return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
-		}
-
-		return TPromise.as(null);
+		return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 	}
 
 	private getNewWorkspaceConfigPath(): string {
