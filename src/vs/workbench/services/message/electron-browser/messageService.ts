@@ -57,6 +57,10 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			opts.type = confirmation.type;
 		}
 
+		if (confirmation.checkboxLabel) {
+			opts.checkboxLabel = confirmation.checkboxLabel;
+		}
+
 		let result = this.showMessageBox(opts);
 
 		return result === 0 ? true : false;

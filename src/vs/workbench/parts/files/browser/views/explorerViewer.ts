@@ -890,36 +890,48 @@ export class FileDragAndDrop implements IDragAndDrop {
 						const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
 						let didHandleConflict = false;
 
-						return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
+						const confirm: IConfirmation = {
+							message: nls.localize('confirmMoveMessage', "Are you sure that you want to move this file?"),
+							detail: nls.localize('irreversible', "This action is irreversible!"),
+							primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move"),
+							type: 'warning',
+							checkboxLabel: nls.localize('showMessageCheckbox', "Don't show this message again.")
+						};
 
-							// Conflict
-							if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-								didHandleConflict = true;
+						if (this.messageService.confirm(confirm)) {
+							return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
-								const confirm: IConfirmation = {
-									message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-									detail: nls.localize('irreversible', "This action is irreversible!"),
-									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-									type: 'warning'
-								};
+								// Conflict
+								if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+									didHandleConflict = true;
 
-								// Move with overwrite if the user confirms
-								if (this.messageService.confirm(confirm)) {
-									const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
+									const confirm: IConfirmation = {
+										message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+										detail: nls.localize('irreversible', "This action is irreversible!"),
+										primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+										type: 'warning'
+									};
 
-									// Make sure to revert all dirty in target first to be able to overwrite properly
-									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+									// Move with overwrite if the user confirms
+									if (this.messageService.confirm(confirm)) {
+										const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
 
-										// Then continue to do the move operation
-										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
-									});
+										// Make sure to revert all dirty in target first to be able to overwrite properly
+										return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+
+											// Then continue to do the move operation
+											return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+										});
+									}
+
+									return onError();
 								}
 
-								return onError();
-							}
+								return onError(error, true);
+							});
+						}
 
-							return onError(error, true);
-						});
+						return 0; // Not sure what to do here.
 					})
 
 					// 4.) resolve those that were dirty to load their previous dirty contents from disk
