@@ -10,7 +10,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -18,6 +17,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -52,8 +52,9 @@ function readTransientState(model: IModel, codeEditorService: ICodeEditorService
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
-function readWordWrapState(model: IModel, configurationService: IConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
-	let _configuredWordWrap = configurationService.lookup<'on' | 'off' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap', model.getLanguageIdentifier().language).value;
+function readWordWrapState(model: IModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
+	const editorConfig = configurationService.getConfiguration(model.uri, 'editor') as { wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded'; wordWrapMinified: boolean };
+	let _configuredWordWrap = editorConfig && (typeof editorConfig.wordWrap === 'string' || typeof editorConfig.wordWrap === 'boolean') ? editorConfig.wordWrap : void 0;
 
 	// Compatibility with old true or false values
 	if (<any>_configuredWordWrap === true) {
@@ -62,11 +63,11 @@ function readWordWrapState(model: IModel, configurationService: IConfigurationSe
 		_configuredWordWrap = 'off';
 	}
 
-	const _configuredWordWrapMinified = configurationService.lookup<boolean>('editor.wordWrapMinified', model.getLanguageIdentifier().language);
+	const _configuredWordWrapMinified = editorConfig && typeof editorConfig.wordWrapMinified === 'boolean' ? editorConfig.wordWrapMinified : void 0;
 	const _transientState = readTransientState(model, codeEditorService);
 	return {
 		configuredWordWrap: _configuredWordWrap,
-		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? EDITOR_DEFAULTS.wordWrapMinified : _configuredWordWrapMinified.value),
+		configuredWordWrapMinified: (typeof _configuredWordWrapMinified === 'boolean' ? _configuredWordWrapMinified : EDITOR_DEFAULTS.wordWrapMinified),
 		transientState: _transientState
 	};
 }
@@ -154,7 +155,7 @@ class ToggleWordWrapAction extends EditorAction {
 			return;
 		}
 
-		const configurationService = accessor.get(IConfigurationService);
+		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const model = editor.getModel();
 
@@ -163,7 +164,7 @@ class ToggleWordWrapAction extends EditorAction {
 		}
 
 		// Read the current state
-		const currentState = readWordWrapState(model, configurationService, codeEditorService);
+		const currentState = readWordWrapState(model, textResourceConfigurationService, codeEditorService);
 		// Compute the new state
 		const newState = toggleWordWrap(editor, currentState);
 		// Write the new state
@@ -181,7 +182,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	constructor(
 		private readonly editor: ICommonCodeEditor,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
+		@ITextResourceConfigurationService readonly configurationService: ITextResourceConfigurationService,
 		@ICodeEditorService readonly codeEditorService: ICodeEditorService
 	) {
 		super();

@@ -6,7 +6,6 @@
 {
 	"hintExclude": "Para habilitar os recursos de linguagem JavaScript/TypeScipt em todo o projeto, excluir pastas com muitos arquivos, como: {0}",
 	"hintExclude.generic": "Para habilitar os recursos de linguagem JavaScript/TypeScipt em todo o projeto, excluir pastas grandes com arquivos em que você não trabalha.",
-	"open": "Configurar exclusões",
 	"large.label": "Configurar exclusões",
 	"hintExclude.tooltip": "Para habilitar os recursos de linguagem JavaScript/TypeScipt em todo o projeto, excluir pastas grandes com arquivos em que você não trabalha."
 }

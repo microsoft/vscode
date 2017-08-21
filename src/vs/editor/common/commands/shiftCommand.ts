@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
@@ -45,11 +45,13 @@ export class ShiftCommand implements ICommand {
 	private _selection: Selection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
+	private _selectionStartColumnStaysPut: boolean;
 
 	constructor(range: Selection, opts: IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
+		this._selectionStartColumnStaysPut = false;
 	}
 
 	private _addEditOperation(builder: IEditOperationBuilder, range: Range, text: string) {
@@ -110,28 +112,30 @@ export class ShiftCommand implements ICommand {
 					if (contentStartVisibleColumn % tabSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
-						let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-						if (enterAction) {
-							extraSpaces = previousLineExtraSpaces;
-							if (enterAction.appendText) {
-								for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-									if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
-										extraSpaces++;
-									} else {
-										break;
+						if (model.isCheapToTokenize(lineNumber - 1)) {
+							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							if (enterAction) {
+								extraSpaces = previousLineExtraSpaces;
+								if (enterAction.appendText) {
+									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
+											extraSpaces++;
+										} else {
+											break;
+										}
 									}
 								}
-							}
-							if (enterAction.removeText) {
-								extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
-							}
-
-							// Act as if `prefixSpaces` is not part of the indentation
-							for (let j = 0; j < extraSpaces; j++) {
-								if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
-									break;
+								if (enterAction.removeText) {
+									extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
 								}
-								indentationEndIndex--;
+
+								// Act as if `prefixSpaces` is not part of the indentation
+								for (let j = 0; j < extraSpaces; j++) {
+									if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
+										break;
+									}
+									indentationEndIndex--;
+								}
 							}
 						}
 					}
@@ -156,6 +160,10 @@ export class ShiftCommand implements ICommand {
 				}
 
 				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+				if (lineNumber === startLine) {
+					// Force the startColumn to stay put because we're inserting after it
+					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
+				}
 			}
 		} else {
 
@@ -197,6 +205,10 @@ export class ShiftCommand implements ICommand {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
+					if (lineNumber === startLine) {
+						// Force the startColumn to stay put because we're inserting after it
+						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
+					}
 				}
 			}
 		}
@@ -209,6 +221,22 @@ export class ShiftCommand implements ICommand {
 			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);
 		}
-		return helper.getTrackedSelection(this._selectionId);
+		const result = helper.getTrackedSelection(this._selectionId);
+
+		if (this._selectionStartColumnStaysPut) {
+			// The selection start should not move
+			let initialStartColumn = this._selection.startColumn;
+			let resultStartColumn = result.startColumn;
+			if (resultStartColumn <= initialStartColumn) {
+				return result;
+			}
+
+			if (result.getDirection() === SelectionDirection.LTR) {
+				return new Selection(result.startLineNumber, initialStartColumn, result.endLineNumber, result.endColumn);
+			}
+			return new Selection(result.endLineNumber, result.endColumn, result.startLineNumber, initialStartColumn);
+		}
+
+		return result;
 	}
 }

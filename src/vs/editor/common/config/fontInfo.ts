@@ -86,7 +86,7 @@ export class BareFontInfo {
 			lineHeight = 8;
 		}
 
-		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);;
+		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);
 		letterSpacing = clamp(letterSpacing, -20, 20);
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);

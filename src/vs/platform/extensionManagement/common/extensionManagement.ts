@@ -74,10 +74,9 @@ export interface ITheme {
 	label: string;
 }
 
-export interface ITreeExplorer {
+export interface IView {
 	id: string;
-	label: string;
-	icon: string;
+	name: string;
 }
 
 export interface IExtensionContributions {
@@ -91,7 +90,7 @@ export interface IExtensionContributions {
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
-	explorer?: ITreeExplorer;
+	views?: { [location: string]: IView[] };
 }
 
 export interface IExtensionManifest {
@@ -177,7 +176,8 @@ export enum SortBy {
 	PublisherName = 3,
 	InstallCount = 4,
 	PublishedDate = 5,
-	AverageRating = 6
+	AverageRating = 6,
+	WeightedRating = 12
 }
 
 export enum SortOrder {
@@ -195,12 +195,17 @@ export interface IQueryOptions {
 	sortOrder?: SortOrder;
 }
 
+export enum StatisticType {
+	Uninstall = 'uninstall'
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryMetadata): TPromise<string>;

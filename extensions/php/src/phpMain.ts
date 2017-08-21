@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+nls.config({ locale: vscode.env.language });
+
 import PHPCompletionItemProvider from './features/completionItemProvider';
 import PHPHoverProvider from './features/hoverProvider';
 import PHPSignatureHelpProvider from './features/signatureHelpProvider';
 import PHPValidationProvider from './features/validationProvider';
-import * as vscode from 'vscode';
-
-import * as nls from 'vscode-nls';
-nls.config({ locale: vscode.env.language });
 
 export function activate(context: vscode.ExtensionContext): any {
 

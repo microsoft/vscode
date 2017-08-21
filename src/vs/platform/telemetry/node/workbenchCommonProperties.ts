@@ -62,7 +62,7 @@ export function getOrCreateMachineId(storageService: IStorageService): TPromise<
 }
 
 function getSqmUserId(storageService: IStorageService): TPromise<string> {
-	var sqmUserId = storageService.get('telemetry.sqm.userId');
+	const sqmUserId = storageService.get('telemetry.sqm.userId');
 	if (sqmUserId) {
 		return TPromise.as(sqmUserId);
 	}
@@ -93,7 +93,7 @@ function getWinRegKeyData(key: string, name: string, hive: string): TPromise<str
 	return new TPromise<string>((resolve, reject) => {
 		if (process.platform === 'win32') {
 			try {
-				var reg = new winreg({ hive, key });
+				const reg = new winreg({ hive, key });
 				reg.get(name, (e, result) => {
 					if (e || !result) {
 						reject(null);

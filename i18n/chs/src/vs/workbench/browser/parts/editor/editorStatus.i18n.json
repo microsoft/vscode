@@ -11,6 +11,8 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "按 Tab 移动焦点",
+	"screenReaderDetected": "检测到屏幕阅读器",
+	"screenReaderDetectedExtra": "如果你没有使用屏幕阅读器，请将设置中的“editor.accessibilitySupport”改为“off”。",
 	"disableTabMode": "禁用辅助功能模式",
 	"gotoLine": "转到行",
 	"indentation": "缩进",

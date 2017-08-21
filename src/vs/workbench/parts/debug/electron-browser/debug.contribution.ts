@@ -8,14 +8,13 @@ import 'vs/css!../browser/media/debugHover';
 import * as nls from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
-import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
@@ -35,6 +34,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -94,10 +94,10 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-DebugViewRegistry.registerDebugView(VariablesView, 10, 40);
-DebugViewRegistry.registerDebugView(WatchExpressionsView, 20, 10);
-DebugViewRegistry.registerDebugView(CallStackView, 30, 30);
-DebugViewRegistry.registerDebugView(BreakpointsView, 40, 20);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.variablesView', name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, size: 40, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.watchExpressionsView', name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, size: 10, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.callStackView', name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, size: 30, location: ViewLocation.Debug, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: 'workbench.debug.breakPointsView', name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, size: 20, location: ViewLocation.Debug, canToggleVisibility: true }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -127,9 +127,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RunAction, RunAction.I
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL), 'Debug: Remove All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Debug Console', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus Debug Console', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Launch Configuration', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
 
 // Register Quick Open
 (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
@@ -137,6 +137,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, 
 		'vs/workbench/parts/debug/browser/debugQuickOpen',
 		'DebugQuickOpenHandler',
 		'debug ',
+		'inLaunchConfigurationsPicker',
 		nls.localize('debugCommands', "Debug Configuration")
 	)
 );

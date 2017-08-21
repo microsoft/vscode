@@ -169,6 +169,20 @@ export class Scrollable extends Disposable {
 		return this._state;
 	}
 
+	public validateScrollTop(desiredScrollTop: number): number {
+		desiredScrollTop = Math.round(desiredScrollTop);
+		desiredScrollTop = Math.max(desiredScrollTop, 0);
+		desiredScrollTop = Math.min(desiredScrollTop, this._state.scrollHeight - this._state.height);
+		return desiredScrollTop;
+	}
+
+	public validateScrollLeft(desiredScrollLeft: number): number {
+		desiredScrollLeft = Math.round(desiredScrollLeft);
+		desiredScrollLeft = Math.max(desiredScrollLeft, 0);
+		desiredScrollLeft = Math.min(desiredScrollLeft, this._state.scrollWidth - this._state.width);
+		return desiredScrollLeft;
+	}
+
 	/**
 	 * Returns the final scroll state that the instance will have once the smooth scroll animation concludes.
 	 * If no scroll animation is occurring, it will return the actual scroll state instead.

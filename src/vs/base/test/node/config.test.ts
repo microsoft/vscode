@@ -42,7 +42,7 @@ suite('Config', () => {
 
 		watcher.dispose();
 
-		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'] });
+		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'], onError: console.error });
 
 		let config2 = watcher2.getConfig();
 		assert.ok(Array.isArray(config2));
@@ -98,6 +98,8 @@ suite('Config', () => {
 	});
 
 	test('watching', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -124,6 +126,8 @@ suite('Config', () => {
 	});
 
 	test('watching also works when file created later', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -148,6 +152,8 @@ suite('Config', () => {
 	});
 
 	test('watching detects the config file getting deleted', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -178,7 +184,7 @@ suite('Config', () => {
 
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100, onError: console.error });
 			watcher.getConfig(); // ensure we are in sync
 
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');

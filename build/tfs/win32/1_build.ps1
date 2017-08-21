@@ -4,19 +4,23 @@ Param(
   [string]$vsoPAT
 )
 
+. .\build\tfs\win32\node.ps1
 . .\scripts\env.ps1
 . .\build\tfs\win32\lib.ps1
 
 # Create a _netrc file to download distro dependencies
 # In order to get _netrc to work, we need a HOME variable setup
-$env:HOME=$env:USERPROFILE
-"machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
+"machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:HOME\_netrc" -Encoding ASCII
 
 # Set the right architecture
 $env:npm_config_arch="$arch"
 
 step "Install dependencies" {
   exec { & npm install }
+}
+
+step "Hygiene" {
+  exec { & npm run gulp -- hygiene }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
@@ -33,8 +37,12 @@ step "Install distro dependencies" {
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
+  exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }
+
+# step "Create loader snapshot" {
+#   exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
+# }
 
 step "Run unit tests" {
   exec { & .\scripts\test.bat --build --reporter dot }

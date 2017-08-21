@@ -64,8 +64,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 			});
 
 			return result;
-		}, (err: any) => {
-			this.client.error(`'signatureHelp' request failed with error.`, err);
+		}, () => {
 			return null;
 		});
 	}

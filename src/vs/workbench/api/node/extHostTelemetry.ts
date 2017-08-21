@@ -6,9 +6,8 @@
 
 import { notImplemented } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryService, ITelemetryInfo, ITelemetryExperiments } from 'vs/platform/telemetry/common/telemetry';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadTelemetryShape } from './extHost.protocol';
+import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { MainContext, MainThreadTelemetryShape, IMainContext } from './extHost.protocol';
 
 export class RemoteTelemetryService implements ITelemetryService {
 
@@ -17,16 +16,12 @@ export class RemoteTelemetryService implements ITelemetryService {
 	private _name: string;
 	private _proxy: MainThreadTelemetryShape;
 
-	constructor(name: string, threadService: IThreadService) {
+	constructor(name: string, mainContext: IMainContext) {
 		this._name = name;
-		this._proxy = threadService.get(MainContext.MainThreadTelemetry);
+		this._proxy = mainContext.get(MainContext.MainThreadTelemetry);
 	}
 
 	get isOptedIn(): boolean {
-		throw notImplemented();
-	}
-
-	getExperiments(): ITelemetryExperiments {
 		throw notImplemented();
 	}
 

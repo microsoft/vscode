@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
@@ -21,6 +21,7 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 const explorerViewletVisibleId = 'explorerViewletVisible';
 const filesExplorerFocusId = 'filesExplorerFocus';
+const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
@@ -28,9 +29,11 @@ const explorerResourceIsFolderId = 'explorerResourceIsFolder';
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
 export const FilesExplorerFocussedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
 export const OpenEditorsFocussedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
 export const ExplorerFocussedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
 
+export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
 
@@ -57,6 +60,7 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
+		sortOrder: SortOrder;
 	};
 	editor: IEditorOptions;
 }
@@ -69,7 +73,7 @@ export interface IFileResource {
 /**
  * Helper to get an explorer item from an object.
  */
-export function explorerItemToFileResource(obj: any): IFileResource {
+export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileResource {
 	if (obj instanceof FileStat) {
 		const stat = obj as FileStat;
 
@@ -91,3 +95,13 @@ export function explorerItemToFileResource(obj: any): IFileResource {
 
 	return null;
 }
+
+export const SortOrderConfiguration = {
+	DEFAULT: 'default',
+	MIXED: 'mixed',
+	FILES_FIRST: 'filesFirst',
+	TYPE: 'type',
+	MODIFIED: 'modified'
+};
+
+export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';

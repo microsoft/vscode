@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as model from 'vs/platform/configuration/common/model';
+import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
-suite('ConfigurationService - Model', () => {
+suite('Configuration', () => {
 
 	suiteSetup(() => {
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -28,62 +28,47 @@ suite('ConfigurationService - Model', () => {
 		});
 	});
 
-	test('simple merge', () => {
-		let base = { 'a': 1, 'b': 2 };
-		model.merge(base, { 'a': 3, 'c': 4 }, true);
-		assert.deepEqual(base, { 'a': 3, 'b': 2, 'c': 4 });
-		base = { 'a': 1, 'b': 2 };
-		model.merge(base, { 'a': 3, 'c': 4 }, false);
-		assert.deepEqual(base, { 'a': 1, 'b': 2, 'c': 4 });
-	});
-
-	test('Recursive merge', () => {
-		const base = { 'a': { 'b': 1 } };
-		model.merge(base, { 'a': { 'b': 2 } }, true);
-		assert.deepEqual(base, { 'a': { 'b': 2 } });
-	});
-
 	test('simple merge using models', () => {
-		let base = new model.ConfigModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new model.ConfigModel(JSON.stringify({ 'a': 3, 'c': 4 }));
+		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
+		let add = new CustomConfigurationModel(JSON.stringify({ 'a': 3, 'c': 4 }));
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
 	test('simple merge with an undefined contents', () => {
-		let base = new model.ConfigModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new model.ConfigModel(null);
+		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
+		let add = new CustomConfigurationModel(null);
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
-		base = new model.ConfigModel(null);
-		add = new model.ConfigModel(JSON.stringify({ 'a': 1, 'b': 2 }));
+		base = new CustomConfigurationModel(null);
+		add = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
 		result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
-		base = new model.ConfigModel(null);
-		add = new model.ConfigModel(null);
+		base = new CustomConfigurationModel(null);
+		add = new CustomConfigurationModel(null);
 		result = base.merge(add);
 		assert.deepEqual(result.contents, {});
 	});
 
 	test('Recursive merge using config models', () => {
-		let base = new model.ConfigModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		let add = new model.ConfigModel(JSON.stringify({ 'a': { 'b': 2 } }));
+		let base = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
+		let add = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 2 } }));
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
-		let testObject = new model.ConfigModel(JSON.stringify({ 'a': 1 }));
+		let testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1 }));
 		assert.deepEqual(testObject.getContentsFor('a'), 1);
 
-		testObject = new model.ConfigModel(JSON.stringify({ 'a': { 'b': 1 } }));
+		testObject = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
 		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new model.ConfigModel(JSON.stringify({
+		const testObject = new CustomConfigurationModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -91,25 +76,25 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test contents are undefined for undefined config', () => {
-		const testObject = new model.ConfigModel(null);
+		const testObject = new CustomConfigurationModel(null);
 
 		assert.deepEqual(testObject.getContentsFor('unknownproperty'), undefined);
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
-		const testObject = new model.ConfigModel(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+		const testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
-		assert.deepEqual(testObject.configWithOverrides('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
+		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
 
 	test('Test configWithOverrides gives empty contents', () => {
-		const testObject = new model.ConfigModel(null);
+		const testObject = new CustomConfigurationModel(null);
 
-		assert.deepEqual(testObject.configWithOverrides('b').contents, {});
+		assert.deepEqual(testObject.override('b').contents, {});
 	});
 
 	test('Test update with empty data', () => {
-		const testObject = new model.ConfigModel();
+		const testObject = new CustomConfigurationModel();
 		testObject.update('');
 
 		assert.deepEqual(testObject.contents, {});
@@ -140,7 +125,7 @@ suite('ConfigurationService - Model', () => {
 				}
 			}
 		});
-		assert.equal(true, new model.DefaultConfigModel().getContentsFor('a'));
+		assert.equal(true, new DefaultConfigurationModel().getContentsFor('a'));
 	});
 
 	test('Test registering the language property', () => {
@@ -157,7 +142,7 @@ suite('ConfigurationService - Model', () => {
 				}
 			}
 		});
-		assert.equal(undefined, new model.DefaultConfigModel().getContentsFor('[a]'));
+		assert.equal(undefined, new DefaultConfigurationModel().getContentsFor('[a]'));
 	});
 
 });

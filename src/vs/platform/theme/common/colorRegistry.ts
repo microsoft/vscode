@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/platform/platform');
+import platform = require('vs/platform/registry/common/platform');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITheme } from 'vs/platform/theme/common/themeService';
@@ -63,9 +63,14 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
 
 	/**
-	 * JSON schema of all colors
+	 * JSON schema for an object to assign color values to one of the color contrbutions.
 	 */
 	getColorSchema(): IJSONSchema;
+
+	/**
+	 * JSON schema to for a reference to a color contrbution.
+	 */
+	getColorReferenceSchema(): IJSONSchema;
 
 }
 
@@ -75,6 +80,7 @@ const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color fo
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
 	private colorSchema: IJSONSchema = { type: 'object', description: nls.localize('schema.colors', "Colors used in the workbench."), properties: {}, additionalProperties: false };
+	private colorReferenceSchema: IJSONSchema = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -84,6 +90,8 @@ class ColorRegistry implements IColorRegistry {
 		let colorContribution = { id, description, defaults };
 		this.colorsById[id] = colorContribution;
 		this.colorSchema.properties[id] = { type: 'string', description, format: 'color', pattern: colorPattern, patternErrorMessage: colorPatternErrorMessage };
+		this.colorReferenceSchema.enum.push(id);
+		this.colorReferenceSchema.enumDescriptions.push(description);
 		return id;
 	}
 
@@ -102,6 +110,10 @@ class ColorRegistry implements IColorRegistry {
 
 	public getColorSchema(): IJSONSchema {
 		return this.colorSchema;
+	}
+
+	public getColorReferenceSchema(): IJSONSchema {
+		return this.colorReferenceSchema;
 	}
 
 	public toString() {
@@ -126,6 +138,10 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 	return colorRegistry.registerColor(id, defaults, description);
 }
 
+export function getColorRegistry(): IColorRegistry {
+	return colorRegistry;
+}
+
 // ----- base colors
 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
@@ -137,7 +153,7 @@ export const focusBorder = registerColor('focusBorder', { dark: Color.fromHex('#
 export const contrastBorder = registerColor('contrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
 export const activeContrastBorder = registerColor('contrastActiveBorder', { light: null, dark: null, hc: focusBorder }, nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
 
-export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor and the terminal."));
+export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
 
 // ------ text colors
 
@@ -175,6 +191,8 @@ export const listActiveSelectionBackground = registerColor('list.activeSelection
 export const listActiveSelectionForeground = registerColor('list.activeSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listActiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listInactiveSelectionForeground = registerColor('list.inactiveSelectionForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
+export const listInactiveFocusBackground = registerColor('list.inactiveFocusBackground', { dark: '#313135', light: '#d8dae6', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
+export const listInactiveFocusForeground = registerColor('list.inactiveFocusForeground', { dark: null, light: null, hc: null }, nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 export const listHoverBackground = registerColor('list.hoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree background when hovering over items using the mouse."));
 export const listHoverForeground = registerColor('list.hoverForeground', { dark: null, light: null, hc: null }, nls.localize('listHoverForeground', "List/Tree foreground when hovering over items using the mouse."));
 export const listDropBackground = registerColor('list.dropBackground', { dark: listFocusBackground, light: listFocusBackground, hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background when moving items around using the mouse."));
@@ -191,9 +209,9 @@ export const badgeBackground = registerColor('badge.background', { dark: '#4D4D4
 export const badgeForeground = registerColor('badge.foreground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('badgeForeground', "Badge foreground color. Badges are small information labels, e.g. for search results count."));
 
 export const scrollbarShadow = registerColor('scrollbar.shadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
-export const scrollbarSliderBackground = registerColor('scrollbarSlider.background', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: transparent(contrastBorder, 0.6) }, nls.localize('scrollbarSliderBackground', "Slider background color."));
-export const scrollbarSliderHoverBackground = registerColor('scrollbarSlider.hoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: transparent(contrastBorder, 0.8) }, nls.localize('scrollbarSliderHoverBackground', "Slider background color when hovering."));
-export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.activeBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: contrastBorder }, nls.localize('scrollbarSliderActiveBackground', "Slider background color when active."));
+export const scrollbarSliderBackground = registerColor('scrollbarSlider.background', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: transparent(contrastBorder, 0.6) }, nls.localize('scrollbarSliderBackground', "Scrollbar slider background color."));
+export const scrollbarSliderHoverBackground = registerColor('scrollbarSlider.hoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: transparent(contrastBorder, 0.8) }, nls.localize('scrollbarSliderHoverBackground', "Scrollbar slider background color when hovering."));
+export const scrollbarSliderActiveBackground = registerColor('scrollbarSlider.activeBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: contrastBorder }, nls.localize('scrollbarSliderActiveBackground', "Scrollbar slider background color when active."));
 
 export const progressBarBackground = registerColor('progressBar.background', { dark: Color.fromHex('#0E70C0'), light: Color.fromHex('#0E70C0'), hc: contrastBorder }, nls.localize('progressBarBackground', "Background color of the progress bar that can show for long running operations."));
 
@@ -213,15 +231,16 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
  * Editor widgets
  */
 export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
-export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of the editor widget.'));
+export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
 
 
 /**
  * Editor selection colors.
  */
-export const editorSelection = registerColor('editor.selectionBackground', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection."));
-export const editorInactiveSelection = registerColor('editor.inactiveSelectionBackground', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor."));
-export const editorSelectionHighlight = registerColor('editor.selectionHighlightBackground', { light: lessProminent(editorSelection, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelection, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
+export const editorSelectionBackground = registerColor('editor.selectionBackground', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelectionBackground', "Color of the editor selection."));
+export const editorSelectionForeground = registerColor('editor.selectionForeground', { light: null, dark: null, hc: '#000000' }, nls.localize('editorSelectionForeground', "Color of the selected text for high contrast."));
+export const editorInactiveSelection = registerColor('editor.inactiveSelectionBackground', { light: transparent(editorSelectionBackground, 0.5), dark: transparent(editorSelectionBackground, 0.5), hc: transparent(editorSelectionBackground, 0.5) }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor."));
+export const editorSelectionHighlight = registerColor('editor.selectionHighlightBackground', { light: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelectionBackground, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
 
 /**
  * Editor find match colors.
@@ -245,8 +264,8 @@ export const editorActiveLinkForeground = registerColor('editorLink.activeForegr
 /**
  * Diff Editor Colors
  */
-export const defaultInsertColor = Color.fromRGBA(new RGBA(155, 185, 85, 255 * 0.2));
-export const defaultRemoveColor = Color.fromRGBA(new RGBA(255, 0, 0, 255 * 0.2));
+export const defaultInsertColor = new Color(new RGBA(155, 185, 85, 0.2));
+export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
 
 export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
 export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));
@@ -261,16 +280,22 @@ export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', 
 const headerTransparency = 0.5;
 const currentBaseColor = Color.fromHex('#40C8AE').transparent(headerTransparency);
 const incomingBaseColor = Color.fromHex('#40A6FF').transparent(headerTransparency);
+const commonBaseColor = Color.fromHex('#606060').transparent(0.4);
 const contentTransparency = 0.4;
 const rulerTransparency = 1;
 
-export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: currentBaseColor }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflict.'));
-export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflict.'));
-export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: incomingBaseColor }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflict.'));
-export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflict.'));
+export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: null }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflicts.'));
+export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflicts.'));
+export const mergeIncomingHeaderBackground = registerColor('merge.incomingHeaderBackground', { dark: incomingBaseColor, light: incomingBaseColor, hc: null }, nls.localize('mergeIncomingHeaderBackground', 'Incoming header background in inline merge-conflicts.'));
+export const mergeIncomingContentBackground = registerColor('merge.incomingContentBackground', { dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hc: transparent(mergeIncomingHeaderBackground, contentTransparency) }, nls.localize('mergeIncomingContentBackground', 'Incoming content background in inline merge-conflicts.'));
+export const mergeCommonHeaderBackground = registerColor('merge.commonHeaderBackground', { dark: commonBaseColor, light: commonBaseColor, hc: null }, nls.localize('mergeCommonHeaderBackground', 'Common ancestor header background in inline merge-conflicts.'));
+export const mergeCommonContentBackground = registerColor('merge.commonContentBackground', { dark: transparent(mergeCommonHeaderBackground, contentTransparency), light: transparent(mergeCommonHeaderBackground, contentTransparency), hc: transparent(mergeCommonHeaderBackground, contentTransparency) }, nls.localize('mergeCommonContentBackground', 'Common ancester content background in inline merge-conflicts.'));
 
-export const overviewRulerCurrentContentForeground = registerColor('overviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: transparent(mergeCurrentHeaderBackground, rulerTransparency) }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflict.'));
-export const overviewRulerIncomingContentForeground = registerColor('overviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: transparent(mergeIncomingHeaderBackground, rulerTransparency) }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflict.'));
+export const mergeBorder = registerColor('merge.border', { dark: null, light: null, hc: '#C3DF6F' }, nls.localize('mergeBorder', 'Border color on headers and the splitter in inline merge-conflicts.'));
+
+export const overviewRulerCurrentContentForeground = registerColor('editorOverviewRuler.currentContentForeground', { dark: transparent(mergeCurrentHeaderBackground, rulerTransparency), light: transparent(mergeCurrentHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCurrentContentForeground', 'Current overview ruler foreground for inline merge-conflicts.'));
+export const overviewRulerIncomingContentForeground = registerColor('editorOverviewRuler.incomingContentForeground', { dark: transparent(mergeIncomingHeaderBackground, rulerTransparency), light: transparent(mergeIncomingHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerIncomingContentForeground', 'Incoming overview ruler foreground for inline merge-conflicts.'));
+export const overviewRulerCommonContentForeground = registerColor('editorOverviewRuler.commonContentForeground', { dark: transparent(mergeCommonHeaderBackground, rulerTransparency), light: transparent(mergeCommonHeaderBackground, rulerTransparency), hc: mergeBorder }, nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
 
 // ----- color functions
 
@@ -299,6 +324,18 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 		let color = resolveColorValue(colorValue, theme);
 		if (color) {
 			return color.transparent(factor);
+		}
+		return null;
+	};
+}
+
+export function oneOf(...colorValues: ColorValue[]): ColorFunction {
+	return (theme) => {
+		for (let colorValue of colorValues) {
+			let color = resolveColorValue(colorValue, theme);
+			if (color) {
+				return color;
+			}
 		}
 		return null;
 	};

@@ -11,6 +11,8 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "用 Tab 鍵移動焦點",
+	"screenReaderDetected": "偵測到螢幕助讀程式",
+	"screenReaderDetectedExtra": "若您不打算使用螢幕助讀程式，請將設定 `editor.accessibilitySupport` 變更為 \"off\"。",
 	"disableTabMode": "停用協助工具模式",
 	"gotoLine": "移至行",
 	"indentation": "縮排",

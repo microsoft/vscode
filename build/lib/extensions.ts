@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { through } from 'event-stream';
+import * as es from 'event-stream';
 import { Stream } from 'stream';
 import assign = require('object-assign');
 import remote = require('gulp-remote-src');
@@ -14,9 +14,34 @@ const rename = require('gulp-rename');
 const util = require('gulp-util');
 const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as vsce from 'vsce';
+import * as File from 'vinyl';
+
+export function fromLocal(extensionPath: string): Stream {
+	const result = es.through();
+
+	vsce.listFiles({ cwd: extensionPath })
+		.then(fileNames => {
+			const files = fileNames
+				.map(fileName => path.join(extensionPath, fileName))
+				.map(filePath => new File({
+					path: filePath,
+					stat: fs.statSync(filePath),
+					base: extensionPath,
+					contents: fs.createReadStream(filePath) as any
+				}));
+
+			es.readArray(files).pipe(result);
+		})
+		.catch(err => result.emit('error', err));
+
+	return result;
+}
 
 function error(err: any): Stream {
-	const result = through();
+	const result = es.through();
 	setTimeout(() => result.emit('error', err));
 	return result;
 }
@@ -26,7 +51,7 @@ const baseHeaders = {
 	'User-Agent': 'VSCode Build',
 };
 
-export function src(extensionName: string, version: string): Stream {
+export function fromMarketplace(extensionName: string, version: string): Stream {
 	const filterType = 7;
 	const value = extensionName;
 	const criterium = { filterType, value };

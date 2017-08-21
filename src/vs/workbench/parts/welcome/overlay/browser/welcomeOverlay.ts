@@ -7,7 +7,7 @@
 import 'vs/css!./welcomeOverlay';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -23,7 +23,8 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
 
 interface Key {
 	id: string;
@@ -231,22 +232,19 @@ class WelcomeOverlay {
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: Show Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(new SyncActionDescriptor(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
 
 // theming
 
-const foreground = registerColor('welcomeOverlay.foreground', { dark: '#fff', light: '#000', hc: '#fff' }, localize('welcomeOverlay.foreground', 'Foreground color for the Interface Overview.'));
-const background = registerColor('welcomeOverlay.background', { dark: '#00000085', light: '#FFFFFF85', hc: '#00000085' }, localize('welcomeOverlay.background', 'Background color for the Interface Overview.'));
-
 registerThemingParticipant((theme, collector) => {
 	const key = theme.getColor(foreground);
 	if (key) {
 		collector.addRule(`.monaco-workbench > .welcomeOverlay > .key { color: ${key}; }`);
 	}
-	const backgroundColor = theme.getColor(background);
+	const backgroundColor = Color.fromHex(theme.type === 'light' ? '#FFFFFF85' : '#00000085');
 	if (backgroundColor) {
 		collector.addRule(`.monaco-workbench > .welcomeOverlay { background: ${backgroundColor}; }`);
 	}

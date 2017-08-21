@@ -25,7 +25,7 @@ import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -81,7 +81,7 @@ export class FindWidgetViewZone implements IViewZone {
 }
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-	private static ID = 'editor.contrib.findWidget';;
+	private static ID = 'editor.contrib.findWidget';
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
@@ -105,7 +105,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocussed: IContextKey<boolean>;
+	private _findInputFocused: IContextKey<boolean>;
 	private _viewZone: FindWidgetViewZone;
 	private _viewZoneId: number;
 
@@ -192,10 +192,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
-			this._findInputFocussed.set(true);
+			this._findInputFocused.set(true);
 
 			if (this._toggleSelectionFind.checked) {
 				let selection = this._codeEditor.getSelection();
@@ -212,7 +212,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		});
 		this._focusTracker.addBlurListener(() => {
-			this._findInputFocussed.set(false);
+			this._findInputFocused.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);
@@ -236,10 +236,17 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			});
 		}));
 
+
 		this._register(this._codeEditor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged) {
 				this._layoutViewZone();
+				return;
 			}
+
+			// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
+			setTimeout(() => {
+				this._layoutViewZone();
+			}, 0);
 		}));
 	}
 
@@ -402,6 +409,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			setTimeout(() => {
 				dom.addClass(this._domNode, 'visible');
+				this._domNode.setAttribute('aria-hidden', 'false');
 				if (!animate) {
 					dom.addClass(this._domNode, 'noanimation');
 					setTimeout(() => {
@@ -410,7 +418,31 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}, 0);
 			this._codeEditor.layoutOverlayWidget(this);
-			this._showViewZone();
+
+			let adjustEditorScrollTop = true;
+			if (this._codeEditor.getConfiguration().contribInfo.find.seedSearchStringFromSelection && selection) {
+				let editorCoords = dom.getDomNodePagePosition(this._codeEditor.getDomNode());
+				let startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
+				let startLeft = editorCoords.left + startCoords.left;
+				let startTop = startCoords.top;
+
+				if (startTop < this._viewZone.heightInPx) {
+					if (selection.endLineNumber > selection.startLineNumber) {
+						adjustEditorScrollTop = false;
+					}
+
+					let leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
+					if (startLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+					let endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
+					let endLeft = editorCoords.left + endCoords.left;
+					if (endLeft > leftOfFindWidget) {
+						adjustEditorScrollTop = false;
+					}
+				}
+			}
+			this._showViewZone(adjustEditorScrollTop);
 		}
 	}
 
@@ -421,6 +453,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._updateButtons();
 
 			dom.removeClass(this._domNode, 'visible');
+			this._domNode.setAttribute('aria-hidden', 'true');
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -452,11 +485,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 
 			this._viewZoneId = accessor.addZone(this._viewZone);
+			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
 			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + this._viewZone.heightInPx);
 		});
 	}
 
-	private _showViewZone() {
+	private _showViewZone(adjustScroll: boolean = true) {
 		if (!this._isVisible) {
 			return;
 		}
@@ -477,7 +511,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 			this._viewZoneId = accessor.addZone(this._viewZone);
-			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+
+			if (adjustScroll) {
+				this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+			}
 		});
 	}
 
@@ -812,7 +849,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Widget
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
-		this._domNode.setAttribute('aria-hidden', 'false');
+		this._domNode.setAttribute('aria-hidden', 'true');
+		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
+		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
@@ -931,14 +970,14 @@ class SimpleCheckbox extends Widget {
 	}
 }
 
-interface ISimpleButtonOpts {
+export interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: () => void;
 	onKeyDown: (e: IKeyboardEvent) => void;
 }
 
-class SimpleButton extends Widget {
+export class SimpleButton extends Widget {
 
 	private _opts: ISimpleButtonOpts;
 	private _domNode: HTMLElement;
@@ -1034,7 +1073,7 @@ registerThemingParticipant((theme, collector) => {
 
 	let border = theme.getColor('panel.border');
 	if (border) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 2px !important; margin-left: -4px;}`);
+		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}
 });
 

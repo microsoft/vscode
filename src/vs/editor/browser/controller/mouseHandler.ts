@@ -185,7 +185,7 @@ export class MouseHandler extends ViewEventHandler {
 		}
 		let actualMouseMoveTime = e.timestamp;
 		if (actualMouseMoveTime < this.lastMouseLeaveTime) {
-			// Due to throttling, this event occured before the mouse left the editor, therefore ignore it.
+			// Due to throttling, this event occurred before the mouse left the editor, therefore ignore it.
 			return;
 		}
 

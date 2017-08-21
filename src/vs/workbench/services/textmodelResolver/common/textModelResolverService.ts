@@ -14,9 +14,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import network = require('vs/base/common/network');
-import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
@@ -85,7 +84,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		return first(factories).then(model => {
 			if (!model) {
 				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
-				return TPromise.wrapError<IModel>('resource is not available');
+				return TPromise.wrapError<IModel>(new Error('resource is not available'));
 			}
 
 			return model;
@@ -93,7 +92,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 }
 
-export class TextModelResolverService implements ITextModelResolverService {
+export class TextModelResolverService implements ITextModelService {
 
 	_serviceBrand: any;
 
@@ -116,9 +115,8 @@ export class TextModelResolverService implements ITextModelResolverService {
 
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
-		if (resource.scheme === UntitledEditorInput.SCHEMA) {
-			return this.untitledEditorService.createOrGet(resource).resolve()
-				.then(model => new ImmortalReference(model));
+		if (resource.scheme === UNTITLED_SCHEMA) {
+			return this.untitledEditorService.loadOrCreate({ resource }).then(model => new ImmortalReference(model));
 		}
 
 		// InMemory Schema: go through model service cache
@@ -127,7 +125,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return TPromise.wrapError<IReference<ITextEditorModel>>('Cant resolve inmemory resource');
+				return TPromise.wrapError<IReference<ITextEditorModel>>(new Error('Cant resolve inmemory resource'));
 			}
 
 			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));

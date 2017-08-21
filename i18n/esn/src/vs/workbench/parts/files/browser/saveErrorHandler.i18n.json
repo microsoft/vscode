@@ -11,6 +11,5 @@
 	"genericSaveError": "No se pudo guardar '{0}': {1}",
 	"staleSaveError": "No se pudo guardar '{0}': El contenido del disco es más reciente. Haga clic en **Comparar** para comparar su versión con la que hay en el disco.",
 	"compareChanges": "Comparar",
-	"saveConflictDiffLabel": "0} (on disk) ↔ {1} (in {2}) - Resolver conflicto guardado",
-	"userGuide": "Use las acciones de la barra de herramientas del editor para **deshacer** los cambios o **sobrescribir** el contenido del disco con sus cambios."
+	"saveConflictDiffLabel": "0} (on disk) ↔ {1} (in {2}) - Resolver conflicto guardado"
 }

@@ -67,7 +67,7 @@ export interface IPartService {
 	getContainer(part: Parts): HTMLElement;
 
 	/**
-	 * Returns iff the part is visible.
+	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
 

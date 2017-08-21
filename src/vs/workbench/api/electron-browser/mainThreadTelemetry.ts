@@ -6,18 +6,22 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadTelemetryShape } from '../node/extHost.protocol';
+import { MainThreadTelemetryShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-/**
- * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
- */
-export class MainThreadTelemetry extends MainThreadTelemetryShape {
+@extHostNamedCustomer(MainContext.MainThreadTelemetry)
+export class MainThreadTelemetry implements MainThreadTelemetryShape {
 
 	private _telemetryService: ITelemetryService;
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService) {
-		super();
+	constructor(
+		extHostContext: IExtHostContext,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
 		this._telemetryService = telemetryService;
+	}
+
+	public dispose(): void {
 	}
 
 	public $publicLog(eventName: string, data?: any): void {

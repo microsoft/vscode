@@ -129,10 +129,10 @@ export default class PHPValidationProvider {
 		if (section) {
 			this.validationEnabled = section.get<boolean>('validate.enable', true);
 			let inspect = section.inspect<string>('validate.executablePath');
-			if (inspect.workspaceValue) {
+			if (inspect && inspect.workspaceValue) {
 				this.executable = inspect.workspaceValue;
 				this.executableIsUserDefined = false;
-			} else if (inspect.globalValue) {
+			} else if (inspect && inspect.globalValue) {
 				this.executable = inspect.globalValue;
 				this.executableIsUserDefined = true;
 			} else {

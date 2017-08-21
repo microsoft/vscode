@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
+import { Git, Repository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
+import * as fs from 'fs';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -52,7 +53,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
 			return this.renameResourceUri;
 		}
 
@@ -118,6 +119,28 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	private get tooltip(): string {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED: return localize('index modified', "Index Modified");
+			case Status.MODIFIED: return localize('modified', "Modified");
+			case Status.INDEX_ADDED: return localize('index added', "Index Added");
+			case Status.INDEX_DELETED: return localize('index deleted', "Index Deleted");
+			case Status.DELETED: return localize('deleted', "Deleted");
+			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
+			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
+			case Status.UNTRACKED: return localize('untracked', "Untracked");
+			case Status.IGNORED: return localize('ignored', "Ignored");
+			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			default: return '';
+		}
+	}
+
 	private get strikeThrough(): boolean {
 		switch (this.type) {
 			case Status.DELETED:
@@ -140,10 +163,11 @@ export class Resource implements SourceControlResourceState {
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
+		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
 
-		return { strikeThrough, faded, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark };
 	}
 
 	constructor(
@@ -211,7 +235,11 @@ export enum Operation {
 	Show = 1 << 13,
 	Stage = 1 << 14,
 	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16
+	DeleteBranch = 1 << 16,
+	Merge = 1 << 17,
+	Ignore = 1 << 18,
+	Tag = 1 << 19,
+	Stash = 1 << 20
 }
 
 // function getOperationName(operation: Operation): string {
@@ -287,6 +315,7 @@ export interface CommitOptions {
 	all?: boolean;
 	amend?: boolean;
 	signoff?: boolean;
+	signCommit?: boolean;
 }
 
 export class Model implements Disposable {
@@ -458,6 +487,14 @@ export class Model implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
+	async merge(ref: string): Promise<void> {
+		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
+	async tag(name: string, message?: string): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	}
+
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
@@ -479,12 +516,31 @@ export class Model implements Disposable {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase));
+	@throttle
+	async pullWithRebase(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(true));
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
+	@throttle
+	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, name));
+	}
+
+	@throttle
+	async push(): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push());
+	}
+
+	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+	}
+
+	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
+	}
+
+	async pushTags(remote?: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
 	@throttle
@@ -510,8 +566,42 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getStashes(): Promise<Stash[]> {
+		return await this.repository.getStashes();
+	}
+
+	async createStash(message?: string): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	}
+
+	async popStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
+	async ignore(files: Uri[]): Promise<void> {
+		return await this.run(Operation.Ignore, async () => {
+			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
+			const textToAppend = files
+				.map(uri => path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.join('\n');
+
+			const document = await new Promise(c => fs.exists(ignoreFile, c))
+				? await workspace.openTextDocument(ignoreFile)
+				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+
+			await window.showTextDocument(document);
+
+			const edit = new WorkspaceEdit();
+			const lastLine = document.lineAt(document.lineCount - 1);
+			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+			edit.insert(document.uri, lastLine.range.end, text);
+			workspace.applyEdit(edit);
+		});
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
@@ -586,12 +676,13 @@ export class Model implements Disposable {
 		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRoot.fsPath);
 		this.repository = this._git.open(repositoryRoot);
 
-		const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.fsPath));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
+		const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
+		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+
 		onRelevantGitChange(this.onFSChange, this, disposables);
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
 
-		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
+		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.path));
 		onNonGitChange(this.onFSChange, this, disposables);
 
 		this.repositoryDisposable = combinedDisposable(disposables);
@@ -670,7 +761,7 @@ export class Model implements Disposable {
 				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
 				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED)); break;
+				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED, renameUri)); break;
 			}
 
 			switch (raw.y) {

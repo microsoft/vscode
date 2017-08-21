@@ -9,6 +9,7 @@
 	"command.refresh": "Aggiorna",
 	"command.openChange": "Apri modifiche",
 	"command.openFile": "Apri file",
+	"command.openHEADFile": "Apri File (HEAD)",
 	"command.stage": "Prepara modifiche per commit",
 	"command.stageAll": "Prepara tutte le modifiche per commit",
 	"command.stageSelectedRanges": "Prepara per il commit intervalli selezionati",
@@ -26,13 +27,17 @@
 	"command.undoCommit": "Annulla ultimo commit",
 	"command.checkout": "Estrai in...",
 	"command.branch": "Crea ramo...",
+	"command.deleteBranch": "Elimina ramo...",
+	"command.merge": "Merge ramo...",
 	"command.pull": "Esegui pull",
 	"command.pullRebase": "Esegui pull (Riassegna)",
+	"command.pullFrom": "Pull da...",
 	"command.push": "Esegui push",
 	"command.pushTo": "Esegui push in...",
 	"command.sync": "Sincronizza",
-	"command.publish": "Pubblica",
+	"command.publish": "Pubblica ramo",
 	"command.showOutput": "Mostra output GIT",
+	"command.ignore": "Aggiungi file a .gitignore",
 	"config.enabled": "Indica se GIT è abilitato",
 	"config.path": "Percorso dell'eseguibile di GIT",
 	"config.autorefresh": "Indica se l'aggiornamento automatico è abilitato",
@@ -44,5 +49,5 @@
 	"config.ignoreLegacyWarning": "Ignora l'avvertimento legacy di Git",
 	"config.ignoreLimitWarning": "Ignora il messaggio di avviso quando ci sono troppi cambiamenti in un repository",
 	"config.defaultCloneDirectory": "Il percorso predefinito dove clonare un repository GIT",
-	"config.enableSmartCommit": "Eseguire il commit di tutte le modifiche quando non ci sono cambiamenti in stage."
+	"config.enableSmartCommit": "Eseguire il commit di tutte le modifiche quando non ci sono modifiche preparate."
 }

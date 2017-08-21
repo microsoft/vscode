@@ -33,7 +33,7 @@ export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
-	public readonly canUseTranslate3d: boolean;
+	public readonly canUseLayerHinting: boolean;
 	public readonly pixelRatio: boolean;
 	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
@@ -46,7 +46,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly wrappingInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
-		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
@@ -72,15 +72,10 @@ export class ViewCursorStateChangedEvent {
 	 * Is the primary cursor in the editable range?
 	 */
 	public readonly isInEditableRange: boolean;
-	/**
-	 * A message that can be presented to screen readers.
-	 */
-	public readonly screenReaderMessage: string;
 
-	constructor(selections: Selection[], isInEditableRange: boolean, screenReaderMessage: string) {
+	constructor(selections: Selection[], isInEditableRange: boolean) {
 		this.selections = selections;
 		this.isInEditableRange = isInEditableRange;
-		this.screenReaderMessage = screenReaderMessage;
 	}
 }
 

@@ -10,12 +10,11 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -508,6 +507,7 @@ export class EditorOptions implements IEditorOptions {
 	 */
 	public static create(settings: IEditorOptions): EditorOptions {
 		const options = new EditorOptions();
+
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
@@ -517,21 +517,6 @@ export class EditorOptions implements IEditorOptions {
 		options.inactive = settings.inactive;
 
 		return options;
-	}
-
-	/**
-	 * Inherit all options from other EditorOptions instance.
-	 */
-	public mixin(other: IEditorOptions): void {
-		if (other) {
-			this.preserveFocus = other.preserveFocus;
-			this.forceOpen = other.forceOpen;
-			this.revealIfVisible = other.revealIfVisible;
-			this.revealIfOpened = other.revealIfOpened;
-			this.pinned = other.pinned;
-			this.index = other.index;
-			this.inactive = other.inactive;
-		}
 	}
 
 	/**
@@ -579,88 +564,70 @@ export class EditorOptions implements IEditorOptions {
  * Base Text Editor Options.
  */
 export class TextEditorOptions extends EditorOptions {
-	protected startLineNumber: number;
-	protected startColumn: number;
-	protected endLineNumber: number;
-	protected endColumn: number;
+	private startLineNumber: number;
+	private startColumn: number;
+	private endLineNumber: number;
+	private endColumn: number;
 
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
-	private editorOptions: editorOptions.IEditorOptions;
 
-	public static from(input: IBaseResourceInput): TextEditorOptions {
-		let options: TextEditorOptions = null;
-		if (input && input.options) {
-			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
-				options = new TextEditorOptions();
-			}
-
-			if (input.options.selection) {
-				const selection = input.options.selection;
-				options.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
-			}
-
-			if (input.options.forceOpen) {
-				options.forceOpen = true;
-			}
-
-			if (input.options.revealIfVisible) {
-				options.revealIfVisible = true;
-			}
-
-			if (input.options.revealIfOpened) {
-				options.revealIfOpened = true;
-			}
-
-			if (input.options.preserveFocus) {
-				options.preserveFocus = true;
-			}
-
-			if (input.options.pinned) {
-				options.pinned = true;
-			}
-
-			if (input.options.inactive) {
-				options.inactive = true;
-			}
-
-			if (input.options.revealInCenterIfOutsideViewport) {
-				options.revealInCenterIfOutsideViewport = true;
-			}
-
-			if (input.options.viewState) {
-				options.editorViewState = input.options.viewState;
-			}
-
-			if (typeof input.options.index === 'number') {
-				options.index = input.options.index;
-			}
+	public static from(input?: IBaseResourceInput): TextEditorOptions {
+		if (!input || !input.options) {
+			return null;
 		}
 
-		return options;
+		return TextEditorOptions.create(input.options);
 	}
 
 	/**
-	 * Helper to create TextEditorOptions inline.
+	 * Helper to convert options bag to real class
 	 */
-	public static create(settings: ITextEditorOptions = Object.create(null)): TextEditorOptions {
-		const options = new TextEditorOptions();
-		options.preserveFocus = settings.preserveFocus;
-		options.forceOpen = settings.forceOpen;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-		options.inactive = settings.inactive;
+	public static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
+		const textEditorOptions = new TextEditorOptions();
 
-		if (settings.selection) {
-			options.startLineNumber = settings.selection.startLineNumber;
-			options.startColumn = settings.selection.startColumn;
-			options.endLineNumber = settings.selection.endLineNumber || settings.selection.startLineNumber;
-			options.endColumn = settings.selection.endColumn || settings.selection.startColumn;
+		if (options.selection) {
+			const selection = options.selection;
+			textEditorOptions.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 		}
 
-		return options;
+		if (options.viewState) {
+			textEditorOptions.editorViewState = options.viewState as IEditorViewState;
+		}
+
+		if (options.forceOpen) {
+			textEditorOptions.forceOpen = true;
+		}
+
+		if (options.revealIfVisible) {
+			textEditorOptions.revealIfVisible = true;
+		}
+
+		if (options.revealIfOpened) {
+			textEditorOptions.revealIfOpened = true;
+		}
+
+		if (options.preserveFocus) {
+			textEditorOptions.preserveFocus = true;
+		}
+
+		if (options.revealInCenterIfOutsideViewport) {
+			textEditorOptions.revealInCenterIfOutsideViewport = true;
+		}
+
+		if (options.pinned) {
+			textEditorOptions.pinned = true;
+		}
+
+		if (options.inactive) {
+			textEditorOptions.inactive = true;
+		}
+
+		if (typeof options.index === 'number') {
+			textEditorOptions.index = options.index;
+		}
+
+		return textEditorOptions;
 	}
 
 	/**
@@ -691,17 +658,6 @@ export class TextEditorOptions extends EditorOptions {
 		// View state
 		options.editorViewState = editor.saveViewState();
 
-		// Selected editor options
-		const codeEditor = <ICommonCodeEditor>editor;
-		if (typeof codeEditor.getConfiguration === 'function') {
-			const config = codeEditor.getConfiguration();
-			if (config && config.viewInfo && config.wrappingInfo) {
-				options.editorOptions = Object.create(null);
-				options.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
-				options.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				options.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
-			}
-		}
 		return options;
 	}
 
@@ -711,11 +667,6 @@ export class TextEditorOptions extends EditorOptions {
 	 * @return if something was applied
 	 */
 	public apply(editor: IEditor): boolean {
-
-		// Editor options
-		if (this.editorOptions) {
-			editor.updateOptions(this.editorOptions);
-		}
 
 		// View state
 		return this.applyViewState(editor);
@@ -768,52 +719,6 @@ export class TextEditorOptions extends EditorOptions {
 
 		return gotApplied;
 	}
-}
-
-export interface ITextDiffEditorOptions extends ITextEditorOptions {
-
-	/**
-	 * Whether to auto reveal the first change when the text editor is opened or not. By default
-	 * the first change will not be revealed.
-	 */
-	autoRevealFirstChange: boolean;
-}
-
-/**
- * Base Text Diff Editor Options.
- */
-export class TextDiffEditorOptions extends TextEditorOptions {
-
-	/**
-	 * Helper to create TextDiffEditorOptions inline.
-	 */
-	public static create(settings: ITextDiffEditorOptions): TextDiffEditorOptions {
-		const options = new TextDiffEditorOptions();
-
-		options.autoRevealFirstChange = settings.autoRevealFirstChange;
-
-		options.preserveFocus = settings.preserveFocus;
-		options.forceOpen = settings.forceOpen;
-		options.revealIfVisible = settings.revealIfVisible;
-		options.revealIfOpened = settings.revealIfOpened;
-		options.pinned = settings.pinned;
-		options.index = settings.index;
-
-		if (settings.selection) {
-			options.startLineNumber = settings.selection.startLineNumber;
-			options.startColumn = settings.selection.startColumn;
-			options.endLineNumber = settings.selection.endLineNumber || settings.selection.startLineNumber;
-			options.endColumn = settings.selection.endColumn || settings.selection.startColumn;
-		}
-
-		return options;
-	}
-
-	/**
-	 * Whether to auto reveal the first change when the text editor is opened or not. By default
-	 * the first change will not be revealed.
-	 */
-	public autoRevealFirstChange: boolean;
 }
 
 export interface IStacksModelChangeEvent {

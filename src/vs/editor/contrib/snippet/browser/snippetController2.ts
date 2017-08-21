@@ -12,60 +12,10 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-
-class SnippetSessions {
-
-	private _stack: SnippetSession[] = [];
-
-	add(session: SnippetSession): number {
-		return this._stack.push(session);
-	}
-
-	clear(): void {
-		dispose(this._stack);
-		this._stack.length = 0;
-	}
-
-	get empty(): boolean {
-		return this._stack.length === 0;
-	}
-
-	get hasPlaceholder(): boolean {
-		return this._stack.some(s => s.hasPlaceholder);
-	}
-
-	get isAtFirstPlaceholder(): boolean {
-		return this._stack.every(s => s.isAtFirstPlaceholder);
-	}
-
-	get isAtFinalPlaceholder(): boolean {
-		return !this.empty && this._stack[0].isAtLastPlaceholder;
-	}
-
-	get isSelectionWithinPlaceholders(): boolean {
-		return this._stack.some(s => s.isSelectionWithinPlaceholders());
-	}
-
-	prev(): void {
-		for (let i = this._stack.length - 1; i >= 0; i--) {
-			const snippet = this._stack[i];
-			if (!snippet.isAtFirstPlaceholder) {
-				snippet.prev();
-				break;
-			}
-		}
-	}
-
-	next(): void {
-		for (let i = this._stack.length - 1; i >= 0; i--) {
-			const snippet = this._stack[i];
-			if (!snippet.isAtLastPlaceholder) {
-				snippet.next();
-				break;
-			}
-		}
-	}
-}
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ISuggestion } from 'vs/editor/common/modes';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 @commonEditorContribution
 export class SnippetController2 {
@@ -82,9 +32,10 @@ export class SnippetController2 {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	// private _snippet: SnippetSession;
-	private _sessions = new SnippetSessions();
+	private _session: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
+	private _modelVersionId: number;
+	private _currentChoice: Choice;
 
 	constructor(
 		private readonly _editor: ICommonCodeEditor,
@@ -99,7 +50,7 @@ export class SnippetController2 {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		this._sessions.clear();
+		dispose(this._session);
 	}
 
 	getId(): string {
@@ -120,40 +71,86 @@ export class SnippetController2 {
 			this._editor.getModel().pushStackElement();
 		}
 
-		const snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
-		const newLen = this._sessions.add(snippet);
-		snippet.insert(newLen > 1);
+		if (!this._session) {
+			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
+			this._session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+			this._session.insert();
+		} else {
+			this._session.merge(template, overwriteBefore, overwriteAfter);
+		}
 
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
 		}
 
+		this._updateState();
+
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
-		this._updateState();
 	}
 
 	private _updateState(): void {
-		if (this._sessions.empty) {
+		if (!this._session) {
 			// canceled in the meanwhile
 			return;
 		}
 
-		if (!this._sessions.hasPlaceholder) {
+		if (this._modelVersionId === this._editor.getModel().getAlternativeVersionId()) {
+			// undo until the 'before' state happened
+			// and makes use cancel snippet mode
+			return this.cancel();
+		}
+
+		if (!this._session.hasPlaceholder) {
 			// don't listen for selection changes and don't
 			// update context keys when the snippet is plain text
 			return this.cancel();
 		}
 
-		if (this._sessions.isAtFinalPlaceholder || !this._sessions.isSelectionWithinPlaceholders) {
+		if (this._session.isAtLastPlaceholder || !this._session.isSelectionWithinPlaceholders()) {
 			return this.cancel();
 		}
 
 		this._inSnippet.set(true);
-		this._hasPrevTabstop.set(!this._sessions.isAtFirstPlaceholder);
-		this._hasNextTabstop.set(!this._sessions.isAtFinalPlaceholder);
+		this._hasPrevTabstop.set(!this._session.isAtFirstPlaceholder);
+		this._hasNextTabstop.set(!this._session.isAtLastPlaceholder);
+
+		this._handleChoice();
+	}
+
+	private _handleChoice(): void {
+		const { choice } = this._session;
+		if (!choice) {
+			this._currentChoice = undefined;
+			return;
+		}
+		if (this._currentChoice !== choice) {
+			this._currentChoice = choice;
+
+			this._editor.setSelections(this._editor.getSelections()
+				.map(s => Selection.fromPositions(s.getStartPosition()))
+			);
+
+			const [first] = choice.options;
+
+			showSimpleSuggestions(this._editor, choice.options.map((option, i) => {
+
+				// let before = choice.options.slice(0, i);
+				// let after = choice.options.slice(i);
+
+				return <ISuggestion>{
+					type: 'value',
+					label: option.value,
+					insertText: option.value,
+					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
+					// snippetType: 'textmate',
+					sortText: String(i),
+					overwriteAfter: first.value.length
+				};
+			}));
+		}
 	}
 
 	finish(): void {
@@ -166,17 +163,19 @@ export class SnippetController2 {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		this._sessions.clear();
 		dispose(this._snippetListener);
+		dispose(this._session);
+		this._session = undefined;
+		this._modelVersionId = -1;
 	}
 
 	prev(): void {
-		this._sessions.prev();
+		this._session.prev();
 		this._updateState();
 	}
 
 	next(): void {
-		this._sessions.next();
+		this._session.next();
 		this._updateState();
 	}
 }

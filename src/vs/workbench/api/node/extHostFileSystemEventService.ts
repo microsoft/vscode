@@ -87,12 +87,11 @@ class FileSystemWatcher implements _FileSystemWatcher {
 	}
 }
 
-export class ExtHostFileSystemEventService extends ExtHostFileSystemEventServiceShape {
+export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
 	private _emitter = new Emitter<FileSystemEvents>();
 
 	constructor() {
-		super();
 	}
 
 	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {

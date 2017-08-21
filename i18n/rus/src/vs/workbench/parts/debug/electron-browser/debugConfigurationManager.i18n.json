@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Имя составного объекта. Отображается в раскрывающемся меню запуска конфигурации.",
 	"app.launch.json.compounds.configurations": "Имена конфигураций, которые будут запущены как часть этого составного объекта.",
 	"debugNoType": "Параметр type адаптера отладки не может быть опущен и должен иметь тип string.",
-	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0}).",
-	"selectDebug": "Выбор среды"
+	"selectDebug": "Выбор среды",
+	"DebugConfig.failed": "Не удается создать файл launch.json в папке .vscode ({0})."
 }

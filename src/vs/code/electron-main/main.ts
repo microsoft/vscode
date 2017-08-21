@@ -10,8 +10,8 @@ import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
-import { validatePaths } from 'vs/code/electron-main/paths';
-import { LifecycleService, ILifecycleService } from 'vs/code/electron-main/lifecycle';
+import { validatePaths } from 'vs/code/node/paths';
+import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILaunchChannel, LaunchChannelClient } from './launch';
@@ -19,8 +19,8 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, MainLogService } from 'vs/code/electron-main/log';
-import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import { ILogService, LogMainService } from 'vs/platform/log/common/log';
+import { IStorageService, StorageService } from 'vs/platform/storage/node/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -32,13 +32,19 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
-import { VSCodeApplication } from "vs/code/electron-main/app";
+import { CodeApplication } from "vs/code/electron-main/app";
+import { HistoryMainService } from "vs/platform/history/electron-main/historyMainService";
+import { IHistoryMainService } from "vs/platform/history/common/history";
+import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
+import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(ILogService, new SyncDescriptor(LogMainService));
+	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 	services.set(IStorageService, new SyncDescriptor(StorageService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
@@ -56,6 +62,10 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 		environmentService.nodeCachedDataDir
 	];
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
+}
+
+class ExpectedError extends Error {
+	public readonly isExpected = true;
 }
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
@@ -105,9 +115,10 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Tests from CLI require to be the only instance currently
 					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-						console.error(msg);
+						logService.error(msg);
 						client.dispose();
-						return TPromise.wrapError<Server>(msg);
+
+						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
 					logService.log('Sending env to running instance...');
@@ -118,7 +129,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError<Server>('Sent env to running instance. Terminating...'));
+						.then(() => TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...')));
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
@@ -144,19 +155,23 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
+function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
 	const logService = accessor.get(ILogService);
 	const lifecycleService = accessor.get(ILifecycleService);
 
 	let exitCode = 0;
-	if (typeof errorOrMessage === 'string') {
-		logService.log(errorOrMessage);
-	} else if (errorOrMessage) {
-		exitCode = 1; // signal error to the outside
-		if (errorOrMessage.stack) {
-			console.error(errorOrMessage.stack);
+
+	if (reason) {
+		if ((reason as ExpectedError).isExpected) {
+			logService.log(reason.message);
 		} else {
-			console.error('Startup error: ' + errorOrMessage.toString());
+			exitCode = 1; // signal error to the outside
+
+			if (reason.stack) {
+				console.error(reason.stack);
+			} else {
+				console.error(`Startup error: ${reason.toString()}`);
+			}
 		}
 	}
 
@@ -193,22 +208,10 @@ function main() {
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(VSCodeApplication, mainIpcServer, instanceEnv);
+				const app = instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv);
 				app.startup();
 			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
-// Get going once we are ready
-// TODO@Joh,Joao there more more potential here
-// we should check for other instances etc while
-// waiting for getting ready
-if (app.isReady()) {
-	global.perfAppReady = Date.now();
-	main();
-} else {
-	app.once('ready', () => {
-		global.perfAppReady = Date.now();
-		main();
-	});
-}
+main();

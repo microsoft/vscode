@@ -5,114 +5,64 @@
 
 'use strict';
 
-import workbenchExt = require('vs/workbench/common/contributions');
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { join } from 'path';
-import async = require('vs/base/common/async');
-import winjs = require('vs/base/common/winjs.base');
-import { mkdirp, fileExists, readdir } from 'vs/base/node/pfs';
+import { mkdirp, fileExists } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import lifecycle = require('vs/base/common/lifecycle');
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { readAndRegisterSnippets } from './TMSnippets';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { watch, FSWatcher } from 'fs';
+import { watch } from 'fs';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
-export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
-	private static FILE_WATCH_DELAY = 200;
+export class SnippetsTracker implements IWorkbenchContribution {
 
-	private snippetFolder: string;
-	private toDispose: lifecycle.IDisposable[];
-	private watcher: FSWatcher;
-	private fileWatchDelayer: async.ThrottledDelayer<void>;
+	private readonly _snippetFolder: string;
+	private readonly _toDispose: IDisposable[];
 
 	constructor(
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IModeService private modeService: IModeService,
-		@ISnippetsService private snippetService: ISnippetsService,
+		@IModeService modeService: IModeService,
+		@ISnippetsService snippetService: ISnippetsService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		this.snippetFolder = join(environmentService.appSettingsHome, 'snippets');
+		this._snippetFolder = join(environmentService.appSettingsHome, 'snippets');
+		this._toDispose = [];
 
-		this.toDispose = [];
-		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
+		// Whenever a mode is being created check if a snippet file exists
+		// and iff so read all snippets from it.
+		this._toDispose.push(modeService.onDidCreateMode(mode => {
+			const snippetPath = join(this._snippetFolder, `${mode.getId()}.json`);
+			fileExists(snippetPath)
+				.then(exists => exists && readAndRegisterSnippets(snippetService, mode.getLanguageIdentifier(), snippetPath))
+				.done(undefined, onUnexpectedError);
+		}));
 
-		extensionService.onReady()
-			.then(() => mkdirp(this.snippetFolder))
-			.then(() => this.scanUserSnippets())
-			.then(() => this.registerListeners())
-			.done(undefined, onUnexpectedError);
-	}
-
-	private registerListeners(): void {
-		var scheduler = new async.RunOnceScheduler(() => {
-			this.scanUserSnippets();
-		}, 500);
-		this.toDispose.push(scheduler);
-
-		try {
-			this.watcher = watch(this.snippetFolder); // will be persistent but not recursive
-			this.watcher.on('change', (eventType: string) => {
-				if (eventType === 'delete') {
-					this.unregisterListener();
+		// Install a FS watcher on the snippet directory and when an
+		// event occurs update the snippets for that one snippet.
+		mkdirp(this._snippetFolder).then(() => {
+			const watcher = watch(this._snippetFolder);
+			this._toDispose.push({ dispose: () => watcher.close() });
+			watcher.on('change', (type, filename) => {
+				if (typeof filename !== 'string') {
 					return;
 				}
-				scheduler.schedule();
+				extensionService.onReady().then(() => {
+					const langName = filename.replace(/\.json$/, '').toLowerCase();
+					const langId = modeService.getLanguageIdentifier(langName);
+					return langId && readAndRegisterSnippets(snippetService, langId, join(this._snippetFolder, filename));
+				}, onUnexpectedError);
 			});
-		} catch (error) {
-			// the path might not exist anymore, ignore this error and return
-		}
-
-		this.lifecycleService.onShutdown(this.dispose, this);
-	}
-
-	private scanUserSnippets(): winjs.Promise {
-		return readFilesInDir(this.snippetFolder, /\.json$/).then(snippetFiles => {
-			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
-				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
-				var snippetPath = join(this.snippetFolder, snippetFile);
-				let languageIdentifier = this.modeService.getLanguageIdentifier(modeId);
-				if (languageIdentifier) {
-					return readAndRegisterSnippets(this.snippetService, languageIdentifier, snippetPath);
-				}
-				return undefined;
-			}));
 		});
 	}
 
-	private unregisterListener(): void {
-		if (this.watcher) {
-			this.watcher.close();
-			this.watcher = null;
-		}
-	}
-
-	public getId(): string {
+	getId(): string {
 		return 'vs.snippets.snippetsTracker';
 	}
 
-	public dispose(): void {
-		this.unregisterListener();
-		this.toDispose = lifecycle.dispose(this.toDispose);
+	dispose(): void {
+		dispose(this._toDispose);
 	}
-}
-
-function readFilesInDir(dirPath: string, namePattern: RegExp = null): winjs.TPromise<string[]> {
-	return readdir(dirPath).then((children) => {
-		return winjs.TPromise.join(
-			children.map((child) => {
-				if (namePattern && !namePattern.test(child)) {
-					return winjs.TPromise.as(null);
-				}
-				return fileExists(join(dirPath, child)).then(isFile => {
-					return isFile ? child : null;
-				});
-			})
-		).then((subdirs) => {
-			return subdirs.filter(subdir => (subdir !== null));
-		});
-	});
 }

@@ -175,7 +175,7 @@ export class ContextMenuController implements IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
 				var customActionItem = <any>action;
@@ -183,7 +183,7 @@ export class ContextMenuController implements IEditorContribution {
 					return customActionItem.getActionItem();
 				}
 
-				return null;
+				return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
 			},
 
 			getKeyBinding: (action): ResolvedKeybinding => {

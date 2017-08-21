@@ -56,6 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Uma expressão regular sinalizando que uma tarefa observada é ativada através da observação.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Esta propriedade está descontinuada. Ao invés, use a propriedade de observação.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Uma expressão regular sinalizando que uma tarefa observada terminou a execução.",
-	"NamedProblemMatcherSchema.name": "O nome do correspondente do problema.",
-	"ProblemMatcherExtPoint": "Contribui aos correspondentes de problema"
+	"NamedProblemMatcherSchema.name": "O nome do correspondente do problema usado para se referir a ele.",
+	"NamedProblemMatcherSchema.label": "Um rótulo legível para o correspondente do problema.",
+	"ProblemMatcherExtPoint": "Contribui aos correspondentes de problema",
+	"msCompile": "Problemas do compilador Microsoft",
+	"lessCompile": "Menos problemas",
+	"gulp-tsc": "Problemas do Gulp TSC",
+	"jshint": "Problemas JSHint",
+	"jshint-stylish": "Problemas de estilo JSHint",
+	"eslint-compact": "Problemas compactos ESLint",
+	"eslint-stylish": "Problemas de estilo ESLint",
+	"go": "Problemas Go"
 }

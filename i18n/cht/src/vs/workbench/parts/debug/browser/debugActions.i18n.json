@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "開啟 {0}",
 	"launchJsonNeedsConfigurtion": "設定或修正 'launch.json'",
+	"noFolderDebugConfig": "請先打開一個資料夾以便設定進階偵錯組態。",
 	"startDebug": "開始偵錯",
 	"startWithoutDebugging": "開始但不偵錯",
 	"selectAndStartDebugging": "選取並開始偵錯",

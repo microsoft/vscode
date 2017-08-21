@@ -8,7 +8,7 @@
 import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -104,6 +104,22 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	public getLabel(): string {
 		let firstPart = this._getUILabelForKeybinding(this._firstPart);
 		let chordPart = this._getUILabelForKeybinding(this._chordPart);
+		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
+	}
+
+	private _getUSLabelForKeybinding(keybinding: SimpleKeybinding): string {
+		if (!keybinding) {
+			return null;
+		}
+		if (keybinding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return KeyCodeUtils.toString(keybinding.keyCode);
+	}
+
+	public getUSLabel(): string {
+		let firstPart = this._getUSLabelForKeybinding(this._firstPart);
+		let chordPart = this._getUSLabelForKeybinding(this._chordPart);
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 

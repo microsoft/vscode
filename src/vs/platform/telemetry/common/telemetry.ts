@@ -21,13 +21,6 @@ export interface ITelemetryData {
 	[key: string]: any;
 }
 
-export interface ITelemetryExperiments {
-	showNewUserWatermark: boolean;
-	openUntitledFile: boolean;
-	enableWelcomePage: boolean;
-	mergeQuickLinks: boolean;
-}
-
 export interface ITelemetryService {
 
 	_serviceBrand: any;
@@ -41,6 +34,4 @@ export interface ITelemetryService {
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
-
-	getExperiments(): ITelemetryExperiments;
 }

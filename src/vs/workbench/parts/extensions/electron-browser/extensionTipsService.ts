@@ -38,7 +38,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _recommendations: { [id: string]: boolean; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private importantRecommendations: { [id: string]: { name: string; pattern: string; } };
+	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
 	private _allRecommendations: string[];
 	private _disposables: IDisposable[] = [];
@@ -68,7 +68,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		if (!this.contextService.hasWorkspace()) {
 			return TPromise.as([]);
 		}
-		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => {
+		return this.fileService.resolveContent(this.contextService.toResource(paths.join('.vscode', 'extensions.json'))).then(content => { //TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29242)
 			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
 			if (extensionsContent.recommendations) {
 				const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);

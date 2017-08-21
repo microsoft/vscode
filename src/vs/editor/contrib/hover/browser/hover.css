@@ -55,8 +55,15 @@
 }
 
 .monaco-editor-hover ul {
-	list-style-position: inside;
-	-webkit-padding-start: 6px;
+	padding-left: 20px;
+}
+
+.monaco-editor-hover li > p {
+	margin-bottom: 0;
+}
+
+.monaco-editor-hover li > ul {
+	margin-top: 0;
 }
 
 .monaco-editor-hover code {

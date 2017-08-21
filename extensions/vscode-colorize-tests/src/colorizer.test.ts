@@ -26,7 +26,18 @@ function assertUnchangedTokens(testFixurePath: string, done) {
 					assert.deepEqual(data, previousData);
 				} catch (e) {
 					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
-					throw e;
+					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
+						for (let i= 0; i < data.length; i++) {
+							let d = data[i];
+							let p = previousData[i];
+							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
+								throw e;
+							}
+						}
+						// different but no tokenization ot color change: no failure
+					} else {
+						throw e;
+					}
 				}
 			} else {
 				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
@@ -37,6 +48,16 @@ function assertUnchangedTokens(testFixurePath: string, done) {
 		}
 	}, done);
 }
+
+function hasThemeChange(d: any, p: any) : boolean {
+	let keys = Object.keys(d);
+	for (let key of keys) {
+		if (d[key] !== p[key]) {
+			return true;
+		}
+	}
+	return false;
+};
 
 suite('colorization', () => {
 	let extensionsFolder = normalize(join(__dirname, '../../'));

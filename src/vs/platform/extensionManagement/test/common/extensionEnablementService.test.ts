@@ -4,30 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as sinon from 'sinon';
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { IExtensionManagementService, IExtensionEnablementService, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
 	if (!service) {
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
-			workspaceContextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-			instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
+			workspaceContextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
+				hasWorkspace: () => {
+					return true;
+				},
+			});
 		}
 		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
 	}
 	return service;
 }
+
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
@@ -70,7 +73,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test when no extensions are disabled for workspace when there is no workspace', (done) => {
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => {
-				instantiationService.stub(IWorkspaceContextService, 'getWorkspace', null);
+				instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
 				assert.deepEqual([], testObject.getWorkspaceDisabledExtensions());
 			})
 			.then(done, done);
@@ -175,7 +178,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test disable an extension for workspace when there is no workspace throws error', (done) => {
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', null);
+		instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => assert.fail('should throw an error'), error => assert.ok(error))
 			.then(done, done);

@@ -11,25 +11,23 @@ import { assign } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import { SelectColorThemeAction } from 'vs/workbench/parts/themes/electron-browser/themes.contribution';
+import { escape } from 'vs/base/common/strings';
+import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
 
 interface WatermarkEntry {
 	text: string;
@@ -43,7 +41,7 @@ const showCommands: WatermarkEntry = {
 };
 const quickOpen: WatermarkEntry = {
 	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: [GlobalQuickOpenAction.ID]
+	ids: [QUICKOPEN_ACTION_ID]
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
@@ -82,32 +80,6 @@ const startDebugging: WatermarkEntry = {
 	text: nls.localize('watermark.startDebugging', "Start Debugging"),
 	ids: [StartAction.ID]
 };
-
-const selectTheme: WatermarkEntry = {
-	text: nls.localize('watermark.selectTheme', "Change Theme"),
-	ids: [SelectColorThemeAction.ID]
-};
-const selectKeymap: WatermarkEntry = {
-	text: nls.localize('watermark.selectKeymap', "Change Keymap"),
-	ids: [ShowRecommendedKeymapExtensionsAction.ID]
-};
-const keybindingsReference: WatermarkEntry = {
-	text: nls.localize('watermark.keybindingsReference', "Keyboard Reference"),
-	ids: [KeybindingsReferenceAction.ID]
-};
-const openGlobalKeybindings: WatermarkEntry = {
-	text: nls.localize('watermark.openGlobalKeybindings', "Keyboard Shortcuts"),
-	ids: [OpenGlobalKeybindingsAction.ID]
-};
-
-const newUserEntries = [
-	showCommands,
-	selectTheme,
-	selectKeymap,
-	openFolderNonMacOnly,
-	openFileOrFolderMacOnly,
-	KeybindingsReferenceAction.AVAILABLE ? keybindingsReference : openGlobalKeybindings
-];
 
 const noFolderEntries = [
 	showCommands,
@@ -176,8 +148,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = this.contextService.hasWorkspace();
-		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
-		const selected = (newUser ? newUserEntries : (folder ? folderEntries : noFolderEntries))
+		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
 			const builder = $(box);
@@ -190,9 +161,9 @@ export class WatermarkContribution implements IWorkbenchContribution {
 							.map(id => {
 								let k = this.keybindingService.lookupKeybinding(id);
 								if (k) {
-									return `<span class="shortcuts">${k.getLabel()}</span>`;
+									return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
 								}
-								return `<span class="unbound">${UNBOUND}</span>`;
+								return `<span class="unbound">${escape(UNBOUND)}</span>`;
 							})
 							.join(' / ')
 					));

@@ -375,6 +375,7 @@
 		// "activityBar.dropBackground": "",
 
 		// Workbench: Panel
+		// "panel.background": "",
 		"panel.border": "#2b2b4a",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
@@ -407,6 +408,10 @@
 		// Workbench: Quick Open
 		"pickerGroup.border": "#596F99",
 		"pickerGroup.foreground": "#596F99",
+
+		// Workbench: Extensions
+		"extensionButton.prominentBackground": "#5f8b3b",
+		"extensionButton.prominentHoverBackground": "#5f8b3bbb",
 
 		// Workbench: Terminal
 		"terminal.ansiBlack": "#111111",

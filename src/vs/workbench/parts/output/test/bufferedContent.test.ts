@@ -41,19 +41,19 @@ suite('Workbench - Output Buffered Content', () => {
 		bufferedContent.append('first line');
 		const firstDelta = bufferedContent.getDelta();
 		let longString = '';
-		for (var i = 0; i < 50000; i++) {
+		for (let i = 0; i < 5000; i++) {
 			bufferedContent.append(i.toString());
 			longString += i.toString();
 		}
 		const secondDelta = bufferedContent.getDelta(firstDelta);
 		assert.equal(secondDelta.append, true);
-		assert.equal(secondDelta.value.substr(secondDelta.value.length - 5), '49999');
+		assert.equal(secondDelta.value.substr(secondDelta.value.length - 4), '4999');
 		longString = longString + longString + longString + longString;
 		bufferedContent.append(longString);
 		bufferedContent.append(longString);
 		const thirdDelta = bufferedContent.getDelta(firstDelta);
-		assert.equal(!!thirdDelta.append, false);
-		assert.equal(thirdDelta.value.substr(thirdDelta.value.length - 5), '49999');
+		assert.equal(!!thirdDelta.append, true);
+		assert.equal(thirdDelta.value.substr(thirdDelta.value.length - 4), '4999');
 
 		bufferedContent.clear();
 		assert.equal(bufferedContent.getDelta().value, '');

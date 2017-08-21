@@ -5,6 +5,8 @@
 
 'use strict';
 
+import * as nls from 'vscode-nls';
+const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
@@ -16,9 +18,6 @@ import { AutoFetcher } from './autofetch';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import * as nls from 'vscode-nls';
-
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 
 async function init(context: ExtensionContext, disposables: Disposable[]): Promise<void> {
 	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };

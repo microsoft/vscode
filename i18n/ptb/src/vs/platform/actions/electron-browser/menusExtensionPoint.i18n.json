@@ -21,6 +21,8 @@
 	"menus.scmTitle": "O menu de título do controle de fonte",
 	"menus.resourceGroupContext": "O menu de contexto do grupo de recursos de controle de fonte",
 	"menus.resourceStateContext": "O menu de contexto de estado de recursos do controle de fonte",
+	"view.viewTitle": "O menu de título da visualização contribuída",
+	"view.itemContext": "O menu de contexto do item da visualização contribuída",
 	"nonempty": "Esperado um valor não vazio",
 	"opticon": "a propriedade '{0}' é opcional ou pode ser do tipo 'string'",
 	"requireStringOrObject": "a propriedade '{0}' é obrigatória e deve ser do tipo 'string'",

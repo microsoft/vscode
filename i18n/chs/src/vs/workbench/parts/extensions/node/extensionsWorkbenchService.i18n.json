@@ -13,5 +13,7 @@
 	"cancel": "取消",
 	"singleDependentError": "无法禁用扩展“{0}”。扩展“{1}”取决于此。",
 	"twoDependentsError": "无法禁用扩展“{0}”。扩展“{1}”和扩展“{2}”取决于此。",
-	"multipleDependentsError": "无法禁用扩展“{0}”。扩展“{1}”、“{2}”和其他扩展取决于此。"
+	"multipleDependentsError": "无法禁用扩展“{0}”。扩展“{1}”、“{2}”和其他扩展取决于此。",
+	"installConfirmation": "是否要安装“{0}”扩展？",
+	"install": "安装"
 }

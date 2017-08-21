@@ -5,16 +5,7 @@
 
 declare module monaco {
 
-	interface Thenable<T> {
-		/**
-		 * Attaches callbacks for the resolution and/or rejection of the Promise.
-		 * @param onfulfilled The callback to execute when the Promise is resolved.
-		 * @param onrejected The callback to execute when the Promise is rejected.
-		 * @returns A Promise for the completion of which ever callback is executed.
-		 */
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-	}
+	type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -43,59 +34,49 @@ declare module monaco {
 
 
 
-	/**
-	 * The value callback to complete a promise
-	 */
-	export interface TValueCallback<T> {
-		(value: T): void;
-	}
+	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
+
+	export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
 
 
-	export interface ProgressCallback {
-		(progress: any): any;
-	}
+	export class Promise<T = any, TProgress = any> {
+		constructor(
+			executor: (
+				resolve: (value: T | PromiseLike<T>) => void,
+				reject: (reason: any) => void,
+				progress: (progress: TProgress) => void) => void,
+			oncancel?: () => void);
 
+		public then<TResult1 = T, TResult2 = never>(
+			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+			onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
 
-	/**
-	 * A Promise implementation that supports progress and cancelation.
-	 */
-	export class Promise<V> {
+		public done(
+			onfulfilled?: (value: T) => void,
+			onrejected?: (reason: any) => void,
+			onprogress?: (progress: TProgress) => void): void;
 
-		constructor(init: (complete: TValueCallback<V>, error: (err: any) => void, progress: ProgressCallback) => void, oncancel?: any);
-
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-
-		public done(success?: (value: V) => void, error?: (err: any) => any, progress?: ProgressCallback): void;
 		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
-		public static as<ValueType>(value: Promise<ValueType>): Promise<ValueType>;
-		public static as<ValueType>(value: Thenable<ValueType>): Thenable<ValueType>;
-		public static as<ValueType>(value: ValueType): Promise<ValueType>;
+		public static as<T, TPromise extends PromiseLike<T>>(value: TPromise): TPromise;
+		public static as<T>(value: T): Promise<T>;
 
-		public static is(value: any): value is Thenable<any>;
+		public static is(value: any): value is PromiseLike<any>;
+
 		public static timeout(delay: number): Promise<void>;
-		public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
-		public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
-		public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
-		public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
 
-		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
-		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
+		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
+		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
+		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
-		public static wrapError<ValueType>(error: any): Promise<ValueType>;
+		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
+
+		public static wrap<T>(value: T | PromiseLike<T>): Promise<T>;
+
+		public static wrapError<T = never>(error: Error): Promise<T>;
 	}
 
 	export class CancellationTokenSource {
@@ -130,7 +111,6 @@ declare module monaco {
 	 */
 	export class Uri {
 		static isUri(thing: any): thing is Uri;
-		protected constructor();
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
 		 * The part before the first colon.
@@ -835,6 +815,17 @@ declare module monaco.editor {
 	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Get markers for owner and/or resource
+	 * @returns {IMarker[]} list of markers
+	 * @param filter
+	 */
+	export function getModelMarkers(filter: {
+		owner?: string;
+		resource?: Uri;
+		take?: number;
+	}): IMarker[];
+
+	/**
 	 * Get the model that has `uri` if it exists.
 	 */
 	export function getModel(uri: Uri): IModel;
@@ -981,6 +972,13 @@ declare module monaco.editor {
 		 * To switch a theme, use `monaco.editor.setTheme`
 		 */
 		theme?: string;
+		/**
+		 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
+		 * the accessibility help dialog in the editor.
+		 *
+		 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
+		 */
+		accessibilityHelpUrl?: string;
 	}
 
 	/**
@@ -1023,6 +1021,19 @@ declare module monaco.editor {
 		[index: string]: any;
 	}
 
+	export interface IMarker {
+		owner: string;
+		resource: Uri;
+		severity: Severity;
+		code?: string;
+		message: string;
+		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+	}
+
 	/**
 	 * A structure defining a problem/warning/etc.
 	 */
@@ -1050,6 +1061,10 @@ declare module monaco.editor {
 		Auto = 1,
 		Hidden = 2,
 		Visible = 3,
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	/**
@@ -1092,7 +1107,7 @@ declare module monaco.editor {
 	 */
 	export interface IModelDecorationOptions {
 		/**
-		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+		 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 		 */
 		stickiness?: TrackedRangeStickiness;
@@ -1525,7 +1540,7 @@ declare module monaco.editor {
 		 */
 		getFullModelRange(): Range;
 		/**
-		 * Returns iff the model was disposed or not.
+		 * Returns if the model was disposed or not.
 		 */
 		isDisposed(): boolean;
 		/**
@@ -1638,7 +1653,8 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * Describes the behaviour of decorations when typing/editing near their edges.
+	 * Describes the behavior of decorations when typing/editing near their edges.
+	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
 	export enum TrackedRangeStickiness {
 		AlwaysGrowsWhenTypingAtEdges = 0,
@@ -2158,10 +2174,6 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
-	export interface ThemeColor {
-		id: string;
-	}
-
 	export interface ICommonCodeEditor extends IEditor {
 		/**
 		 * An event emitted when the content of the current model has changed.
@@ -2655,6 +2667,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the rendering of the minimap slider.
+		 * Defaults to 'mouseover'.
+		 */
+		showSlider?: 'always' | 'mouseover';
+		/**
 		 * Render the actual text on a line (as opposed to color blocks).
 		 * Defaults to true.
 		 */
@@ -2787,10 +2804,11 @@ declare module monaco.editor {
 		 */
 		fontLigatures?: boolean;
 		/**
-		 * Disable the use of `translate3d`.
+		 * Disable the use of `will-change` for the editor margin and lines layers.
+		 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 		 * Defaults to false.
 		 */
-		disableTranslate3d?: boolean;
+		disableLayerHinting?: boolean;
 		/**
 		 * Disable the optimizations for monospace fonts.
 		 * Defaults to false.
@@ -2867,6 +2885,11 @@ declare module monaco.editor {
 		 */
 		hover?: boolean;
 		/**
+		 * Enable detecting links and making them clickable.
+		 * Defaults to true.
+		 */
+		links?: boolean;
+		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
 		 */
@@ -2880,7 +2903,12 @@ declare module monaco.editor {
 		 * The modifier to be used to add multiple cursors with the mouse.
 		 * Defaults to 'alt'
 		 */
-		multicursorModifier?: 'cmd' | 'ctrl' | 'alt';
+		multiCursorModifier?: 'ctrlCmd' | 'alt';
+		/**
+		 * Configure the editor's accessibility support.
+		 * Defaults to 'auto'. It is best to leave this to 'auto'.
+		 */
+		accessibilitySupport?: 'auto' | 'off' | 'on';
 		/**
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
@@ -2909,6 +2937,11 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		autoClosingBrackets?: boolean;
+		/**
+		 * Enable auto indentation adjustment.
+		 * Defaults to false.
+		 */
+		autoIndent?: boolean;
 		/**
 		 * Enable format on type.
 		 * Defaults to false.
@@ -3171,6 +3204,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
@@ -3225,6 +3259,7 @@ declare module monaco.editor {
 	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
+		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {
 			other: boolean;
@@ -3257,14 +3292,15 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
-		readonly multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3388,15 +3424,16 @@ declare module monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
-		readonly canUseTranslate3d: boolean;
+		readonly canUseLayerHinting: boolean;
 		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
-		readonly multicursorModifier: boolean;
+		readonly multiCursorModifier: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
@@ -3942,7 +3979,7 @@ declare module monaco.languages {
 	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
 
 	/**
-	 * Register a document highlight provider (used by e.g. highlight occurences).
+	 * Register a document highlight provider (used by e.g. highlight occurrences).
 	 */
 	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
 
@@ -4017,7 +4054,7 @@ declare module monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): Command[] | Thenable<Command[]>;
 	}
 
 	/**
@@ -4390,14 +4427,6 @@ declare module monaco.languages {
 		 * to the word range at the position when omitted.
 		 */
 		provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
-	}
-
-	/**
-	 * Interface used to quick fix typing errors while accesing member fields.
-	 */
-	export interface CodeAction {
-		command: Command;
-		score: number;
 	}
 
 	/**

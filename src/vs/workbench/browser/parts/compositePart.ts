@@ -9,7 +9,7 @@ import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import events = require('vs/base/common/events');
@@ -17,6 +17,8 @@ import strings = require('vs/base/common/strings');
 import { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -80,6 +82,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		themeService: IThemeService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
+		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
@@ -96,7 +99,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedComposites = [];
 		this.compositeLoaderPromises = {};
-		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE);
+		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
@@ -221,7 +224,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = composite;
 
 		// Store in preferences
-		this.storageService.store(this.activeCompositeSettingsKey, this.activeComposite.getId(), StorageScope.WORKSPACE);
+		const id = this.activeComposite.getId();
+		if (id !== this.defaultCompositeId) {
+			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
+		}
 
 		// Remember
 		this.lastActiveCompositeId = this.activeComposite.getId();
@@ -262,7 +270,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return undefined;
+				return void 0;
 			}
 
 			// Take Composite on-DOM and show
@@ -420,6 +428,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
+		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
+
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
 
@@ -464,6 +474,26 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Forward to title label
 		this.titleLabel.updateStyles();
+	}
+
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		if (this.activeComposite) {
+			const contextMenuActions = this.getTitleAreaContextMenuActions();
+			if (contextMenuActions.length) {
+				let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(contextMenuActions),
+					getActionItem: (action: Action) => this.actionItemProvider(action),
+					actionRunner: this.activeComposite.getActionRunner(),
+					getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+				});
+			}
+		}
+	}
+
+	protected getTitleAreaContextMenuActions(): IAction[] {
+		return this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
 	}
 
 	private actionItemProvider(action: Action): IActionItem {

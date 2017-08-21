@@ -12,6 +12,8 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
+import * as dom from 'vs/base/browser/dom';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -53,6 +55,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations
+		return true;
+	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
@@ -85,6 +91,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const tabSize = this._context.model.getTabSize();
 		const tabWidth = tabSize * this._spaceWidth;
 		const lineHeight = this._lineHeight;
+		const indentGuideWidth = dom.computeScreenAwareSize(1);
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -92,9 +99,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			let indent = this._context.model.getLineIndentGuide(lineNumber);
 
 			let result = '';
-			let left = 0;
+			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
 			for (let i = 0; i < indent; i++) {
-				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;"></div>`;
+				result += `<div class="cigr" style="left:${left}px;height:${lineHeight}px;width:${indentGuideWidth}px"></div>`;
 				left += tabWidth;
 			}
 

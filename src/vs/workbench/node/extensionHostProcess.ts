@@ -8,7 +8,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { parse } from 'vs/base/common/marshalling';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -17,7 +17,7 @@ import { createConnection } from 'net';
 import Event, { filterEvent } from 'vs/base/common/event';
 
 interface IRendererConnection {
-	remoteCom: IRemoteCom;
+	rpcProtocol: RPCProtocol;
 	initData: IInitData;
 }
 
@@ -71,7 +71,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 			first.dispose();
 
 			const initData = parse(raw);
-			const remoteCom = createProxyProtocol(protocol);
+			const rpcProtocol = new RPCProtocol(protocol);
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
@@ -112,7 +112,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 			// Tell the outside that we are initialized
 			protocol.send('initialized');
 
-			c({ remoteCom, initData });
+			c({ rpcProtocol, initData });
 		});
 
 		// Tell the outside that we are ready to receive messages
@@ -125,7 +125,7 @@ createExtHostProtocol().then(protocol => {
 	return connectToRenderer(protocol);
 }).then(renderer => {
 	// setup things
-	const extensionHostMain = new ExtensionHostMain(renderer.remoteCom, renderer.initData);
+	const extensionHostMain = new ExtensionHostMain(renderer.rpcProtocol, renderer.initData);
 	onTerminate = () => extensionHostMain.terminate();
 	return extensionHostMain.start();
 }).done(null, err => console.error(err));

@@ -12,12 +12,9 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IBackupService } from 'vs/platform/backup/common/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
@@ -96,7 +93,6 @@ export class BackupFileService implements IBackupFileService {
 	private static readonly META_MARKER = '\n';
 
 	private isShuttingDown: boolean;
-	private backupWorkspacePath: string;
 	private ready: TPromise<IBackupFilesModel>;
 	/**
 	 * Ensure IO operations on individual files are performed in order, this could otherwise lead
@@ -105,32 +101,26 @@ export class BackupFileService implements IBackupFileService {
 	private ioOperationQueues: { [path: string]: Queue<void> };
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService,
-		@IWindowService windowService: IWindowService,
-		@IBackupService private backupService: IBackupService
+		private backupWorkspacePath: string,
+		@IFileService private fileService: IFileService
 	) {
 		this.isShuttingDown = false;
-		this.ready = this.init(windowService.getCurrentWindowId());
 		this.ioOperationQueues = {};
+		this.ready = this.init();
 	}
 
-	private get backupEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment; // Hot exit is disabled when doing extension development
+	public get backupEnabled(): boolean {
+		return !!this.backupWorkspacePath; // Hot exit requires a backup path
 	}
 
-	private init(windowId: number): TPromise<IBackupFilesModel> {
+	private init(): TPromise<IBackupFilesModel> {
 		const model = new BackupFilesModel();
 
 		if (!this.backupEnabled) {
 			return TPromise.as(model);
 		}
 
-		return this.backupService.getBackupPath(windowId).then(backupPath => {
-			this.backupWorkspacePath = backupPath;
-
-			return model.resolve(this.backupWorkspacePath);
-		});
+		return model.resolve(this.backupWorkspacePath);
 	}
 
 	public hasBackups(): TPromise<boolean> {

@@ -15,7 +15,7 @@ import * as widget from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -74,7 +74,7 @@ class DirtyDiffModelDecorator {
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
@@ -108,6 +108,10 @@ class DirtyDiffModelDecorator {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this.model || this.model.isDisposed() || !originalURI) {
 				return winjs.TPromise.as([]); // disposed
+			}
+
+			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this.model.uri)) {
+				return winjs.TPromise.as([]); // Files too large
 			}
 
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);

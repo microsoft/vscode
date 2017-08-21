@@ -257,6 +257,15 @@ export function fromPromise(promise: TPromise<any>): Event<void> {
 	return emitter.event;
 }
 
+export function toPromise<T>(event: Event<T>): TPromise<T> {
+	return new TPromise(complete => {
+		const sub = event(e => {
+			sub.dispose();
+			complete(e);
+		});
+	});
+}
+
 export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
 	let toCancel: TPromise<any> = null;
 	let listener: IDisposable = null;
@@ -306,10 +315,13 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 	let subscription: IDisposable;
 	let output: O;
 	let handle: number;
+	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({
 		onFirstListenerAdd() {
 			subscription = event(cur => {
+				numDebouncedCalls++;
+
 				output = merger(output, cur);
 				if (!handle && leading) {
 					emitter.fire(output);
@@ -319,8 +331,12 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 				handle = setTimeout(() => {
 					let _output = output;
 					output = undefined;
-					emitter.fire(_output);
+					if (!leading || numDebouncedCalls > 1) {
+						emitter.fire(_output);
+					}
+
 					handle = null;
+					numDebouncedCalls = 0;
 				}, delay);
 			});
 		},
@@ -400,11 +416,11 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	constructor(private _event: Event<T>) { }
 
-	map(fn) {
+	map<O>(fn: (i: T) => O): IChainableEvent<O> {
 		return new ChainableEvent(mapEvent(this._event, fn));
 	}
 
-	filter(fn) {
+	filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 

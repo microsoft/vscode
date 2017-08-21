@@ -29,14 +29,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { extractResources } from 'vs/base/browser/dnd';
-import { LinkedMap } from 'vs/base/common/map';
+import { getOrSet } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -44,7 +44,6 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
-	editor: IEditorInput;
 	name: string;
 	hasAmbiguousName?: boolean;
 	description?: string;
@@ -72,6 +71,7 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
@@ -152,7 +152,6 @@ export class TabsTitleControl extends TitleControl {
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
-			canUseTranslate3d: false,
 			horizontalScrollbarSize: 3
 		});
 
@@ -272,8 +271,8 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = title;
-				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
+				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
 				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 				const tabOptions = this.editorGroupService.getTabOptions();
@@ -320,30 +319,33 @@ export class TabsTitleControl extends TitleControl {
 	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
-		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
+		const mapLabelToDuplicates = new Map<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
+			const name = editor.getName();
 			let description = editor.getDescription();
+			if (mapLabelAndDescriptionToDuplicates.has(`${name}${description}`)) {
+				description = editor.getDescription(true); // try verbose description if name+description already exists
+			}
+
 			const item: IEditorInputLabel = {
-				editor,
-				name: editor.getName(),
+				name,
 				description,
 				title: editor.getTitle(Verbosity.LONG)
 			};
 			labels.push(item);
 
-			mapLabelToDuplicates.getOrSet(item.name, []).push(item);
+			getOrSet(mapLabelToDuplicates, item.name, []).push(item);
 
 			if (typeof description === 'string') {
-				mapLabelAndDescriptionToDuplicates.getOrSet(`${item.name}${item.description}`, []).push(item);
+				getOrSet(mapLabelAndDescriptionToDuplicates, `${item.name}${item.description}`, []).push(item);
 			}
 		});
 
 		// Mark duplicates and shorten their descriptions
-		const labelDuplicates = mapLabelToDuplicates.values();
-		labelDuplicates.forEach(duplicates => {
+		mapLabelToDuplicates.forEach(duplicates => {
 			if (duplicates.length > 1) {
 				duplicates = duplicates.filter(d => {
 					// we could have items with equal label and description. in that case it does not make much
@@ -352,7 +354,7 @@ export class TabsTitleControl extends TitleControl {
 				});
 
 				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
 					duplicates.forEach((duplicate, i) => {
 						duplicate.description = shortenedDescriptions[i];
 						duplicate.hasAmbiguousName = true;
@@ -692,12 +694,7 @@ export class TabsTitleControl extends TitleControl {
 			// Add external ones to recently open list
 			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
 			if (externalResources.length) {
-				this.windowService.addToRecentlyOpen(externalResources.map(resource => {
-					return {
-						path: resource.fsPath,
-						isFile: true
-					};
-				}));
+				this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
 			}
 
 			// Open in Editor
@@ -726,7 +723,7 @@ class TabActionRunner extends ActionRunner {
 		super();
 	}
 
-	public run(action: IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): TPromise<void> {
 		const group = this.group();
 		if (!group) {
 			return TPromise.as(void 0);

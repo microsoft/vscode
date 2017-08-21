@@ -6,6 +6,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -93,6 +94,13 @@ export class ViewController {
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
 	}
 
+	public setSelection(source: string, modelSelection: Selection): void {
+		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
+			source: source,
+			selection: modelSelection
+		});
+	}
+
 	private _validateViewColumn(viewPosition: Position): Position {
 		let minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
 		if (viewPosition.column < minColumn) {
@@ -102,7 +110,7 @@ export class ViewController {
 	}
 
 	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.altKey;
 			case 'ctrlKey':
@@ -114,7 +122,7 @@ export class ViewController {
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
-		switch (this.configuration.editor.multicursorModifier) {
+		switch (this.configuration.editor.multiCursorModifier) {
 			case 'altKey':
 				return data.ctrlKey || data.metaKey;
 			case 'ctrlKey':

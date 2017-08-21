@@ -7,6 +7,7 @@
 	"editorGroupAriaLabel": "{0}, grupo de editores",
 	"openEditorAriaLabel": "{0}, abrir editor",
 	"saveAll": "Guardar todos",
+	"closeAllUnmodified": "Cerrar los que no se han modificado",
 	"closeAll": "Cerrar todo",
 	"close": "Cerrar",
 	"closeOthers": "Cerrar otros"

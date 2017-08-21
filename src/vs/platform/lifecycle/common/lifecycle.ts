@@ -44,6 +44,12 @@ export enum StartupKind {
 	ReopenedWindow = 4,
 }
 
+export enum LifecyclePhase {
+	Starting = 1,
+	Running = 2,
+	ShuttingDown = 3
+}
+
 /**
  * A lifecycle service informs about lifecycle events of the
  * application, such as shutdown.
@@ -58,10 +64,14 @@ export interface ILifecycleService {
 	readonly startupKind: StartupKind;
 
 	/**
-	 * A flag indicating if the application is in the process of shutting down. This will be true
-	 * before the onWillShutdown event is fired and false if the shutdown is being vetoed.
+	 * A flag indicating in what phase of the lifecycle we currently are.
 	 */
-	readonly willShutdown: boolean;
+	readonly phase: LifecyclePhase;
+
+	/**
+	 * An event that fire when the lifecycle phase has changed
+	 */
+	readonly onDidChangePhase: Event<LifecyclePhase>;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -80,8 +90,40 @@ export interface ILifecycleService {
 
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
+	phase: LifecyclePhase.Running,
 	startupKind: StartupKind.NewWindow,
-	willShutdown: false,
-	onWillShutdown: () => ({ dispose() { } }),
-	onShutdown: (reason) => ({ dispose() { } })
+	onDidChangePhase: Event.None,
+	onWillShutdown: Event.None,
+	onShutdown: Event.None
 };
+
+// Shared veto handling across main and renderer
+export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+	if (vetos.length === 0) {
+		return TPromise.as(false);
+	}
+
+	const promises: TPromise<void>[] = [];
+	let lazyValue = false;
+
+	for (let valueOrPromise of vetos) {
+
+		// veto, done
+		if (valueOrPromise === true) {
+			return TPromise.as(true);
+		}
+
+		if (TPromise.is(valueOrPromise)) {
+			promises.push(valueOrPromise.then(value => {
+				if (value) {
+					lazyValue = true; // veto, done
+				}
+			}, err => {
+				onError(err); // error, treated like a veto, done
+				lazyValue = true;
+			}));
+		}
+	}
+
+	return TPromise.join(promises).then(() => lazyValue);
+}

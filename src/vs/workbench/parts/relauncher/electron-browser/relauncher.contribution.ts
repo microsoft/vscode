@@ -7,16 +7,16 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowConfiguration } from "vs/workbench/electron-browser/common";
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-interface IConfiguration extends IWindowConfiguration {
+interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
 }
@@ -29,6 +29,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private rootCount: number;
+	private workspaceId: string;
+	private firstRootPath: string;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -36,15 +39,26 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
+		const workspace = this.contextService.getWorkspace();
+		if (workspace) {
+			this.rootCount = workspace.roots.length;
+			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+			this.workspaceId = workspace.id;
+		} else {
+			this.rootCount = 0;
+		}
+
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config, true)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -76,24 +90,69 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
-			this.windowService.isFocused().then(focused => {
-				if (focused) {
-					const relaunch = this.messageService.confirm({
-						type: 'info',
-						message: localize('relaunchMessage', "A setting has changed that requires a restart to take effect."),
-						detail: localize('relaunchDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
-						primaryButton: localize('restart', "Restart")
-					});
-
-					if (relaunch) {
-						this.windowsService.relaunch(Object.create(null));
-					}
-				}
-			});
+			this.doConfirm(
+				localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect."),
+				localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
+				localize('restart', "Restart"),
+				() => this.windowsService.relaunch(Object.create(null))
+			);
 		}
 	}
 
-	getId(): string {
+	private onDidChangeWorkspaceRoots(): void {
+		const workspace = this.contextService.getWorkspace();
+
+		const newRootCount = workspace ? workspace.roots.length : 0;
+		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		const newWorkspaceId = workspace ? workspace.id : void 0;
+
+		let reload = false;
+		if (this.rootCount === 0 && newRootCount > 0) {
+			reload = true; // transition: from 0 folders to 1+
+		} else if (this.rootCount > 0 && newRootCount === 0) {
+			reload = true; // transition: from 1+ folders to 0
+		}
+
+		if (this.firstRootPath !== newFirstRootPath) {
+			reload = true; // first root folder changed
+		}
+
+		if (this.workspaceId !== newWorkspaceId) {
+			reload = true; // workspace id changed
+		}
+
+		this.rootCount = newRootCount;
+		this.firstRootPath = newFirstRootPath;
+		this.workspaceId = newWorkspaceId;
+
+		if (reload) {
+			this.doConfirm(
+				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
+				void 0,
+				localize('reload', "Reload"),
+				() => this.windowService.reloadWindow()
+			);
+		}
+	}
+
+	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
+		this.windowService.isFocused().then(focused => {
+			if (focused) {
+				const confirm = this.messageService.confirm({
+					type: 'info',
+					message,
+					detail,
+					primaryButton
+				});
+
+				if (confirm) {
+					confirmed();
+				}
+			}
+		});
+	}
+
+	public getId(): string {
 		return 'workbench.relauncher';
 	}
 

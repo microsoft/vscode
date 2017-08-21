@@ -858,6 +858,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
+			this._configuration.setMaxLineNumber(this.model.getLineCount());
 
 			this.model.onBeforeAttached();
 

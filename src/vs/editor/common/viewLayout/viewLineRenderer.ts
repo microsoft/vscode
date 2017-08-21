@@ -237,12 +237,33 @@ export class RenderLineOutput {
 
 export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 	if (input.lineContent.length === 0) {
+
+		let containsForeignElements = false;
+
+		// This is basically for IE's hit test to work
+		let content: string = '<span><span>&nbsp;</span></span>';
+
+		if (input.lineDecorations.length > 0) {
+			// This line is empty, but it contains inline decorations
+			let classNames: string[] = [];
+			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
+				const lineDecoration = input.lineDecorations[i];
+				if (lineDecoration.insertsBeforeOrAfter) {
+					classNames[i] = input.lineDecorations[i].className;
+					containsForeignElements = true;
+				}
+			}
+
+			if (containsForeignElements) {
+				content = `<span><span class="${classNames.join(' ')}">&nbsp;</span></span>`;
+			}
+		}
+
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
-			// This is basically for IE's hit test to work
-			'<span><span>&nbsp;</span></span>',
+			content,
 			false,
-			false
+			containsForeignElements
 		);
 	}
 
@@ -602,7 +623,7 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 			}
 
 			characterMapping.setPartLength(partIndex, partContentCnt);
-			if (fontIsMonospace) {
+			if (fontIsMonospace || containsForeignElements) {
 				out += `<span class="${partType}">${partContent}</span>`;
 			} else {
 				out += `<span class="${partType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;

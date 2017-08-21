@@ -9,15 +9,16 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { IExtensionDescription } from "vs/platform/extensions/common/extensions";
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInitData, IEnvironment, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
+import * as watchdog from 'native-watchdog';
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -35,26 +36,49 @@ interface ITestRunner {
 export class ExtensionHostMain {
 
 	private _isTerminating: boolean = false;
-	private _contextService: IWorkspaceContextService;
 	private _diskSearch: DiskSearch;
+	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 
-	constructor(remoteCom: IRemoteCom, initData: IInitData) {
-		// services
+	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
-		this._contextService = new WorkspaceContextService(initData.contextService.workspace);
-		const threadService = new ExtHostThreadService(remoteCom);
-		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService, this._contextService);
+		this._workspace = initData.workspace;
 
-		// Error forwarding
+		// services
+		const threadService = new ExtHostThreadService(rpcProtocol);
+		const telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, telemetryService);
+
+		// error forwarding and stack trace scanning
+		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
+		this._extensionService.getExtensionPathIndex().then(map => {
+			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+				let stackTraceMessage = '';
+				let extension: IExtensionDescription;
+				for (const call of stackTrace) {
+					stackTraceMessage += `\n\tat ${call.toString()}`;
+					extension = extension || map.findSubstr(stackTrace[0].getFileName());
+				}
+				extensionErrors.set(error, extension);
+				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+			};
+		});
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => mainThreadErrors.onUnexpectedExtHostError(errors.transformErrorForSerialization(err)));
+		errors.setUnexpectedErrorHandler(err => {
+			const data = errors.transformErrorForSerialization(err);
+			const extension = extensionErrors.get(err);
+			mainThreadErrors.$onUnexpectedError(data, extension && extension.id);
+		});
+
+		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
+		if (!initData.environment.isExtensionDevelopmentDebug) {
+			watchdog.start(10000);
+		}
 	}
 
 	public start(): TPromise<void> {
-		return this._extensionService.onReady()
+		return this._extensionService.onExtensionAPIReady()
 			.then(() => this.handleEagerExtensions())
 			.then(() => this.handleExtensionTests());
 	}
@@ -100,12 +124,9 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		let workspace = this._contextService.getWorkspace();
-		if (!workspace || !workspace.resource) {
+		if (!this._workspace || this._workspace.roots.length === 0) {
 			return TPromise.as(null);
 		}
-
-		const folderPath = workspace.resource.fsPath;
 
 		const desiredFilesMap: {
 			[filename: string]: boolean;
@@ -135,7 +156,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderResources: [workspace.resource],
+					folderQueries: this._workspace.roots.map(root => ({ folder: root })),
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }
@@ -143,7 +164,16 @@ export class ExtensionHostMain {
 
 				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
 			} else {
-				return pfs.exists(join(folderPath, p)).then(exists => exists ? p : undefined);
+				// find exact path
+				return new TPromise<string>(async resolve => {
+					for (const { fsPath } of this._workspace.roots) {
+						if (await pfs.exists(join(fsPath, p))) {
+							resolve(p);
+							return;
+						}
+					}
+					resolve(undefined);
+				});
 			}
 		});
 
@@ -194,7 +224,7 @@ export class ExtensionHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath));
+		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
 	private gracefulExit(code: number): void {

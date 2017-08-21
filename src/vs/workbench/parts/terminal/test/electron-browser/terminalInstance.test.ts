@@ -10,21 +10,22 @@ import * as os from 'os';
 import Uri from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestMessageService, TestContextService, TestHistoryService } from 'vs/workbench/test/workbenchTestServices';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 class TestTerminalInstance extends TerminalInstance {
-	public _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
-		return super._getCwd(shell, workspace);
+	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
+		return super._getCwd(shell, root);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
+	protected _createProcess(shell: IShellLaunchConfig): void { }
 	protected _createXterm(): void { }
 }
 
@@ -35,6 +36,7 @@ suite('Workbench - TerminalInstance', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IMessageService, new TestMessageService());
+		instantiationService.stub(IHistoryService, new TestHistoryService());
 	});
 
 	test('TerminalInstance - createTerminalEnv', function () {
@@ -89,6 +91,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IHistoryService, new TestHistoryService());
 			configHelper = {
 				config: {
 					cwd: null
@@ -107,7 +110,7 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/foo') }), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/foo')), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
@@ -117,11 +120,11 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
 			configHelper.config.cwd = 'foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar')), '/bar/foo');
 			configHelper.config.cwd = './foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar')), '/bar/foo');
 			configHelper.config.cwd = '../foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }, ), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar'), ), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
@@ -135,7 +138,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should ignore custom cwd when told to ignore', () => {
 			configHelper.config.cwd = '/foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar') }), '/bar');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, Uri.file('/bar')), '/bar');
 		});
 	});
 });

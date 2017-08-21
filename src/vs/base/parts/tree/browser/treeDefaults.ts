@@ -16,59 +16,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
-export interface ILegacyTemplateData {
-	root: HTMLElement;
-	element: any;
-	previousCleanupFn: _.IElementCallback;
-}
-
-export class LegacyRenderer implements _.IRenderer {
-
-	public getHeight(tree: _.ITree, element: any): number {
-		return 20;
-	}
-
-	public getTemplateId(tree: _.ITree, element: any): string {
-		return 'legacy';
-	}
-
-	public renderTemplate(tree: _.ITree, templateId: string, container: HTMLElement): any {
-		return <ILegacyTemplateData>{
-			root: container,
-			element: null,
-			previousCleanupFn: null
-		};
-	}
-
-	public renderElement(tree: _.ITree, element: any, templateId: string, templateData: ILegacyTemplateData): void {
-		if (templateData.previousCleanupFn) {
-			templateData.previousCleanupFn(tree, templateData.element);
-		}
-
-		while (templateData.root && templateData.root.firstChild) {
-			templateData.root.removeChild(templateData.root.firstChild);
-		}
-
-		templateData.element = element;
-		templateData.previousCleanupFn = this.render(tree, element, templateData.root);
-	}
-
-	public disposeTemplate(tree: _.ITree, templateId: string, templateData: any): void {
-		if (templateData.previousCleanupFn) {
-			templateData.previousCleanupFn(tree, templateData.element);
-		}
-
-		templateData.root = null;
-		templateData.element = null;
-		templateData.previousCleanupFn = null;
-	}
-
-	protected render(tree: _.ITree, element: any, container: HTMLElement, previousCleanupFn?: _.IElementCallback): _.IElementCallback {
-		container.textContent = '' + element;
-		return null;
-	}
-}
-
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
 }

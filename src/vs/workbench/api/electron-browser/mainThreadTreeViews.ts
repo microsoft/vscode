@@ -6,31 +6,37 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ViewsRegistry, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadTreeViews extends MainThreadTreeViewsShape {
+@extHostNamedCustomer(MainContext.MainThreadTreeViews)
+export class MainThreadTreeViews implements MainThreadTreeViewsShape {
 
 	private _proxy: ExtHostTreeViewsShape;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IMessageService private messageService: IMessageService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostTreeViews);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostTreeViews);
+	}
+
+	public dispose(): void {
+		// TODO@Sandeep: please implement this
+		// will be called when the extension host process is gone.
 	}
 
 	$registerView(treeViewId: string): void {
 		ViewsRegistry.registerTreeViewDataProvider(treeViewId, new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
 	}
 
-	$refresh(treeViewId: string, treeItemHandle?: number): void {
+	$refresh(treeViewId: string, treeItemHandles: number[]): void {
 		const treeViewDataProvider: TreeViewDataProvider = <TreeViewDataProvider>ViewsRegistry.getTreeViewDataProvider(treeViewId);
 		if (treeViewDataProvider) {
-			treeViewDataProvider.refresh(treeItemHandle);
+			treeViewDataProvider.refresh(treeItemHandles);
 		}
 	}
 }
@@ -39,8 +45,8 @@ type TreeItemHandle = number;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
-	private _onDidChange: Emitter<ITreeItem | undefined | void> = new Emitter<ITreeItem | undefined | void>();
-	readonly onDidChange: Event<ITreeItem | undefined | void> = this._onDidChange.event;
+	private _onDidChange: Emitter<ITreeItem[] | undefined | null> = new Emitter<ITreeItem[] | undefined | null>();
+	readonly onDidChange: Event<ITreeItem[] | undefined | null> = this._onDidChange.event;
 
 	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
@@ -56,7 +62,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(elements => {
 				this.postGetElements(null, elements);
 				return elements;
-			}, err => this.messageService.show(Severity.Error, err));
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+				return null;
+			});
 	}
 
 	getChildren(treeItem: ITreeItem): TPromise<ITreeItem[]> {
@@ -67,14 +76,18 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(children => {
 				this.postGetElements(treeItem.handle, children);
 				return children;
-			}, err => this.messageService.show(Severity.Error, err));
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+				return null;
+			});
 	}
 
-	refresh(treeItemHandle?: number) {
-		if (treeItemHandle) {
-			let treeItem = this.itemsMap.get(treeItemHandle);
-			if (treeItem) {
-				this._onDidChange.fire(treeItem);
+	refresh(treeItemHandles: number[]) {
+		if (treeItemHandles && treeItemHandles.length) {
+			let treeItems = treeItemHandles.map(treeItemHandle => this.itemsMap.get(treeItemHandle))
+				.filter(treeItem => !!treeItem);
+			if (treeItems.length) {
+				this._onDidChange.fire(treeItems);
 			}
 		} else {
 			this._onDidChange.fire();

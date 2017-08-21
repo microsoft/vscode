@@ -7,7 +7,5 @@
 	"openFolderFirst": "Ouvrir d'abord un dossier pour créer les paramètres d'espace de travail",
 	"emptyKeybindingsHeader": "Placez vos combinaisons de touches dans ce fichier pour remplacer les valeurs par défaut",
 	"defaultKeybindings": "Combinaisons de touches par défaut",
-	"emptySettingsHeader": "Placez vos paramètres dans ce fichier pour remplacer les paramètres par défaut",
-	"emptySettingsHeader1": "Placez vos paramètres dans ce fichier pour remplacer les paramètres par défaut et les paramètres utilisateur.",
 	"fail.createSettings": "Impossible de créer '{0}' ({1})."
 }

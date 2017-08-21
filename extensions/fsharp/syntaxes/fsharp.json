@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/f2e3c30f0ebfcc89fb78ad908701159f20516812",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [

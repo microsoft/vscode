@@ -300,7 +300,7 @@ export class ViewZones extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		let visibleWhitespaces = this._context.viewLayout.getWhitespaceViewportData();
+		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
 		let visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
 
 		let hasVisibleZone = false;

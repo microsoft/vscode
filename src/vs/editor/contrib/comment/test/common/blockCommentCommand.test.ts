@@ -28,13 +28,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 3, 1, 3),
 			[
-				'fi<00>rst',
+				'fi<0  0>rst',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Selection(1, 6, 1, 6)
 		);
 	});
 
@@ -49,13 +49,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 1, 1, 1),
 			[
-				'<0first',
-				'0>\tsecond line',
+				'<0 first',
+				' 0>\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 1)
+			new Selection(1, 4, 2, 1)
 		);
 	});
 
@@ -70,13 +70,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 1),
 			[
-				'<0first0>',
+				'<0 first 0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 8)
+			new Selection(1, 4, 1, 9)
 		);
 
 		testBlockCommentCommand(
@@ -110,13 +110,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 3),
 			[
-				'fi<0rst0>',
+				'fi<0 rst 0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 8)
+			new Selection(1, 6, 1, 9)
 		);
 	});
 
@@ -131,13 +131,89 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(1, 6, 1, 3),
 			[
+				'fi<0 rst 0>',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 6, 1, 9)
+		);
+
+		testBlockCommentCommand(
+			[
 				'fi<0rst0>',
 				'\tsecond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 8)
+			new Selection(1, 8, 1, 5),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 3, 1, 6)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 first 0>',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 10, 1, 1),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 1, 6)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 first0>',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 9, 1, 1),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 1, 6)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0first 0>',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 9, 1, 1),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 1, 6)
 		);
 
 		testBlockCommentCommand(
@@ -171,13 +247,13 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 4, 1, 1),
 			[
-				'<0first',
-				'\tse0>cond line',
+				'<0 first',
+				'\tse 0>cond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 4)
+			new Selection(1, 4, 2, 4)
 		);
 	});
 
@@ -192,19 +268,76 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 4, 1, 1),
 			[
-				'<0first',
-				'\tse0>cond line',
+				'<0 first',
+				'\tse 0>cond line',
 				'third line',
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 3, 2, 4)
+			new Selection(1, 4, 2, 4)
 		);
 
 		testBlockCommentCommand(
 			[
 				'<0first',
 				'\tse0>cond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 4, 1, 3),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 2, 4)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 first',
+				'\tse0>cond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 4, 1, 3),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 2, 4)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0first',
+				'\tse 0>cond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 4, 1, 3),
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 2, 4)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 first',
+				'\tse 0>cond line',
 				'third line',
 				'fourth line',
 				'fifth'
@@ -229,10 +362,10 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 5, 1, 7),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
 		);
 
 		testBlockCommentCommand(
@@ -242,10 +375,10 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 5, 1, 6),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
 		);
 
 		testBlockCommentCommand(
@@ -255,10 +388,10 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 5, 1, 5),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
 		);
 
 		testBlockCommentCommand(
@@ -268,10 +401,10 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 5, 1, 11),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
 		);
 
 		testBlockCommentCommand(
@@ -281,10 +414,10 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 1, 1, 11),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
 		);
 
 		testBlockCommentCommand(
@@ -294,11 +427,34 @@ suite('Editor Contrib - Block Comment Command', () => {
 			],
 			new Selection(2, 7, 1, 11),
 			[
-				'asd  qwe',
-				'asd  qwe'
+				'asd qwe',
+				'asd qwe'
 			],
-			new Selection(1, 5, 2, 5)
+			new Selection(1, 5, 2, 4)
+		);
+	});
+
+	test('bug #30358', function () {
+		testBlockCommentCommand(
+			[
+				'<0 start 0> middle end',
+			],
+			new Selection(1, 20, 1, 23),
+			[
+				'<0 start 0> middle <0 end 0>'
+			],
+			new Selection(1, 23, 1, 26)
+		);
+
+		testBlockCommentCommand(
+			[
+				'<0 start 0> middle <0 end 0>'
+			],
+			new Selection(1, 13, 1, 19),
+			[
+				'<0 start 0> <0 middle 0> <0 end 0>'
+			],
+			new Selection(1, 16, 1, 22)
 		);
 	});
 });
-

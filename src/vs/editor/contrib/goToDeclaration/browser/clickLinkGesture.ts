@@ -82,8 +82,8 @@ export class ClickLinkOptions {
 	}
 }
 
-function createOptions(multicursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): ClickLinkOptions {
-	if (multicursorModifier === 'altKey') {
+function createOptions(multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey'): ClickLinkOptions {
+	if (multiCursorModifier === 'altKey') {
 		if (platform.isMacintosh) {
 			return new ClickLinkOptions(KeyCode.Meta, 'metaKey', KeyCode.Alt, 'altKey');
 		}
@@ -117,14 +117,14 @@ export class ClickLinkGesture extends Disposable {
 		super();
 
 		this._editor = editor;
-		this._opts = createOptions(this._editor.getConfiguration().multicursorModifier);
+		this._opts = createOptions(this._editor.getConfiguration().multiCursorModifier);
 
 		this.lastMouseMoveEvent = null;
 		this.hasTriggerKeyOnMouseDown = false;
 
 		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.multicursorModifier) {
-				const newOpts = createOptions(this._editor.getConfiguration().multicursorModifier);
+			if (e.multiCursorModifier) {
+				const newOpts = createOptions(this._editor.getConfiguration().multiCursorModifier);
 				if (this._opts.equals(newOpts)) {
 					return;
 				}

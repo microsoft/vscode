@@ -24,6 +24,7 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -65,7 +66,7 @@ export interface IModelDecorationOverviewRulerOptions {
  */
 export interface IModelDecorationOptions {
 	/**
-	 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
 	stickiness?: TrackedRangeStickiness;
@@ -683,16 +684,9 @@ export interface ITextModel {
 	getFullModelRange(): Range;
 
 	/**
-	 * Returns iff the model was disposed or not.
+	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
-
-	/**
-	 * No mode supports allowed on this model because it is simply too large.
-	 * (even tokenization would cause too much memory pressure)
-	 * @internal
-	 */
-	isTooLargeForHavingAMode(): boolean;
 
 	/**
 	 * Only basic mode supports allowed on this model because it is simply too large.
@@ -700,6 +694,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isTooLargeForHavingARichMode(): boolean;
+
+	/**
+	 * The file is so large, that even tokenization is disabled.
+	 * @internal
+	 */
+	isTooLargeForTokenization(): boolean;
 
 	/**
 	 * Search the model.
@@ -820,6 +820,20 @@ export interface ITokenizedModel extends ITextModel {
 	forceTokenization(lineNumber: number): void;
 
 	/**
+	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
+	 * This is based on a heuristic.
+	 * @internal
+	 */
+	tokenizeIfCheap(lineNumber: number): void;
+
+	/**
+	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
+	 * This is based on a heuristic.
+	 * @internal
+	 */
+	isCheapToTokenize(lineNumber: number): boolean;
+
+	/**
 	 * Get the tokens for the line `lineNumber`.
 	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
@@ -875,19 +889,21 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	findMatchingBracketUp(bracket: string, position: IPosition): Range;
 
-	// /**
-	//  * Find the first bracket in the model before `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	//  */
-	// findPrevBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 * @internal
+	 */
+	findPrevBracket(position: IPosition): IFoundBracket;
 
-	// /**
-	//  * Find the first bracket in the model after `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	//  */
-	// findNextBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 * @internal
+	 */
+	findNextBracket(position: IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -925,7 +941,8 @@ export interface ITextModelWithMarkers extends ITextModel {
 }
 
 /**
- * Describes the behaviour of decorations when typing/editing near their edges.
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
 export enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
@@ -1172,7 +1189,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	onBeforeDetached(): void;
 
 	/**
-	 * Returns iff this model is attached to an editor or not.
+	 * Returns if this model is attached to an editor or not.
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
@@ -1621,10 +1638,6 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export interface ThemeColor {
-	id: string;
-}
-
 /**
  * @internal
  */
@@ -1687,6 +1700,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
+	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

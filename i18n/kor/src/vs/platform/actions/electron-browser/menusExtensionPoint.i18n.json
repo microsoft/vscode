@@ -21,6 +21,8 @@
 	"menus.scmTitle": "소스 제어 제목 메뉴",
 	"menus.resourceGroupContext": "소스 제어 리소스 그룹 상황에 맞는 메뉴",
 	"menus.resourceStateContext": "소스 제어 리소스 상태 상황에 맞는 메뉴",
+	"view.viewTitle": "기여 조회 제목 메뉴",
+	"view.itemContext": "기여 조회 항목 상황에 맞는 메뉴",
 	"nonempty": "비어 있지 않은 값이 필요합니다.",
 	"opticon": "`icon` 속성은 생략할 수 있거나 문자열 또는 리터럴(예: `{dark, light}`)이어야 합니다.",
 	"requireStringOrObject": "`{0}` 속성은 필수이며 `string` 또는 `object` 형식이어야 합니다.",

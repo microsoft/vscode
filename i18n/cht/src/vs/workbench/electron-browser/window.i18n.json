@@ -10,6 +10,5 @@
 	"copy": "複製",
 	"paste": "貼上",
 	"selectAll": "全選",
-	"confirmOpen": "確定要開啟 {0} 資料夾嗎?",
 	"confirmOpenButton": "開啟(&&O)..."
 }

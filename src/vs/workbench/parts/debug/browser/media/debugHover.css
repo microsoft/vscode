@@ -64,6 +64,8 @@
 .monaco-editor .debug-hover-widget .value {
 	white-space: pre-wrap;
 	color: rgba(108, 108, 108, 0.8);
+	overflow: auto;
+	max-height: 500px;
 }
 
 .monaco-editor .debug-hover-widget .error {

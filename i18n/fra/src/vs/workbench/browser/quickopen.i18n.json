@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "Aucun résultat correspondant",
 	"noResultsFound2": "Résultats introuvables",
-	"entryAriaLabel": "{0}, commande",
-	"noCommands": "Aucune commande correspondante"
+	"entryAriaLabel": "{0}, commande"
 }

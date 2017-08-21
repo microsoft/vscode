@@ -23,7 +23,7 @@ export class ChoiceChannel implements IChoiceChannel {
 		switch (command) {
 			case 'choose': return this.choiceService.choose(args[0], args[1], args[2], args[3], args[4]);
 		}
-		return TPromise.wrapError('invalid command');
+		return TPromise.wrapError(new Error('invalid command'));
 	}
 }
 

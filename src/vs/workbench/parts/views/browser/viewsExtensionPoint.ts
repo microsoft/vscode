@@ -8,8 +8,9 @@ import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/parts/views/browser/views';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 namespace schema {
 
@@ -18,13 +19,7 @@ namespace schema {
 	export interface IUserFriendlyViewDescriptor {
 		id: string;
 		name: string;
-	}
-
-	export function parseLocation(value: string): ViewLocation {
-		switch (value) {
-			case ViewLocation.Explorer.id: return ViewLocation.Explorer;
-		}
-		return void 0;
+		when?: string;
 	}
 
 	export function isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -39,7 +34,11 @@ namespace schema {
 				return false;
 			}
 			if (typeof descriptor.name !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'label'));
+				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'name'));
+				return false;
+			}
+			if (descriptor.when && typeof descriptor.when !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
 				return false;
 			}
 		}
@@ -51,13 +50,17 @@ namespace schema {
 		type: 'object',
 		properties: {
 			id: {
-				description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use the same identifier to register a data provider through API.'),
+				description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 				type: 'string'
 			},
 			name: {
 				description: localize('vscode.extension.contributes.view.name', 'The human-readable name of the view. Will be shown'),
 				type: 'string'
-			}
+			},
+			when: {
+				description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
+				type: 'string'
+			},
 		}
 	};
 
@@ -66,7 +69,12 @@ namespace schema {
 		type: 'object',
 		properties: {
 			'explorer': {
-				description: localize('views.explorer', "Explorer"),
+				description: localize('views.explorer', "Explorer View"),
+				type: 'array',
+				items: viewDescriptor
+			},
+			'debug': {
+				description: localize('views.debug', "Debug View"),
 				type: 'array',
 				items: viewDescriptor
 			}
@@ -83,17 +91,19 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 				return;
 			}
 
-			const location = schema.parseLocation(entry.key);
+			const location = ViewLocation.getContributedViewLocation(entry.key);
 			if (!location) {
 				collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
 				return;
 			}
 
-			const viewDescriptors = entry.value.map(item => ({
+			const viewDescriptors = entry.value.map(item => (<IViewDescriptor>{
 				id: item.id,
 				name: item.name,
 				ctor: TreeView,
-				location
+				location,
+				when: ContextKeyExpr.deserialize(item.when),
+				canToggleVisibility: true
 			}));
 			ViewsRegistry.registerViews(viewDescriptors);
 		});

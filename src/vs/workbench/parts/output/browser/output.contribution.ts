@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

@@ -7,7 +7,7 @@
 
 import * as vscode from 'vscode';
 
-import { MarkdownEngine, IToken } from './markdownEngine';
+import { MarkdownEngine } from './markdownEngine';
 
 export interface TocEntry {
 	slug: string;
@@ -24,10 +24,10 @@ export class TableOfContentsProvider {
 		private document: vscode.TextDocument
 	) { }
 
-	public getToc(): TocEntry[] {
+	public async getToc(): Promise<TocEntry[]> {
 		if (!this.toc) {
 			try {
-				this.toc = this.buildToc(this.document);
+				this.toc = await this.buildToc(this.document);
 			} catch (e) {
 				this.toc = [];
 			}
@@ -35,9 +35,9 @@ export class TableOfContentsProvider {
 		return this.toc;
 	}
 
-	public lookup(fragment: string): number {
+	public async lookup(fragment: string): Promise<number> {
 		const slug = TableOfContentsProvider.slugify(fragment);
-		for (const entry of this.getToc()) {
+		for (const entry of await this.getToc()) {
 			if (entry.slug === slug) {
 				return entry.line;
 			}
@@ -45,9 +45,9 @@ export class TableOfContentsProvider {
 		return NaN;
 	}
 
-	private buildToc(document: vscode.TextDocument): TocEntry[] {
+	private async buildToc(document: vscode.TextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
-		const tokens: IToken[] = this.engine.parse(document.uri, document.getText());
+		const tokens = await this.engine.parse(document.uri, document.getText());
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];

@@ -215,7 +215,7 @@ suite('FindController', () => {
 		});
 	});
 
-	test('issue #5400: "Select All Occurences of Find Match" does not select all if find uses regex', () => {
+	test('issue #5400: "Select All Occurrences of Find Match" does not select all if find uses regex', () => {
 		withMockCodeEditor([
 			'something',
 			'someething',

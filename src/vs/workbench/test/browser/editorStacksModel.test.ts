@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -1758,6 +1758,24 @@ suite('Editor Stacks Model', () => {
 		group1.openEditor(input1, { pinned: true, active: true });
 
 		group1.closeEditor(diffInput);
+
+		assert.equal(diffInput.isDisposed(), true);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(input1.isDisposed(), false);
+	});
+
+	test('Stack - Multiple Editors - Editor Not Disposed after Closing when opening Modified side (Diff Editor)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+
+		const input1 = input();
+		const input2 = input();
+
+		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
+
+		group1.openEditor(diffInput, { pinned: false, active: true });
+		group1.openEditor(input1, { pinned: false, active: true });
 
 		assert.equal(diffInput.isDisposed(), true);
 		assert.equal(input2.isDisposed(), true);

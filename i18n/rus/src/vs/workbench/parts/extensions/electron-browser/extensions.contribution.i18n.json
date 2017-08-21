@@ -10,5 +10,6 @@
 	"extensions": "Расширения",
 	"view": "Просмотреть",
 	"extensionsConfigurationTitle": "Расширения",
-	"extensionsAutoUpdate": "Автоматически обновлять расширения"
+	"extensionsAutoUpdate": "Автоматически обновлять расширения",
+	"extensionsIgnoreRecommendations": "Игнорировать рекомендации по расширениям"
 }

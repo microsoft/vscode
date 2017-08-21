@@ -7,13 +7,6 @@
 	z-index: 10;
 }
 
-.monaco-editor .zone-widget-arrow.below {
-	width: 0;
-	height: 0;
-	border-color: transparent;
-	border-style: solid;
-	position: absolute;
-}
 
 .monaco-editor .zone-widget .zone-widget-container {
 	border-top-style: solid;

@@ -82,10 +82,10 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	protected visitSourceFile(node: ts.SourceFile): void {
 		super.visitSourceFile(node);
 		Object.keys(this.usedKeys).forEach(key => {
-			let occurences = this.usedKeys[key];
-			if (occurences.length > 1) {
-				occurences.forEach(occurence => {
-					this.addFailure((this.createFailure(occurence.key.getStart(), occurence.key.getWidth(), `Duplicate key ${occurence.key.getText()} with different message value.`)));
+			let occurrences = this.usedKeys[key];
+			if (occurrences.length > 1) {
+				occurrences.forEach(occurrence => {
+					this.addFailure((this.createFailure(occurrence.key.getStart(), occurrence.key.getWidth(), `Duplicate key ${occurrence.key.getText()} with different message value.`)));
 				});
 			}
 		});
@@ -157,17 +157,17 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
 		let text = keyNode.getText();
-		let occurences: KeyMessagePair[] = this.usedKeys[text];
-		if (!occurences) {
-			occurences = [];
-			this.usedKeys[text] = occurences;
+		let occurrences: KeyMessagePair[] = this.usedKeys[text];
+		if (!occurrences) {
+			occurrences = [];
+			this.usedKeys[text] = occurrences;
 		}
 		if (messageNode) {
-			if (occurences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
+			if (occurrences.some(pair => pair.message ? pair.message.getText() === messageNode.getText() : false)) {
 				return;
 			}
 		}
-		occurences.push({ key: keyNode, message: messageNode });
+		occurrences.push({ key: keyNode, message: messageNode });
 	}
 
 	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, ignoreUsage?: boolean; } {

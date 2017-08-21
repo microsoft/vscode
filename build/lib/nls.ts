@@ -1,4 +1,9 @@
-import * as ts from './typescript/typescriptServices';
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as ts from 'typescript';
 import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import File = require('vinyl');
@@ -171,7 +176,7 @@ module nls {
 		const filename = 'file.ts';
 		const serviceHost = new SingleFileServiceHost(assign(clone(options), { noResolve: true }), filename, contents);
 		const service = ts.createLanguageService(serviceHost);
-		const sourceFile = service.getSourceFile(filename);
+		const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
 
 		// all imports
 		const imports = lazy(collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));

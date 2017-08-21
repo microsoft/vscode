@@ -7,24 +7,29 @@
 
 import nls = require('vs/nls');
 
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
-
-import { QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
-class ShowEmmetCommandsAction extends QuickOpenAction {
+@editorAction
+class ShowEmmetCommandsAction extends EditorAction {
 
-	public static ID = 'workbench.action.showEmmetCommands';
-	public static LABEL = nls.localize('showEmmetCommands', "Show Emmet Commands");
+	constructor() {
+		super({
+			id: 'workbench.action.showEmmetCommands',
+			label: nls.localize('showEmmetCommands', "Show Emmet Commands"),
+			alias: 'Show Emmet Commands',
+			precondition: EditorContextKeys.writable,
+		});
+	}
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, EMMET_COMMANDS_PREFIX, quickOpenService);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		const quickOpenService = accessor.get(IQuickOpenService);
+		quickOpenService.show(EMMET_COMMANDS_PREFIX);
+		return TPromise.as(null);
 	}
 }
-
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEmmetCommandsAction, ShowEmmetCommandsAction.ID, ShowEmmetCommandsAction.LABEL), 'Show Emmet Commands');

@@ -4,55 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-export default class TsConfigProvider extends vscode.Disposable {
-	private readonly tsconfigs = new Set<string>();
+export interface TSConfig {
+	path: string;
+	workspaceFolder?: vscode.WorkspaceFolder;
+}
 
-	private activated: boolean = false;
-	private disposables: vscode.Disposable[] = [];
-
-	constructor() {
-		super(() => this.dispose());
-	}
-
-	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
-	}
-
-	public async getConfigsForWorkspace(): Promise<Iterable<string>> {
-		if (!vscode.workspace.rootPath) {
+export default class TsConfigProvider {
+	public async getConfigsForWorkspace(): Promise<Iterable<TSConfig>> {
+		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
-		await this.ensureActivated();
-		return this.tsconfigs;
-	}
-
-	private async ensureActivated() {
-		if (this.activated) {
-			return this;
+		const configs = new Map<string, TSConfig>();
+		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**')) {
+			const root = vscode.workspace.getWorkspaceFolder(config);
+			if (root) {
+				configs.set(config.fsPath, {
+					path: config.fsPath,
+					workspaceFolder: root
+				});
+			}
 		}
-		this.activated = true;
-
-		for (const config of await TsConfigProvider.loadWorkspaceTsconfigs()) {
-			this.tsconfigs.add(config.fsPath);
-		}
-
-		const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/tsconfig*.json');
-		this.disposables.push(configFileWatcher);
-		configFileWatcher.onDidCreate(this.handleProjectCreate, this, this.disposables);
-		configFileWatcher.onDidDelete(this.handleProjectDelete, this, this.disposables);
-
-		return this;
-	}
-
-	private static loadWorkspaceTsconfigs() {
-		return vscode.workspace.findFiles('**/tsconfig*.json', '**/node_modules/**');
-	}
-
-	private handleProjectCreate(e: vscode.Uri) {
-		this.tsconfigs.add(e.fsPath);
-	}
-
-	private handleProjectDelete(e: vscode.Uri) {
-		this.tsconfigs.delete(e.fsPath);
+		return configs.values();
 	}
 }

@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "{0} 열기",
 	"launchJsonNeedsConfigurtion": "'launch.json' 구성 또는 수정",
+	"noFolderDebugConfig": "고급 디버그 구성을 수행하려면 먼저 폴더를 여세요.",
 	"startDebug": "디버깅 시작",
 	"startWithoutDebugging": "디버깅하지 않고 시작",
 	"selectAndStartDebugging": "디버깅 선택 및 시작",

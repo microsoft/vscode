@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Nombre del elemento compuesto. Aparece en el menú desplegable de la configuración de inicio.",
 	"app.launch.json.compounds.configurations": "Nombres de las configuraciones que se iniciarán como parte de este elemento compuesto.",
 	"debugNoType": "El valor \"type\" del adaptador de depuración no se puede omitir y debe ser de tipo \"string\".",
-	"DebugConfig.failed": "No se puede crear el archivo \"launch.json\" dentro de la carpeta \".vscode\" ({0}).",
-	"selectDebug": "Seleccionar entorno"
+	"selectDebug": "Seleccionar entorno",
+	"DebugConfig.failed": "No se puede crear el archivo \"launch.json\" dentro de la carpeta \".vscode\" ({0})."
 }

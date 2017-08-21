@@ -21,8 +21,8 @@ var editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: [],
-		prepend: [ 'vs/css.js', 'vs/nls.js' ],
+		exclude: [ 'vs/css', 'vs/nls' ],
+		prepend: [ 'out-build/vs/css.js', 'out-build/vs/nls.js' ],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
@@ -38,7 +38,6 @@ var editorResources = [
 	'!out-build/vs/base/browser/ui/splitview/**/*',
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
-	'!out-build/vs/editor/contrib/defineKeybinding/**/*',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
 ];

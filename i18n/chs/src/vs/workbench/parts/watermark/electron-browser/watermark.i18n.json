@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "切换终端",
 	"watermark.findInFiles": "在文件中查找",
 	"watermark.startDebugging": "开始调试",
-	"watermark.selectTheme": "更改主题",
-	"watermark.selectKeymap": "更改键映射",
-	"watermark.keybindingsReference": "键盘参考",
-	"watermark.openGlobalKeybindings": "键盘快捷方式(&&K)",
 	"watermark.unboundCommand": "未绑定",
 	"workbenchConfigurationTitle": "工作台",
 	"tips.enabled": "启用后，当没有打开编辑器时将显示水印提示。"

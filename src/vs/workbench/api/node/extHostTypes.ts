@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as crypto from 'crypto';
+
 import URI from 'vs/base/common/uri';
+import { Color as BaseColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 
@@ -486,14 +489,12 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { }
-
 export class WorkspaceEdit {
 
-	private _values: [Uri, TextEdit[]][] = [];
+	private _values: [URI, TextEdit[]][] = [];
 	private _index = new Map<string, number>();
 
-	replace(uri: Uri, range: Range, newText: string): void {
+	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
 		let array = this.get(uri);
 		if (array) {
@@ -503,19 +504,19 @@ export class WorkspaceEdit {
 		}
 	}
 
-	insert(resource: Uri, position: Position, newText: string): void {
+	insert(resource: URI, position: Position, newText: string): void {
 		this.replace(resource, new Range(position, position), newText);
 	}
 
-	delete(resource: Uri, range: Range): void {
+	delete(resource: URI, range: Range): void {
 		this.replace(resource, range, '');
 	}
 
-	has(uri: Uri): boolean {
+	has(uri: URI): boolean {
 		return this._index.has(uri.toString());
 	}
 
-	set(uri: Uri, edits: TextEdit[]): void {
+	set(uri: URI, edits: TextEdit[]): void {
 		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
@@ -525,12 +526,12 @@ export class WorkspaceEdit {
 		}
 	}
 
-	get(uri: Uri): TextEdit[] {
+	get(uri: URI): TextEdit[] {
 		let idx = this._index.get(uri.toString());
 		return typeof idx !== 'undefined' && this._values[idx][1];
 	}
 
-	entries(): [Uri, TextEdit[]][] {
+	entries(): [URI, TextEdit[]][] {
 		return this._values;
 	}
 
@@ -962,6 +963,28 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+/**
+ * These values match very carefully the values of `TrackedRangeStickiness`
+ */
+export enum DecorationRangeBehavior {
+	/**
+	 * TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	 */
+	OpenOpen = 0,
+	/**
+	 * TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	 */
+	ClosedClosed = 1,
+	/**
+	 * TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+	 */
+	OpenClosed = 2,
+	/**
+	 * TrackedRangeStickiness.GrowsOnlyWhenTypingAfter
+	 */
+	ClosedOpen = 3
+}
+
 export namespace TextEditorSelectionChangeKind {
 	export function fromValue(s: string) {
 		switch (s) {
@@ -991,23 +1014,60 @@ export class DocumentLink {
 	}
 }
 
-export enum FileLocationKind {
-	Auto = 1,
+export class Color {
+	readonly red: number;
+	readonly green: number;
+	readonly blue: number;
+	readonly alpha: number;
 
-	Relative = 2,
+	constructor(red: number, green: number, blue: number, alpha: number) {
+		this.red = red;
+		this.green = green;
+		this.blue = blue;
+		this.alpha = alpha;
+	}
 
-	Absolute = 3
+	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
+		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
+		return new Color(color.r, color.g, color.b, color.a);
+	}
+
+	static fromHex(hex: string): Color | null {
+		let baseColor = BaseColor.Format.CSS.parseHex(hex);
+		if (baseColor) {
+			const rgba = baseColor.rgba;
+			return new Color(rgba.r, rgba.g, rgba.b, rgba.a);
+		}
+		return null;
+	}
 }
 
-export enum ApplyToKind {
-	AllDocuments = 1,
+export type IColorFormat = string | { opaque: string, transparent: string };
 
-	OpenDocuments = 2,
+export class ColorRange {
+	range: Range;
 
-	ClosedDocuments = 3
+	color: Color;
+
+	availableFormats: IColorFormat[];
+
+	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
+		if (color && !(color instanceof Color)) {
+			throw illegalArgument('color');
+		}
+		if (availableFormats && !Array.isArray(availableFormats)) {
+			throw illegalArgument('availableFormats');
+		}
+		if (!Range.isRange(range) || range.isEmpty) {
+			throw illegalArgument('range');
+		}
+		this.range = range;
+		this.color = color;
+		this.availableFormats = availableFormats;
+	}
 }
 
-export enum RevealKind {
+export enum TaskRevealKind {
 	Always = 1,
 
 	Silent = 2,
@@ -1015,42 +1075,224 @@ export enum RevealKind {
 	Never = 3
 }
 
-export class BaseTask {
+export enum TaskPanelKind {
+	Shared = 1,
 
-	private _name: string;
-	private _problemMatchers: string[];
-	private _identifier: string;
-	private _isBackground: boolean;
-	private _source: string;
-	private _group: string;
-	private _terminal: vscode.TerminalBehaviour;
+	Dedicated = 2,
 
-	constructor(name: string, problemMatchers: string[]) {
-		if (typeof name !== 'string') {
+	New = 3
+}
+
+export class TaskGroup implements vscode.TaskGroup {
+
+	private _id: string;
+	private _label: string;
+
+	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
+
+	public static Build: TaskGroup = new TaskGroup('build', 'Build');
+
+	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
+
+	public static Test: TaskGroup = new TaskGroup('test', 'Test');
+
+	constructor(id: string, label: string) {
+		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		this._name = name;
-		this._problemMatchers = problemMatchers || [];
+		if (typeof label !== 'string') {
+			throw illegalArgument('name');
+		}
+		this._id = id;
+		this._label = label;
+	}
+
+	get id(): string {
+		return this._id;
+	}
+}
+
+export class ProcessExecution implements vscode.ProcessExecution {
+
+	private _process: string;
+	private _args: string[];
+	private _options: vscode.ProcessExecutionOptions;
+
+	constructor(process: string, options?: vscode.ProcessExecutionOptions);
+	constructor(process: string, args: string[], options?: vscode.ProcessExecutionOptions);
+	constructor(process: string, varg1?: string[] | vscode.ProcessExecutionOptions, varg2?: vscode.ProcessExecutionOptions) {
+		if (typeof process !== 'string') {
+			throw illegalArgument('process');
+		}
+		this._process = process;
+		if (varg1 !== void 0) {
+			if (Array.isArray(varg1)) {
+				this._args = varg1;
+				this._options = varg2;
+			} else {
+				this._options = varg1;
+			}
+		}
+		if (this._args === void 0) {
+			this._args = [];
+		}
+	}
+
+
+	get process(): string {
+		return this._process;
+	}
+
+	set process(value: string) {
+		if (typeof value !== 'string') {
+			throw illegalArgument('process');
+		}
+		this._process = value;
+	}
+
+	get args(): string[] {
+		return this._args;
+	}
+
+	set args(value: string[]) {
+		if (!Array.isArray(value)) {
+			value = [];
+		}
+		this._args = value;
+	}
+
+	get options(): vscode.ProcessExecutionOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ProcessExecutionOptions) {
+		this._options = value;
+	}
+}
+
+export class ShellExecution implements vscode.ShellExecution {
+
+	private _commandLine: string;
+	private _options: vscode.ShellExecutionOptions;
+
+	constructor(commandLine: string, options?: vscode.ShellExecutionOptions) {
+		if (typeof commandLine !== 'string') {
+			throw illegalArgument('commandLine');
+		}
+		this._commandLine = commandLine;
+		this._options = options;
+	}
+
+	get commandLine(): string {
+		return this._commandLine;
+	}
+
+	set commandLine(value: string) {
+		if (typeof value !== 'string') {
+			throw illegalArgument('commandLine');
+		}
+		this._commandLine = value;
+	}
+
+	get options(): vscode.ShellExecutionOptions {
+		return this._options;
+	}
+
+	set options(value: vscode.ShellExecutionOptions) {
+		this._options = value;
+	}
+}
+
+export class Task implements vscode.Task {
+
+	private _definition: vscode.TaskDefinition;
+	private _definitionKey: string;
+	private _name: string;
+	private _execution: ProcessExecution | ShellExecution;
+	private _problemMatchers: string[];
+	private _hasDefinedMatchers: boolean;
+	private _isBackground: boolean;
+	private _source: string;
+	private _group: TaskGroup;
+	private _presentationOptions: vscode.TaskPresentationOptions;
+
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+		this.definition = definition;
+		this.name = name;
+		this.source = source;
+		this.execution = execution;
+		if (typeof problemMatchers === 'string') {
+			this._problemMatchers = [problemMatchers];
+			this._hasDefinedMatchers = true;
+		} else if (Array.isArray(problemMatchers)) {
+			this._problemMatchers = problemMatchers;
+			this._hasDefinedMatchers = true;
+		} else {
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+		}
 		this._isBackground = false;
-		this._terminal = Object.create(null);
 	}
 
-	get identifier(): string {
-		return this._identifier;
+	get definition(): vscode.TaskDefinition {
+		return this._definition;
 	}
 
-	set identifier(value: string) {
+	set definition(value: vscode.TaskDefinition) {
 		if (value === void 0 || value === null) {
-			this._identifier = undefined;
+			throw illegalArgument('Kind can\'t be undefined or null');
 		}
-		if (typeof value !== 'string' || value.length === 0) {
-			throw illegalArgument('identifier must be a string of length > 0');
+		this._definitionKey = undefined;
+		this._definition = value;
+	}
+
+	get definitionKey(): string {
+		if (!this._definitionKey) {
+			const hash = crypto.createHash('md5');
+			hash.update(JSON.stringify(this._definition));
+			this._definitionKey = hash.digest('hex');
 		}
-		this._identifier = value;
+		return this._definitionKey;
 	}
 
 	get name(): string {
 		return this._name;
+	}
+
+	set name(value: string) {
+		if (typeof value !== 'string') {
+			throw illegalArgument('name');
+		}
+		this._name = value;
+	}
+
+	get execution(): ProcessExecution | ShellExecution {
+		return this._execution;
+	}
+
+	set execution(value: ProcessExecution | ShellExecution) {
+		if (value === null) {
+			value = undefined;
+		}
+		this._execution = value;
+	}
+
+	get problemMatchers(): string[] {
+		return this._problemMatchers;
+	}
+
+	set problemMatchers(value: string[]) {
+		if (!Array.isArray(value)) {
+			this._problemMatchers = [];
+			this._hasDefinedMatchers = false;
+			return;
+		}
+		this._problemMatchers = value;
+		this._hasDefinedMatchers = true;
+	}
+
+	get hasDefinedMatchers(): boolean {
+		return this._hasDefinedMatchers;
 	}
 
 	get isBackground(): boolean {
@@ -1069,213 +1311,55 @@ export class BaseTask {
 	}
 
 	set source(value: string) {
-		if (value === void 0 || value === null) {
-			this._source = undefined;
-			return;
-		}
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
 		this._source = value;
 	}
 
-	get group(): string {
+	get group(): TaskGroup {
 		return this._group;
 	}
 
-	set group(value: string) {
+	set group(value: TaskGroup) {
 		if (value === void 0 || value === null) {
 			this._group = undefined;
 			return;
 		}
-		if (typeof value !== 'string' || value.length === 0) {
-			throw illegalArgument('group must be a string of length > 0');
-		}
 		this._group = value;
 	}
 
-	get terminal(): vscode.TerminalBehaviour {
-		return this._terminal;
+	get presentationOptions(): vscode.TaskPresentationOptions {
+		return this._presentationOptions;
 	}
 
-	set terminal(value: vscode.TerminalBehaviour) {
-		if (value === void 0 || value === null) {
-			value = Object.create(null);
+	set presentationOptions(value: vscode.TaskPresentationOptions) {
+		if (value === null) {
+			value = undefined;
 		}
-		this._terminal = value;
-	}
-
-	get problemMatchers(): string[] {
-		return this._problemMatchers;
-	}
-
-	set problemMatchers(value: string[]) {
-		if (!Array.isArray(value)) {
-			value = [];
-		}
-		this._problemMatchers = value;
+		this._presentationOptions = value;
 	}
 }
 
-/*
-namespace ProblemMatcher {
-	export function is(value: any): value is vscode.ProblemMatcher {
-		let candidate: vscode.ProblemMatcher = value;
-		return candidate && !!candidate.pattern;
-	}
-}
-*/
-
-namespace ShellOptions {
-	export function is(value: any): value is vscode.ShellOptions {
-		return value && ((typeof value.executable === 'string') || (typeof value.cwd === 'string') || !!value.env);
-	}
-}
-
-export namespace TaskGroup {
-	/**
-	 * The clean task group
-	 */
-	export const Clean: 'clean' = 'clean';
-
-	/**
-	 * The build task group
-	 */
-	export const Build: 'build' = 'build';
-
-	/**
-	 * The rebuild all task group
-	 */
-	export const RebuildAll: 'rebuildAll' = 'rebuildAll';
-
-	/**
-	 * The test task group
-	 */
-	export const Test: 'test' = 'test';
-
-	export function is(value: string): value is string {
-		return value === Clean || value === Build || value === RebuildAll || value === Test;
-	}
-}
-
-export class ProcessTask extends BaseTask {
-
-	private _process: string;
-	private _args: string[];
-	private _options: vscode.ProcessOptions;
-
-	constructor(name: string, process: string, args?: string[], problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessOptions | vscode.ProblemMatchers, arg5?: vscode.ProblemMatchers) {
-		if (typeof process !== 'string') {
-			throw illegalArgument('process');
-		}
-		let args: string[];
-		let options: vscode.ProcessOptions;
-		let problemMatchers: vscode.ProblemMatchers;
-
-		args = arg3 || [];
-		if (arg4) {
-			if (Array.isArray(arg4) || typeof arg4 === 'string') {
-				problemMatchers = arg4;
-			} else {
-				options = arg4;
-			}
-		}
-		if (arg5 && !problemMatchers) {
-			problemMatchers = arg5;
-		}
-		let pm: string[];
-		if (problemMatchers && (typeof problemMatchers === 'string')) {
-			pm = [problemMatchers];
-		} else if (Array.isArray(problemMatchers)) {
-			pm = problemMatchers;
-		}
-		pm = pm || [];
-		super(name, pm);
-		this._process = process;
-		this._args = args;
-		this._options = options || Object.create(null);
-	}
-
-	get process(): string {
-		return this._process;
-	}
-
-	get args(): string[] {
-		return this._args;
-	}
-
-	set args(value: string[]) {
-		if (!Array.isArray(value)) {
-			value = [];
-		}
-		this._args = value;
-	}
-
-	get options(): vscode.ProcessOptions {
-		return this._options;
-	}
-
-	set options(value: vscode.ProcessOptions) {
-		if (value === void 0 || value === null) {
-			value = Object.create(null);
-		}
-		this._options = value;
-	}
-}
-
-export class ShellTask extends BaseTask implements vscode.ShellTask {
-
-	private _commandLine: string;
-	private _options: vscode.ShellOptions;
-
-	constructor(name: string, commandLine: string, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, options: vscode.ShellOptions, problemMatchers?: vscode.ProblemMatchers);
-	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellOptions | vscode.ProblemMatchers, problemMatchers?: vscode.ProblemMatchers) {
-		if (typeof commandLine !== 'string') {
-			throw illegalArgument('commandLine');
-		}
-		let options: vscode.ShellOptions = undefined;
-		let pm: string[];
-		if (ShellOptions.is(optionsOrProblemMatchers)) {
-			options = optionsOrProblemMatchers;
-		} else {
-			problemMatchers = optionsOrProblemMatchers;
-		}
-		if (problemMatchers && (typeof problemMatchers === 'string')) {
-			pm = [problemMatchers];
-		} else if (Array.isArray(problemMatchers)) {
-			pm = problemMatchers;
-		}
-		pm = pm || [];
-		super(name, pm);
-		this._commandLine = commandLine;
-		this._options = options || Object.create(null);
-	}
-
-	get commandLine(): string {
-		return this._commandLine;
-	}
-
-	get options(): vscode.ShellOptions {
-		return this._options;
-	}
-
-	set options(value: vscode.ShellOptions) {
-		if (value === void 0 || value === null) {
-			value = Object.create(null);
-		}
-		this._options = value;
-	}
-}
 
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
 }
 
+export class TreeItem {
+
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
+	command?: vscode.Command;
+	contextValue?: string;
+
+	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	}
+
+}
+
 export enum TreeItemCollapsibleState {
+	None = 0,
 	Collapsed = 1,
 	Expanded = 2
 }
@@ -1285,4 +1369,12 @@ export class ThemeColor {
 	constructor(id: string) {
 		this.id = id;
 	}
+}
+
+export enum ConfigurationTarget {
+	Global = 1,
+
+	Workspace = 2,
+
+	WorkspaceFolder = 3
 }

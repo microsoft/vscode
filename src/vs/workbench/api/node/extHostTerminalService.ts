@@ -7,8 +7,7 @@
 import vscode = require('vscode');
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape } from './extHost.protocol';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostTerminal implements vscode.Terminal {
 
@@ -19,8 +18,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 	private _queuedRequests: ApiRequest[];
 	private _pidPromise: TPromise<number>;
 	private _pidPromiseComplete: TValueCallback<number>;
-
-	private _onDataCallback: (data: string) => any;
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
@@ -69,11 +66,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
-	public onData(callback: (data: string) => any): void {
-		this._onDataCallback = callback;
-		this._queueApiRequest(this._proxy.$registerOnData, []);
-	}
-
 	public dispose(): void {
 		if (!this._disposed) {
 			this._disposed = true;
@@ -84,10 +76,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public _setProcessId(processId: number): void {
 		this._pidPromiseComplete(processId);
 		this._pidPromiseComplete = null;
-	}
-
-	public _onData(data: string): void {
-		this._onDataCallback(data);
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
@@ -112,9 +100,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[];
 
-	constructor(threadService: IThreadService) {
+	constructor(mainContext: IMainContext) {
 		this._onDidCloseTerminal = new Emitter<vscode.Terminal>();
-		this._proxy = threadService.get(MainContext.MainThreadTerminalService);
+		this._proxy = mainContext.get(MainContext.MainThreadTerminalService);
 		this._terminals = [];
 	}
 
@@ -147,11 +135,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	public $acceptTerminalProcessId(id: number, processId: number): void {
 		let terminal = this._getTerminalById(id);
 		terminal._setProcessId(processId);
-	}
-
-	public $acceptTerminalData(id: number, data: string): void {
-		let terminal = this._getTerminalById(id);
-		terminal._onData(data);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {

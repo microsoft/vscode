@@ -11,6 +11,14 @@
 	"editorWhitespaces": "Farbe der Leerzeichen im Editor.",
 	"editorIndentGuides": "Farbe der Führungslinien für Einzüge im Editor.",
 	"editorLineNumbers": "Zeilennummernfarbe im Editor.",
+	"editorRuler": "Farbe des Editor-Lineals.",
 	"editorCodeLensForeground": "Vordergrundfarbe der CodeLens-Links im Editor",
-	"editorBracketMatchBackground": "Hintergrundfarbe für zusammengehörige Klammern"
+	"editorBracketMatchBackground": "Hintergrundfarbe für zusammengehörige Klammern",
+	"editorBracketMatchBorder": "Farbe für zusammengehörige Klammern",
+	"editorOverviewRulerBorder": "Farbe des Rahmens für das Übersicht-Lineal.",
+	"editorGutter": "Hintergrundfarbe der Editorleiste. Die Leiste enthält die Glyphenränder und die Zeilennummern.",
+	"errorForeground": "Vordergrundfarbe von Fehlerunterstreichungen im Editor.",
+	"errorBorder": "Rahmenfarbe von Fehlerunterstreichungen im Editor.",
+	"warningForeground": "Vordergrundfarbe von Warnungsunterstreichungen im Editor.",
+	"warningBorder": "Rahmenfarbe von Warnungsunterstreichungen im Editor."
 }

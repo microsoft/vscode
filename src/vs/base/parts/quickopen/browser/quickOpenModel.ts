@@ -21,6 +21,9 @@ import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IContext {
 	event: any;
@@ -105,6 +108,13 @@ export class QuickOpenEntry {
 	 * A secondary description that is optional and can be shown right to the label
 	 */
 	public getDescription(): string {
+		return null;
+	}
+
+	/**
+	 * An optional keybinding to show for an entry.
+	 */
+	public getKeybinding(): ResolvedKeybinding {
 		return null;
 	}
 
@@ -389,6 +399,7 @@ export interface IQuickOpenEntryTemplateData {
 	label: IconLabel;
 	detail: HighlightedLabel;
 	description: HighlightedLabel;
+	keybinding: KeybindingLabel;
 	actionBar: ActionBar;
 }
 
@@ -431,8 +442,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		container.appendChild(entryContainer);
 
 		// Entry
-		const row1 = DOM.$('.row');
-		const row2 = DOM.$('.row');
+		const row1 = DOM.$('.quick-open-row');
+		const row2 = DOM.$('.quick-open-row');
 		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 
@@ -448,6 +459,12 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		const description = new HighlightedLabel(descriptionContainer);
+
+		// Keybinding
+		const keybindingContainer = document.createElement('span');
+		row1.appendChild(keybindingContainer);
+		DOM.addClass(keybindingContainer, 'quick-open-entry-keybinding');
+		const keybinding = new KeybindingLabel(keybindingContainer, OS);
 
 		// Detail
 		const detailContainer = document.createElement('div');
@@ -481,6 +498,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			label,
 			detail,
 			description,
+			keybinding,
 			group,
 			actionBar
 		};
@@ -507,6 +525,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 				data.actionBar.clear();
 			}
 		});
+
+		// Entry group class
+		if (entry instanceof QuickOpenEntryGroup && entry.getGroupLabel()) {
+			DOM.addClass(data.container, 'has-group-label');
+		} else {
+			DOM.removeClass(data.container, 'has-group-label');
+		}
 
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
@@ -547,6 +572,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Description
 			data.description.set(entry.getDescription(), descriptionHighlights || []);
 			data.description.element.title = entry.getDescription();
+
+			// Keybinding
+			data.keybinding.set(entry.getKeybinding(), null);
 		}
 	}
 
@@ -558,6 +586,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.entry = null;
 		data.description.dispose();
 		data.description = null;
+		data.keybinding.dispose();
+		data.keybinding = null;
 		data.detail.dispose();
 		data.detail = null;
 		data.group = null;

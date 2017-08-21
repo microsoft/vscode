@@ -7,9 +7,9 @@
 	"extensionsCommands": "Erweiterungen verwalten",
 	"galleryExtensionsCommands": "Katalogerweiterungen installieren",
 	"extension": "Erweiterung",
-	"extensions": "Extensions",
+	"extensions": "Erweiterungen",
 	"view": "Anzeigen",
-	"extensionsConfigurationTitle": "Extensions",
+	"extensionsConfigurationTitle": "Erweiterungen",
 	"extensionsAutoUpdate": "Erweiterungen automatisch aktualisieren",
 	"extensionsIgnoreRecommendations": "Erweiterungsempfehlungen ignorieren"
 }

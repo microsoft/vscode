@@ -10,6 +10,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -113,28 +114,33 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			return;
 		}
 
-		const selection = this._editor.getSelection();
-		if (!selection.isEmpty()) {
-			return;
-		}
+		let newSelections = this._editor.getSelections().map(selection => {
+			const position = selection.getStartPosition();
 
-		const position = selection.getStartPosition();
-		const brackets = model.matchBracket(position);
-		if (!brackets) {
-			return;
-		}
+			// find matching brackets if position is on a bracket
+			const brackets = model.matchBracket(position);
+			let newCursorPosition: Position = null;
+			if (brackets) {
+				if (brackets[0].containsPosition(position)) {
+					newCursorPosition = brackets[1].getStartPosition();
+				} else if (brackets[1].containsPosition(position)) {
+					newCursorPosition = brackets[0].getStartPosition();
+				}
+			} else {
+				// find the next bracket if the position isn't on a matching bracket
+				const nextBracket = model.findNextBracket(position);
+				if (nextBracket && nextBracket.range) {
+					newCursorPosition = nextBracket.range.getStartPosition();
+				}
+			}
 
-		let resultingPosition: Position = null;
-		if (brackets[0].containsPosition(position)) {
-			resultingPosition = brackets[1].getStartPosition();
-		} else if (brackets[1].containsPosition(position)) {
-			resultingPosition = brackets[0].getStartPosition();
-		}
+			if (newCursorPosition) {
+				return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
+			}
+			return new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
+		});
 
-		if (resultingPosition) {
-			this._editor.setPosition(resultingPosition);
-			this._editor.revealPosition(resultingPosition);
-		}
+		this._editor.setSelections(newSelections);
 	}
 
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({

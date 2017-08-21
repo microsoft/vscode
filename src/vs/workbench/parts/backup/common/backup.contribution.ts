@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BackupModelTracker } from 'vs/workbench/parts/backup/common/backupModelTracker';
 import { BackupRestorer } from 'vs/workbench/parts/backup/common/backupRestorer';

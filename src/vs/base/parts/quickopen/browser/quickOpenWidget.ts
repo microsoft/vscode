@@ -15,7 +15,7 @@ import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
-import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, IInputBoxStyles, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -59,6 +59,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
+	inputSelection?: IRange;
 }
 
 export interface IQuickOpenUsageLogger {
@@ -98,6 +99,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private static MAX_WIDTH = 600;				// Max total width of quick open widget
 	private static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
+	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
 	private builder: Builder;
 	private tree: ITree;
@@ -122,6 +124,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
 		this.callbacks = callbacks;
@@ -202,8 +205,11 @@ export class QuickOpenWidget implements IModelProvider {
 
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
 
-						// Position cursor at the end of input to allow right arrow (open in background) to function immediately
-						this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						// Position cursor at the end of input to allow right arrow (open in background)
+						// to function immediately unless the user has made a selection
+						if (this.inputBox.inputElement.selectionStart === this.inputBox.inputElement.selectionEnd) {
+							this.inputBox.inputElement.selectionStart = this.inputBox.value.length;
+						}
 					}
 
 					// Select element on Enter or on Arrow-Right if we are at the end of the input
@@ -238,7 +244,8 @@ export class QuickOpenWidget implements IModelProvider {
 						alwaysFocused: true,
 						verticalScrollMode: ScrollbarVisibility.Visible,
 						ariaLabel: nls.localize('treeAriaLabel', "Quick Picker"),
-						keyboardSupport: this.options.keyboardSupport
+						keyboardSupport: this.options.keyboardSupport,
+						preventRootFocus: true
 					});
 
 				this.treeElement = this.tree.getHTMLElement();
@@ -330,6 +337,19 @@ export class QuickOpenWidget implements IModelProvider {
 
 		this.applyStyles();
 
+		// Allows focus to switch to next/previous entry after tab into an actionbar item
+		DOM.addDisposableListener(this.treeContainer.getHTMLElement(), DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+			// Only handle when not in quick navigation mode
+			if (this.quickNavigateConfiguration) {
+				return;
+			}
+			if (keyboardEvent.keyCode === KeyCode.DownArrow || keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.PageDown || keyboardEvent.keyCode === KeyCode.PageUp) {
+				DOM.EventHelper.stop(e, true);
+				this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
+				this.inputBox.inputElement.focus();
+			}
+		});
 		return this.builder.getHTMLElement();
 	}
 
@@ -392,7 +412,10 @@ export class QuickOpenWidget implements IModelProvider {
 			return false; // no modifiers allowed
 		}
 
-		return this.inputBox.inputElement.selectionStart === this.inputBox.value.length; // only when cursor is at the end of the input field value
+		// validate the cursor is at the end of the input and there is no selection,
+		// and if not prevent opening in the background such as the selection can be changed
+		const element = this.inputBox.inputElement;
+		return element.selectionEnd === this.inputBox.value.length && element.selectionStart === element.selectionEnd;
 	}
 
 	private onType(): void {
@@ -412,7 +435,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
-		if (this.isVisible) {
+		if (this.isVisible()) {
 
 			// Transition into quick navigate mode if not yet done
 			if (!this.quickNavigateConfiguration && quickNavigate) {
@@ -561,6 +584,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
 		}
 
+		// Respect selectAll option
+		if (options && options.inputSelection && !this.quickNavigateConfiguration) {
+			this.inputBox.select(options.inputSelection);
+		}
+
 		if (this.callbacks.onShow) {
 			this.callbacks.onShow();
 		}
@@ -667,8 +695,16 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public refresh(input: IModel<any>, autoFocus: IAutoFocus): void {
+	public refresh(input?: IModel<any>, autoFocus?: IAutoFocus): void {
 		if (!this.isVisible()) {
+			return;
+		}
+
+		if (!input) {
+			input = this.tree.getInput();
+		}
+
+		if (!input) {
 			return;
 		}
 
@@ -680,9 +716,11 @@ export class QuickOpenWidget implements IModelProvider {
 			this.tree.layout();
 
 			// Handle auto focus
-			let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
-			if (doAutoFocus) {
-				this.autoFocus(input, autoFocus);
+			if (autoFocus) {
+				let doAutoFocus = autoFocus && input && input.entries.some(e => this.isElementVisible(input, e));
+				if (doAutoFocus) {
+					this.autoFocus(input, autoFocus);
+				}
 			}
 		}, errors.onUnexpectedError);
 	}
@@ -933,6 +971,9 @@ export class QuickOpenWidget implements IModelProvider {
 			if (!this.isLoosingFocus) {
 				return;
 			}
+			if (this.isDisposed) {
+				return;
+			}
 
 			const veto = this.callbacks.onFocusLost && this.callbacks.onFocusLost();
 			if (!veto) {
@@ -942,6 +983,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public dispose(): void {
+		this.isDisposed = true;
 		this.toUnbind = dispose(this.toUnbind);
 
 		this.progressBar.dispose();

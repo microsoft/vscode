@@ -36,9 +36,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	getVisibleEditors(): IEditor[];
 
 	/**
-	 * Returns iff the provided input is currently visible.
+	 * Returns if the provided input is currently visible.
 	 *
-	 * @param includeDiff iff set to true, will also consider diff editors to find out if the provided
+	 * @param includeDiff if set to true, will also consider diff editors to find out if the provided
 	 * input is opened either on the left or right hand side of the diff editor.
 	 */
 	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
@@ -80,7 +80,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * will not be closed. The direction can be used in that case to control if all other editors should get closed,
 	 * or towards a specific direction.
 	 */
-	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
+	closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
 
 	/**
 	 * Closes all editors across all groups. The optional position allows to keep one group alive.

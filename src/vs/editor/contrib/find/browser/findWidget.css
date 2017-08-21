@@ -345,8 +345,6 @@
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* High Contrast Theming */
-
 .monaco-editor.hc-black .find-widget .button:before {
 	position: relative;
 	top: 1px;

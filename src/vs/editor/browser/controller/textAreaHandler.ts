@@ -108,6 +108,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
+		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
@@ -167,6 +168,10 @@ export class TextAreaHandler extends ViewPart {
 				}
 
 				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
+			},
+
+			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+				return this._context.model.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
 			}
 		};
 
@@ -198,6 +203,10 @@ export class TextAreaHandler extends ViewPart {
 			} else {
 				this._viewController.type('keyboard', e.text);
 			}
+		}));
+
+		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
+			this._viewController.setSelection('keyboard', modelSelection);
 		}));
 
 		this._register(this._textAreaInput.onCompositionStart(() => {
@@ -419,9 +428,7 @@ export class TextAreaHandler extends ViewPart {
 			Configuration.applyFontInfo(ta, this._fontInfo);
 		} else {
 			ta.setFontSize(1);
-			// Chrome does not generate input events in empty textareas that end
-			// up having a line height smaller than 1 screen pixel.
-			ta.setLineHeight(Math.ceil(Math.max(this._pixelRatio, 1 / this._pixelRatio)));
+			ta.setLineHeight(this._fontInfo.lineHeight);
 		}
 
 		ta.setTop(top);

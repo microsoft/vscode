@@ -14,7 +14,7 @@ import Severity from 'vs/base/common/severity';
 import * as Strings from 'vs/base/common/strings';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 
-import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/processes';
+import { SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -24,12 +24,14 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
-	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
+	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
+	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, RevealKind, CommandConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -42,6 +44,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
+	private contextService: IWorkspaceContextService;
 
 	private outputChannel: IOutputChannel;
 
@@ -51,11 +54,12 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, contextService: IWorkspaceContextService, outputChannelId: string) {
 		super();
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
+		this.contextService = contextService;
 		this.telemetryService = telemetryService;
 		this.configurationResolverService = configurationResolverService;
 
@@ -89,6 +93,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return this.executeTask(task);
 	}
 
+	public revealTask(task: Task): boolean {
+		this.showOutput();
+		return true;
+	}
+
 	public hasErrors(value: boolean): void {
 		this.errorsShown = !value;
 	}
@@ -103,18 +112,24 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return true;
 	}
 
-	public terminate(_id: string): TPromise<TerminateResponse> {
+	public terminate(_id: string): TPromise<TaskTerminateResponse> {
 		if (!this.activeTask || this.activeTask._id !== _id) {
-			return TPromise.as<TerminateResponse>({ success: false });
+			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll();
+		return this.terminateAll()[0];
 	}
 
-	public terminateAll(): TPromise<TerminateResponse> {
+	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (this.childProcess) {
-			return this.childProcess.terminate();
+			let task = this.activeTask;
+			return this.childProcess.terminate().then((response) => {
+				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
+				this.emit(TaskSystemEvents.Terminated, event);
+				return [result];
+			});
 		}
-		return TPromise.as({ success: true });
+		return TPromise.as<TaskTerminateResponse[]>([{ success: true, task: undefined }]);
 	}
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
@@ -162,36 +177,24 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 
 		let args: string[] = commandConfig.args ? commandConfig.args.slice() : [];
-		// We need to first pass the task name
-		if (!task.suppressTaskName) {
-			if (commandConfig.taskSelector) {
-				args.push(commandConfig.taskSelector + task.name);
-			} else {
-				args.push(task.name);
-			}
-		}
-		// And then additional arguments
-		if (task.args) {
-			args = args.concat(task.args);
-		}
 		args = this.resolveVariables(args);
 		let command: string = this.resolveVariable(commandConfig.name);
-		this.childProcess = new LineProcess(command, args, commandConfig.type === CommandType.Shell, this.resolveOptions(commandConfig.options));
+		this.childProcess = new LineProcess(command, args, commandConfig.runtime === RuntimeType.Shell, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		let reveal = task.command.terminal.reveal;
+		let reveal = task.command.presentation.reveal;
 		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.terminal.echo) {
+		if (commandConfig.presentation.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			let toUnbind: IDisposable[] = [];
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching, group: task.group };
 			let eventCounter: number = 0;
 			toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
@@ -250,7 +253,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
-			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun };
+			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun, group: task.group };
 			this.emit(TaskSystemEvents.Active, event);
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
@@ -285,28 +288,33 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.activeTaskPromise = null;
 	}
 
-	private handleError(task: Task, error: ErrorData): Promise {
+	private handleError(task: Task, errorData: ErrorData): Promise {
 		let makeVisible = false;
-		if (error.error && !error.terminated) {
+		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', task.command.name, args));
-			this.outputChannel.append(error.error.message);
+			this.outputChannel.append(errorData.error.message);
 			makeVisible = true;
 		}
 
-		if (error.stdout) {
-			this.outputChannel.append(error.stdout);
+		if (errorData.stdout) {
+			this.outputChannel.append(errorData.stdout);
 			makeVisible = true;
 		}
-		if (error.stderr) {
-			this.outputChannel.append(error.stderr);
+		if (errorData.stderr) {
+			this.outputChannel.append(errorData.stderr);
 			makeVisible = true;
 		}
-		makeVisible = this.checkTerminated(task, error) || makeVisible;
+		makeVisible = this.checkTerminated(task, errorData) || makeVisible;
 		if (makeVisible) {
 			this.showOutput();
 		}
-		return Promise.wrapError(error);
+
+		const error: Error & ErrorData = errorData.error || new Error();
+		error.stderr = errorData.stderr;
+		error.stdout = errorData.stdout;
+		error.terminated = errorData.terminated;
+		return TPromise.wrapError(error);
 	}
 
 	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {
@@ -345,7 +353,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		values.forEach((value) => {
 			let matcher: ProblemMatcher;
 			if (Types.isString(value)) {
-				matcher = ProblemMatcherRegistry.get(value);
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
 			} else {
 				matcher = value;
 			}
@@ -365,7 +377,8 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.configurationResolverService.resolve(value);
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
 	}
 
 	public log(value: string): void {

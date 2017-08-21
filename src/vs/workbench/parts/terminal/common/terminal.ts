@@ -27,6 +27,11 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
+/**  A context key that is set when the find widget in integrated terminal is visible. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', undefined);
+/**  A context key that is set when the find widget in integrated terminal is not visible. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 
@@ -62,6 +67,11 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	env: {
+		linux: { [key: string]: string };
+		osx: { [key: string]: string };
+		windows: { [key: string]: string };
+	};
 }
 
 export interface ITerminalConfigHelper {
@@ -137,6 +147,7 @@ export interface ITerminalService {
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
@@ -147,6 +158,8 @@ export interface ITerminalService {
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
+	focusFindWidget(): TPromise<void>;
+	hideFindWidget(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
@@ -191,6 +204,12 @@ export interface ITerminalInstance {
 	hadFocusOnExit: boolean;
 
 	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
@@ -226,9 +245,34 @@ export interface ITerminalInstance {
 	copySelection(): void;
 
 	/**
+	 * Current selection in the terminal.
+	 */
+	readonly selection: string | undefined;
+
+	/**
 	 * Clear current selection.
 	 */
 	clearSelection(): void;
+
+	/**
+	 * Select all text in the terminal.
+	 */
+	selectAll(): void;
+
+	/**
+	 * Find the next instance of the term
+	*/
+	findNext(term: string): boolean;
+
+	/**
+	 * Find the previous instance of the term
+	 */
+	findPrevious(term: string): boolean;
+
+	/**
+	 * Notifies the terminal that the find widget's focus state has been changed.
+	 */
+	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
 	 * Focuses the terminal instance.
@@ -322,7 +366,7 @@ export interface ITerminalInstance {
 	reuseTerminal(shell?: IShellLaunchConfig): void;
 
 	/**
-	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
+	 * Sets the title of the terminal instance.
 	 */
-	enableApiOnData(): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

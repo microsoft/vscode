@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 
 export function editorContribution(ctor: IEditorContributionCtor): void {

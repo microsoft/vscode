@@ -8,8 +8,10 @@
 
 	const ipcRenderer = require('electron').ipcRenderer;
 
-
+	// state
 	var firstLoad = true;
+	var loadTimeout;
+	var pendingMessages = [];
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -17,7 +19,7 @@
 
 	function styleBody(body) {
 		if (!body) {
-			return
+			return;
 		}
 		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 		body.classList.add(initData.activeTheme);
@@ -47,7 +49,7 @@
 		/** @type {any} */
 		var node = event.target;
 		while (node) {
-			if (node.tagName === "A" && node.href) {
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				var baseElement = event.view.document.getElementsByTagName("base")[0];
 				if (node.getAttribute("href") === "#") {
 					event.view.scrollTo(0, 0);
@@ -88,7 +90,7 @@
 		});
 	}
 
-	document.addEventListener('DOMContentLoaded', function (event) {
+	document.addEventListener('DOMContentLoaded', function () {
 		ipcRenderer.on('baseUrl', function (event, value) {
 			initData.baseUrl = value;
 		});
@@ -98,7 +100,7 @@
 			initData.activeTheme = activeTheme;
 
 			// webview
-			var target = getActiveFrame()
+			var target = getActiveFrame();
 			if (!target) {
 				return;
 			}
@@ -121,18 +123,10 @@
 		});
 
 		// update iframe-contents
-		ipcRenderer.on('content', function (_event, value) {
-			const text = value.join('\n');
+		ipcRenderer.on('content', function (_event, data) {
+			const options = data.options;
+			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
-
-			// know what happens here
-			const stats = {
-				scriptTags: newDocument.documentElement.querySelectorAll('script').length,
-				inputTags: newDocument.documentElement.querySelectorAll('input').length,
-				styleTags: newDocument.documentElement.querySelectorAll('style').length,
-				linkStyleSheetTags: newDocument.documentElement.querySelectorAll('link[rel=stylesheet]').length,
-				stringLen: text.length
-			};
 
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
@@ -157,25 +151,22 @@
 
 			// keep current scrollTop around and use later
 			var setInitialScrollPosition;
-			if (firstLoad)  {
+			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = function (body, window) {
-					body.scrollTop = 0;
+				setInitialScrollPosition = function (body) {
 					if (!isNaN(initData.initialScrollProgress)) {
-						window.addEventListener('load', function () {
-							if (body.scrollTop === 0) {
-								body.scrollTop = body.clientHeight * initData.initialScrollProgress
-							}
-						});
+						if (body.scrollTop === 0) {
+							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
+						}
 					}
-				}
+				};
 			} else {
-				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 				setInitialScrollPosition = function (body) {
 					if (body.scrollTop === 0) {
 						body.scrollTop = scrollY;
 					}
-				}
+				};
 			}
 
 			// Clean up old pending frames and set current one as new one
@@ -184,28 +175,27 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
+			pendingMessages = [];
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
-			newFrame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin');
-			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
+			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
+			newFrame.style.cssText = "display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden";
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
-			newFrame.contentWindow.onbeforeunload = function (e) {
+			newFrame.contentWindow.onbeforeunload = function () {
 				console.log('prevented webview navigation');
 				return false;
 			};
 
-			newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
-				/** @type {any} */
-				const contentDocument = e.target;
+			var onLoad = function (contentDocument, contentWindow) {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body, this);
+					setInitialScrollPosition(contentDocument.body);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
@@ -218,8 +208,29 @@
 						document.body.removeChild(oldActiveFrame);
 					}
 					newFrame.setAttribute('id', 'active-frame');
-					newFrame.style.display = 'block';
-					this.addEventListener('scroll', handleInnerScroll);
+					newFrame.style.visibility = 'visible';
+					contentWindow.addEventListener('scroll', handleInnerScroll);
+
+					pendingMessages.forEach(function(data) {
+						contentWindow.postMessage(data, document.location.origin);
+					});
+					pendingMessages = [];
+				}
+			};
+
+			clearTimeout(loadTimeout);
+			loadTimeout = undefined;
+			loadTimeout = setTimeout(function () {
+				clearTimeout(loadTimeout);
+				loadTimeout = undefined;
+				onLoad(newFrame.contentDocument, newFrame.contentWindow);
+			}, 200);
+
+			newFrame.contentWindow.addEventListener('load', function (e) {
+				if (loadTimeout) {
+					clearTimeout(loadTimeout);
+					loadTimeout = undefined;
+					onLoad(e.target, this);
 				}
 			});
 
@@ -229,14 +240,19 @@
 			newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 			newFrame.contentDocument.close();
 
-			ipcRenderer.sendToHost('did-set-content', stats);
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', function (event, data) {
-			const target = getActiveFrame();
-			if (target) {
-				target.contentWindow.postMessage(data, document.location.origin);
+			const pending = getPendingFrame();
+			if (pending) {
+				pendingMessages.push(data);
+			} else {
+				const target = getActiveFrame();
+				if (target) {
+					target.contentWindow.postMessage(data, document.location.origin);
+				}
 			}
 		});
 

@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
@@ -17,10 +17,10 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DefaultPreferencesEditorInput, PreferencesEditor, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditor, KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, ConfigureLanguageBasedSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
-	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
+	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -164,9 +164,10 @@ const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderSettingsAction, OpenFolderSettingsAction.ID, OpenFolderSettingsAction.LABEL), 'Preferences: Open Folder Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: null }), 'Preferences: Open Keyboard Shortcuts File', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL), 'Preferences: Configure Language Specific Settings', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLanguageBasedSettingsAction, ConfigureLanguageBasedSettingsAction.ID, ConfigureLanguageBasedSettingsAction.LABEL), 'Preferences: Configure Language Specific Settings...', category);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
@@ -231,6 +232,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.copyKeybinding(editor.activeKeybindingEntry);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
+	primary: KeyCode.DownArrow,
+	handler: (accessor, args: any) => {
+		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
+		editor.focusKeybindings();
 	}
 });
 

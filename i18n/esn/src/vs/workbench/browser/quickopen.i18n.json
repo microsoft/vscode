@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "No hay resultados coincidentes",
 	"noResultsFound2": "No se encontraron resultados",
-	"entryAriaLabel": "{0}, comando",
-	"noCommands": "No hay comandos coincidentes"
+	"entryAriaLabel": "{0}, comando"
 }

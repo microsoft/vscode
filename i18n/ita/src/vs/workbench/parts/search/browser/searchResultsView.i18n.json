@@ -6,5 +6,7 @@
 {
 	"searchMatches": "{0} corrispondenze trovate",
 	"searchMatch": "{0} corrispondenza trovata",
-	"fileMatchAriaLabel": "{0} corrispondenze nel file {1} della cartella {2}, risultato della ricerca"
+	"fileMatchAriaLabel": "{0} corrispondenze nel file {1} della cartella {2}, risultato della ricerca",
+	"replacePreviewResultAria": "Sostituisce il termine {0} con {1} alla colonna {2} in linea con il testo {3}",
+	"searchResultAria": "Trovato termine {0} alla colonna {1} in linea con il testo {2}"
 }

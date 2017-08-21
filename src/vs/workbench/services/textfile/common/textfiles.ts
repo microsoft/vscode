@@ -22,7 +22,7 @@ export interface ISaveErrorHandler {
 	/**
 	 * Called whenever a save fails.
 	 */
-	onSaveError(error: any, model: ITextFileEditorModel): void;
+	onSaveError(error: Error, model: ITextFileEditorModel): void;
 }
 
 export interface ISaveParticipant {
@@ -30,7 +30,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any>;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void;
 }
 
 /**
@@ -167,7 +167,7 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
@@ -195,6 +195,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	updatePreferredEncoding(encoding: string): void;
 
 	save(options?: IModelSaveOptions): TPromise<void>;
+
+	load(): TPromise<ITextFileEditorModel>;
 
 	revert(soft?: boolean): TPromise<void>;
 
@@ -264,7 +266,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
-	 * @return true iff the resource was saved.
+	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
@@ -272,7 +274,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the provided resource asking the user for a file name.
 	 *
 	 * @param resource the resource to save as.
-	 * @return true iff the file was saved.
+	 * @return true if the file was saved.
 	 */
 	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
@@ -291,7 +293,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
-	revert(resource: URI, force?: boolean): TPromise<boolean>;
+	revert(resource: URI, options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Reverts all the provided resources and returns a promise with the operation result.

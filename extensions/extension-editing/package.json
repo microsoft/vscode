@@ -11,6 +11,7 @@
 	],
 	"activationEvents": [
 		"onLanguage:json",
+		"onLanguage:markdown",
 		"onLanguage:typescript"
 	],
 	"main": "./out/extension",
@@ -20,6 +21,8 @@
 	},
 	"dependencies": {
 		"jsonc-parser": "^0.3.1",
+		"markdown-it": "^8.3.1",
+		"parse5": "^3.0.2",
 		"vscode-nls": "^2.0.1"
 	},
 	"contributes": {
@@ -43,6 +46,7 @@
 		]
 	},
 	"devDependencies": {
+		"@types/markdown-it": "0.0.2",
 		"@types/node": "^7.0.4"
 	}
 }

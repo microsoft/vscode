@@ -35,6 +35,9 @@ export const virtualMachineHint: { value(): number } = new class {
 			this._virtualMachineOUIs.insert('00-05-69', true);
 			this._virtualMachineOUIs.insert('00-03-FF', true);
 			this._virtualMachineOUIs.insert('00-1C-42', true);
+			this._virtualMachineOUIs.insert('00-16-3E', true);
+			this._virtualMachineOUIs.insert('08-00-27', true);
+
 		}
 		return this._virtualMachineOUIs.findSubstr(mac);
 	}

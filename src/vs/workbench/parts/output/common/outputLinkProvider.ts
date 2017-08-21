@@ -14,63 +14,95 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { OUTPUT_MODE_ID } from 'vs/workbench/parts/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
 
 	private static DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
-	private _modelService: IModelService;
-	private _workspaceResource: URI;
-
-	private _worker: MonacoWebWorker<OutputLinkComputer>;
-	private _disposeWorker: RunOnceScheduler;
+	private worker: MonacoWebWorker<OutputLinkComputer>;
+	private disposeWorkerScheduler: RunOnceScheduler;
+	private linkProviderRegistration: IDisposable;
+	private workspacesCount: number;
 
 	constructor(
-		contextService: IWorkspaceContextService,
-		modelService: IModelService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IModelService private modelService: IModelService
 	) {
-		let workspace = contextService.getWorkspace();
+		this.workspacesCount = 0;
+		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
-		// Does not do anything unless there is a workspace...
-		if (workspace) {
-			this._modelService = modelService;
+		this.registerListeners();
+		this.updateLinkProviderWorker();
+	}
 
-			this._workspaceResource = workspace.resource;
+	private registerListeners(): void {
+		this.contextService.onDidChangeWorkspaceRoots(() => this.updateLinkProviderWorker());
+	}
 
-			LinkProviderRegistry.register({ language: OUTPUT_MODE_ID, scheme: '*' }, {
-				provideLinks: (model, token): Thenable<ILink[]> => {
-					return wireCancellationToken(token, this._provideLinks(model.uri));
-				}
-			});
+	private updateLinkProviderWorker(): void {
 
-			this._worker = null;
-			this._disposeWorker = new RunOnceScheduler(() => {
-				if (this._worker) {
-					this._worker.dispose();
-					this._worker = null;
-				}
-			}, OutputLinkProvider.DISPOSE_WORKER_TIME);
+		// We have a workspace
+		if (this.contextService.hasWorkspace()) {
+
+			// Register link provider unless done already
+			if (!this.linkProviderRegistration) {
+				this.linkProviderRegistration = LinkProviderRegistry.register({ language: OUTPUT_MODE_ID, scheme: '*' }, {
+					provideLinks: (model, token): Thenable<ILink[]> => {
+						return wireCancellationToken(token, this.provideLinks(model.uri));
+					}
+				});
+			}
+
+			// Update link provider worker if workspace roots changed
+			const newWorkspacesCount = this.contextService.getWorkspace().roots.length;
+			if (this.workspacesCount !== newWorkspacesCount) {
+				this.workspacesCount = newWorkspacesCount;
+
+				// Next computer will trigger recompute
+				this.disposeWorker();
+				this.disposeWorkerScheduler.cancel();
+			}
+		}
+
+		// Dispose link provider when no longer having a workspace
+		else if (this.linkProviderRegistration) {
+			this.workspacesCount = 0;
+			dispose(this.linkProviderRegistration);
+			this.linkProviderRegistration = void 0;
+			this.disposeWorker();
+			this.disposeWorkerScheduler.cancel();
 		}
 	}
 
-	private _getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
-		this._disposeWorker.schedule();
-		if (!this._worker) {
-			let createData: ICreateData = {
-				workspaceResourceUri: this._workspaceResource.toString()
+	private getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
+		this.disposeWorkerScheduler.schedule();
+
+		if (!this.worker) {
+			const createData: ICreateData = {
+				workspaceFolders: this.contextService.getWorkspace().roots.map(root => root.toString())
 			};
-			this._worker = createWebWorker<OutputLinkComputer>(this._modelService, {
+
+			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {
 				moduleId: 'vs/workbench/parts/output/common/outputLinkComputer',
-				createData: createData,
+				createData,
 				label: 'outputLinkComputer'
 			});
 		}
-		return this._worker;
+
+		return this.worker;
 	}
 
-	private _provideLinks(modelUri: URI): TPromise<ILink[]> {
-		return this._getOrCreateWorker().withSyncedResources([modelUri]).then((linkComputer) => {
+	private provideLinks(modelUri: URI): TPromise<ILink[]> {
+		return this.getOrCreateWorker().withSyncedResources([modelUri]).then(linkComputer => {
 			return linkComputer.computeLinks(modelUri.toString());
 		});
+	}
+
+	private disposeWorker(): void {
+		if (this.worker) {
+			this.worker.dispose();
+			this.worker = null;
+		}
 	}
 }

@@ -12,11 +12,6 @@
  */
 export type MarkedString = string | { readonly language: string; readonly value: string };
 
-export interface IHTMLContentElementCode {
-	language: string;
-	value: string;
-}
-
 export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedString | MarkedString[]): boolean {
 	if (!a && !b) {
 		return true;
@@ -29,9 +24,9 @@ export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedS
 		if (!Array.isArray(b)) {
 			return false;
 		}
-		return markedStringArrEquals(<MarkedString[]>a, <MarkedString[]>b);
+		return markedStringArrEquals(a, b);
 	}
-	return markedStringEqual(<MarkedString>a, <MarkedString>b);
+	return markedStringEqual(a, b as MarkedString);
 }
 
 
@@ -76,74 +71,4 @@ export function removeMarkdownEscapes(text: string): string {
 		return text;
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
-}
-
-export interface IHTMLContentElement {
-	/**
-	 * supports **bold**, __italics__, and [[actions]]
-	 */
-	formattedText?: string;
-	text?: string;
-	className?: string;
-	style?: string;
-	customStyle?: any;
-	tagName?: string;
-	children?: IHTMLContentElement[];
-	isText?: boolean;
-	role?: string;
-	markdown?: string;
-	code?: IHTMLContentElementCode;
-}
-
-function htmlContentElementCodeEqual(a: IHTMLContentElementCode, b: IHTMLContentElementCode): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	return (
-		a.language === b.language
-		&& a.value === b.value
-	);
-}
-
-function htmlContentElementEqual(a: IHTMLContentElement, b: IHTMLContentElement): boolean {
-	return (
-		a.formattedText === b.formattedText
-		&& a.text === b.text
-		&& a.className === b.className
-		&& a.style === b.style
-		&& a.customStyle === b.customStyle
-		&& a.tagName === b.tagName
-		&& a.isText === b.isText
-		&& a.role === b.role
-		&& a.markdown === b.markdown
-		&& htmlContentElementCodeEqual(a.code, b.code)
-		&& htmlContentElementArrEquals(a.children, b.children)
-	);
-}
-
-export function htmlContentElementArrEquals(a: IHTMLContentElement[], b: IHTMLContentElement[]): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-
-	let aLen = a.length,
-		bLen = b.length;
-
-	if (aLen !== bLen) {
-		return false;
-	}
-
-	for (let i = 0; i < aLen; i++) {
-		if (!htmlContentElementEqual(a[i], b[i])) {
-			return false;
-		}
-	}
-
-	return true;
 }

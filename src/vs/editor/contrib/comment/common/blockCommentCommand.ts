@@ -10,6 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -53,9 +54,25 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var ops: editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
-				new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
-			);
+			var endTokenBeforeCursorIndex = model.getLineContent(startLineNumber).lastIndexOf(endToken, startColumn - 1 + endToken.length);
+			if (endTokenBeforeCursorIndex > startTokenIndex + startToken.length - 1) {
+				ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
+				this._usedEndToken = ops.length === 1 ? endToken : null;
+			} else {
+				// We have to adjust to possible inner white space
+				// For Space after startToken, add Space to startToken - range math will work out
+				if (model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+					startToken += ' ';
+				}
+				// For Space before endToken, add Space before endToken and shift index one left
+				if (model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+					endToken = ' ' + endToken;
+					endTokenIndex -= 1;
+				}
+				ops = BlockCommentCommand._createRemoveBlockCommentOperations(
+					new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
+				);
+			}
 		} else {
 			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
@@ -97,16 +114,16 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
-			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken));
+			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + ' '));
 
 			// Insert block comment end
-			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), endToken));
+			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), ' ' + endToken));
 		} else {
 			// Insert both continuously
 			res.push(EditOperation.replace(new Range(
 				r.startLineNumber, r.startColumn,
 				r.endLineNumber, r.endColumn
-			), startToken + endToken));
+			), startToken + '  ' + endToken));
 		}
 
 		return res;
@@ -118,7 +135,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		model.forceTokenization(startLineNumber);
+		model.tokenizeIfCheap(startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
@@ -145,7 +162,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			);
 		} else {
 			var srcRange = inverseEditOperations[0].range;
-			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length : 0;
+			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length - 1 : 0; // minus 1 space before endToken
 			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn + deltaColumn,
