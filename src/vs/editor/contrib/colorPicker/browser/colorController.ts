@@ -12,6 +12,8 @@ import { hash } from 'vs/base/common/hash';
 import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { RGBA } from 'vs/base/common/color';
 
+const MAX_DECORATORS = 500;
+
 @editorContribution
 export class ColorController extends Disposable implements IEditorContribution {
 
@@ -40,7 +42,7 @@ export class ColorController extends Disposable implements IEditorContribution {
 		getColors(this._editor.getModel()).then((colorInfos) => {
 			let decorations = [];
 
-			for (let i = 0; i < colorInfos.length; i++) {
+			for (let i = 0; i < colorInfos.length && decorations.length < MAX_DECORATORS; i++) {
 				if (!colorInfos[i].renderDecorator) {
 					continue;
 				}
