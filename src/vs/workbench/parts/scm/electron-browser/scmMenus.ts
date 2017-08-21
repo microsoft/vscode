@@ -34,7 +34,7 @@ export class SCMMenus implements IDisposable {
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
 		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', void 0);
-		scmProviderKey.set(provider.id);
+		scmProviderKey.set(provider.contextValue);
 
 		this.titleMenu = this.menuService.createMenu(MenuId.SCMTitle, this.contextKeyService);
 		this.disposables.push(this.titleMenu);

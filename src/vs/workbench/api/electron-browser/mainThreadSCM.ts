@@ -62,6 +62,10 @@ class MainThreadSCMResource implements ISCMResource {
 
 class MainThreadSCMProvider implements ISCMProvider {
 
+	private static ID_HANDLE = 0;
+	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
+	get id(): string { return this._id; }
+
 	private _groups: MainThreadSCMResourceGroup[] = [];
 	private _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
 
@@ -77,7 +81,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
-	get id(): string { return this._id; }
+	get contextValue(): string { return this._contextValue; }
 
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
@@ -92,7 +96,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	constructor(
 		private proxy: ExtHostSCMShape,
 		private _handle: number,
-		private _id: string,
+		private _contextValue: string,
 		private _label: string,
 		@ISCMService scmService: ISCMService,
 		@ICommandService private commandService: ICommandService

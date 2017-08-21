@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { ComposedViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
@@ -68,10 +68,10 @@ function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
 	if (isSCMResource(r)) {
 		const group = r.resourceGroup;
 		const provider = group.provider;
-		return `${provider.id}/${group.id}/${r.sourceUri.toString()}`;
+		return `${provider.contextValue}/${group.id}/${r.sourceUri.toString()}`;
 	} else {
 		const provider = r.provider;
-		return `${provider.id}/${r.id}`;
+		return `${provider.contextValue}/${r.id}`;
 	}
 }
 
@@ -226,12 +226,12 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 class SourceControlViewDescriptor implements IViewDescriptor {
 
 	get provider(): ISCMProvider { return this._provider; }
-	get id(): string { return this._id; }
+	get id(): string { return this._provider.id; }
 	get name(): string { return this._provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _id: string, private _provider: ISCMProvider) {
+	constructor(private _provider: ISCMProvider) {
 
 	}
 }
@@ -402,9 +402,7 @@ export class SCMViewlet extends ComposedViewsViewlet {
 	// private inputBoxContainer: HTMLElement;
 	// private inputBox: InputBox;
 
-	private providerIdHandle = 0;
-	private providerIds = new Map<ISCMProvider, string>();
-	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	// private providers = new Map<string, ISCMProvider>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -429,58 +427,42 @@ export class SCMViewlet extends ComposedViewsViewlet {
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 	}
 
-	private onDidProvidersChange(): void {
-		this.providerChangeDisposable.dispose();
-		// this.activeProvider = activeProvider;
-
-		const providers = this.scmService.providers;
-
-		if (providers.length === 0) {
-			return;
-		}
-
-		const result = providers.map(provider => {
-			let id = this.providerIds.get(provider);
-
-			if (!id) {
-				id = `scm${this.providerIdHandle++}`;
-				this.providerIds.set(provider, id);
-			}
-
-			const view = new SourceControlViewDescriptor(id, provider);
-
-			return { id, provider, view };
-		});
-
-		// console.log(provider.label);
-
-		ViewsRegistry.registerViews(result.map(r => r.view));
-		this.providerChangeDisposable = toDisposable(() => ViewsRegistry.deregisterViews(result.map(r => r.id), ViewLocation.SCM));
-
-		// if (activeProvider) {
-		// 	const disposables = [];
-
-		// 	// if (activeProvider.onDidChangeCommitTemplate) {
-		// 	// 	disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
-		// 	// }
-
-		// 	const id = activeProvider.id;
-		// 	ViewsRegistry.registerViews([new SourceControlViewDescriptor(activeProvider)]);
-
-		// 	disposables.push({
-		// 		dispose: () => {
-		// 			ViewsRegistry.deregisterViews([id], ViewLocation.SCM);
-		// 		}
-		// 	});
-
-		// 	this.providerChangeDisposable = combinedDisposable(disposables);
-		// } else {
-		// 	this.providerChangeDisposable = EmptyDisposable;
-		// }
-
-		// this.updateInputBox();
-		// this.updateTitleArea();
+	private onDidAddProvider(provider: ISCMProvider): void {
+		const view = new SourceControlViewDescriptor(provider);
+		ViewsRegistry.registerViews([view]);
 	}
+
+	private onDidRemoveProvider(provider: ISCMProvider): void {
+		ViewsRegistry.deregisterViews([provider.id], ViewLocation.SCM);
+	}
+
+	// private onDidProvidersChange(): void {
+	// this.activeProvider = activeProvider;
+
+	// if (activeProvider) {
+	// 	const disposables = [];
+
+	// 	// if (activeProvider.onDidChangeCommitTemplate) {
+	// 	// 	disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
+	// 	// }
+
+	// 	const id = activeProvider.id;
+	// 	ViewsRegistry.registerViews([new SourceControlViewDescriptor(activeProvider)]);
+
+	// 	disposables.push({
+	// 		dispose: () => {
+	// 			ViewsRegistry.deregisterViews([id], ViewLocation.SCM);
+	// 		}
+	// 	});
+
+	// 	this.providerChangeDisposable = combinedDisposable(disposables);
+	// } else {
+	// 	this.providerChangeDisposable = EmptyDisposable;
+	// }
+
+	// this.updateInputBox();
+	// this.updateTitleArea();
+	// }
 
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
@@ -507,9 +489,9 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		// 	.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
 		// 	.on(this.onDidAcceptInput, this, this.disposables);
 
-
-		this.onDidProvidersChange();
-		this.scmService.onDidChangeProviders(this.onDidProvidersChange, this, this.disposables);
+		this.scmService.onDidAddProvider(this.onDidAddProvider, this, this.disposables);
+		this.scmService.onDidRemoveProvider(this.onDidRemoveProvider, this, this.disposables);
+		this.scmService.providers.forEach(p => this.onDidAddProvider(p));
 		// this.themeService.onThemeChange(this.update, this, this.disposables);
 
 		// return TPromise.as(null);

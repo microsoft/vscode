@@ -45,14 +45,18 @@ export class SCMService implements ISCMService {
 
 	set activeProvider(provider: ISCMProvider | undefined) {
 		this.setActiveSCMProvider(provider);
-		this.storageService.store(DefaultSCMProviderIdStorageKey, provider.id, StorageScope.WORKSPACE);
+		this.storageService.store(DefaultSCMProviderIdStorageKey, provider.contextValue, StorageScope.WORKSPACE);
 	}
 
+	private _providerIds = new Set<string>();
 	private _providers: ISCMProvider[] = [];
 	get providers(): ISCMProvider[] { return [...this._providers]; }
 
-	private _onDidChangeProviders = new Emitter<void>();
-	get onDidChangeProviders(): Event<void> { return this._onDidChangeProviders.event; }
+	private _onDidAddProvider = new Emitter<ISCMProvider>();
+	get onDidAddProvider(): Event<ISCMProvider> { return this._onDidAddProvider.event; }
+
+	private _onDidRemoveProvider = new Emitter<ISCMProvider>();
+	get onDidRemoveProvider(): Event<ISCMProvider> { return this._onDidRemoveProvider.event; }
 
 	private _onDidChangeProvider = new Emitter<ISCMProvider>();
 	get onDidChangeProvider(): Event<ISCMProvider> { return this._onDidChangeProvider.event; }
@@ -86,15 +90,20 @@ export class SCMService implements ISCMService {
 	}
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable {
+		if (this._providerIds.has(provider.id)) {
+			throw new Error(`SCM Provider ${provider.id} already exists.`);
+		}
+
+		this._providerIds.add(provider.id);
 		this._providers.push(provider);
 
 		const defaultProviderId = this.storageService.get(DefaultSCMProviderIdStorageKey, StorageScope.WORKSPACE);
 
-		if (this._providers.length === 1 || defaultProviderId === provider.id) {
+		if (this._providers.length === 1 || defaultProviderId === provider.contextValue) {
 			this.setActiveSCMProvider(provider);
 		}
 
-		this._onDidChangeProviders.fire();
+		this._onDidAddProvider.fire(provider);
 
 		return toDisposable(() => {
 			const index = this._providers.indexOf(provider);
@@ -103,13 +112,14 @@ export class SCMService implements ISCMService {
 				return;
 			}
 
+			this._providerIds.delete(provider.id);
 			this._providers.splice(index, 1);
 
 			if (this.activeProvider === provider) {
 				this.activeProvider = this._providers[0];
 			}
 
-			this._onDidChangeProviders.fire();
+			this._onDidRemoveProvider.fire(provider);
 		});
 	}
 

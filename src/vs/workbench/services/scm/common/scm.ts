@@ -44,6 +44,7 @@ export interface ISCMResourceGroup {
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly id: string;
+	readonly contextValue: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<void>;
 	readonly count?: number;
@@ -63,10 +64,9 @@ export interface ISCMInput {
 export interface ISCMService {
 
 	readonly _serviceBrand: any;
+	readonly onDidAddProvider: Event<ISCMProvider>;
+	readonly onDidRemoveProvider: Event<ISCMProvider>;
 	readonly onDidChangeProvider: Event<ISCMProvider>;
-
-	// TODO@joao fix name
-	readonly onDidChangeProviders: Event<void>;
 	readonly providers: ISCMProvider[];
 	readonly input: ISCMInput;
 	activeProvider: ISCMProvider | undefined;
