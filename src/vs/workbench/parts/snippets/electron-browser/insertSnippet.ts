@@ -75,7 +75,6 @@ class InsertSnippetAction extends EditorAction {
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
-
 		return new TPromise<ISnippet>((resolve, reject) => {
 
 			if (snippet) {
@@ -124,7 +123,7 @@ class InsertSnippetAction extends EditorAction {
 					});
 					return true;
 				});
-				return quickOpenService.pick(picks).then(pick => resolve(pick && pick.snippet), reject);
+				return quickOpenService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
 		}).then(snippet => {
 			if (snippet) {
