@@ -198,7 +198,7 @@ export class ExtensionService implements IExtensionService {
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._barrier.isOpen) {
+		if (this._barrier.isOpen()) {
 			// Extensions have been scanned and interpreted
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
