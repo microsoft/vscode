@@ -52,6 +52,7 @@ import * as languageConfiguration from 'vs/editor/common/modes/languageConfigura
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ExtHostThreadService } from "vs/workbench/services/thread/node/extHostThreadService";
 import { ProxyIdentifier } from "vs/workbench/services/thread/common/threadService";
+import { ExtHostDialogs } from "vs/workbench/api/node/extHostDialogs";
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -105,6 +106,7 @@ export function createApiFactory(
 
 	// Other instances
 	const extHostMessageService = new ExtHostMessageService(threadService);
+	const extHostDialogs = new ExtHostDialogs(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
 	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
@@ -368,6 +370,9 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension.id, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
+			showOpenDialog: proposedApiFunction(extension, () => {
+				return extHostDialogs.showOpenDialog();
+			})
 		};
 
 		// namespace: workspace

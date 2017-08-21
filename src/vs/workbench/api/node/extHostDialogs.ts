@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+
+import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import URI from "vs/base/common/uri";
+
+export class ExtHostDialogs {
+
+	private readonly _proxy: MainThreadDiaglogsShape;
+
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadDialogs);
+	}
+
+	showOpenDialog(): Thenable<URI[]> {
+		return this._proxy.$showOpenDialog().then(filepaths => {
+			if (!filepaths) {
+				return undefined;
+			}
+			return filepaths.map(URI.file);
+		});
+	}
+}

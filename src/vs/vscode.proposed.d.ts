@@ -7,6 +7,11 @@
 
 declare module 'vscode' {
 
+	export namespace window {
+
+		export function showOpenDialog(): Thenable<Uri[]>;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 		// todo@joh -> added, deleted, renamed, changed

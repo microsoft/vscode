@@ -20,6 +20,7 @@ import './mainThreadConfiguration';
 import './mainThreadCredentials';
 import './mainThreadDebugService';
 import './mainThreadDiagnostics';
+import './mainThreadDialogs';
 import './mainThreadDocumentContentProviders';
 import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
