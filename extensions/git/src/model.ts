@@ -7,7 +7,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor } from 'vscode';
 import { Repository } from './repository';
-import { memoize } from './decorators';
+import { memoize, sequentialize } from './decorators';
 import { dispose } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
@@ -61,7 +61,7 @@ export class Model {
 			.map(folder => this.getOpenRepository(folder.uri))
 			.filter(r => !!r && !activeRepositories.has(r.repository)) as OpenRepository[];
 
-		possibleRepositoryFolders.forEach(p => this.findRepository(p.uri.fsPath));
+		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
@@ -79,13 +79,20 @@ export class Model {
 				return;
 			}
 
-			this.findRepository(path.dirname(uri.fsPath));
+			this.tryOpenRepository(path.dirname(uri.fsPath));
 		});
 	}
 
-	private async findRepository(dirPath: string): Promise<void> {
+	@sequentialize
+	private async tryOpenRepository(path: string): Promise<void> {
+		const repository = this.getRepository(path);
+
+		if (repository) {
+			return;
+		}
+
 		try {
-			const repositoryRoot = await this.git.getRepositoryRoot(dirPath);
+			const repositoryRoot = await this.git.getRepositoryRoot(path);
 			const repository = new Repository(this.git.open(repositoryRoot));
 
 			this.open(repository);
@@ -127,6 +134,7 @@ export class Model {
 
 	getRepository(sourceControl: SourceControl): Repository | undefined;
 	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
 	getRepository(resource: Uri): Repository | undefined;
 	getRepository(hint: any): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
@@ -135,10 +143,15 @@ export class Model {
 
 	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
+	private getOpenRepository(path: string): OpenRepository | undefined;
 	private getOpenRepository(resource: Uri): OpenRepository | undefined;
 	private getOpenRepository(hint: any): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
+		}
+
+		if (typeof hint === 'string') {
+			hint = Uri.file(hint);
 		}
 
 		if (hint instanceof Uri) {
