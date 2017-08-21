@@ -11,12 +11,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Builder, Dimension } from 'vs/base/browser/builder';
-import { ComposedViewsViewlet, CollapsibleView, ICollapsibleViewOptions, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Builder } from 'vs/base/browser/builder';
+import { ComposedViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -39,10 +37,9 @@ import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionIt
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -229,13 +226,12 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 class SourceControlViewDescriptor implements IViewDescriptor {
 
 	get provider(): ISCMProvider { return this._provider; }
-	// TODO@joao change this so we dont need IDS
-	get id(): string { return this._provider.label; }
+	get id(): string { return this._id; }
 	get name(): string { return this._provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _provider: ISCMProvider) {
+	constructor(private _id: string, private _provider: ISCMProvider) {
 
 	}
 }
@@ -405,6 +401,9 @@ export class SCMViewlet extends ComposedViewsViewlet {
 	// private cachedDimension: Dimension;
 	// private inputBoxContainer: HTMLElement;
 	// private inputBox: InputBox;
+
+	private providerIdHandle = 0;
+	private providerIds = new Map<ISCMProvider, string>();
 	private providerChangeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -440,14 +439,23 @@ export class SCMViewlet extends ComposedViewsViewlet {
 			return;
 		}
 
-		// TODO@joao change this so we dont need ids
-		const ids = providers.map(provider => provider.label);
-		const views = providers.map(provider => new SourceControlViewDescriptor(provider));
+		const result = providers.map(provider => {
+			let id = this.providerIds.get(provider);
+
+			if (!id) {
+				id = `scm${this.providerIdHandle++}`;
+				this.providerIds.set(provider, id);
+			}
+
+			const view = new SourceControlViewDescriptor(id, provider);
+
+			return { id, provider, view };
+		});
 
 		// console.log(provider.label);
 
-		ViewsRegistry.registerViews(views);
-		this.providerChangeDisposable = toDisposable(() => ViewsRegistry.deregisterViews(ids, ViewLocation.SCM));
+		ViewsRegistry.registerViews(result.map(r => r.view));
+		this.providerChangeDisposable = toDisposable(() => ViewsRegistry.deregisterViews(result.map(r => r.id), ViewLocation.SCM));
 
 		// if (activeProvider) {
 		// 	const disposables = [];
