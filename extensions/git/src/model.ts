@@ -61,8 +61,6 @@ export class Model {
 			.map(folder => this.getOpenRepository(folder.uri))
 			.filter(r => !!r && !activeRepositories.has(r.repository)) as OpenRepository[];
 
-		console.log('lets dispose', openRepositoriesToDispose);
-
 		possibleRepositoryFolders.forEach(p => this.findRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
