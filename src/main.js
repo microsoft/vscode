@@ -12,15 +12,6 @@ if (process.argv.indexOf('--prof-startup') >= 0) {
 	profiler.startProfiling('main', true);
 }
 
-// Workaround for https://github.com/electron/electron/issues/9225. Chrome has an issue where
-// in certain locales (e.g. PL), image metrics are wrongly computed. We explicitly set the
-// LC_NUMERIC to prevent this from happening (selects the numeric formatting category of the
-// C locale, http://en.cppreference.com/w/cpp/locale/LC_categories). TODO@Ben temporary.
-if (process.env.LC_ALL) {
-	process.env.LC_ALL = 'C';
-}
-process.env.LC_NUMERIC = 'C';
-
 // Perf measurements
 global.perfStartTime = Date.now();
 
