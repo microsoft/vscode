@@ -36,7 +36,7 @@
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
     "native-watchdog": "0.2.0",
-    "node-pty": "0.6.9",
+    "node-pty": "0.7.0",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
