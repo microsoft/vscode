@@ -34,7 +34,9 @@ export class ColorController extends Disposable implements IEditorContribution {
 		this._decorations = [];
 		this._decorationsTypes = {};
 		this._register(_editor.onDidChangeModel((e) => this.triggerUpdateDecorations()));
-		this._register(_editor.onDidChangeModelContent((e) => this.triggerUpdateDecorations()));
+		this._register(_editor.onDidChangeModelContent((e) => {
+			setTimeout(() => this.triggerUpdateDecorations(), 0);
+		}));
 		this._register(_editor.onDidChangeModelLanguage((e) => this.triggerUpdateDecorations()));
 		this._register(_editor.onDidChangeConfiguration((e) => this.triggerUpdateDecorations()));
 		this._register(ColorProviderRegistry.onDidChange((e) => this.triggerUpdateDecorations()));
@@ -51,7 +53,7 @@ export class ColorController extends Disposable implements IEditorContribution {
 					continue;
 				}
 				const { red, green, blue, alpha } = colorInfos[i].color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
+				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 				let subKey = hash(rgba).toString(16);
 				let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 				let key = 'colorBox-' + subKey;
