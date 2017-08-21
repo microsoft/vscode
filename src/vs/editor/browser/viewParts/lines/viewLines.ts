@@ -205,7 +205,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._lastCursorRevealRangeHorizontallyEvent = e;
 		}
 
-		this._context.viewLayout.setScrollPosition({ // TODO@Alex: scrolling vertically can be moved to the view model
+		this._context.viewLayout.setScrollPositionSmooth({ // TODO@Alex: scrolling vertically can be moved to the view model
 			scrollTop: newScrollTop
 		});
 
@@ -441,6 +441,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		//  - this must happen after the lines are in the DOM since it might need a line that rendered just now
 		//  - it might change `scrollWidth` and `scrollLeft`
 		if (this._lastCursorRevealRangeHorizontallyEvent) {
+			// TODO@smooth: [MUST] the line might not be visible due to our smooth scrolling to it!!!
+
 			let revealHorizontalRange = this._lastCursorRevealRangeHorizontallyEvent.range;
 			this._lastCursorRevealRangeHorizontallyEvent = null;
 
@@ -457,16 +459,16 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			}
 
 			// set `scrollLeft`
-			this._context.viewLayout.setScrollPosition({
+			this._context.viewLayout.setScrollPositionSmooth({
 				scrollLeft: newScrollLeft.scrollLeft
 			});
 		}
 
 		// (3) handle scrolling
 		this._linesContent.setLayerHinting(this._canUseLayerHinting);
-		const adjustedScrollTop = this._context.viewLayout.getScrollTop() - viewportData.bigNumbersDelta;
+		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
 		this._linesContent.setTop(-adjustedScrollTop);
-		this._linesContent.setLeft(-this._context.viewLayout.getScrollLeft());
+		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
 		this._asyncUpdateLineWidths.schedule();

@@ -31,7 +31,7 @@ export interface ScrollEvent {
 	scrollTopChanged: boolean;
 }
 
-export class ScrollState {
+export class ScrollState implements IScrollDimensions, IScrollPosition {
 	_scrollStateBrand: void;
 
 	public readonly width: number;
@@ -95,13 +95,24 @@ export class ScrollState {
 		);
 	}
 
-	public createUpdated(update: INewScrollState): ScrollState {
+	public withScrollDimensions(update: INewScrollDimensions): ScrollState {
 		return new ScrollState(
 			(typeof update.width !== 'undefined' ? update.width : this.width),
 			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
-			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.scrollLeft),
+			this.scrollLeft,
 			(typeof update.height !== 'undefined' ? update.height : this.height),
 			(typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : this.scrollHeight),
+			this.scrollTop
+		);
+	}
+
+	public withScrollPosition(update: INewScrollPosition): ScrollState {
+		return new ScrollState(
+			this.width,
+			this.scrollWidth,
+			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.scrollLeft),
+			this.height,
+			this.scrollHeight,
 			(typeof update.scrollTop !== 'undefined' ? update.scrollTop : this.scrollTop)
 		);
 	}
@@ -136,13 +147,25 @@ export class ScrollState {
 
 }
 
-export interface INewScrollState {
+export interface IScrollDimensions {
+	readonly width: number;
+	readonly scrollWidth: number;
+	readonly height: number;
+	readonly scrollHeight: number;
+}
+export interface INewScrollDimensions {
 	width?: number;
 	scrollWidth?: number;
-	scrollLeft?: number;
-
 	height?: number;
 	scrollHeight?: number;
+}
+
+export interface IScrollPosition {
+	readonly scrollLeft: number;
+	readonly scrollTop: number;
+}
+export interface INewScrollPosition {
+	scrollLeft?: number;
 	scrollTop?: number;
 }
 
@@ -150,126 +173,193 @@ export class Scrollable extends Disposable {
 
 	_scrollableBrand: void;
 
+	private readonly _smoothScrollDuration: number;
 	private _state: ScrollState;
-	private _smoothScrolling: boolean;
-	private _smoothScrollAnimationParams: ISmoothScrollAnimationParams;
+	private _smoothScrolling: SmoothScrollingOperation;
 
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor() {
+	constructor(smoothScrollDuration: number) {
 		super();
 
+		this._smoothScrollDuration = smoothScrollDuration;
 		this._state = new ScrollState(0, 0, 0, 0, 0, 0);
-		this._smoothScrolling = false;
-		this._smoothScrollAnimationParams = null;
+		this._smoothScrolling = null;
 	}
 
-	public getState(): ScrollState {
+	public dispose(): void {
+		if (this._smoothScrolling) {
+			this._smoothScrolling.dispose();
+			this._smoothScrolling = null;
+		}
+		super.dispose();
+	}
+
+	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
+		return this._state.withScrollPosition(scrollPosition);
+	}
+
+	public getScrollDimensions(): IScrollDimensions {
 		return this._state;
 	}
 
-	public validateScrollTop(desiredScrollTop: number): number {
-		desiredScrollTop = Math.round(desiredScrollTop);
-		desiredScrollTop = Math.max(desiredScrollTop, 0);
-		desiredScrollTop = Math.min(desiredScrollTop, this._state.scrollHeight - this._state.height);
-		return desiredScrollTop;
-	}
+	public setScrollDimensions(dimensions: INewScrollDimensions): void {
+		const newState = this._state.withScrollDimensions(dimensions);
+		this._setState(newState);
 
-	public validateScrollLeft(desiredScrollLeft: number): number {
-		desiredScrollLeft = Math.round(desiredScrollLeft);
-		desiredScrollLeft = Math.max(desiredScrollLeft, 0);
-		desiredScrollLeft = Math.min(desiredScrollLeft, this._state.scrollWidth - this._state.width);
-		return desiredScrollLeft;
+		// TODO@smooth: [MUST] validate outstanding animated scroll position request target
+		// (in case it becomes invalid)
 	}
 
 	/**
-	 * Returns the final scroll state that the instance will have once the smooth scroll animation concludes.
-	 * If no scroll animation is occurring, it will return the actual scroll state instead.
+	 * Returns the final scroll position that the instance will have once the smooth scroll animation concludes.
+	 * If no scroll animation is occuring, it will return the current scroll position instead.
 	 */
-	public getSmoothScrollTargetState(): ScrollState {
-		return this._smoothScrolling ? this._smoothScrollAnimationParams.newState : this._state;
+	public getFutureScrollPosition(): IScrollPosition {
+		if (this._smoothScrolling) {
+			return this._smoothScrolling.to;
+		}
+		return this._state;
 	}
 
-	public updateState(update: INewScrollState, smoothScrollDuration: number): void {
+	/**
+	 * Returns the current scroll position.
+	 * Note: This result might be an intermediate scroll position, as there might be an ongoing smooth scroll animation.
+	 */
+	public getCurrentScrollPosition(): IScrollPosition {
+		return this._state;
+	}
 
-		// If smooth scroll duration is not specified, then assume that the invoker intends to do an immediate update.
-		if (smoothScrollDuration === 0) {
-			const newState = this._state.createUpdated(update);
+	public setScrollPositionNow(update: INewScrollPosition): void {
+		// no smooth scrolling requested
+		const newState = this._state.withScrollPosition(update);
 
-			// If smooth scrolling is in progress, terminate it.
-			if (this._smoothScrolling) {
-				this._smoothScrolling = false;
-				this._smoothScrollAnimationParams = null;
-			}
-
-			// Update state immediately if it is different from the previous one.
-			if (!this._state.equals(newState)) {
-				this._updateState(newState);
-			}
+		// Terminate any outstanding smooth scrolling
+		if (this._smoothScrolling) {
+			this._smoothScrolling.dispose();
+			this._smoothScrolling = null;
 		}
-		// Otherwise update scroll state incrementally.
-		else {
-			const targetState = this.getSmoothScrollTargetState();
-			const newTargetState = targetState.createUpdated(update);
 
-			// Proceed only if the new target state differs from the current one.
-			if (!targetState.equals(newTargetState)) {
-				// Initialize/update smooth scroll parameters.
-				this._smoothScrollAnimationParams = {
-					oldState: this._state,
-					newState: newTargetState,
-					startTime: Date.now(),
-					duration: smoothScrollDuration,
-				};
+		this._setState(newState);
+	}
 
-				// Invoke smooth scrolling functionality in the next frame if it is not already in progress.
-				if (!this._smoothScrolling) {
-					this._smoothScrolling = true;
-					requestAnimationFrame(() => { this._performSmoothScroll(); });
-				}
+	public setScrollPositionSmooth(update: INewScrollPosition): void {
+		if (this._smoothScrollDuration === 0) {
+			// Smooth scrolling not supported.
+			return this.setScrollPositionNow(update);
+		}
+
+		if (this._smoothScrolling) {
+			const oldSmoothScrolling = this._smoothScrolling;
+			const newSmoothScrolling = oldSmoothScrolling.combine(this._state, update, this._smoothScrollDuration);
+			if (oldSmoothScrolling.softEquals(newSmoothScrolling)) {
+				// No change
+				return;
 			}
+			oldSmoothScrolling.dispose();
+			this._smoothScrolling = newSmoothScrolling;
+		} else {
+			this._smoothScrolling = new SmoothScrollingOperation(this._state, update, this._smoothScrollDuration);
+		}
+
+		// Begin smooth scrolling animation
+		this._smoothScrolling.animationFrameToken = requestAnimationFrame(() => {
+			this._smoothScrolling.animationFrameToken = -1;
+			this._performSmoothScrolling();
+		});
+	}
+
+	private _performSmoothScrolling(): void {
+		const update = this._smoothScrolling.tick();
+		const newState = this._state.withScrollPosition(update);
+
+		this._setState(newState);
+
+		if (!update.isDone) {
+			// Continue smooth scrolling animation
+			this._smoothScrolling.animationFrameToken = requestAnimationFrame(() => {
+				this._smoothScrolling.animationFrameToken = -1;
+				this._performSmoothScrolling();
+			});
 		}
 	}
 
-	private _performSmoothScroll(): void {
-		if (!this._smoothScrolling) {
-			// Smooth scrolling has been terminated.
+	private _setState(newState: ScrollState): void {
+		const oldState = this._state;
+		if (oldState.equals(newState)) {
+			// no change
 			return;
 		}
-
-		const completion = (Date.now() - this._smoothScrollAnimationParams.startTime) / this._smoothScrollAnimationParams.duration;
-		const newState = this._smoothScrollAnimationParams.newState;
-
-		if (completion < 1) {
-			const oldState = this._smoothScrollAnimationParams.oldState;
-			this._updateState(new ScrollState(
-				newState.width,
-				newState.scrollWidth,
-				oldState.scrollLeft + (newState.scrollLeft - oldState.scrollLeft) * completion,
-				newState.height,
-				newState.scrollHeight,
-				oldState.scrollTop + (newState.scrollTop - oldState.scrollTop) * completion
-			));
-			requestAnimationFrame(() => { this._performSmoothScroll(); });
-		}
-		else {
-			this._smoothScrolling = false;
-			this._smoothScrollAnimationParams = null;
-			this._updateState(newState);
-		}
-	}
-
-	private _updateState(newState: ScrollState): void {
-		const oldState = this._state;
 		this._state = newState;
 		this._onScroll.fire(this._state.createScrollEvent(oldState));
 	}
 }
 
-interface ISmoothScrollAnimationParams {
-	oldState: ScrollState;
-	newState: ScrollState;
-	startTime: number;
-	duration: number;
+class SmoothScrollingUpdate implements IScrollPosition {
+
+	public readonly scrollLeft: number;
+	public readonly scrollTop: number;
+	public readonly isDone: boolean;
+
+	constructor(scrollLeft: number, scrollTop: number, isDone: boolean) {
+		this.scrollLeft = scrollLeft;
+		this.scrollTop = scrollTop;
+		this.isDone = isDone;
+	}
+
+}
+
+class SmoothScrollingOperation {
+
+	public readonly from: IScrollPosition;
+	public readonly to: IScrollPosition;
+	public readonly duration: number;
+	private readonly _startTime: number;
+	public animationFrameToken: number;
+
+	constructor(from: ScrollState, to: INewScrollPosition, duration: number) {
+		this.from = from;
+		this.to = from.withScrollPosition(to);
+		this.duration = duration;
+		this._startTime = Date.now();
+		this.animationFrameToken = -1;
+	}
+
+	public softEquals(other: SmoothScrollingOperation): boolean {
+		return (
+			this.to.scrollLeft === other.to.scrollLeft
+			&& this.to.scrollTop === other.to.scrollTop
+		);
+	}
+
+	public dispose(): void {
+		if (this.animationFrameToken !== -1) {
+			cancelAnimationFrame(this.animationFrameToken);
+			this.animationFrameToken = -1;
+		}
+	}
+
+	public tick(): SmoothScrollingUpdate {
+		const completion = (Date.now() - this._startTime) / this.duration;
+
+		if (completion < 1) {
+			const newScrollLeft = this.from.scrollLeft + (this.to.scrollLeft - this.from.scrollLeft) * completion;
+			const newScrollTop = this.from.scrollTop + (this.to.scrollTop - this.from.scrollTop) * completion;
+			return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
+		}
+
+		return new SmoothScrollingUpdate(this.to.scrollLeft, this.to.scrollTop, true);
+	}
+
+	public combine(from: ScrollState, to: INewScrollPosition, duration: number): SmoothScrollingOperation {
+		// Combine our scrollLeft/scrollTop with incoming scrollLeft/scrollTop
+		to = {
+			scrollLeft: (typeof to.scrollLeft === 'undefined' ? this.to.scrollLeft : to.scrollLeft),
+			scrollTop: (typeof to.scrollTop === 'undefined' ? this.to.scrollTop : to.scrollTop)
+		};
+
+		// TODO@smooth: This is our opportunity to combine animations
+		return new SmoothScrollingOperation(from, to, duration);
+	}
 }

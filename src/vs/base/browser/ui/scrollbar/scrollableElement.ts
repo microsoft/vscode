@@ -13,7 +13,7 @@ import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScro
 import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollDimensions, IScrollDimensions, INewScrollPosition, IScrollPosition } from 'vs/base/common/scrollable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -29,41 +29,36 @@ export interface IOverviewRulerLayoutInfo {
 	insertBefore: HTMLElement;
 }
 
-export class ScrollableElement extends Widget {
+export abstract class AbstractScrollableElement extends Widget {
 
-	private _options: ScrollableElementResolvedOptions;
-	private _scrollable: Scrollable;
-	private _verticalScrollbar: VerticalScrollbar;
-	private _horizontalScrollbar: HorizontalScrollbar;
-	private _domNode: HTMLElement;
+	private readonly _options: ScrollableElementResolvedOptions;
+	protected readonly _scrollable: Scrollable;
+	private readonly _verticalScrollbar: VerticalScrollbar;
+	private readonly _horizontalScrollbar: HorizontalScrollbar;
+	private readonly _domNode: HTMLElement;
 
-	private _leftShadowDomNode: FastDomNode<HTMLElement>;
-	private _topShadowDomNode: FastDomNode<HTMLElement>;
-	private _topLeftShadowDomNode: FastDomNode<HTMLElement>;
+	private readonly _leftShadowDomNode: FastDomNode<HTMLElement>;
+	private readonly _topShadowDomNode: FastDomNode<HTMLElement>;
+	private readonly _topLeftShadowDomNode: FastDomNode<HTMLElement>;
 
-	private _listenOnDomNode: HTMLElement;
+	private readonly _listenOnDomNode: HTMLElement;
 
 	private _mouseWheelToDispose: IDisposable[];
 
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
 
-	private _hideTimeout: TimeoutTimer;
+	private readonly _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
-	private _onScroll = this._register(new Emitter<ScrollEvent>());
+	private readonly _onScroll = this._register(new Emitter<ScrollEvent>());
 	public onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
+	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable?: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
-
-		if (typeof scrollable === 'undefined') {
-			this._scrollable = this._register(new Scrollable());
-		} else {
-			this._scrollable = scrollable;
-		}
+		this._scrollable = scrollable;
 
 		this._register(this._scrollable.onScroll((e) => {
 			this._onDidScroll(e);
@@ -153,12 +148,12 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
-	public updateState(newState: INewScrollState): void {
-		this._scrollable.updateState(newState, 0/* immediate */);
+	public getScrollDimensions(): IScrollDimensions {
+		return this._scrollable.getScrollDimensions();
 	}
 
-	public getScrollState(): ScrollState {
-		return this._scrollable.getState();
+	public setScrollDimensions(dimensions: INewScrollDimensions): void {
+		this._scrollable.setScrollDimensions(dimensions);
 	}
 
 	/**
@@ -215,8 +210,6 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
-		let desiredScrollTop = -1;
-		let desiredScrollLeft = -1;
 
 		if (e.deltaY || e.deltaX) {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
@@ -244,37 +237,39 @@ export class ScrollableElement extends Widget {
 				}
 			}
 
-			const scrollState = this._scrollable.getSmoothScrollTargetState();
+			const futureScrollPosition = this._scrollable.getFutureScrollPosition();
+
+			let desiredScrollPosition: INewScrollPosition = {};
 			if (deltaY) {
-				let currentScrollTop = scrollState.scrollTop;
-				desiredScrollTop = this._verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
-				if (desiredScrollTop === currentScrollTop) {
-					desiredScrollTop = -1;
-				}
+				const desiredScrollTop = futureScrollPosition.scrollTop - SCROLL_WHEEL_SENSITIVITY * deltaY;
+				this._verticalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollTop);
 			}
 			if (deltaX) {
-				let currentScrollLeft = scrollState.scrollLeft;
-				desiredScrollLeft = this._horizontalScrollbar.validateScrollPosition((desiredScrollLeft !== -1 ? desiredScrollLeft : currentScrollLeft) - SCROLL_WHEEL_SENSITIVITY * deltaX);
-				if (desiredScrollLeft === currentScrollLeft) {
-					desiredScrollLeft = -1;
-				}
+				const desiredScrollLeft = futureScrollPosition.scrollLeft - SCROLL_WHEEL_SENSITIVITY * deltaX;
+				this._horizontalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollLeft);
 			}
 
-			if (desiredScrollTop !== -1 || desiredScrollLeft !== -1) {
-				if (desiredScrollTop !== -1) {
-					// If |∆y| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD;
-					const shouldRender = this._verticalScrollbar.setDesiredScrollPosition(desiredScrollTop, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : 0/* immediate */);
-					this._shouldRender = shouldRender || this._shouldRender;
-					desiredScrollTop = -1;
+			// Check that we are scrolling towards a location which is valid
+			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
+
+			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
+				// TODO@smooth: [MUST] implement better heuristic for distinguishing inertia scrolling
+				// from physical mouse wheels
+				const ENABLE_MOUSE_WHEEL_SMOOTH = false;
+
+				// If |∆x| and |∆y| are too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
+				const smoothScrollThresholdReached = (
+					Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD
+					|| Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD
+				);
+
+				if (ENABLE_MOUSE_WHEEL_SMOOTH && this._options.mouseWheelSmoothScroll && smoothScrollThresholdReached) {
+					this._scrollable.setScrollPositionSmooth(desiredScrollPosition);
+				} else {
+					this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				}
-				if (desiredScrollLeft !== -1) {
-					// If |∆x| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD;
-					const shouldRender = this._horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : 0/* immediate */);
-					this._shouldRender = shouldRender || this._shouldRender;
-					desiredScrollLeft = -1;
-				}
+
+				this._shouldRender = true;
 			}
 		}
 
@@ -322,7 +317,7 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.render();
 
 		if (this._options.useShadows) {
-			const scrollState = this._scrollable.getState();
+			const scrollState = this._scrollable.getCurrentScrollPosition();
 			let enableTop = scrollState.scrollTop > 0;
 			let enableLeft = scrollState.scrollLeft > 0;
 
@@ -374,6 +369,33 @@ export class ScrollableElement extends Widget {
 	}
 }
 
+export class ScrollableElement extends AbstractScrollableElement {
+
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
+		options = options || {};
+		options.mouseWheelSmoothScroll = false;
+		const scrollable = new Scrollable(0);
+		super(element, options, scrollable);
+		this._register(scrollable);
+	}
+
+	public setScrollPosition(update: INewScrollPosition): void {
+		this._scrollable.setScrollPositionNow(update);
+	}
+
+	public getScrollPosition(): IScrollPosition {
+		return this._scrollable.getCurrentScrollPosition();
+	}
+}
+
+export class SmoothScrollableElement extends AbstractScrollableElement {
+
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
+		super(element, options, scrollable);
+	}
+
+}
+
 export class DomScrollableElement extends ScrollableElement {
 
 	private _element: HTMLElement;
@@ -394,13 +416,14 @@ export class DomScrollableElement extends ScrollableElement {
 
 	public scanDomNode(): void {
 		// widh, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
-		this.updateState({
+		this.setScrollDimensions({
 			width: this._element.clientWidth,
 			scrollWidth: this._element.scrollWidth,
-			scrollLeft: this._element.scrollLeft,
-
 			height: this._element.clientHeight,
-			scrollHeight: this._element.scrollHeight,
+			scrollHeight: this._element.scrollHeight
+		});
+		this.setScrollPosition({
+			scrollLeft: this._element.scrollLeft,
 			scrollTop: this._element.scrollTop,
 		});
 	}
@@ -417,7 +440,6 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
 		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
-		mouseWheelSmoothScrollDuration: (typeof opts.mouseWheelSmoothScrollDuration !== 'undefined' ? opts.mouseWheelSmoothScrollDuration : 100),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),

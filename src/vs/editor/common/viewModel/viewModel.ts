@@ -44,12 +44,20 @@ export interface IViewLayout {
 
 	onMaxLineWidthChanged(width: number): void;
 
-	getScrollLeft(): number;
 	getScrollWidth(): number;
 	getScrollHeight(): number;
-	getScrollTop(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
+
+	getFutureScrollLeft(): number;
+	getFutureScrollTop(): number;
+
 	getCurrentViewport(): Viewport;
-	setScrollPosition(position: INewScrollPosition): void;
+
+	setScrollPositionNow(position: INewScrollPosition): void;
+	setScrollPositionSmooth(position: INewScrollPosition): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;

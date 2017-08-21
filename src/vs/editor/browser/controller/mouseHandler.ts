@@ -423,16 +423,16 @@ class MouseDownOperation extends Disposable {
 		const mouseColumn = this._getMouseColumn(e);
 
 		if (e.posy < editorContent.y) {
-			let aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(Math.max(viewLayout.getScrollTop() - (editorContent.y - e.posy), 0));
+			let aboveLineNumber = viewLayout.getLineNumberAtVerticalOffset(Math.max(viewLayout.getCurrentScrollTop() - (editorContent.y - e.posy), 0));
 			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
-			let belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getScrollTop() + (e.posy - editorContent.y));
+			let belowLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
 			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, model.getLineMaxColumn(belowLineNumber)));
 		}
 
-		let possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getScrollTop() + (e.posy - editorContent.y));
+		let possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + (e.posy - editorContent.y));
 
 		if (e.posx < editorContent.x) {
 			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));

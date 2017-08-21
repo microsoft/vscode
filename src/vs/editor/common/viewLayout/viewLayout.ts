@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollState, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
@@ -30,11 +30,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._configuration = configuration;
 		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
 
-		this.scrollable = this._register(new Scrollable());
-		this.scrollable.updateState({
+		// TODO@smooth: [MUST] have an editor option for smooth scrolling
+		this.scrollable = this._register(new Scrollable(125));
+		this.scrollable.setScrollDimensions({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
-		}, 0/* immediate */);
+		});
 		this.onDidScroll = this.scrollable.onScroll;
 
 		this._updateHeight();
@@ -59,10 +60,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			this._linesLayout.setLineHeight(this._configuration.editor.lineHeight);
 		}
 		if (e.layoutInfo) {
-			this.scrollable.updateState({
+			this.scrollable.setScrollDimensions({
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
-			}, 0/* immediate */);
+			});
 		}
 		this._updateHeight();
 	}
@@ -81,12 +82,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	// ---- end view event handlers
 
-	private _getHorizontalScrollbarHeight(scrollState: ScrollState): number {
+	private _getHorizontalScrollbarHeight(scrollDimensions: IScrollDimensions): number {
 		if (this._configuration.editor.viewInfo.scrollbar.horizontal === ScrollbarVisibility.Hidden) {
 			// horizontal scrollbar not visible
 			return 0;
 		}
-		if (scrollState.width >= scrollState.scrollWidth) {
+		if (scrollDimensions.width >= scrollDimensions.scrollWidth) {
 			// horizontal scrollbar not visible
 			return 0;
 		}
@@ -94,33 +95,34 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	private _getTotalHeight(): number {
-		const scrollState = this.scrollable.getState();
+		const scrollDimensions = this.scrollable.getScrollDimensions();
 
 		let result = this._linesLayout.getLinesTotalHeight();
 		if (this._configuration.editor.viewInfo.scrollBeyondLastLine) {
-			result += scrollState.height - this._configuration.editor.lineHeight;
+			result += scrollDimensions.height - this._configuration.editor.lineHeight;
 		} else {
-			result += this._getHorizontalScrollbarHeight(scrollState);
+			result += this._getHorizontalScrollbarHeight(scrollDimensions);
 		}
 
-		return Math.max(scrollState.height, result);
+		return Math.max(scrollDimensions.height, result);
 	}
 
 	private _updateHeight(): void {
-		this.scrollable.updateState({
+		this.scrollable.setScrollDimensions({
 			scrollHeight: this._getTotalHeight()
-		}, 0/* immediate */);
+		});
 	}
 
 	// ---- Layouting logic
 
 	public getCurrentViewport(): Viewport {
-		const scrollState = this.scrollable.getState();
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		const currentScrollPosition = this.scrollable.getCurrentScrollPosition();
 		return new Viewport(
-			scrollState.scrollTop,
-			scrollState.scrollLeft,
-			scrollState.width,
-			scrollState.height
+			currentScrollPosition.scrollTop,
+			currentScrollPosition.scrollLeft,
+			scrollDimensions.width,
+			scrollDimensions.height
 		);
 	}
 
@@ -134,9 +136,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	public onMaxLineWidthChanged(maxLineWidth: number): void {
 		let newScrollWidth = this._computeScrollWidth(maxLineWidth, this.getCurrentViewport().width);
-		this.scrollable.updateState({
+		this.scrollable.setScrollDimensions({
 			scrollWidth: newScrollWidth
-		}, 0/* immediate */);
+		});
 
 		// The height might depend on the fact that there is a horizontal scrollbar or not
 		this._updateHeight();
@@ -145,14 +147,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	// ---- view state
 
 	public saveState(): editorCommon.IViewState {
-		const scrollState = this.scrollable.getState();
-		let scrollTop = scrollState.scrollTop;
+		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
+		let scrollTop = currentScrollPosition.scrollTop;
 		let firstLineNumberInViewport = this._linesLayout.getLineNumberAtOrAfterVerticalOffset(scrollTop);
 		let whitespaceAboveFirstLine = this._linesLayout.getWhitespaceAccumulatedHeightBeforeLineNumber(firstLineNumberInViewport);
 		return {
 			scrollTop: scrollTop,
 			scrollTopWithoutViewZones: scrollTop - whitespaceAboveFirstLine,
-			scrollLeft: scrollState.scrollLeft
+			scrollLeft: currentScrollPosition.scrollLeft
 		};
 	}
 
@@ -161,10 +163,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		if (typeof state.scrollTopWithoutViewZones === 'number' && !this._linesLayout.hasWhitespace()) {
 			restoreScrollTop = state.scrollTopWithoutViewZones;
 		}
-		this.scrollable.updateState({
+		this.scrollable.setScrollPositionNow({
 			scrollLeft: state.scrollLeft,
 			scrollTop: restoreScrollTop
-		}, 0/* immediate */);
+		});
 	}
 
 	// ---- IVerticalLayoutProvider
@@ -197,14 +199,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 	public getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData {
 		// do some minimal validations on scrollTop
-		const scrollState = this.scrollable.getState();
-		if (scrollTop + scrollState.height > scrollState.scrollHeight) {
-			scrollTop = scrollState.scrollHeight - scrollState.height;
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		if (scrollTop + scrollDimensions.height > scrollDimensions.scrollHeight) {
+			scrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
 		}
 		if (scrollTop < 0) {
 			scrollTop = 0;
 		}
-		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollState.height);
+		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollDimensions.height);
 	}
 	public getWhitespaceViewportData(): IViewWhitespaceViewportData[] {
 		const visibleBox = this.getCurrentViewport();
@@ -218,37 +220,45 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 
 	public getScrollWidth(): number {
-		const scrollState = this.scrollable.getState();
-		return scrollState.scrollWidth;
-	}
-	public getScrollLeft(): number {
-		const scrollState = this.scrollable.getState();
-		return scrollState.scrollLeft;
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		return scrollDimensions.scrollWidth;
 	}
 	public getScrollHeight(): number {
-		const scrollState = this.scrollable.getState();
-		return scrollState.scrollHeight;
-	}
-	public getScrollTop(): number {
-		const scrollState = this.scrollable.getState();
-		return scrollState.scrollTop;
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		return scrollDimensions.scrollHeight;
 	}
 
-	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
-		const state = this.scrollable.getSmoothScrollTargetState();
-		const xAbsChange = Math.abs(typeof position.scrollLeft !== 'undefined' ? position.scrollLeft - state.scrollLeft : 0);
-		const yAbsChange = Math.abs(typeof position.scrollTop !== 'undefined' ? position.scrollTop - state.scrollTop : 0);
+	public getCurrentScrollLeft(): number {
+		const currentScrollPosition = this.scrollable.getCurrentScrollPosition();
+		return currentScrollPosition.scrollLeft;
+	}
+	public getCurrentScrollTop(): number {
+		const currentScrollPosition = this.scrollable.getCurrentScrollPosition();
+		return currentScrollPosition.scrollTop;
+	}
 
-		if (xAbsChange || yAbsChange) {
-			// If position change is big enough, then appply smooth scrolling
-			if (xAbsChange > state.width / 10 ||
-				yAbsChange > state.height / 10) {
-				this.scrollable.updateState(position, 125);
-			}
-			// Otherwise update scroll position immediately
-			else {
-				this.scrollable.updateState(position, 0/* immediate */);
-			}
-		}
+	public getFutureScrollLeft(): number {
+		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
+		return currentScrollPosition.scrollLeft;
+	}
+	public getFutureScrollTop(): number {
+		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
+		return currentScrollPosition.scrollTop;
+	}
+
+	public setScrollPositionNow(position: editorCommon.INewScrollPosition): void {
+		this.scrollable.setScrollPositionNow(position);
+	}
+
+	public setScrollPositionSmooth(position: editorCommon.INewScrollPosition): void {
+		this.scrollable.setScrollPositionSmooth(position);
+	}
+
+	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
+		const currentScrollPosition = this.scrollable.getCurrentScrollPosition();
+		this.scrollable.setScrollPositionNow({
+			scrollLeft: currentScrollPosition.scrollLeft + deltaScrollLeft,
+			scrollTop: currentScrollPosition.scrollTop + deltaScrollTop
+		});
 	}
 }

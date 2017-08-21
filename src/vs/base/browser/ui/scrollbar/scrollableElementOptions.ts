@@ -32,11 +32,6 @@ export interface ScrollableElementCreationOptions {
 	 */
 	mouseWheelSmoothScroll?: boolean;
 	/**
-	 * Duration in milliseconds for mouse wheel smooth scrolling animation.
-	 * Defaults to 100.
-	 */
-	mouseWheelSmoothScrollDuration?: number;
-	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
 	 * Defaults to false.
 	 */
@@ -125,7 +120,6 @@ export interface ScrollableElementResolvedOptions {
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
 	mouseWheelSmoothScroll: boolean;
-	mouseWheelSmoothScrollDuration: number;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;
 	horizontal: ScrollbarVisibility;

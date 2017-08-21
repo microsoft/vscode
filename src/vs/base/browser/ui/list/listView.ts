@@ -124,7 +124,7 @@ export class ListView<T> implements IDisposable {
 
 		const scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${scrollHeight}px`;
-		this.scrollableElement.updateState({ scrollHeight });
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
 
 		return deleted.map(i => i.element);
 	}
@@ -134,8 +134,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	get renderHeight(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	element(index: number): T {
@@ -164,7 +164,7 @@ export class ListView<T> implements IDisposable {
 	}
 
 	layout(height?: number): void {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: height || DOM.getContentHeight(this._domNode)
 		});
 	}
@@ -221,12 +221,12 @@ export class ListView<T> implements IDisposable {
 	}
 
 	getScrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	setScrollTop(scrollTop: number): void {
-		this.scrollableElement.updateState({ scrollTop });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	get scrollTop(): number {

@@ -528,14 +528,14 @@ export class Minimap extends ViewPart {
 
 						if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 							// The mouse has wondered away from the scrollbar => reset dragging
-							this._context.viewLayout.setScrollPosition({
+							this._context.viewLayout.setScrollPositionNow({
 								scrollTop: initialSliderState.scrollTop
 							});
 							return;
 						}
 
 						const mouseDelta = mouseMoveData.posy - initialMousePosition;
-						this._context.viewLayout.setScrollPosition({
+						this._context.viewLayout.setScrollPositionNow({
 							scrollTop: initialSliderState.getDesiredScrollTopFromDelta(mouseDelta)
 						});
 					},

@@ -134,11 +134,12 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private updatedScrollPosition() {
-		const scrollState = this.scrollbar.getScrollState();
-		const scrollHeight = scrollState.scrollHeight;
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		const scrollHeight = scrollDimensions.scrollHeight;
 		if (scrollHeight && this.input instanceof WalkThroughInput) {
-			const scrollTop = scrollState.scrollTop;
-			const height = scrollState.height;
+			const scrollTop = scrollPosition.scrollTop;
+			const height = scrollDimensions.height;
 			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
 		}
 	}
@@ -163,9 +164,9 @@ export class WalkThroughPart extends BaseEditor {
 		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
-				let scrollState = this.scrollbar.getScrollState();
-				this.content.scrollTop = scrollState.scrollTop;
-				this.content.scrollLeft = scrollState.scrollLeft;
+				const scrollPosition = this.scrollbar.getScrollPosition();
+				this.content.scrollTop = scrollPosition.scrollTop;
+				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
 		}));
 	}
@@ -186,7 +187,7 @@ export class WalkThroughPart extends BaseEditor {
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
+							this.scrollbar.setScrollPosition({ scrollTop: targetTop - containerTop });
 						}
 					} else {
 						this.open(URI.parse(node.href));
@@ -261,13 +262,13 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	arrowUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - this.getArrowScrollHeight() });
 	}
 
 	arrowDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + this.getArrowScrollHeight() });
 	}
 
 	private getArrowScrollHeight() {
@@ -279,13 +280,15 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	pageUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - scrollDimensions.height });
 	}
 
 	pageDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
@@ -367,13 +370,14 @@ export class WalkThroughPart extends BaseEditor {
 							const lineHeight = editor.getConfiguration().lineHeight;
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
-							const scrollState = this.scrollbar.getScrollState();
-							const scrollTop = scrollState.scrollTop;
-							const height = scrollState.height;
+							const scrollDimensions = this.scrollbar.getScrollDimensions();
+							const scrollPosition = this.scrollbar.getScrollPosition();
+							const scrollTop = scrollPosition.scrollTop;
+							const height = scrollDimensions.height;
 							if (scrollTop > lineTop) {
-								this.scrollbar.updateState({ scrollTop: lineTop });
+								this.scrollbar.setScrollPosition({ scrollTop: lineTop });
 							} else if (scrollTop < lineBottom - height) {
-								this.scrollbar.updateState({ scrollTop: lineBottom - height });
+								this.scrollbar.setScrollPosition({ scrollTop: lineBottom - height });
 							}
 						}
 					}));
@@ -485,11 +489,11 @@ export class WalkThroughPart extends BaseEditor {
 			memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
 		}
 
-		const scrollState = this.scrollbar.getScrollState();
+		const scrollPosition = this.scrollbar.getScrollPosition();
 		const editorViewState: IWalkThroughEditorViewState = {
 			viewState: {
-				scrollTop: scrollState.scrollTop,
-				scrollLeft: scrollState.scrollLeft
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
 			}
 		};
 
@@ -512,7 +516,7 @@ export class WalkThroughPart extends BaseEditor {
 			if (fileViewState) {
 				const state: IWalkThroughEditorViewState = fileViewState[this.position];
 				if (state) {
-					this.scrollbar.updateState(state.viewState);
+					this.scrollbar.setScrollPosition(state.viewState);
 				}
 			}
 		}

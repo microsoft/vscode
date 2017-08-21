@@ -513,7 +513,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return -1;
 		}
-		return this.viewModel.viewLayout.getScrollLeft();
+		return this.viewModel.viewLayout.getCurrentScrollLeft();
 	}
 
 	public getScrollHeight(): number {
@@ -526,7 +526,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return -1;
 		}
-		return this.viewModel.viewLayout.getScrollTop();
+		return this.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
 	public setScrollLeft(newScrollLeft: number): void {
@@ -536,7 +536,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this.viewModel.viewLayout.setScrollPosition({
+		this.viewModel.viewLayout.setScrollPositionNow({
 			scrollLeft: newScrollLeft
 		});
 	}
@@ -547,7 +547,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this.viewModel.viewLayout.setScrollPosition({
+		this.viewModel.viewLayout.setScrollPositionNow({
 			scrollTop: newScrollTop
 		});
 	}
@@ -555,7 +555,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return;
 		}
-		this.viewModel.viewLayout.setScrollPosition(position);
+		this.viewModel.viewLayout.setScrollPositionNow(position);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState {
