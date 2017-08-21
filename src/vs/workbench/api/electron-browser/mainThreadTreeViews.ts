@@ -10,7 +10,7 @@ import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainCo
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews implements MainThreadTreeViewsShape {

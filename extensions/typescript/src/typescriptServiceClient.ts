@@ -21,12 +21,12 @@ import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
-import API from "./utils/api";
+import API from './utils/api';
 
 import * as nls from 'vscode-nls';
-import { TypeScriptServiceConfiguration, TsServerLogLevel } from "./utils/configuration";
-import { TypeScriptVersionProvider } from "./utils/versionProvider";
-import { TypeScriptVersionPicker } from "./utils/versionPicker";
+import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
+import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { TypeScriptVersionPicker } from './utils/versionPicker';
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {

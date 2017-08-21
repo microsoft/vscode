@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { DataLoss } from "../areas/data-loss";
+import { DataLoss } from '../areas/data-loss';
 
 let app: SpectronApplication;
 let common: CommonActions;

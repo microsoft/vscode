@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../spectron/application';
-import { IntegratedTerminal } from "./integrated-terminal";
+import { IntegratedTerminal } from './integrated-terminal';
 
 export class Tasks {
 

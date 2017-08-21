@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {

@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { extHostCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 export interface INamedSaveParticpant extends ISaveParticipant {
 	readonly name: string;

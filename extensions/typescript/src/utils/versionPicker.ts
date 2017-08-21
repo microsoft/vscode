@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { TypeScriptVersionProvider, TypeScriptVersion } from "./versionProvider";
+import { TypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
 import { Memento, commands, Uri, window, QuickPickItem, workspace } from 'vscode';
 
 const localize = nls.loadMessageBundle();

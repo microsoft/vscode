@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ConfigurationTarget, ConfigurationEditingErrorCode, ConfigurationEditingError } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { TestThreadService } from './testThreadService';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostConfiguration', function () {
 

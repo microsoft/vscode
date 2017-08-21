@@ -15,8 +15,8 @@ import { shell, crashReporter, app } from 'electron';
 import Event, { chain } from 'vs/base/common/event';
 import { fromEventEmitter } from 'vs/base/node/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
-import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 

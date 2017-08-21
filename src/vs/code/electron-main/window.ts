@@ -23,7 +23,7 @@ import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 

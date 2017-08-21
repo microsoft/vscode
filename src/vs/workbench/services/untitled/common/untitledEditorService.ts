@@ -12,7 +12,7 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 

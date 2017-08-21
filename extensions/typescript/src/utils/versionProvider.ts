@@ -10,7 +10,7 @@ import * as fs from 'fs';
 
 import { workspace, window } from 'vscode';
 
-import { TypeScriptServiceConfiguration } from "./configuration";
+import { TypeScriptServiceConfiguration } from './configuration';
 import API from './api';
 
 
