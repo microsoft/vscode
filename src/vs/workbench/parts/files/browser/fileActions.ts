@@ -1211,7 +1211,7 @@ export class GlobalCompareResourcesAction extends Action {
 				}
 
 				// Cannot compare file with self - exclude active file
-				if (!!resource && resource === globalResourceToCompare) {
+				if (!!resource && resource.toString() === globalResourceToCompare.toString()) {
 					return void 0;
 				}
 
