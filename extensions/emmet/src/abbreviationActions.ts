@@ -189,21 +189,31 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: s
 	}
 
 	if (isStyleSheet(syntax)) {
-		if (currentNode.type !== 'rule') {
+
+		// If current node is a rule or at-rule, then perform additional checks to ensure
+		// emmet suggestions are not provided in the rule selector
+		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {
 			return true;
 		}
+
 		const currentCssNode = <Rule>currentNode;
 
-		// Workaround for https://github.com/Microsoft/vscode/30188
-		if (currentCssNode.parent
-			&& currentCssNode.parent.type === 'rule'
-			&& currentCssNode.selectorToken
-			&& currentCssNode.selectorToken.start.line !== currentCssNode.selectorToken.end.line) {
+		// Position is valid if it occurs after the `{` that marks beginning of rule contents
+		if (position.isAfter(currentCssNode.contentStartToken.end)) {
 			return true;
 		}
 
-		// Position is valid if it occurs after the `{` that marks beginning of rule contents
-		return currentCssNode.selectorToken && position.isAfter(currentCssNode.selectorToken.end);
+		// Workaround for https://github.com/Microsoft/vscode/30188
+		// The line above the rule selector is considered as part of the selector by the css-parser
+		// But we should assume it is a valid location for css properties under the parent rule
+		if (currentCssNode.parent
+			&& (currentCssNode.parent.type === 'rule' || currentCssNode.parent.type === 'at-rule')
+			&& currentCssNode.selectorToken
+			&& position.line !== currentCssNode.selectorToken.end.line) {
+			return true;
+		}
+
+		return false;
 	}
 
 	const currentHtmlNode = <HtmlNode>currentNode;
