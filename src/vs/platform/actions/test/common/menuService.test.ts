@@ -38,6 +38,10 @@ class MockExtensionService implements IExtensionService {
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
 		throw new Error('Not implemented');
 	}
+
+	public restartExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
 }
 
 const extensionService = new MockExtensionService();

@@ -98,6 +98,11 @@ export class ExtensionService implements IExtensionService {
 		this._scanAndHandleExtensions();
 	}
 
+	public restartExtensionHost(): void {
+		this._stopExtensionHostProcess();
+		this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+	}
+
 	private _stopExtensionHostProcess(): void {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		if (this._extensionHostProcessWorker) {

@@ -15,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from "vs/platform/extensions/common/extensions";
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -40,7 +41,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@IMessageService private messageService: IMessageService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
 		if (workspace) {
@@ -106,32 +108,40 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
 		const newWorkspaceId = workspace ? workspace.id : void 0;
 
-		let reload = false;
-		if (this.rootCount === 0 && newRootCount > 0) {
-			reload = true; // transition: from 0 folders to 1+
-		} else if (this.rootCount > 0 && newRootCount === 0) {
-			reload = true; // transition: from 1+ folders to 0
-		}
+		let reloadWindow = false;
+		let reloadExtensionHost = false;
 
-		if (this.firstRootPath !== newFirstRootPath) {
-			reload = true; // first root folder changed
+		if (this.rootCount === 0 && newRootCount > 0) {
+			reloadWindow = true; // transition: from 0 folders to 1+
+		} else if (this.rootCount > 0 && newRootCount === 0) {
+			reloadWindow = true; // transition: from 1+ folders to 0
 		}
 
 		if (this.workspaceId !== newWorkspaceId) {
-			reload = true; // workspace id changed
+			reloadWindow = true; // workspace id changed
+		}
+
+		if (this.firstRootPath !== newFirstRootPath) {
+			reloadExtensionHost = true; // first root folder changed (impact on deprecated workspace.rootPath API)
 		}
 
 		this.rootCount = newRootCount;
 		this.firstRootPath = newFirstRootPath;
 		this.workspaceId = newWorkspaceId;
 
-		if (reload) {
+		// Reload window if this is needed
+		if (reloadWindow) {
 			this.doConfirm(
 				localize('relaunchWorkspaceMessage', "This workspace change requires a reload of our extension system."),
 				void 0,
 				localize('reload', "Reload"),
 				() => this.windowService.reloadWindow()
 			);
+		}
+
+		// Reload extension host if this is needed
+		else if (reloadExtensionHost) {
+			this.extensionService.restartExtensionHost();
 		}
 	}
 
