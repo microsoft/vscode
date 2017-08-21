@@ -1188,7 +1188,7 @@ export class WindowsManager implements IWindowsMainService {
 				window.focus();
 
 				// Only open workspace when the window has not vetoed this
-				return this.lifecycleService.unload(window, UnloadReason.RELOAD).done(veto => {
+				return this.lifecycleService.unload(window, UnloadReason.RELOAD, workspace).done(veto => {
 					if (!veto) {
 
 						// Register window for backups and migrate current backups over

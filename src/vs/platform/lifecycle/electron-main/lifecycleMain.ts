@@ -61,7 +61,7 @@ export interface ILifecycleService {
 	ready(): void;
 	registerWindow(window: ICodeWindow): void;
 
-	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+	unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */>;
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
 
@@ -179,7 +179,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	public unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (window.readyState !== ReadyState.READY) {
@@ -191,7 +191,7 @@ export class LifecycleService implements ILifecycleService {
 		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
 
 		// first ask the window itself if it vetos the unload
-		return this.doUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {
+		return this.doUnloadWindowInRenderer(window, windowUnloadReason, payload).then(veto => {
 			if (veto) {
 				return this.handleVeto(veto);
 			}
@@ -213,7 +213,7 @@ export class LifecycleService implements ILifecycleService {
 		return veto;
 	}
 
-	private doUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	private doUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
@@ -227,7 +227,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			window.send('vscode:beforeUnload', { okChannel, cancelChannel, reason });
+			window.send('vscode:beforeUnload', { okChannel, cancelChannel, reason, payload });
 		});
 	}
 

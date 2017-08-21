@@ -88,3 +88,9 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return typeof obj === 'string';
 }
+
+export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+	const workspaceIdentifier = obj as IWorkspaceIdentifier;
+
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+}
