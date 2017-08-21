@@ -76,7 +76,7 @@ function findEditor(model: IModel, codeEditorService: ICodeEditorService): IComm
 		for (const editor of codeEditorService.listCodeEditors()) {
 			if (editor.getModel() === model) {
 				if (editor.isFocused()) {
-					return editor; // favour focussed editor if there are multiple
+					return editor; // favour focused editor if there are multiple
 				}
 
 				candidate = editor;

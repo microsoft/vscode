@@ -927,7 +927,7 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
-		// Clean up last focussed if not set
+		// Clean up last focused if not set
 		if (!this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
 			delete this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 		}

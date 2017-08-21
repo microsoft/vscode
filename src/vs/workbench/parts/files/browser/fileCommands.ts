@@ -180,7 +180,7 @@ export function withFocussedFilesExplorer(accessor: ServicesAccessor): TPromise<
 
 		const tree = explorer.getExplorerView().getViewer();
 
-		// Ignore if in highlight mode or not focussed
+		// Ignore if in highlight mode or not focused
 		if (tree.getHighlight() || !tree.isDOMFocused()) {
 			return void 0;
 		}
@@ -197,7 +197,7 @@ function withFocussedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{
 
 		const tree = explorer.getOpenEditorsView().getViewer();
 
-		// Ignore if in highlight mode or not focussed
+		// Ignore if in highlight mode or not focused
 		const focus = tree.getFocus();
 		if (tree.getHighlight() || !tree.isDOMFocused() || !(focus instanceof OpenEditor)) {
 			return void 0;
