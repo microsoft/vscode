@@ -345,6 +345,8 @@ export class MessageList {
 				// Hover title
 				const title = message.source ? `[${message.source}] ${messageContentElement.textContent}` : messageContentElement.textContent;
 
+				sevLabel.title(title);
+
 				$(messageContentElement as HTMLElement).title(title).appendTo(div);
 			});
 		});

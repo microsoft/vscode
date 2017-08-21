@@ -227,7 +227,7 @@ export interface MainThreadLanguagesShape extends IDisposable {
 }
 
 export interface MainThreadMessageOptions {
-	extensionId?: string;
+	extension?: IExtensionDescription;
 	modal?: boolean;
 }
 
