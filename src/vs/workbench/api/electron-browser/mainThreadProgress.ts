@@ -6,17 +6,19 @@
 
 import { IProgressService2, IProgress, IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadProgressShape } from '../node/extHost.protocol';
+import { MainThreadProgressShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadProgress extends MainThreadProgressShape {
+@extHostNamedCustomer(MainContext.MainThreadProgress)
+export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _progressService: IProgressService2;
 	private _progress = new Map<number, { resolve: Function, progress: IProgress<IProgressStep> }>();
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IProgressService2 progressService: IProgressService2
 	) {
-		super();
 		this._progressService = progressService;
 	}
 

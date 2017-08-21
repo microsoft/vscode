@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadOutputServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadOutputServiceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
@@ -64,8 +63,8 @@ export class ExtHostOutputService {
 
 	private _proxy: MainThreadOutputServiceShape;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadOutputService);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadOutputService);
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {

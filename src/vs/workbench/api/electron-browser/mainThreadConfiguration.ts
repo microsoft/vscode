@@ -7,24 +7,24 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { MainThreadConfigurationShape, ExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainThreadConfiguration extends MainThreadConfigurationShape {
+@extHostNamedCustomer(MainContext.MainThreadConfiguration)
+export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
 	private readonly _configurationEditingService: IConfigurationEditingService;
 	private readonly _configurationListener: IDisposable;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IThreadService threadService: IThreadService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super();
 		this._configurationEditingService = configurationEditingService;
-		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
+		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
 		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
 			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());

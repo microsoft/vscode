@@ -19,7 +19,7 @@ import { testExtensions } from "./tests/extensions";
 import { testLocalization } from "./tests/localization";
 import { testMultiRoot } from "./tests/multiroot";
 
-describe('Smoke Test Suite', () => {
+describe('Smoke:', () => {
 	testDataMigration();
 	testDataLoss();
 	testExplorer();

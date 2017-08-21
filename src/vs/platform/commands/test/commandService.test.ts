@@ -30,6 +30,8 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
 	}
+	restartExtensionHost(): void {
+	}
 }
 
 suite('CommandService', function () {

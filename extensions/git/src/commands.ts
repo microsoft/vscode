@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -152,10 +152,10 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource);
+		await this._openResource(resource, undefined, true);
 	}
 
-	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -167,8 +167,8 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preserveFocus: true,
-			preview: preview,
+			preserveFocus,
+			preview,
 			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
@@ -283,9 +283,12 @@ export class CommandCenter {
 		}
 
 		const clonePromise = this.git.clone(url, parentPath);
-		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+
 
 		try {
+			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+
 			const repositoryPath = await clonePromise;
 
 			const open = localize('openrepo', "Open Repository");
@@ -314,6 +317,8 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
+
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -348,7 +353,7 @@ export class CommandCenter {
 				: undefined;
 
 			const opts: TextDocumentShowOptions = {
-				preserveFocus: true,
+				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
@@ -390,6 +395,7 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -417,7 +423,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(resource, preview);
+			await this._openResource(resource, preview, preserveFocus);
 		}
 	}
 

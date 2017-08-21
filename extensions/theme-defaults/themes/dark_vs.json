@@ -243,10 +243,8 @@
 		{
 			"name": "JavaScript string interpolation ${}",
 			"scope": [
-				"punctuation.definition.template-expression.begin.js",
-				"punctuation.definition.template-expression.begin.ts",
-				"punctuation.definition.template-expression.end.ts",
-				"punctuation.definition.template-expression.end.js",
+				"punctuation.definition.template-expression.begin",
+				"punctuation.definition.template-expression.end",
 				"punctuation.section.embedded.coffee"
 			],
 			"settings": {
@@ -256,8 +254,7 @@
 		{
 			"name": "Reset JavaScript string interpolation expression",
 			"scope": [
-				"meta.template.expression.js",
-				"meta.template.expression.ts"
+				"meta.template.expression"
 			],
 			"settings": {
 				"foreground": "#d4d4d4"

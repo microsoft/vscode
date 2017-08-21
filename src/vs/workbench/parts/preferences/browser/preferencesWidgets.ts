@@ -28,12 +28,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISelectBoxStyles, defaultStyles } from "vs/base/browser/ui/selectBox/selectBox";
-import { Separator } from "vs/base/browser/ui/actionbar/actionbar";
-import { Color } from "vs/base/common/color";
+import { ISelectBoxStyles, defaultStyles } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { ConfigurationTarget } from "vs/workbench/services/configuration/common/configurationEditing";
-import { IMouseEvent } from "vs/base/browser/mouseEvent";
+import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 

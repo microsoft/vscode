@@ -7,13 +7,13 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isParent } from "vs/platform/files/common/files";
-import { localize } from "vs/nls";
-import { basename, dirname, join } from "vs/base/common/paths";
-import { isLinux } from "vs/base/common/platform";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { isParent } from 'vs/platform/files/common/files';
+import { localize } from 'vs/nls';
+import { basename, dirname, join } from 'vs/base/common/paths';
+import { isLinux } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
-import { tildify, getPathLabel } from "vs/base/common/labels";
+import { tildify, getPathLabel } from 'vs/base/common/labels';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -87,4 +87,10 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return typeof obj === 'string';
+}
+
+export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+	const workspaceIdentifier = obj as IWorkspaceIdentifier;
+
+	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
 }

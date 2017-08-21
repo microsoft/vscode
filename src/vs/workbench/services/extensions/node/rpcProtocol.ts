@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { LazyPromise } from "vs/workbench/services/extensions/node/lazyPromise";
+import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 
 export interface IDispatcher {
 	invoke(proxyId: string, methodName: string, args: any[]): any;
@@ -16,6 +16,7 @@ export interface IDispatcher {
 
 export class RPCProtocol {
 
+	private _isDisposed: boolean;
 	private _bigHandler: IDispatcher;
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
@@ -23,6 +24,7 @@ export class RPCProtocol {
 	private readonly _multiplexor: RPCMultiplexer;
 
 	constructor(protocol: IMessagePassingProtocol) {
+		this._isDisposed = false;
 		this._bigHandler = null;
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
@@ -30,7 +32,21 @@ export class RPCProtocol {
 		this._multiplexor = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
 	}
 
+	public dispose(): void {
+		this._isDisposed = true;
+
+		// Release all outstanding promises with a canceled error
+		Object.keys(this._pendingRPCReplies).forEach((msgId) => {
+			const pending = this._pendingRPCReplies[msgId];
+			pending.resolveErr(errors.canceled());
+		});
+	}
+
 	private _receiveOneMessage(rawmsg: string): void {
+		if (this._isDisposed) {
+			console.warn('Received message after being shutdown: ', rawmsg);
+			return;
+		}
 		let msg = marshalling.parse(rawmsg);
 
 		if (msg.seq) {
@@ -97,6 +113,10 @@ export class RPCProtocol {
 	}
 
 	public callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+		if (this._isDisposed) {
+			return TPromise.wrapError<any>(errors.canceled());
+		}
+
 		let req = String(++this._lastMessageId);
 		let result = new LazyPromise(() => {
 			this._multiplexor.send(MessageFactory.cancel(req));
@@ -122,40 +142,21 @@ export class RPCProtocol {
 class RPCMultiplexer {
 
 	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _onMessage: (msg: string) => void;
-	private readonly _receiveOneMessageBound: () => void;
 	private readonly _sendAccumulatedBound: () => void;
 
 	private _messagesToSend: string[];
-	private _messagesToReceive: string[];
 
 	constructor(protocol: IMessagePassingProtocol, onMessage: (msg: string) => void) {
 		this._protocol = protocol;
-		this._onMessage = onMessage;
-		this._receiveOneMessageBound = this._receiveOneMessage.bind(this);
 		this._sendAccumulatedBound = this._sendAccumulated.bind(this);
 
 		this._messagesToSend = [];
-		this._messagesToReceive = [];
 
 		this._protocol.onMessage(data => {
-			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
-			if (this._messagesToReceive.length === 0) {
-				process.nextTick(this._receiveOneMessageBound);
+			for (let i = 0, len = data.length; i < len; i++) {
+				onMessage(data[i]);
 			}
-
-			this._messagesToReceive = this._messagesToReceive.concat(data);
 		});
-	}
-
-	private _receiveOneMessage(): void {
-		const rawmsg = this._messagesToReceive.shift();
-
-		if (this._messagesToReceive.length > 0) {
-			process.nextTick(this._receiveOneMessageBound);
-		}
-
-		this._onMessage(rawmsg);
 	}
 
 	private _sendAccumulated(): void {

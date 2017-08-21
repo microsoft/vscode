@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
@@ -19,7 +18,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -635,10 +634,12 @@ class SignatureHelpAdapter {
 class LinkProviderAdapter {
 
 	private _documents: ExtHostDocuments;
+	private _heapService: ExtHostHeapService;
 	private _provider: vscode.DocumentLinkProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentLinkProvider) {
+	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.DocumentLinkProvider) {
 		this._documents = documents;
+		this._heapService = heapService;
 		this._provider = provider;
 	}
 
@@ -646,23 +647,37 @@ class LinkProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (Array.isArray(links)) {
-				return links.map(TypeConverters.DocumentLink.from);
+			if (!Array.isArray(links)) {
+				return undefined;
 			}
-			return undefined;
+			const result: modes.ILink[] = [];
+			for (const link of links) {
+				let data = TypeConverters.DocumentLink.from(link);
+				let id = this._heapService.keep(link);
+				ObjectIdentifier.mixin(data, id);
+				result.push(data);
+			}
+			return result;
 		});
 	}
 
 	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
-		if (typeof this._provider.resolveDocumentLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveDocumentLink(TypeConverters.DocumentLink.to(link), token)).then(value => {
-				if (value) {
-					return TypeConverters.DocumentLink.from(value);
-				}
-				return undefined;
-			});
+		if (typeof this._provider.resolveDocumentLink !== 'function') {
+			return undefined;
 		}
-		return undefined;
+
+		const id = ObjectIdentifier.of(link);
+		const item = this._heapService.get<vscode.DocumentLink>(id);
+		if (!item) {
+			return undefined;
+		}
+
+		return asWinJsPromise(token => this._provider.resolveDocumentLink(item, token)).then(value => {
+			if (value) {
+				return TypeConverters.DocumentLink.from(value);
+			}
+			return undefined;
+		});
 	}
 }
 
@@ -724,7 +739,7 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapt
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
-export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
+export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
@@ -737,14 +752,13 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
+		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;
@@ -995,7 +1009,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new LinkProviderAdapter(this._documents, provider));
+		this._adapter.set(handle, new LinkProviderAdapter(this._documents, this._heapService, provider));
 		this._proxy.$registerDocumentLinkProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

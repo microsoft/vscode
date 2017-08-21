@@ -8,16 +8,15 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { toThenable } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './extHost.protocol';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
-export class ExtHostEditors extends ExtHostEditorsShape {
+export class ExtHostEditors implements ExtHostEditorsShape {
 
 	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
@@ -36,11 +35,10 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadEditors);
+		this._proxy = mainContext.get(MainContext.MainThreadEditors);
 		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));

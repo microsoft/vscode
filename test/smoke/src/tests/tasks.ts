@@ -11,7 +11,7 @@ import { Tasks } from "../areas/tasks";
 let app: SpectronApplication;
 
 export function testTasks() {
-	context('Tasks', () => {
+	describe('Tasks', () => {
 		let tasks: Tasks;
 
 		beforeEach(async function () {

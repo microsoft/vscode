@@ -243,4 +243,35 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(1, 8, 1, 11));
 	});
 
+	test('HTML Snippets Combine, #32211', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		model.setValue('');
+		model.updateOptions({ insertSpaces: false, tabSize: 4, trimAutoWhitespace: false });
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert(`
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=\${2:device-width}, initial-scale=\${3:1.0}">
+				<meta http-equiv="X-UA-Compatible" content="\${5:ie=edge}">
+				<title>\${7:Document}</title>
+			</head>
+			<body>
+				\${8}
+			</body>
+			</html>
+		`);
+		ctrl.next();
+		ctrl.next();
+		ctrl.next();
+		ctrl.next();
+		assertSelections(editor, new Selection(11, 5, 11, 5));
+
+		ctrl.insert('<input type="${2:text}">');
+		assertSelections(editor, new Selection(11, 18, 11, 22));
+	});
+
 });

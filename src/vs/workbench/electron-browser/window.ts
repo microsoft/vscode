@@ -44,8 +44,8 @@ import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/t
 
 import { ipcRenderer as ipc, webFrame } from 'electron';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { extname } from "vs/base/common/paths";
-import { WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
+import { extname } from 'vs/base/common/paths';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -341,7 +341,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return this.partService.joinCreation().then(() => {
+		return TPromise.join([this.partService.joinCreation(), this.extensionService.onReady()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {

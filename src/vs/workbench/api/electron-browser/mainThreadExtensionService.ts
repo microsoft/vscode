@@ -6,19 +6,25 @@
 
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { MainProcessExtensionServiceShape } from '../node/extHost.protocol';
+import { MainThreadExtensionServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-export class MainProcessExtensionServiceAPI extends MainProcessExtensionServiceShape {
+@extHostNamedCustomer(MainContext.MainThreadExtensionService)
+export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
 
 	private readonly _extensionService: ExtensionService;
 
-	constructor( @IExtensionService extensionService: IExtensionService) {
-		super();
-
+	constructor(
+		extHostContext: IExtHostContext,
+		@IExtensionService extensionService: IExtensionService
+	) {
 		if (extensionService instanceof ExtensionService) {
 			this._extensionService = extensionService;
 		}
+	}
+
+	public dispose(): void {
 	}
 
 	$localShowMessage(severity: Severity, msg: string): void {

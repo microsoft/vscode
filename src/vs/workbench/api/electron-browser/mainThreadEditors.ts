@@ -6,8 +6,8 @@
 
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -15,15 +15,14 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
-
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 
-export class MainThreadEditors extends MainThreadEditorsShape {
+export class MainThreadEditors implements MainThreadEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
@@ -35,14 +34,13 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
+		extHostContext: IExtHostContext,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-		@IThreadService threadService: IThreadService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostEditors);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
 		this._telemetryService = telemetryService;
@@ -159,7 +157,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
 		return TPromise.as(null);
@@ -167,7 +165,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.as(null);
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
 		return TPromise.as(null);
@@ -175,7 +173,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
@@ -183,7 +181,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
 		return TPromise.as(null);
@@ -191,14 +189,14 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
+			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
+			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}

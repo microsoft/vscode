@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDispatcher, RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
-// declare var Proxy:any; // TODO@TypeScript
+declare var Proxy: any; // TODO@TypeScript
 
 export abstract class AbstractThreadService implements IDispatcher {
 
@@ -25,6 +25,10 @@ export abstract class AbstractThreadService implements IDispatcher {
 		this._rpcProtocol.setDispatcher(this);
 	}
 
+	public dispose(): void {
+		this._rpcProtocol.dispose();
+	}
+
 	public invoke(proxyId: string, methodName: string, args: any[]): any {
 		if (!this._locals[proxyId]) {
 			throw new Error('Unknown actor ' + proxyId);
@@ -39,41 +43,40 @@ export abstract class AbstractThreadService implements IDispatcher {
 
 	get<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.methodNames);
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(proxyId: string, methodNames: string[]): T {
-		// Check below how to switch to native proxies
-		let result: any = {};
-		for (let i = 0; i < methodNames.length; i++) {
-			let methodName = methodNames[i];
-			result[methodName] = this._createMethodProxy(proxyId, methodName);
-		}
-		return result;
-
-		// let handler = {
-		// 	get: (target, name) => {
-		// 		return (...myArgs: any[]) => {
-		// 			return this._callOnRemote(id, name, myArgs);
-		// 		};
-		// 	}
-		// };
-		// return new Proxy({}, handler);
-	}
-
-	private _createMethodProxy(proxyId: string, methodName: string): (...myArgs: any[]) => TPromise<any> {
-		return (...myArgs: any[]) => {
-			return this._callOnRemote(proxyId, methodName, myArgs);
+	private _createProxy<T>(proxyId: string): T {
+		let handler = {
+			get: (target, name) => {
+				if (!target[name]) {
+					target[name] = (...myArgs: any[]) => {
+						return this._callOnRemote(proxyId, name, myArgs);
+					};
+				}
+				return target[name];
+			}
 		};
+		return new Proxy(Object.create(null), handler);
 	}
 
-	set<T>(identifier: ProxyIdentifier<T>, value: T): void {
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 		if (identifier.isMain !== this._isMain) {
 			throw new Error('Mismatch in object registration!');
 		}
 		this._locals[identifier.id] = value;
+		return value;
+	}
+
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		for (let i = 0, len = identifiers.length; i < len; i++) {
+			const identifier = identifiers[i];
+			if (!this._locals[identifier.id]) {
+				throw new Error(`Missing actor ${identifier.id} (isMain: ${identifier.isMain})`);
+			}
+		}
 	}
 
 	private _callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {

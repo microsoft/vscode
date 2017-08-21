@@ -77,4 +77,9 @@ export interface IExtensionService {
 	 * Get information about extensions status.
 	 */
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
+
+	/**
+	 * Restarts the extension host.
+	 */
+	restartExtensionHost(): void;
 }

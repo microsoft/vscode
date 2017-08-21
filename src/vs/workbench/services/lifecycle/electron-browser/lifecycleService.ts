@@ -12,7 +12,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IWindowService } from "vs/platform/windows/common/windows";
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class LifecycleService implements ILifecycleService {
 
@@ -76,12 +76,12 @@ export class LifecycleService implements ILifecycleService {
 		const windowId = this._windowService.getCurrentWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason, payload: object }) => {
 			this.phase = LifecyclePhase.ShuttingDown;
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload(reply.reason).done(veto => {
+			this.onBeforeUnload(reply.reason, reply.payload).done(veto => {
 				if (veto) {
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
 					this.phase = LifecyclePhase.Running; // reset this flag since the shutdown has been vetoed!
@@ -94,14 +94,15 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
+	private onBeforeUnload(reason: ShutdownReason, payload?: object): TPromise<boolean> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {
 				vetos.push(value);
 			},
-			reason
+			reason,
+			payload
 		});
 
 		return handleVetos(vetos, err => this._messageService.show(Severity.Error, toErrorMessage(err)));

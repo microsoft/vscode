@@ -8,9 +8,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
@@ -125,10 +124,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				icons.push(darkIconPath);
 			}
 
+			const tooltip = (r.decorations && r.decorations.tooltip) || '';
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
+			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
@@ -277,10 +277,10 @@ export class ExtHostSCM {
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		private _commands: ExtHostCommands
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadSCM);
+		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 
 		_commands.registerArgumentProcessor({

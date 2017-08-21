@@ -19,7 +19,7 @@ step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js
 
 step "Build minified & upload source maps" \
-	npm run gulp -- --max_old_space_size=4096 vscode-darwin-min
+	npm run gulp -- vscode-darwin-min
 
 step "Run smoke test" \
 	pushd test/smoke

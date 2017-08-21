@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		private readonly host: ITypescriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
-		private readonly plugins: TypeScriptServerPlugin[]
+		public readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -332,7 +332,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
 					args.push('--useSingleInferredProject');
-					if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
+					if (this.configuration.disableAutomaticTypeAcquisition) {
 						args.push('--disableAutomaticTypingAcquisition');
 					}
 				}
@@ -501,12 +501,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
-			module: 'CommonJS',
-			target: 'ES6',
+			module: Proto.ModuleKind.CommonJS,
+			target: Proto.ScriptTarget.ES6,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
 			allowJs: true,
-			jsx: 'Preserve'
+			jsx: Proto.JsxEmit.Preserve
 		};
 
 		if (this.apiVersion.has230Features()) {

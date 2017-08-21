@@ -7,6 +7,11 @@
 
 declare module 'vscode' {
 
+	export namespace window {
+
+		export function showOpenDialog(): Thenable<Uri[]>;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 		// todo@joh -> added, deleted, renamed, changed
@@ -53,40 +58,6 @@ declare module 'vscode' {
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
-	}
-
-	/**
-	 * Namespace for handling credentials.
-	 */
-	export namespace credentials {
-
-		/**
-		 * Read a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise for the secret of the credential.
-		 */
-		export function readSecret(service: string, account: string): Thenable<string | undefined>;
-
-		/**
-		 * Write a secret to the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @param secret The secret of the credential to write to the credential store.
-		 * @return A promise indicating completion of the operation.
-		 */
-		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
-
-		/**
-		 * Delete a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise resolving to true if there was a secret for that service and account.
-		 */
-		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
 
 	/**
@@ -231,5 +202,46 @@ declare module 'vscode' {
 
 	export namespace languages {
 		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	}
+
+	export namespace debug {
+		/**
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
+		 * More than one provider can be registered for the same type.
+		 *
+		 * @param type The debug type for which the provider is registered.
+		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+	}
+
+	/**
+	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
+	 * and allows to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider is registered via #workspace.registerDebugConfigurationProvider.
+	 */
+	export interface DebugConfigurationProvider {
+		/**
+		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
+		 * registered for the same type, debug configurations are concatenated in arbitrary order.
+		 *
+		 * @param folder The workspace folder for which the configurations are used or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return An array of [debug configurations](#DebugConfiguration).
+		 */
+		provideDebugConfigurations?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugConfiguration[]>;
+
+		/**
+		 * Resolves a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
+		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
+		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 *
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
+		 * @param token A cancellation token.
+		 * @return The resolved debug configuration.
+		 */
+		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
 }

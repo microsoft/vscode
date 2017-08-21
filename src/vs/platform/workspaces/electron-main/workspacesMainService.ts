@@ -5,20 +5,20 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from "vs/base/common/winjs.base";
-import { isParent } from "vs/platform/files/common/files";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { extname, join, dirname } from "path";
-import { mkdirp, writeFile } from "vs/base/node/pfs";
-import { readFileSync } from "fs";
-import { isLinux } from "vs/base/common/platform";
-import { copy, delSync, readdirSync } from "vs/base/node/extfs";
-import { nfcall } from "vs/base/common/async";
-import Event, { Emitter } from "vs/base/common/event";
-import { ILogService } from "vs/platform/log/common/log";
-import { isEqual } from "vs/base/common/paths";
-import { coalesce } from "vs/base/common/arrays";
+import { isParent } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { extname, join, dirname } from 'path';
+import { mkdirp, writeFile } from 'vs/base/node/pfs';
+import { readFileSync } from 'fs';
+import { isLinux } from 'vs/base/common/platform';
+import { copy, delSync, readdirSync } from 'vs/base/node/extfs';
+import { nfcall } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
+import { isEqual } from 'vs/base/common/paths';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 

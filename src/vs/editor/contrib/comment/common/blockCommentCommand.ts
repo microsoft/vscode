@@ -135,7 +135,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		model.forceTokenization(startLineNumber);
+		model.tokenizeIfCheap(startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {

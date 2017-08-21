@@ -79,7 +79,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			localize('no', "No")
 		];
 		return this.choiceService.choose(Severity.Info, message, options, 1, false)
-			.then<void>(value => {
+			.then(value => {
 				const confirmed = value === 0;
 				telemetryData['confirmed'] = confirmed;
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
@@ -89,7 +89,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 					}));
 				}
 				return undefined;
-			}, error => TPromise.wrapError(canceled()));
+			}, error => TPromise.wrapError(canceled()))
+			.then(() => { /* drop resolved value */ });
 	}
 
 	dispose(): void {

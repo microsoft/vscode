@@ -9,15 +9,17 @@ import { join } from 'path';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionDescriptionRegistry } from "vs/workbench/services/extensions/node/extensionDescriptionRegistry";
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainProcessExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from "vs/workbench/api/node/extHostExtensionActivator";
-import { Barrier } from "vs/workbench/services/extensions/node/barrier";
+import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape } from './extHost.protocol';
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { realpath } from 'fs';
+import { TrieMap } from 'vs/base/common/map';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -105,28 +107,28 @@ class ExtensionStoragePath {
 	}
 }
 
-export class ExtHostExtensionService {
+export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private readonly _barrier: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _threadService: IThreadService;
+	private readonly _threadService: ExtHostThreadService;
 	private readonly _telemetryService: ITelemetryService;
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
-	private readonly _proxy: MainProcessExtensionServiceShape;
+	private readonly _proxy: MainThreadExtensionServiceShape;
 	private _activator: ExtensionsActivator;
-
+	private _extensionPathIndex: TPromise<TrieMap<IExtensionDescription>>;
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(initData: IInitData, threadService: IThreadService, telemetryService: ITelemetryService) {
+	constructor(initData: IInitData, threadService: ExtHostThreadService, telemetryService: ITelemetryService) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._threadService = threadService;
 		this._telemetryService = telemetryService;
 		this._storage = new ExtHostStorage(threadService);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._proxy = this._threadService.get(MainContext.MainProcessExtensionService);
+		this._proxy = this._threadService.get(MainContext.MainThreadExtensionService);
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
@@ -201,6 +203,31 @@ export class ExtHostExtensionService {
 			return null;
 		}
 	}
+
+	// create trie to enable fast 'filename -> extension id' look up
+	public getExtensionPathIndex(): TPromise<TrieMap<IExtensionDescription>> {
+		if (!this._extensionPathIndex) {
+			const trie = new TrieMap<IExtensionDescription>();
+			const extensions = this.getAllExtensionDescriptions().map(ext => {
+				if (!ext.main) {
+					return undefined;
+				}
+				return new TPromise((resolve, reject) => {
+					realpath(ext.extensionFolderPath, (err, path) => {
+						if (err) {
+							reject(err);
+						} else {
+							trie.insert(path, ext);
+							resolve(void 0);
+						}
+					});
+				});
+			});
+			this._extensionPathIndex = TPromise.join(extensions).then(() => trie);
+		}
+		return this._extensionPathIndex;
+	}
+
 
 	public deactivate(extensionId: string): TPromise<void> {
 		let result: TPromise<void> = TPromise.as(void 0);

@@ -34,9 +34,9 @@ import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
 import { CodeApplication } from "vs/code/electron-main/app";
 import { HistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();

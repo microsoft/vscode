@@ -280,7 +280,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			: Win3264BitContribution.URL;
 
 		messageService.show(Severity.Info, {
-			message: nls.localize('64bitisavailable', "{0} for Windows 64 bits is now available!", product.nameShort),
+			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
 			actions: [
 				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
 				CloseAction,

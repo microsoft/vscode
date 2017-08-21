@@ -333,20 +333,28 @@ function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 
 export class TextmateSnippet extends Marker {
 
-	private _placeholders: Placeholder[];
+	private _placeholders: { all: Placeholder[], last: Placeholder };
 
-	get placeholders(): Placeholder[] {
+	get placeholderInfo() {
 		if (!this._placeholders) {
 			// fill in placeholders
-			this._placeholders = [];
-			this.walk(candidate => {
+			let all: Placeholder[] = [];
+			let last: Placeholder;
+			this.walk(function (candidate) {
 				if (candidate instanceof Placeholder) {
-					this.placeholders.push(candidate);
+					all.push(candidate);
+					last = !last || last.index < candidate.index ? candidate : last;
 				}
 				return true;
 			});
+			this._placeholders = { all, last };
 		}
 		return this._placeholders;
+	}
+
+	get placeholders(): Placeholder[] {
+		const { all } = this.placeholderInfo;
+		return all;
 	}
 
 	offset(marker: Marker): number {

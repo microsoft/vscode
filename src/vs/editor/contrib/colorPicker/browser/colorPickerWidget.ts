@@ -47,7 +47,7 @@ export class ColorPickerHeader extends Disposable {
 
 	private onDidChangeColor(color: Color): void {
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
-		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 128 ? this.backgroundColor.isLighter() : color.isLighter());
+		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangeFormatter();
 	}
 
@@ -277,7 +277,7 @@ class OpacityStrip extends Strip {
 
 	private onDidChangeColor(color: Color): void {
 		const { r, g, b } = color.rgba;
-		const opaque = new Color(new RGBA(r, g, b, 255));
+		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));
 
 		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;

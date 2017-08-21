@@ -13,37 +13,41 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext } from '../node/extHost.protocol';
+import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { Emitter } from 'vs/base/common/event';
+import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
 
-
-export class MainThreadWorkspace extends MainThreadWorkspaceShape {
+@extHostNamedCustomer(MainContext.MainThreadWorkspace)
+export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
 	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService,
-		@IThreadService threadService: IThreadService
+		@IFileService private readonly _fileService: IFileService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostWorkspace);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
 		dispose(this._toDispose);
+
+		for (let requestId in this._activeSearches) {
+			const search = this._activeSearches[requestId];
+			search.cancel();
+		}
 	}
 
 	// --- workspace ---

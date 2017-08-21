@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
   "version": "1.16.0",
-  "electronVersion": "1.7.4",
-  "distro": "8d45185c204c118bc29f54b40bf8c5067b355593",
+  "electronVersion": "1.7.5",
+  "distro": "724097db097bfde7796fcca70aaac83ba80a95f8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -35,7 +35,7 @@
     "keytar": "^4.0.3",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
-    "native-watchdog": "0.1.0",
+    "native-watchdog": "0.2.0",
     "node-pty": "0.6.9",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
@@ -44,7 +44,7 @@
     "vscode-ripgrep": "0.0.25",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.15",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.16",
     "yauzl": "2.8.0"
   },
   "devDependencies": {

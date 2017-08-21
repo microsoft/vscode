@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
-import XTermTerminal = require('xterm');
+import { Terminal as XTermTerminal } from 'xterm';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -280,7 +280,7 @@ export class TerminalInstance implements ITerminalInstance {
 		dom.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm.open(this._xtermElement, false);
+		this._xterm.open(this._xtermElement);
 		this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -560,8 +560,23 @@ export class TerminalInstance implements ITerminalInstance {
 			this._configHelper.mergeDefaultShellPathAndArgs(shell);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
-		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		let envFromConfig: IStringDictionary<string>;
+		if (platform.isWindows) {
+			envFromConfig = { ...process.env };
+			for (let configKey in this._configHelper.config.env['windows']) {
+				let actualKey = configKey;
+				for (let envKey in envFromConfig) {
+					if (configKey.toLowerCase() === envKey.toLowerCase()) {
+						actualKey = envKey;
+						break;
+					}
+				}
+				envFromConfig[actualKey] = this._configHelper.config.env['windows'][configKey];
+			}
+		} else {
+			const platformKey = platform.isMacintosh ? 'osx' : 'linux';
+			envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
+		}
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -667,7 +682,7 @@ export class TerminalInstance implements ITerminalInstance {
 						args = this._shellLaunchConfig.args;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
-							if (a.indexOf(' ') !== -1) {
+							if (typeof a === 'string' && a.indexOf(' ') !== -1) {
 								return `'${a}'`;
 							}
 							return a;
@@ -768,7 +783,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		this._process.on('exit', listener);
+		if (this._process) {
+			this._process.on('exit', listener);
+		}
 		return {
 			dispose: () => {
 				if (this._process) {
@@ -890,6 +907,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {
+		if (!title) {
+			return;
+		}
 		if (eventFromProcess) {
 			title = path.basename(title);
 			if (platform.isWindows) {
