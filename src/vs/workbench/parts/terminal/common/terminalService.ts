@@ -124,11 +124,6 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	// ContextKey to match terminal with simpleFindWidget
-	public getTerminalFocusContextKey(): IContextKey<boolean> {
-		return this._terminalFocusContextKey;
-	}
-
 	public getActiveInstance(): ITerminalInstance {
 		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
 			return null;

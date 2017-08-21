@@ -138,24 +138,24 @@ export class SimpleFindWidgetService implements ISimpleFindWidgetService {
 	public find(previous: boolean): void {
 		// We allow the subclass to use its find function
 		if (!!this._focusedSimpleFindWidgetInput) {
-			this._focusedSimpleFindWidgetInput.baseFind(previous);
+			this._focusedSimpleFindWidgetInput.find(previous);
 			return;
 		}
 		const activeSimpleFindWidget = this.getActiveSimpleFindWidget();
 		if (!!activeSimpleFindWidget) {
-			activeSimpleFindWidget.baseFind(previous);
+			activeSimpleFindWidget.find(previous);
 		}
 	}
 
 	public nextMatch(): void {
 		if (!!this._focusedSimpleFindWidgetInput) {
-			this._focusedSimpleFindWidgetInput.baseFind(false);
+			this._focusedSimpleFindWidgetInput.find(false);
 		}
 	}
 
 	public previousMatch(): void {
 		if (!!this._focusedSimpleFindWidgetInput) {
-			this._focusedSimpleFindWidgetInput.baseFind(true);
+			this._focusedSimpleFindWidgetInput.find(true);
 		}
 	}
 }

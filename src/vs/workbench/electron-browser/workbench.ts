@@ -639,8 +639,6 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
-
-		// cleidigh
 		serviceCollection.set(ISimpleFindWidgetService, this.instantiationService.createInstance(SimpleFindWidgetService));
 
 		// Contributed services
