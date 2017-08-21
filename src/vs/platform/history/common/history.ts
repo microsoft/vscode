@@ -8,7 +8,7 @@
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IHistoryMainService = createDecorator<IHistoryMainService>('historyMainService');
 

@@ -15,7 +15,7 @@ import { TestThreadService } from './testThreadService';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mock } from "vs/workbench/test/electron-browser/api/mock";
 
 suite('ExtHostConfiguration', function () {

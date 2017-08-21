@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from "vs/platform/extensions/common/extensions";
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };

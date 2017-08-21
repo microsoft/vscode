@@ -46,8 +46,8 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from "vs/base/common/lifecycle";
-import { SerializedError } from "vs/base/common/errors";
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { SerializedError } from 'vs/base/common/errors';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;

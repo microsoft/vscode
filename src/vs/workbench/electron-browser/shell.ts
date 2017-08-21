@@ -91,10 +91,10 @@ import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollba
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
-import { isWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { StorageService } from "vs/platform/storage/common/storageService";
-import { migrateStorageToMultiRootWorkspace } from "vs/platform/storage/common/migration";
-import { once } from "vs/base/common/event";
+import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { StorageService } from 'vs/platform/storage/common/storageService';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import { once } from 'vs/base/common/event';
 
 /**
  * Services that we require for the Shell

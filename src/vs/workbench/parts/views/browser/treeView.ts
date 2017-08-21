@@ -31,7 +31,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchThemeService } from "vs/workbench/services/themes/common/workbenchThemeService";
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class TreeView extends CollapsibleView {
 

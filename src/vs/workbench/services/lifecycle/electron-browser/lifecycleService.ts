@@ -12,7 +12,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IWindowService } from "vs/platform/windows/common/windows";
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class LifecycleService implements ILifecycleService {
 

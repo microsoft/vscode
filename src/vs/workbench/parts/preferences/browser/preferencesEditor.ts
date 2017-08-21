@@ -56,9 +56,9 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkspaceContextService } from "vs/platform/workspace/common/workspace";
-import Event, { Emitter } from "vs/base/common/event";
-import { Registry } from "vs/platform/registry/common/platform";
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import Event, { Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';

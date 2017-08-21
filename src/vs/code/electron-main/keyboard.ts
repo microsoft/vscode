@@ -15,7 +15,7 @@ import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybindin
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
 import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { ILogService } from "vs/platform/log/common/log";
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class KeyboardLayoutMonitor {
 

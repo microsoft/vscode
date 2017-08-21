@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
 import { ReadyState } from 'vs/platform/windows/common/windows';
-import { handleVetos } from "vs/platform/lifecycle/common/lifecycle";
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 

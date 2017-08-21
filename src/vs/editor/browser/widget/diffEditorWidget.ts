@@ -41,7 +41,7 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceCompute
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];

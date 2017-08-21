@@ -16,7 +16,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { mock } from "vs/workbench/test/electron-browser/api/mock";
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import Event from 'vs/base/common/event';
 
 suite('MainThreadDocumentsAndEditors', () => {

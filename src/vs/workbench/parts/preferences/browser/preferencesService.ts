@@ -39,8 +39,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IJSONEditingService } from "vs/workbench/services/configuration/common/jsonEditing";
-import { ConfigurationScope } from "vs/platform/configuration/common/configurationRegistry";
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 
 interface IWorkbenchSettingsConfiguration {

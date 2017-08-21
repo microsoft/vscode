@@ -18,9 +18,9 @@ import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { MenuRegistry } from "vs/platform/actions/common/actions";
-import { WebviewElement } from "vs/workbench/parts/html/browser/webview";
-import { IExtensionsWorkbenchService } from "vs/workbench/parts/extensions/common/extensions";
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { WebviewElement } from 'vs/workbench/parts/html/browser/webview';
+import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);

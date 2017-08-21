@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { StorageService } from "vs/platform/storage/common/storageService";
-import { parseStorage, migrateStorageToMultiRootWorkspace } from "vs/platform/storage/common/migration";
-import URI from "vs/base/common/uri";
-import { StorageScope } from "vs/platform/storage/common/storage";
-import { startsWith } from "vs/base/common/strings";
+import { StorageService } from 'vs/platform/storage/common/storageService';
+import { parseStorage, migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import URI from 'vs/base/common/uri';
+import { StorageScope } from 'vs/platform/storage/common/storage';
+import { startsWith } from 'vs/base/common/strings';
 
 suite('Storage Migration', () => {
 	let storage = window.localStorage;

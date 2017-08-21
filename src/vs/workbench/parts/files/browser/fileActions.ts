@@ -48,10 +48,10 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelService, ITextModelContentProvider } from "vs/editor/common/services/resolverService";
-import { IModelService } from "vs/editor/common/services/modelService";
-import { IModeService } from "vs/editor/common/services/modeService";
-import { IMode } from "vs/editor/common/modes";
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IMode } from 'vs/editor/common/modes';
 
 export interface IEditableData {
 	action: IAction;

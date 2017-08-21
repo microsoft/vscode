@@ -9,17 +9,17 @@ import { join } from 'path';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionDescriptionRegistry } from "vs/workbench/services/extensions/node/extensionDescriptionRegistry";
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from "vs/workbench/api/node/extHostExtensionActivator";
-import { Barrier } from "vs/workbench/services/extensions/node/barrier";
-import { ExtHostThreadService } from "vs/workbench/services/thread/node/extHostThreadService";
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { realpath } from 'fs';
-import { TrieMap } from "vs/base/common/map";
+import { TrieMap } from 'vs/base/common/map';
 
 class ExtensionMemento implements IExtensionMemento {
 

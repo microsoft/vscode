@@ -15,15 +15,15 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
-import { IWorkspacesService, WORKSPACE_FILTER } from "vs/platform/workspaces/common/workspaces";
-import { IMessageService, Severity } from "vs/platform/message/common/message";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { isLinux } from "vs/base/common/platform";
-import { dirname } from "vs/base/common/paths";
-import { mnemonicLabel } from "vs/base/common/labels";
-import { isParent } from "vs/platform/files/common/files";
-import { IWorkbenchEditorService } from "vs/workbench/services/editor/common/editorService";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspacesService, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isLinux } from 'vs/base/common/platform';
+import { dirname } from 'vs/base/common/paths';
+import { mnemonicLabel } from 'vs/base/common/labels';
+import { isParent } from 'vs/platform/files/common/files';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OpenFolderAction extends Action {
 

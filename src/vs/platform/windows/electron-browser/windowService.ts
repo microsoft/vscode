@@ -9,7 +9,7 @@ import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export class WindowService implements IWindowService {
 

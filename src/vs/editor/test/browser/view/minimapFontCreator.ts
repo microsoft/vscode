@@ -7,7 +7,7 @@
 import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-import { RGBA8 } from "vs/editor/common/core/rgba";
+import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');

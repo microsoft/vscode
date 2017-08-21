@@ -50,9 +50,9 @@ import * as paths from 'vs/base/common/paths';
 import { MainContext, ExtHostContext, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { ExtHostThreadService } from "vs/workbench/services/thread/node/extHostThreadService";
-import { ProxyIdentifier } from "vs/workbench/services/thread/common/threadService";
-import { ExtHostDialogs } from "vs/workbench/api/node/extHostDialogs";
+import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
+import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;

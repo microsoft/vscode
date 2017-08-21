@@ -5,7 +5,7 @@
 'use strict';
 
 import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
-import URI from "vs/base/common/uri";
+import URI from 'vs/base/common/uri';
 
 export class ExtHostDialogs {
 

@@ -13,8 +13,8 @@ import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/com
 import { isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
-import { IWindowService } from "vs/platform/windows/common/windows";
-import { mnemonicLabel } from "vs/base/common/labels";
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { mnemonicLabel } from 'vs/base/common/labels';
 
 export class MessageService extends WorkbenchMessageService implements IChoiceService {
 

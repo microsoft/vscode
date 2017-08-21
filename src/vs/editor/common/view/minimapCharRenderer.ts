@@ -6,7 +6,7 @@
 
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { RGBA8 } from "vs/editor/common/core/rgba";
+import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 export class MinimapTokensColorTracker {
 	private static _INSTANCE: MinimapTokensColorTracker = null;
