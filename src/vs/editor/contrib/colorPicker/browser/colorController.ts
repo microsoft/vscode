@@ -24,12 +24,15 @@ export class ColorController extends Disposable implements IEditorContribution {
 	}
 
 	private _decorations: string[];
+	private _decorationsTypes: { [key: string]: boolean };
+
 	constructor(
 		private _editor: ICodeEditor,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) {
 		super();
 		this._decorations = [];
+		this._decorationsTypes = {};
 		this._register(_editor.onDidChangeModel((e) => this.triggerUpdateDecorations()));
 		this._register(_editor.onDidChangeModelContent((e) => this.triggerUpdateDecorations()));
 		this._register(_editor.onDidChangeModelLanguage((e) => this.triggerUpdateDecorations()));
@@ -41,6 +44,7 @@ export class ColorController extends Disposable implements IEditorContribution {
 	triggerUpdateDecorations(settingsChanges = false) {
 		getColors(this._editor.getModel()).then((colorInfos) => {
 			let decorations = [];
+			let newDecorationsTypes: { [key: string]: boolean } = {};
 
 			for (let i = 0; i < colorInfos.length && decorations.length < MAX_DECORATORS; i++) {
 				if (!colorInfos[i].renderDecorator) {
@@ -51,21 +55,26 @@ export class ColorController extends Disposable implements IEditorContribution {
 				let subKey = hash(rgba).toString(16);
 				let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 				let key = 'colorBox-' + subKey;
-				this._codeEditorService.registerDecorationType(key, {
-					before: {
-						contentText: ' ',
-						border: 'solid 0.1em #000',
-						margin: '0.1em 0.2em 0 0.2em',
-						width: '0.8em',
-						height: '0.8em',
-						backgroundColor: color
-					},
-					dark: {
+
+				if (!this._decorationsTypes[key] && !newDecorationsTypes[key]) {
+					this._codeEditorService.registerDecorationType(key, {
 						before: {
-							border: 'solid 0.1em #eee'
+							contentText: ' ',
+							border: 'solid 0.1em #000',
+							margin: '0.1em 0.2em 0 0.2em',
+							width: '0.8em',
+							height: '0.8em',
+							backgroundColor: color
+						},
+						dark: {
+							before: {
+								border: 'solid 0.1em #eee'
+							}
 						}
-					}
-				});
+					});
+				}
+
+				newDecorationsTypes[key] = true;
 				decorations.push({
 					range: {
 						startLineNumber: colorInfos[i].range.startLineNumber,
@@ -77,6 +86,12 @@ export class ColorController extends Disposable implements IEditorContribution {
 				});
 			}
 
+			for (let subType in this._decorationsTypes) {
+				if (!newDecorationsTypes[subType]) {
+					this._codeEditorService.removeDecorationType(subType);
+				}
+			}
+
 			this._editor.changeDecorations((changeAccessor) => {
 				this._decorations = changeAccessor.deltaDecorations(this._decorations, decorations);
 			});
@@ -85,5 +100,12 @@ export class ColorController extends Disposable implements IEditorContribution {
 
 	getId(): string {
 		return ColorController.ID;
+	}
+
+	public dispose(): void {
+		for (let subType in this._decorationsTypes) {
+			this._codeEditorService.removeDecorationType(subType);
+		}
+		super.dispose();
 	}
 }
