@@ -6,7 +6,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
-import { LanguageMode } from './languageModes';
+import { LanguageMode, Settings } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
@@ -60,14 +60,14 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 	let jsLanguageService = ts.createLanguageService(host);
 
-	let settings: any = {};
+	let globalSettings: Settings = {};
 
 	return {
 		getId() {
 			return 'javascript';
 		},
 		configure(options: any) {
-			settings = options && options.javascript;
+			globalSettings = options;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
@@ -242,12 +242,14 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return null;
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
 			scriptFileVersion++;
 
+			let formatterSettings = settings && settings.javascript && settings.javascript.format;
+
 			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
-			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel + 1);
+			let formatSettings = convertOptions(formatParams, formatterSettings, initialIndentLevel + 1);
 			let start = currentTextDocument.offsetAt(range.start);
 			let end = currentTextDocument.offsetAt(range.end);
 			let lastLineRange = null;

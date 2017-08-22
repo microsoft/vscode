@@ -179,6 +179,17 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		});
 	}
 
+	public isCheapToTokenize(lineNumber: number): boolean {
+		const firstInvalidLineNumber = this._invalidLineStartIndex + 1;
+		return (firstInvalidLineNumber >= lineNumber);
+	}
+
+	public tokenizeIfCheap(lineNumber: number): void {
+		if (this.isCheapToTokenize(lineNumber)) {
+			this.forceTokenization(lineNumber);
+		}
+	}
+
 	public getLineTokens(lineNumber: number): LineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');

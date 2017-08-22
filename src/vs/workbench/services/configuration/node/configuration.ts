@@ -33,7 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
+import { getWorkspaceLabel, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 interface IStat {
 	resource: URI;

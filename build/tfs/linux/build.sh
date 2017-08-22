@@ -18,6 +18,9 @@ echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 step "Install dependencies" \
 	npm install --arch=$ARCH --unsafe-perm
 
+step "Hygiene" \
+	npm run gulp -- hygiene
+
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
@@ -28,10 +31,10 @@ step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js --arch=$ARCH
 
 step "Build minified" \
-	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
+	npm run gulp -- "vscode-linux-$ARCH-min"
 
-step "Create loader snapshot"
-	node build/lib/snapshotLoader.js --arch=$ARCH
+# step "Create loader snapshot"
+# 	node build/lib/snapshotLoader.js --arch=$ARCH
 
 step "Run unit tests" \
 	./scripts/test.sh --build --reporter dot

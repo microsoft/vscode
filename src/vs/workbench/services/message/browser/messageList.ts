@@ -35,11 +35,13 @@ export enum Severity {
 export interface IMessageWithAction {
 	message: string;
 	actions: Action[];
+	source: string;
 }
 
 interface IMessageEntry {
 	id: any;
 	text: string;
+	source: string;
 	severity: Severity;
 	time: number;
 	count?: number;
@@ -199,6 +201,7 @@ export class MessageList {
 			severity: severity,
 			time: Date.now(),
 			actions: (<IMessageWithAction>id).actions,
+			source: (<IMessageWithAction>id).source,
 			onHide
 		});
 
@@ -339,7 +342,12 @@ export class MessageList {
 					className: 'message-left-side',
 				});
 
-				$(messageContentElement as HTMLElement).title(messageContentElement.textContent).appendTo(div);
+				// Hover title
+				const title = message.source ? `[${message.source}] ${messageContentElement.textContent}` : messageContentElement.textContent;
+
+				sevLabel.title(title);
+
+				$(messageContentElement as HTMLElement).title(title).appendTo(div);
 			});
 		});
 	}

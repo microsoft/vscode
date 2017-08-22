@@ -54,19 +54,25 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var ops: editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			// We have to adjust to possible inner white space
-			// For Space after startToken, add Space to startToken - range math will work out
-			if (model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
-				startToken += ' ';
+			var endTokenBeforeCursorIndex = model.getLineContent(startLineNumber).lastIndexOf(endToken, startColumn - 1 + endToken.length);
+			if (endTokenBeforeCursorIndex > startTokenIndex + startToken.length - 1) {
+				ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
+				this._usedEndToken = ops.length === 1 ? endToken : null;
+			} else {
+				// We have to adjust to possible inner white space
+				// For Space after startToken, add Space to startToken - range math will work out
+				if (model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+					startToken += ' ';
+				}
+				// For Space before endToken, add Space before endToken and shift index one left
+				if (model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+					endToken = ' ' + endToken;
+					endTokenIndex -= 1;
+				}
+				ops = BlockCommentCommand._createRemoveBlockCommentOperations(
+					new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
+				);
 			}
-			// For Space before endToken, add Space before endToken and shift index one left
-			if (model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
-				endToken = ' ' + endToken;
-				endTokenIndex -= 1;
-			}
-			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
-				new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
-			);
 		} else {
 			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
@@ -129,7 +135,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		model.forceTokenization(startLineNumber);
+		model.tokenizeIfCheap(startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {

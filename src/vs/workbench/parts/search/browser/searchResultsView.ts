@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getPathLabel } from 'vs/base/common/labels';
-import { FileKind } from "vs/platform/files/common/files";
+import { FileKind } from 'vs/platform/files/common/files';
 
 export class SearchDataSource implements IDataSource {
 
@@ -114,6 +114,7 @@ export class SearchSorter implements ISorter {
 interface IFolderMatchTemplate {
 	label: FileLabel;
 	badge: CountBadge;
+	actions: ActionBar;
 }
 
 interface IFileMatchTemplate {
@@ -193,7 +194,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const label = this.instantiationService.createInstance(FileLabel, folderMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
-		return { label, badge };
+		const actions = new ActionBar(folderMatchElement, { animated: false });
+		return { label, badge, actions };
 	}
 
 	private renderFileMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileMatchTemplate {
@@ -234,6 +236,9 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		let count = folderMatch.fileCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
+
+		templateData.actions.clear();
+		templateData.actions.push([new RemoveAction(tree, folderMatch)], { icon: true, label: false });
 	}
 
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {

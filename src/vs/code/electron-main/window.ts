@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
-import URI from "vs/base/common/uri";
+import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -23,9 +23,9 @@ import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
-import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-import { IBackupMainService } from "vs/platform/backup/common/backup";
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
 
 export interface IWindowState {
 	width?: number;
@@ -511,10 +511,14 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public reload(cli?: ParsedArgs): void {
+	public reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
 
-		// Inherit current properties but overwrite some
-		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
+		// If config is not provided, copy our current one
+		if (!configuration) {
+			configuration = objects.mixin({}, this.currentConfig);
+		}
+
+		// Delete some properties we do not want during reload
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;

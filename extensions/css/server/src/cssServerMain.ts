@@ -8,6 +8,7 @@ import {
 	createConnection, IConnection, Range,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
 } from 'vscode-languageserver';
+import { GetConfigurationRequest } from 'vscode-languageserver/lib/protocol.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
@@ -43,10 +44,20 @@ connection.onShutdown(() => {
 	stylesheets.dispose();
 });
 
+let scopedSettingsSupport = false;
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
+	function hasClientCapability(name: string) {
+		let keys = name.split('.');
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
+		}
+		return !!c;
+	}
+	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
+	scopedSettingsSupport = hasClientCapability('workspace.configuration');
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -78,6 +89,20 @@ function getLanguageService(document: TextDocument) {
 	return service;
 }
 
+let documentSettings: { [key: string]: Thenable<LanguageSettings> } = {};
+function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings> {
+	if (scopedSettingsSupport) {
+		let promise = documentSettings[textDocument.uri];
+		if (!promise) {
+			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
+			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => s[0]);
+			documentSettings[textDocument.uri] = promise;
+		}
+		return promise;
+	}
+	return void 0;
+}
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration(change => {
 	updateConfiguration(<Settings>change.settings);
@@ -87,6 +112,8 @@ function updateConfiguration(settings: Settings) {
 	for (let languageId in languageServices) {
 		languageServices[languageId].configure(settings[languageId]);
 	}
+	// reset all document settings
+	documentSettings = {};
 	// Revalidate any open text documents
 	documents.all().forEach(triggerValidation);
 }
@@ -123,10 +150,13 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
+	let settingsPromise = getDocumentSettings(textDocument);
 	let stylesheet = stylesheets.get(textDocument);
-	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
-	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	settingsPromise.then(settings => {
+		let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+		// Send the computed diagnostics to VSCode.
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	});
 }
 
 connection.onCompletion(textDocumentPosition => {

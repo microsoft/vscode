@@ -23,7 +23,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
+import { IExperimentService, ExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -40,7 +40,6 @@ import { RequestService } from 'vs/platform/request/electron-browser/requestServ
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -50,19 +49,18 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -78,7 +76,6 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -93,7 +90,11 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
+import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { StorageService } from 'vs/platform/storage/common/storageService';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
+import { once } from 'vs/base/common/event';
 
 /**
  * Services that we require for the Shell
@@ -117,11 +118,11 @@ export class WorkbenchShell {
 	private messageService: MessageService;
 	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
-	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: MainProcessExtensionService;
+	private experimentService: IExperimentService;
+	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
@@ -134,6 +135,7 @@ export class WorkbenchShell {
 	private previousErrorTime: number;
 	private content: HTMLElement;
 	private contentsContainer: Builder;
+	private shutdownListener: IDisposable;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
@@ -212,7 +214,7 @@ export class WorkbenchShell {
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: loadExperiments(),
+			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditors.length,
@@ -267,6 +269,10 @@ export class WorkbenchShell {
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
 
+		// Experiments
+		this.experimentService = instantiationService.createInstance(ExperimentService);
+		serviceCollection.set(IExperimentService, this.experimentService);
+
 		// Telemetry
 		this.sendMachineIdToMain(this.storageService);
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
@@ -313,6 +319,7 @@ export class WorkbenchShell {
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
 		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
+		this.toUnbind.push(lifecycleService.onWillShutdown(event => this.onWillShutdown(event)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		disposables.push(lifecycleTelemetry(this.telemetryService, lifecycleService));
 		this.lifecycleService = lifecycleService;
@@ -324,15 +331,10 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 		disposables.push(extensionEnablementService);
 
-		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
-		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
-		serviceCollection.set(IThreadService, this.threadService);
+		this.extensionService = instantiationService.createInstance(ExtensionService);
+		serviceCollection.set(IExtensionService, this.extensionService);
 
 		this.timerService.beforeExtensionLoad = Date.now();
-
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
-		serviceCollection.set(IExtensionService, this.extensionService);
-		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
 			this.timerService.afterExtensionLoad = Date.now();
 		});
@@ -442,6 +444,33 @@ export class WorkbenchShell {
 		return this.workbench.joinCreation();
 	}
 
+	private onWillShutdown(event: ShutdownEvent): void {
+
+		// The shutdown sequence could have been stopped due to a veto. Make sure to
+		// always dispose the shutdown listener if we are called again in the same session.
+		if (this.shutdownListener) {
+			this.shutdownListener.dispose();
+			this.shutdownListener = void 0;
+		}
+
+		if (event.reason === ShutdownReason.RELOAD) {
+			const workspace = event.payload;
+
+			// We are transitioning into a workspace from an empty workspace or folder workspace
+			// As such we want to migrate UI state from the current workspace to the new one. Since
+			// many components write to storage only on shutdown, we register a shutdown listener
+			// very late to be called as the last one.
+			if (isWorkspaceIdentifier(workspace) && !this.contextService.hasMultiFolderWorkspace()) {
+				this.shutdownListener = once(this.lifecycleService.onShutdown)(() => {
+
+					// TODO@Ben revisit this when we move away from local storage to a file based approach
+					const storageImpl = this.storageService as StorageService;
+					migrateStorageToMultiRootWorkspace(storageImpl.storageId, workspace, storageImpl.workspaceStorage);
+				});
+			}
+		}
+	}
+
 	public dispose(): void {
 
 		// Workbench
@@ -453,6 +482,11 @@ export class WorkbenchShell {
 
 		// Listeners
 		this.toUnbind = dispose(this.toUnbind);
+
+		if (this.shutdownListener) {
+			this.shutdownListener.dispose();
+			this.shutdownListener = void 0;
+		}
 
 		// Container
 		$(this.container).empty();

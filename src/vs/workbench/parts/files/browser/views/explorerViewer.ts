@@ -353,8 +353,11 @@ export class FileRenderer implements IRenderer {
 				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
 			}
 
+			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
 			setTimeout(() => {
-				tree.DOMFocus();
+				if (restoreFocus) {
+					tree.DOMFocus();
+				}
 				lifecycle.dispose(toDispose);
 				container.removeChild(label.element);
 			}, 0);
@@ -445,7 +448,7 @@ export class FileController extends DefaultController {
 		tree.DOMFocus();
 
 		// Expand / Collapse
-		tree.toggleExpansion(stat);
+		tree.toggleExpansion(stat, event.altKey);
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
@@ -559,18 +562,6 @@ export class FileSorter implements ISorter {
 
 		// Sort Directories
 		switch (this.sortOrder) {
-			case 'default':
-			case 'modified':
-				if (statA.isDirectory && !statB.isDirectory) {
-					return -1;
-				}
-
-				if (statB.isDirectory && !statA.isDirectory) {
-					return 1;
-				}
-
-				break;
-
 			case 'type':
 				if (statA.isDirectory && !statB.isDirectory) {
 					return -1;
@@ -596,6 +587,17 @@ export class FileSorter implements ISorter {
 				}
 
 				break;
+
+			default: /* 'default', 'modified' */
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				break;
 		}
 
 		// Sort "New File/Folder" placeholders
@@ -609,11 +611,6 @@ export class FileSorter implements ISorter {
 
 		// Sort Files
 		switch (this.sortOrder) {
-			case 'default':
-			case 'mixed':
-			case 'filesFirst':
-				return comparers.compareFileNames(statA.name, statB.name);
-
 			case 'type':
 				return comparers.compareFileExtensions(statA.name, statB.name);
 
@@ -622,6 +619,9 @@ export class FileSorter implements ISorter {
 					return statA.mtime < statB.mtime ? 1 : -1;
 				}
 
+				return comparers.compareFileNames(statA.name, statB.name);
+
+			default: /* 'default', 'mixed', 'filesFirst' */
 				return comparers.compareFileNames(statA.name, statB.name);
 		}
 	}

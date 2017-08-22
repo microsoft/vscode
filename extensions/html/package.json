@@ -75,11 +75,13 @@
       "properties": {
         "html.format.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
           "description": "%html.format.enable.desc%"
         },
         "html.format.wrapLineLength": {
           "type": "integer",
+          "scope": "resource",
           "default": 120,
           "description": "%html.format.wrapLineLength.desc%"
         },
@@ -88,6 +90,7 @@
             "string",
             "null"
           ],
+          "scope": "resource",
           "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
           "description": "%html.format.unformatted.desc%"
         },
@@ -96,16 +99,19 @@
             "string",
             "null"
           ],
+          "scope": "resource",
           "default": "pre",
           "description": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%html.format.indentInnerHtml.desc%"
         },
         "html.format.preserveNewLines": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.format.preserveNewLines.desc%"
         },
@@ -114,16 +120,19 @@
             "number",
             "null"
           ],
+          "scope": "resource",
           "default": null,
           "description": "%html.format.maxPreserveNewLines.desc%"
         },
         "html.format.indentHandlebars": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%html.format.indentHandlebars.desc%"
         },
         "html.format.endWithNewline": {
           "type": "boolean",
+          "scope": "resource",
           "default": false,
           "description": "%html.format.endWithNewline.desc%"
         },
@@ -132,11 +141,13 @@
             "string",
             "null"
           ],
+          "scope": "resource",
           "default": "head, body, /html",
           "description": "%html.format.extraLiners.desc%"
         },
         "html.format.wrapAttributes": {
           "type": "string",
+          "scope": "resource",
           "default": "auto",
           "enum": [
             "auto",
@@ -154,31 +165,37 @@
         },
         "html.suggest.angular1": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.suggest.angular1.desc%"
         },
         "html.suggest.ionic": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.suggest.html5.desc%"
         },
         "html.validate.scripts": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.validate.scripts%"
         },
         "html.validate.styles": {
           "type": "boolean",
+          "scope": "resource",
           "default": true,
           "description": "%html.validate.styles%"
         },
         "html.trace.server": {
           "type": "string",
+          "scope": "window",
           "enum": [
             "off",
             "messages",
@@ -192,8 +209,8 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.1.0-alpha.1",
-    "vscode-languageserver-types": "3.0.3",
+    "vscode-languageclient": "3.4.0-next.10",
+    "vscode-languageserver-types": "^3.3.0",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {

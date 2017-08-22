@@ -81,6 +81,7 @@
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: pre;
 }
 
 .monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {

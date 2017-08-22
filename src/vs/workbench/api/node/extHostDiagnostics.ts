@@ -5,12 +5,11 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import { mergeSort } from 'vs/base/common/arrays';
 
@@ -217,16 +216,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
+export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
 	private _proxy: MainThreadDiagnosticsShape;
 	private _collections: DiagnosticCollection[];
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadDiagnostics);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}
 

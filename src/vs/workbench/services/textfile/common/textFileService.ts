@@ -270,6 +270,11 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
+
+			// Make sure to revert untitled so that they do not restore
+			// see https://github.com/Microsoft/vscode/issues/29572
+			this.untitledEditorService.revertAll();
+
 			return this.noVeto({ cleanUpBackups: true });
 		}
 
@@ -556,7 +561,7 @@ export abstract class TextFileService implements ITextFileService {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
 
-		return modelPromise.then(model => {
+		return modelPromise.then<any>(model => {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {

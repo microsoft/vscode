@@ -17,17 +17,17 @@ export interface IWorkspaceContextService {
 	_serviceBrand: any;
 
 	/**
-	 * Returns iff the application was opened with a workspace or not.
+	 * Returns if the application was opened with a workspace or not.
 	 */
 	hasWorkspace(): boolean;
 
 	/**
-	 * Returns iff the application was opened with a folder.
+	 * Returns if the application was opened with a folder.
 	 */
 	hasFolderWorkspace(): boolean;
 
 	/**
-	 * Returns iff the application was opened with a workspace that can have one or more folders.
+	 * Returns if the application was opened with a workspace that can have one or more folders.
 	 */
 	hasMultiFolderWorkspace(): boolean;
 
@@ -65,7 +65,7 @@ export interface IWorkspaceContextService {
 	getRoot(resource: URI): URI;
 
 	/**
-	 * Returns iff the provided resource is inside the workspace or not.
+	 * Returns if the provided resource is inside the workspace or not.
 	 */
 	isInsideWorkspace(resource: URI): boolean;
 
@@ -142,7 +142,7 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 
 export class Workspace implements IWorkspace {
 
-	private _rootsMap: TrieMap<URI> = new TrieMap<URI>(TrieMap.PathSplitter);
+	private _rootsMap: TrieMap<URI> = new TrieMap<URI>();
 
 	constructor(
 		public readonly id: string,
@@ -187,7 +187,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateRootsMap(): void {
-		this._rootsMap = new TrieMap<URI>(TrieMap.PathSplitter);
+		this._rootsMap = new TrieMap<URI>();
 		for (const root of this.roots) {
 			this._rootsMap.insert(root.fsPath, root);
 		}

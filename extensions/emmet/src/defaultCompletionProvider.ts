@@ -33,7 +33,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
 		let newItems: vscode.CompletionItem[] = [];
-		if (result.items) {
+		if (result && result.items) {
 			result.items.forEach(item => {
 				let newItem = new vscode.CompletionItem(item.label);
 				newItem.documentation = item.documentation;
@@ -72,9 +72,13 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			const currentHtmlNode = <HtmlNode>currentNode;
 			if (currentHtmlNode
 				&& currentHtmlNode.close
-				&& currentHtmlNode.name === 'style'
 				&& getInnerRange(currentHtmlNode).contains(position)) {
-				return 'css';
+				if (currentHtmlNode.name === 'style') {
+					return 'css';
+				}
+				if (currentHtmlNode.name === 'script') {
+					return;
+				}
 			}
 		}
 

@@ -12,6 +12,8 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
+import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
+
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
@@ -34,7 +36,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -59,6 +61,8 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
+	client.registerFeature(new ConfigurationFeature(client));
+
 	let disposable = client.start();
 	context.subscriptions.push(disposable);
 	client.onReady().then(() => {

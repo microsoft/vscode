@@ -34,6 +34,11 @@ function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwri
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
 }
 
+function cursorCommandAndTokenize(model: Model, cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
+	cursor.trigger(overwriteSource || 'tests', command, extraData);
+	model.forceTokenization(model.getLineCount());
+}
+
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
 		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(cursor, {
@@ -2264,7 +2269,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
 
 			moveTo(cursor, 3, 13, false);
@@ -2327,7 +2332,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 2, 14, false);
 			assertCursor(cursor, new Selection(2, 14, 2, 14));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(3, 1, 3, 1));
 
 			moveTo(cursor, 5, 16, false);
@@ -2358,7 +2363,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 2, 11, false);
 			assertCursor(cursor, new Selection(2, 11, 2, 11));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(3, 3, 3, 3));
 
 			cursorCommand(cursor, H.Type, { text: 'console.log();' }, 'keyboard');
@@ -2447,6 +2452,8 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 5, 2, 5));
 
+			model.forceTokenization(model.getLineCount());
+
 			moveTo(cursor, 3, 13, false);
 			assertCursor(cursor, new Selection(3, 13, 3, 13));
 
@@ -2467,7 +2474,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 5, 2, 5));
 
 			moveTo(cursor, 3, 16, false);
@@ -2491,7 +2498,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			moveTo(cursor, 1, 12, false);
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 
-			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			cursorCommandAndTokenize(model, cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(2, 2, 2, 2));
 
 			moveTo(cursor, 3, 16, false);
@@ -3109,6 +3116,7 @@ interface ICursorOpts {
 
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
+	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts);
 	let viewModel = new ViewModel(0, config, model);
 	let cursor = new Cursor(config, model, viewModel);
@@ -3463,6 +3471,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -3505,6 +3514,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === ColumnType.Special2) {
@@ -3547,42 +3557,50 @@ suite('autoClosingPairs', () => {
 			}
 
 			// First gif
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste1 = teste\' ok');
 			assert.equal(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste2 = teste \'ok');
 			assert.equal(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste3 = teste" ok');
 			assert.equal(model.getLineContent(3), 'teste3 = teste" ok');
 
 			cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste4 = teste "ok');
 			assert.equal(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste \'');
 			assert.equal(model.getLineContent(5), 'teste \'\'');
 
 			cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste "');
 			assert.equal(model.getLineContent(6), 'teste ""');
 
 			cursor.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste\'');
 			assert.equal(model.getLineContent(7), 'teste\'');
 
 			cursor.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
 		});

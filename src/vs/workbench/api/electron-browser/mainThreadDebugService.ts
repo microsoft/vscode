@@ -6,23 +6,22 @@
 
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, IConfig } from 'vs/workbench/parts/debug/common/debug';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadDebugService extends MainThreadDebugServiceShape {
+@extHostNamedCustomer(MainContext.MainThreadDebugService)
+export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IDebugService private debugService: IDebugService
 	) {
-		super();
-
-		this._proxy = threadService.get(ExtHostContext.ExtHostDebugService);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
@@ -45,6 +44,31 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 		this._toDispose = dispose(this._toDispose);
 	}
 
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, handle: number): TPromise<void> {
+
+		const provider = <IDebugConfigurationProvider>{
+			type: debugType
+		};
+		if (hasProvide) {
+			provider.provideDebugConfigurations = (folder: URI | undefined) => {
+				return this._proxy.$provideDebugConfigurations(handle, folder);
+			};
+		}
+		if (hasResolve) {
+			provider.resolveDebugConfiguration = (folder: URI | undefined, debugConfiguration: any) => {
+				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
+			};
+		}
+		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
+
+		return TPromise.as<void>(undefined);
+	}
+
+	public $unregisterDebugConfigurationProvider(handle: number): TPromise<any> {
+		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
+		return TPromise.as<void>(undefined);
+	}
+
 	public $startDebugging(folderUri: URI | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
 		return this.debugService.startDebugging(folderUri, nameOrConfiguration).then(x => {
 			return true;
@@ -61,7 +85,7 @@ export class MainThreadDebugService extends MainThreadDebugServiceShape {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}
-			return TPromise.wrapError(new Error('cannot create debug session'));
+			return TPromise.wrapError<DebugSessionUUID>(new Error('cannot create debug session'));
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});

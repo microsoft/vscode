@@ -44,6 +44,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 					return undefined;
 				}, err => {
 					onUnexpectedExternalError(err);
+					return undefined;
 				});
 			}
 			return undefined;

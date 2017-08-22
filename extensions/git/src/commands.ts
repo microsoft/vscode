@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -153,10 +153,10 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource);
+		await this._openResource(resource, undefined, true);
 	}
 
-	private async _openResource(resource: Resource, preview?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -168,8 +168,8 @@ export class CommandCenter {
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preserveFocus: true,
-			preview: preview,
+			preserveFocus,
+			preview,
 			viewColumn: window.activeTextEditor && window.activeTextEditor.viewColumn || ViewColumn.One
 		};
 
@@ -278,9 +278,12 @@ export class CommandCenter {
 		}
 
 		const clonePromise = this.git.clone(url, parentPath);
-		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
+
 
 		try {
+			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+
 			const repositoryPath = await clonePromise;
 
 			const open = localize('openrepo', "Open Repository");
@@ -308,6 +311,8 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
+
 		let uris: Uri[] | undefined;
 
 		if (arg instanceof Uri) {
@@ -342,7 +347,7 @@ export class CommandCenter {
 				: undefined;
 
 			const opts: TextDocumentShowOptions = {
-				preserveFocus: true,
+				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
@@ -384,6 +389,7 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const preserveFocus = !!arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -412,7 +418,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(resource, preview);
+			await this._openResource(resource, preview, preserveFocus);
 		}
 	}
 
@@ -603,11 +609,25 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		let message: string;
+		let yes = localize('discard', "Discard Changes");
 
-		const yes = localize('discard', "Discard Changes");
+		if (resources.length === 1) {
+			if (untrackedCount > 0) {
+				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+				yes = localize('delete file', "Delete file");
+			} else {
+				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath));
+			}
+		} else {
+			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+
+			if (untrackedCount > 0) {
+				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
+			}
+		}
+
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -619,15 +639,73 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
-		const yes = localize('discardAll', "Discard ALL Changes");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+		let resources = this.model.workingTreeGroup.resources;
 
-		if (pick !== yes) {
+		if (resources.length === 0) {
 			return;
 		}
 
-		await this.model.clean(...this.model.workingTreeGroup.resources);
+		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+
+		if (untrackedResources.length === 0) {
+			const message = resources.length === 1
+				? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+				: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+			const yes = resources.length === 1
+				? localize('discardAll multiple', "Discard 1 File")
+				: localize('discardAll', "Discard All {0} Files", resources.length);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+
+			await this.model.clean(...resources);
+			return;
+		} else if (resources.length === 1) {
+			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+			const yes = localize('delete file', "Delete file");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+
+			await this.model.clean(...resources);
+		} else if (trackedResources.length === 0) {
+			const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+			const yes = localize('delete files', "Delete Files");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+
+			await this.model.clean(...resources);
+
+		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
+			const untrackedMessage = untrackedResources.length === 1
+				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
+				: localize('there are untracked files', "There are {0} untracked files which will be DELETED FROM DISK if discarded.", untrackedResources.length);
+
+			const message = localize('confirm discard all 2', "{0}\n\nThis is IRREVERSIBLE, your current working set will be FOREVER LOST.", untrackedMessage, resources.length);
+
+			const yesTracked = trackedResources.length === 1
+				? localize('yes discard tracked', "Discard 1 Tracked File", trackedResources.length)
+				: localize('yes discard tracked multiple', "Discard {0} Tracked Files", trackedResources.length);
+
+			const yesAll = localize('discardAll', "Discard All {0} Files", resources.length);
+			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
+
+			if (pick === yesTracked) {
+				resources = trackedResources;
+			} else if (pick !== yesAll) {
+				return;
+			}
+
+			await this.model.clean(...resources);
+		}
 	}
 
 	private async smartCommit(
@@ -734,6 +812,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput({ all: false, signoff: true });
 	}
 
+	@command('git.commitStagedAmend')
+	async commitStagedAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: false, amend: true });
+	}
+
 	@command('git.commitAll')
 	async commitAll(): Promise<void> {
 		await this.commitWithAnyInput({ all: true });
@@ -742,6 +825,11 @@ export class CommandCenter {
 	@command('git.commitAllSigned')
 	async commitAllSigned(): Promise<void> {
 		await this.commitWithAnyInput({ all: true, signoff: true });
+	}
+
+	@command('git.commitAllAmend')
+	async commitAllAmend(): Promise<void> {
+		await this.commitWithAnyInput({ all: true, amend: true });
 	}
 
 	@command('git.undoCommit')
@@ -1118,6 +1206,57 @@ export class CommandCenter {
 		}
 
 		await this.model.ignore(uris);
+	}
+
+	@command('git.stash')
+	async stash(): Promise<void> {
+		if (this.model.workingTreeGroup.resources.length === 0) {
+			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
+			return;
+		}
+
+		const message = await window.showInputBox({
+			prompt: localize('provide stash message', "Optionally provide a stash message"),
+			placeHolder: localize('stash message', "Stash message")
+		});
+
+		if (typeof message === 'undefined') {
+			return;
+		}
+
+		await this.model.createStash(message);
+	}
+
+	@command('git.stashPop')
+	async stashPop(): Promise<void> {
+		const stashes = await this.model.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+
+		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
+		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
+		const choice = await window.showQuickPick(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await this.model.popStash(choice.id);
+	}
+
+	@command('git.stashPopLatest')
+	async stashPopLatest(): Promise<void> {
+		const stashes = await this.model.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			return;
+		}
+
+		await this.model.popStash();
 	}
 
 	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {

@@ -19,9 +19,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
-import { Schemas } from "vs/base/common/network";
-import { FileKind } from "vs/platform/files/common/files";
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { Schemas } from 'vs/base/common/network';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IEditorLabel {
 	name: string;

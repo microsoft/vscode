@@ -23,7 +23,6 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
-export const CONTEXT_IS_NODE_DEBUG_TYPE = new RawContextKey<boolean>('_isNodeDebugType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', undefined);
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -373,6 +372,12 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
+export interface IDebugConfigurationProvider {
+	type: string;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<any[]>;
+}
+
 export interface IConfigurationManager {
 	/**
 	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
@@ -403,6 +408,10 @@ export interface IConfigurationManager {
 	 * the active editor language and matching it against the "languages" contribution of an adapter.
 	 */
 	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
+
+	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
+	unregisterDebugConfigurationProvider(handle): void;
+	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {

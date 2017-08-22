@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { JavaScript } from "../areas/javascript";
+import { JavaScript } from '../areas/javascript';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testJavaScript() {
-	context('JavaScript', () => {
+	describe('JavaScript', () => {
 		let js: JavaScript;
 
 		beforeEach(async function () {

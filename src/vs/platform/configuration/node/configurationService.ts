@@ -13,7 +13,7 @@ import { ConfigurationSource, IConfigurationService, IConfigurationServiceEvent,
 import { CustomConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { onUnexpectedError } from "vs/base/common/errors";
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ConfigurationService<T> extends Disposable implements IConfigurationService, IDisposable {
 

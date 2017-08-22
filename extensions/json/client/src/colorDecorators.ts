@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorInfo } from 'vscode';
+import { window, workspace, DecorationOptions, DecorationRenderOptions, Disposable, Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
 
 const MAX_DECORATORS = 500;
 
@@ -108,9 +108,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 					let decorations = [];
 					for (let i = 0; i < ranges.length && decorations.length < MAX_DECORATORS; i++) {
 						let range = ranges[i];
-						let text = document.getText(range);
-						let value = <string>JSON.parse(text);
-						let c = Color.fromHex(value);
+						let c = parseColorFromRange(document, range);
 						if (c) {
 							decorations.push(<DecorationOptions>{
 								range: range,
@@ -132,26 +130,37 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 }
 
 const ColorFormat_HEX = {
-	opaque: '#{red:X}{green:X}{blue:X}',
-	transparent: '#{red:X}{green:X}{blue:X}{alpha:X}'
+	opaque: '"#{red:X}{green:X}{blue:X}"',
+	transparent: '"#{red:X}{green:X}{blue:X}{alpha:X}"'
 };
 
 export class ColorProvider implements DocumentColorProvider {
 
 	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
 
-	async provideDocumentColors(document: TextDocument): Promise<ColorInfo[]> {
+	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
 		const ranges = await this.decoratorProvider(document.uri.toString());
 		const result = [];
 		for (let range of ranges) {
-			let text = document.getText(range);
-			let value = <string>JSON.parse(text);
-			let color = Color.fromHex(value);
+			let color = parseColorFromRange(document, range);
 			if (color) {
-				let r = new Range(range.start.line, range.start.character + 1, range.end.line, range.end.character - 1);
-				result.push(new ColorInfo(r, color, ColorFormat_HEX, [ColorFormat_HEX]));
+				let r = new Range(range.start.line, range.start.character, range.end.line, range.end.character);
+				result.push(new ColorRange(r, color, [ColorFormat_HEX]));
 			}
 		}
 		return result;
 	}
+}
+
+function parseColorFromRange(document: TextDocument, range: Range) {
+	let text = document.getText(range);
+	try {
+		let value = <string>JSON.parse(text);
+		if (typeof value === 'string') {
+			return Color.fromHex(value);
+		}
+	} catch (e) {
+		// ignore JSON parse error
+	}
+	return null;
 }

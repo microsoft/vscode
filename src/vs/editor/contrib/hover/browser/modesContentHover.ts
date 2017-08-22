@@ -14,7 +14,7 @@ import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/ope
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { HoverProviderRegistry, Hover, IColor, IColorFormat } from 'vs/editor/common/modes';
+import { HoverProviderRegistry, Hover, IColor, IColorFormatter } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
@@ -25,7 +25,6 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { IColorFormatter, ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, empty as EmptyDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 const $ = dom.$;
@@ -35,8 +34,7 @@ class ColorHover {
 	constructor(
 		public readonly range: IRange,
 		public readonly color: IColor,
-		public readonly format: IColorFormat,
-		public readonly availableFormats: IColorFormat[]
+		public readonly formatters: IColorFormatter[]
 	) { }
 }
 
@@ -106,8 +104,8 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			if (!didFindColor && colorRange) {
 				didFindColor = true;
 
-				const { color, format, availableFormats } = colorRange;
-				return new ColorHover(d.range, color, format, availableFormats);
+				const { color, formatters } = colorRange;
+				return new ColorHover(d.range, color, formatters);
 			} else {
 				if (!hasHoverContent(d.options.hoverMessage)) {
 					return null;
@@ -160,12 +158,6 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
-}
-
-function createColorFormatter(format: IColorFormat): IColorFormatter {
-	return typeof format === 'string'
-		? new ColorFormatter(format)
-		: new CombinedColorFormatter(new ColorFormatter(format.opaque), new ColorFormatter(format.transparent));
 }
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
@@ -345,19 +337,30 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
-				const formatter = createColorFormatter(msg.format);
-				const availableFormatters = msg.availableFormats.map(format => createColorFormatter(format));
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
+				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
 				const color = new Color(rgba);
-				const model = new ColorPickerModel(color, formatter, availableFormatters);
+
+				const formatters = [...msg.formatters];
+				const text = this._editor.getModel().getValueInRange(msg.range);
+
+				let formatterIndex = 0;
+
+				for (let i = 0; i < formatters.length; i++) {
+					if (text === formatters[i].format(color)) {
+						formatterIndex = i;
+						break;
+					}
+				}
+
+				const model = new ColorPickerModel(color, formatters, formatterIndex);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
 
 				const editorModel = this._editor.getModel();
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
 
 				const updateEditorModel = () => {
-					const text = model.formatter.formatColor(model.color);
+					const text = model.formatter.format(model.color);
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};

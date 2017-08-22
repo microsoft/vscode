@@ -110,7 +110,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 				this._webview.onDidScroll(event => {
 					this.scrollYPercentage = event.scrollYPercentage;
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(this.onThemeChange, null, this.contentDisposables);
+				this.themeService.onThemeChange(this.onThemeChange, this, this.contentDisposables);
 				this.contentDisposables.push(this._webview);
 				this.contentDisposables.push(toDisposable(() => this._webview = null));
 			});

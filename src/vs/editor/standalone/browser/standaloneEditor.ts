@@ -36,7 +36,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 
 /**
  * @internal
@@ -195,8 +195,8 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
 }
 
 /**
- * Get markers for owner ant/or resource
- * @returns {IMarkerData[]} list of markers
+ * Get markers for owner and/or resource
+ * @returns {IMarker[]} list of markers
  * @param filter
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from "../spectron/application";
+import { SpectronApplication } from '../spectron/application';
 var fs = require('fs');
 
 const __testTime = new Date().toISOString();

@@ -246,7 +246,7 @@ export class TerminalPanel extends Panel {
 					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					uri = URI.file(e.dataTransfer.files[0].path).path;
+					uri = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
 
 				if (!uri) {

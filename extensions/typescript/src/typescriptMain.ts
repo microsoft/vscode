@@ -300,8 +300,7 @@ class LanguageProvider {
 						// ^(.*\*/)?\s*\}.*$
 						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
 						// ^.*\{[^}"']*$
-						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/,
-						indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/
+						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
 					wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 					onEnterRules: [
@@ -327,12 +326,6 @@ class LanguageProvider {
 							// e.g.  *-----*/|
 							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  if (...) | {}
-							beforeText: /^\s*(for|while|if|else)\s*/,
-							afterText: /^\s*{/,
-							action: { indentAction: IndentAction.None }
 						}
 					]
 				}));

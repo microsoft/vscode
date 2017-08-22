@@ -18,11 +18,11 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { tildify } from 'vs/base/common/labels';
-import { KeybindingsResolver } from "vs/code/electron-main/keyboard";
-import { IWindowsMainService, IWindowsCountChangedEvent } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/common/history";
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { tildify, mnemonicLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
+import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
+import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 interface IExtensionViewlet {
 	id: string;
@@ -492,7 +492,7 @@ export class CodeMenu {
 		let label: string;
 		let path: string;
 		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = this.unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
+			label = unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
 			path = workspace;
 		} else {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
@@ -1182,19 +1182,7 @@ export class CodeMenu {
 	}
 
 	private mnemonicLabel(label: string): string {
-		if (isMacintosh || !this.currentEnableMenuBarMnemonics) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac
-		}
-
-		return label.replace(/&&/g, '&');
-	}
-
-	private unmnemonicLabel(label: string): string {
-		if (isMacintosh || !this.currentEnableMenuBarMnemonics) {
-			return label; // no mnemonic support on mac
-		}
-
-		return label.replace(/&/g, '&&');
+		return baseMnemonicLabel(label, !this.currentEnableMenuBarMnemonics);
 	}
 }
 

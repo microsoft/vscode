@@ -3835,7 +3835,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new task.
 		 *
-		 * @param definition The task definition as defined in the taskDefintions extension point.
+		 * @param definition The task definition as defined in the taskDefinitions extension point.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -3893,7 +3893,7 @@ declare module 'vscode' {
 
 	/**
 	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 * A task provider is registered via #workspace.registerTaskProvider.
 	 */
 	export interface TaskProvider {
 		/**
@@ -4678,7 +4678,7 @@ declare module 'vscode' {
 
 	/**
 	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
-	 * are equal which means there is notion of an active or master workspace folder.
+	 * are equal which means there is no notion of an active or master workspace folder.
 	 */
 	export interface WorkspaceFolder {
 
@@ -5304,6 +5304,12 @@ declare module 'vscode' {
 		 * be faded in the UI.
 		 */
 		readonly faded?: boolean;
+
+		/**
+		 * The title for a specific
+		 * [source control resource state](#SourceControlResourceState).
+		 */
+		readonly tooltip?: string;
 
 		/**
 		 * The light theme decorations.

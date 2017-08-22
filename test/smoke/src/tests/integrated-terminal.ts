@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { IntegratedTerminal } from "../areas/integrated-terminal";
+import { IntegratedTerminal } from '../areas/integrated-terminal';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testIntegratedTerminal() {
-	context('Integrated Terminal', () => {
+	describe('Integrated Terminal', () => {
 		let terminal: IntegratedTerminal;
 
 		beforeEach(async function () {

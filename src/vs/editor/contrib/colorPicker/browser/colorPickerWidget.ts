@@ -12,6 +12,8 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPic
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { Color, RGBA, HSVA } from 'vs/base/common/color';
+import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -19,6 +21,7 @@ export class ColorPickerHeader extends Disposable {
 
 	private domNode: HTMLElement;
 	private pickedColorNode: HTMLElement;
+	private backgroundColor: Color;
 
 	constructor(container: HTMLElement, private model: ColorPickerModel) {
 		super();
@@ -31,19 +34,25 @@ export class ColorPickerHeader extends Disposable {
 		const colorBox = dom.append(this.domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor);
 
+		this._register(registerThemingParticipant((theme, collector) => {
+			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
+		}));
+
 		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorFormat()));
+		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => this.model.color = this.model.originalColor));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangeFormatter(this.onDidChangeFormatter, this));
-		this.onDidChangeColor();
+		this.onDidChangeColor(this.model.color);
 	}
 
-	private onDidChangeColor(): void {
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.color);
+	private onDidChangeColor(color: Color): void {
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
+		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangeFormatter();
 	}
 
 	private onDidChangeFormatter(): void {
-		this.pickedColorNode.textContent = this.model.formatter.formatColor(this.model.color);
+		this.pickedColorNode.textContent = this.model.formatter.format(this.model.color);
 	}
 }
 
@@ -268,7 +277,7 @@ class OpacityStrip extends Strip {
 
 	private onDidChangeColor(color: Color): void {
 		const { r, g, b } = color.rgba;
-		const opaque = new Color(new RGBA(r, g, b, 255));
+		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));
 
 		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;
@@ -302,7 +311,7 @@ export class ColorPickerWidget extends Widget {
 
 		this._register(onDidChangeZoomLevel(() => this.layout()));
 
-		const element = $('.editor-widget.colorpicker-widget');
+		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
 		const header = new ColorPickerHeader(element, this.model);

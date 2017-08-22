@@ -270,10 +270,12 @@
 }
 
 .search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
 .search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
 .search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
 .search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .linematch .monaco-count-badge {
-		display: none;
+	display: none;
 }
 
 .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,

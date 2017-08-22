@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-sass/commit/4cc7de72882dc3ab427f0bf2220465032378fb2c",
+	"version": "https://github.com/atom/language-sass/commit/20fdaf75c1b91a6896df3f63c78506009ae860f4",
 	"scopeName": "source.css.scss",
 	"name": "SCSS",
 	"fileTypes": [
@@ -500,9 +500,8 @@
 		"at_rule_media": {
 			"patterns": [
 				{
-					"begin": "^\\s*((@)media\\b)\\s*",
-					"end": "\\s*(?={)",
-					"captures": {
+					"begin": "^\\s*((@)media)\\b",
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.at-rule.media.scss"
 						},
@@ -510,6 +509,7 @@
 							"name": "punctuation.definition.keyword.scss"
 						}
 					},
+					"end": "\\s*(?={)",
 					"name": "meta.at-rule.media.scss",
 					"patterns": [
 						{
@@ -520,7 +520,7 @@
 						},
 						{
 							"match": "\\b(only)\\b",
-							"name": "keyword.control.operator"
+							"name": "keyword.control.operator.css.scss"
 						},
 						{
 							"begin": "\\(",
@@ -1058,7 +1058,7 @@
 			"name": "keyword.operator.comparison.scss"
 		},
 		"logical_operators": {
-			"match": "\\b(not\\b|or\\b|and\\b)",
+			"match": "\\b(not|or|and)\\b",
 			"name": "keyword.operator.logical.scss"
 		},
 		"map": {

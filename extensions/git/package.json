@@ -153,6 +153,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitStagedAmend",
+        "title": "%command.commitStagedAmend%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
         "category": "Git"
@@ -160,6 +165,11 @@
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllAmend",
+        "title": "%command.commitAllAmend%",
         "category": "Git"
       },
       {
@@ -246,6 +256,21 @@
         "command": "git.ignore",
         "title": "%command.ignore%",
         "category": "Git"
+      },
+      {
+        "command": "git.stash",
+        "title": "%command.stash%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashPop",
+        "title": "%command.stashPop%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashPopLatest",
+        "title": "%command.stashPopLatest%",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -323,11 +348,19 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -393,6 +426,18 @@
         {
           "command": "git.showOutput",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPop",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPopLatest",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         }
       ],
       "scm/title": [
@@ -456,12 +501,22 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.commitStagedAmend",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.commitAll",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.commitAllSigned",
+          "group": "3_commit",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.commitAllAmend",
           "group": "3_commit",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
@@ -482,7 +537,22 @@
         },
         {
           "command": "git.showOutput",
-          "group": "5_output",
+          "group": "6_output",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stash",
+          "group": "5_stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPop",
+          "group": "5_stash",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.stashPopLatest",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         }
       ],

@@ -8,8 +8,7 @@
 import * as nls from 'vs/nls';
 import * as Platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
-import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/extensions';
-import Severity from 'vs/base/common/severity';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { groupBy, values } from 'vs/base/common/collections';
 import { join, normalize, extname } from 'path';
@@ -32,52 +31,23 @@ const nlsConfig: NlsConfiguration = {
 	pseudo: Platform.locale === 'pseudo'
 };
 
-export class MessagesCollector {
-
-	private _messages: IMessage[];
-
-	constructor() {
-		this._messages = [];
-	}
-
-	public getMessages(): IMessage[] {
-		return this._messages;
-	}
-
-	private _msg(source: string, type: Severity, message: string): void {
-		this._messages.push({
-			type: type,
-			message: message,
-			source: source,
-			extensionId: undefined,
-			extensionPointId: undefined
-		});
-	}
-
-	public error(source: string, message: string): void {
-		this._msg(source, Severity.Error, message);
-	}
-
-	public warn(source: string, message: string): void {
-		this._msg(source, Severity.Warning, message);
-	}
-
-	public info(source: string, message: string): void {
-		this._msg(source, Severity.Info, message);
-	}
+export interface ILog {
+	error(source: string, message: string): void;
+	warn(source: string, message: string): void;
+	info(source: string, message: string): void;
 }
 
 abstract class ExtensionManifestHandler {
 
 	protected _ourVersion: string;
-	protected _collector: MessagesCollector;
+	protected _log: ILog;
 	protected _absoluteFolderPath: string;
 	protected _isBuiltin: boolean;
 	protected _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, collector: MessagesCollector, absoluteFolderPath: string, isBuiltin: boolean) {
+	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean) {
 		this._ourVersion = ourVersion;
-		this._collector = collector;
+		this._log = log;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
 		this._absoluteManifestPath = join(absoluteFolderPath, MANIFEST_FILE);
@@ -91,7 +61,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			try {
 				return JSON.parse(manifestContents.toString());
 			} catch (e) {
-				this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
+				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
 			}
 			return null;
 		}, (err) => {
@@ -99,7 +69,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 				return null;
 			}
 
-			this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
+			this._log.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
 			return null;
 		});
 	}
@@ -126,16 +96,16 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(messageBundle.original, errors).then(originalMessages => {
 						if (errors.length > 0) {
 							errors.forEach((error) => {
-								this._collector.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, getParseErrorMessage(error.error)));
+								this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, getParseErrorMessage(error.error)));
 							});
 							return extensionDescription;
 						}
 
-						ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, originalMessages, this._collector, this._absoluteFolderPath);
+						ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, originalMessages, this._log, this._absoluteFolderPath);
 						return extensionDescription;
 					});
 				}, (err) => {
-					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle.localized, err.message));
+					this._log.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle.localized, err.message));
 					return null;
 				});
 			});
@@ -190,7 +160,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, collector: MessagesCollector, messageScope: string): void {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, log: ILog, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (Types.isString(value)) {
@@ -206,7 +176,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 						}
 						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
 					} else {
-						collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
+						log.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 					}
 				}
 			} else if (Types.isObject(value)) {
@@ -252,14 +222,14 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		let notices: string[] = [];
 		if (!isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
 			notices.forEach((error) => {
-				this._collector.error(this._absoluteFolderPath, error);
+				this._log.error(this._absoluteFolderPath, error);
 			});
 			return null;
 		}
 
 		// in this case the notices are warnings
 		notices.forEach((error) => {
-			this._collector.warn(this._absoluteFolderPath, error);
+			this._log.warn(this._absoluteFolderPath, error);
 		});
 
 		// id := `publisher.name`
@@ -283,26 +253,26 @@ export class ExtensionScanner {
 	 */
 	public static scanExtension(
 		version: string,
-		collector: MessagesCollector,
+		log: ILog,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription> {
 		absoluteFolderPath = normalize(absoluteFolderPath);
 
-		let parser = new ExtensionManifestParser(version, collector, absoluteFolderPath, isBuiltin);
+		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin);
 		return parser.parse().then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let nlsReplacer = new ExtensionManifestNLSReplacer(version, collector, absoluteFolderPath, isBuiltin);
+			let nlsReplacer = new ExtensionManifestNLSReplacer(version, log, absoluteFolderPath, isBuiltin);
 			return nlsReplacer.replaceNLS(extensionDescription);
 		}).then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let validator = new ExtensionManifestValidator(version, collector, absoluteFolderPath, isBuiltin);
+			let validator = new ExtensionManifestValidator(version, log, absoluteFolderPath, isBuiltin);
 			return validator.validate(extensionDescription);
 		});
 	}
@@ -312,7 +282,7 @@ export class ExtensionScanner {
 	 */
 	public static scanExtensions(
 		version: string,
-		collector: MessagesCollector,
+		log: ILog,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {
@@ -356,10 +326,10 @@ export class ExtensionScanner {
 
 					return [...nonGallery, ...latest];
 				})
-				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, join(absoluteFolderPath, f), isBuiltin))))
+				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, log, join(absoluteFolderPath, f), isBuiltin))))
 				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
 				.then(null, err => {
-					collector.error(absoluteFolderPath, err);
+					log.error(absoluteFolderPath, err);
 					return [];
 				});
 		});
@@ -371,22 +341,22 @@ export class ExtensionScanner {
 	 */
 	public static scanOneOrMultipleExtensions(
 		version: string,
-		collector: MessagesCollector,
+		log: ILog,
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {
 		return pfs.fileExists(join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
-				return this.scanExtension(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
+				return this.scanExtension(version, log, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
 					if (extensionDescription === null) {
 						return [];
 					}
 					return [extensionDescription];
 				});
 			}
-			return this.scanExtensions(version, collector, absoluteFolderPath, isBuiltin);
+			return this.scanExtensions(version, log, absoluteFolderPath, isBuiltin);
 		}, (err) => {
-			collector.error(absoluteFolderPath, err);
+			log.error(absoluteFolderPath, err);
 			return [];
 		});
 	}

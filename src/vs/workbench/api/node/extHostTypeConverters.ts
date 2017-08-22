@@ -16,7 +16,6 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IRawColorFormat } from "vs/workbench/api/node/extHost.protocol";
 
 export interface PositionLike {
 	line: number;
@@ -367,19 +366,6 @@ export namespace DocumentLink {
 
 	export function to(link: modes.ILink): vscode.DocumentLink {
 		return new types.DocumentLink(toRange(link.range), link.url && URI.parse(link.url));
-	}
-}
-
-export namespace DocumentColorFormat {
-	export function from(colorFormat: vscode.ColorFormat): IRawColorFormat {
-		let format: string | [string, string];
-		if (typeof colorFormat === 'string') {
-			format = colorFormat;
-		} else {
-			format = [colorFormat.opaque, colorFormat.transparent];
-		}
-
-		return format;
 	}
 }
 

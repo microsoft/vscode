@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { SpectronClient } from './client';
-import { Screenshot } from "../helpers/screenshot";
+import { Screenshot } from '../helpers/screenshot';
 var fs = require('fs');
 var path = require('path');
 
@@ -28,7 +28,7 @@ export class SpectronApplication {
 
 	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
 	private readonly pollTrials = 5;
-	private readonly pollTimeout = 3; // in secs
+	private readonly pollTimeout = 10; // in secs
 
 	constructor(electronPath: string, testName: string, private testRetry: number, args?: string[], chromeDriverArgs?: string[]) {
 		if (!args) {

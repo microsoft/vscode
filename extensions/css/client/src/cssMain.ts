@@ -9,6 +9,7 @@ import * as path from 'path';
 import { languages, window, commands, workspace, ExtensionContext } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations, ColorProvider } from './colorDecorators';
+import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -23,7 +24,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'cssServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -44,6 +45,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
+	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the

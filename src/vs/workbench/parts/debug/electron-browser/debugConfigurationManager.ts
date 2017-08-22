@@ -28,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IRawAdapter, ICompound, IDebugConfiguration, DEBUG_SCHEME, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, DEBUG_SCHEME, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -220,6 +220,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private _mru: { launch: ILaunch, name: string }[];
+	private _providers: Map<number, IDebugConfigurationProvider>;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -234,6 +235,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
+		this._providers = new Map<number, IDebugConfigurationProvider>();
 		this.adapters = [];
 		this.toDispose = [];
 		this.registerListeners(lifecycleService);
@@ -260,6 +262,51 @@ export class ConfigurationManager implements IConfigurationManager {
 				});
 			});
 		}
+	}
+
+	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
+		if (!debugConfigurationProvider) {
+			return;
+		}
+		this._providers.set(handle, debugConfigurationProvider);
+	}
+
+	public unregisterDebugConfigurationProvider(handle: number): boolean {
+		return this._providers.delete(handle);
+	}
+
+	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any> {
+
+		// collect all candidates
+		const providers: IDebugConfigurationProvider[] = [];
+		this._providers.forEach(provider => {
+			if (provider.type === debugConfiguration.type && provider.resolveDebugConfiguration) {
+				providers.push(provider);
+			}
+		});
+
+		// pipe the config through the promises sequentially
+		return providers.reduce((promise, provider) => {
+			return promise.then(config => {
+				return provider.resolveDebugConfiguration(folderUri, config);
+			});
+		}, TPromise.as(debugConfiguration));
+	}
+
+	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
+
+		// collect all candidates
+		const configs: TPromise<any[]>[] = [];
+		this._providers.forEach(provider => {
+			if (provider.type === type && provider.provideDebugConfigurations) {
+				configs.push(provider.provideDebugConfigurations(folderUri));
+			}
+		});
+
+		// combine all configs into one array
+		return TPromise.join(configs).then(results => {
+			return [].concat.apply([], results);
+		});
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
@@ -525,18 +572,29 @@ class Launch implements ILaunch {
 		let configFileCreated = false;
 
 		return this.fileService.resolveContent(resource).then(content => content, err => {
-			return this.configurationManager.guessAdapter(type).then(adapter => adapter ? adapter.getInitialConfigurationContent(this.workspaceUri) : undefined)
-				.then(content => {
-					if (!content) {
-						return undefined;
-					}
 
-					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => {
-						// convert string into IContent; see #32135
-						return { value: content };
+			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+
+			return this.configurationManager.guessAdapter(type).then(adapter => {
+				if (adapter) {
+					return this.configurationManager.provideDebugConfigurations(this.workspaceUri, adapter.type).then(initialConfigs => {
+						return adapter.getInitialConfigurationContent(this.workspaceUri, initialConfigs);
 					});
+				} else {
+					return undefined;
+				}
+			}).then(content => {
+
+				if (!content) {
+					return undefined;
+				}
+
+				configFileCreated = true;
+				return this.fileService.updateContent(resource, content).then(() => {
+					// convert string into IContent; see #32135
+					return { value: content };
 				});
+			});
 		}).then(content => {
 			if (!content) {
 				return undefined;
