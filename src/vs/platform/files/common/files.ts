@@ -133,7 +133,6 @@ export interface IFileService {
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
 	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
 
 	/**
 	 * Configures the file service with the provided options.

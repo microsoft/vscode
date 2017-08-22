@@ -286,10 +286,8 @@ export class FileService implements IFileService {
 		this.raw.watchFileChanges(resource);
 	}
 
-	public unwatchFileChanges(resource: uri): void;
-	public unwatchFileChanges(path: string): void;
-	public unwatchFileChanges(arg1: any): void {
-		this.raw.unwatchFileChanges(arg1);
+	public unwatchFileChanges(resource: uri): void {
+		this.raw.unwatchFileChanges(resource);
 	}
 
 	public getEncoding(resource: uri, preferredEncoding?: string): string {
