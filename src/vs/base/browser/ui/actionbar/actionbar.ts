@@ -684,7 +684,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private cancel(): void {
 		if (document.activeElement instanceof HTMLElement) {
-			(<HTMLElement>document.activeElement).blur(); // remove focus from focussed action
+			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
 		}
 
 		this.emit(CommonEventType.CANCEL);

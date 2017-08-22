@@ -1616,8 +1616,8 @@ class FileDialog {
 		}
 
 		// Show Dialog
-		const focussedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
-		dialog.showOpenDialog(focussedWindow && focussedWindow.win, options.dialogOptions, paths => {
+		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
+		dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions, paths => {
 			if (paths && paths.length > 0) {
 
 				// Remember path in storage for next time

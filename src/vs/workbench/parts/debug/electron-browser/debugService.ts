@@ -251,7 +251,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		// focus first stack frame from top that has source location if no other stack frame is focussed
+		// focus first stack frame from top that has source location if no other stack frame is focused
 		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
 		if (!stackFrameToFocus) {
 			return TPromise.as(null);
