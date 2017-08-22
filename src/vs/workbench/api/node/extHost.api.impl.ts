@@ -370,8 +370,8 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			showOpenDialog: proposedApiFunction(extension, () => {
-				return extHostDialogs.showOpenDialog();
+			showOpenDialog: proposedApiFunction(extension, options => {
+				return extHostDialogs.showOpenDialog(options);
 			})
 		};
 
