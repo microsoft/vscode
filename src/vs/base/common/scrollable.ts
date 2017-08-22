@@ -262,7 +262,7 @@ export class Scrollable extends Disposable {
 			oldSmoothScrolling.dispose();
 			this._smoothScrolling = newSmoothScrolling;
 		} else {
-			this._smoothScrolling = new SmoothScrollingOperation(this._state, update, this._smoothScrollDuration);
+			this._smoothScrolling = SmoothScrollingOperation.start(this._state, update, this._smoothScrollDuration);
 		}
 
 		// Begin smooth scrolling animation
@@ -320,11 +320,11 @@ class SmoothScrollingOperation {
 	private readonly _startTime: number;
 	public animationFrameToken: number;
 
-	constructor(from: ScrollState, to: INewScrollPosition, duration: number) {
+	private constructor(from: IScrollPosition, to: IScrollPosition, startTime: number, duration: number) {
 		this.from = from;
-		this.to = from.withScrollPosition(to);
+		this.to = to;
 		this.duration = duration;
-		this._startTime = Date.now();
+		this._startTime = startTime;
 		this.animationFrameToken = -1;
 	}
 
@@ -350,8 +350,9 @@ class SmoothScrollingOperation {
 		const completion = (Date.now() - this._startTime) / this.duration;
 
 		if (completion < 1) {
-			const newScrollLeft = this.from.scrollLeft + (this.to.scrollLeft - this.from.scrollLeft) * completion;
-			const newScrollTop = this.from.scrollTop + (this.to.scrollTop - this.from.scrollTop) * completion;
+			const t = easeInOutCubic(completion);
+			const newScrollLeft = this.from.scrollLeft + (this.to.scrollLeft - this.from.scrollLeft) * t;
+			const newScrollTop = this.from.scrollTop + (this.to.scrollTop - this.from.scrollTop) * t;
 			return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
 		}
 
@@ -365,7 +366,29 @@ class SmoothScrollingOperation {
 			scrollTop: (typeof to.scrollTop === 'undefined' ? this.to.scrollTop : to.scrollTop)
 		};
 
+		// Validate `to`
+		const validTarget = from.withScrollPosition(to);
+
 		// TODO@smooth: This is our opportunity to combine animations
-		return new SmoothScrollingOperation(from, to, duration);
+		return new SmoothScrollingOperation(from, validTarget, Date.now(), duration);
 	}
+
+	public static start(from: ScrollState, to: INewScrollPosition, duration: number): SmoothScrollingOperation {
+
+		// Validate `to`
+		const validTarget = from.withScrollPosition(to);
+
+		return new SmoothScrollingOperation(from, validTarget, Date.now(), duration);
+	}
+}
+
+function easeInCubic(t) {
+	return Math.pow(t, 3);
+}
+
+function easeInOutCubic(t) {
+	if (t < 0.5) {
+		return easeInCubic(t * 2) / 2;
+	}
+	return 1 - easeInCubic((1 - t) * 2) / 2;
 }
