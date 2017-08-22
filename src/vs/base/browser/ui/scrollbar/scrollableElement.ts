@@ -275,7 +275,6 @@ export abstract class AbstractScrollableElement extends Widget {
 				}
 				this._shouldRender = true;
 			}
-
 		}
 
 		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
