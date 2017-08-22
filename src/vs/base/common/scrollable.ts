@@ -208,8 +208,10 @@ export class Scrollable extends Disposable {
 		const newState = this._state.withScrollDimensions(dimensions);
 		this._setState(newState);
 
-		// TODO@smooth: [MUST] validate outstanding animated scroll position request target
-		// (in case it becomes invalid)
+		// Validate outstanding animated scroll position target
+		if (this._smoothScrolling) {
+			this._smoothScrolling.acceptScrollDimensions(this._state);
+		}
 	}
 
 	/**
@@ -313,7 +315,7 @@ class SmoothScrollingUpdate implements IScrollPosition {
 class SmoothScrollingOperation {
 
 	public readonly from: IScrollPosition;
-	public readonly to: IScrollPosition;
+	public to: IScrollPosition;
 	public readonly duration: number;
 	private readonly _startTime: number;
 	public animationFrameToken: number;
@@ -338,6 +340,10 @@ class SmoothScrollingOperation {
 			cancelAnimationFrame(this.animationFrameToken);
 			this.animationFrameToken = -1;
 		}
+	}
+
+	public acceptScrollDimensions(state: ScrollState): void {
+		this.to = state.withScrollPosition(this.to);
 	}
 
 	public tick(): SmoothScrollingUpdate {
