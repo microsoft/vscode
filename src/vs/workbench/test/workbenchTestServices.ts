@@ -707,10 +707,6 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(null);
-	}
-
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return TPromise.timeout(1).then(() => {
 			return {

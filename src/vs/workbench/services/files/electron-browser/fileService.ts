@@ -212,10 +212,6 @@ export class FileService implements IFileService {
 		return this.raw.resolveStreamContent(resource, options);
 	}
 
-	public resolveContents(resources: uri[]): TPromise<IContent[]> {
-		return this.raw.resolveContents(resources);
-	}
-
 	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return this.raw.updateContent(resource, value, options);
 	}

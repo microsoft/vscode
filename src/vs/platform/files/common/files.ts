@@ -69,11 +69,6 @@ export interface IFileService {
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
-	 * Returns the contents of all files by the given array of file resources.
-	 */
-	resolveContents(resources: URI[]): TPromise<IContent[]>;
-
-	/**
 	 * Updates the content replacing its previous value.
 	 */
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
