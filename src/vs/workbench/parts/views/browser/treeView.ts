@@ -40,7 +40,6 @@ export class TreeView extends CollapsibleView {
 	private activated: boolean = false;
 	private treeInputPromise: TPromise<void>;
 
-	private dataProviderRegisteredListener: IDisposable;
 	private dataProviderElementChangeListener: IDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -138,14 +137,13 @@ export class TreeView extends CollapsibleView {
 					this.treeInputPromise = this.tree.setInput(new Root());
 				} else {
 					this.treeInputPromise = new TPromise<void>((c, e) => {
-						this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+						this.disposables.push(ViewsRegistry.onTreeViewDataProviderRegistered(id => {
 							if (this.id === id) {
 								if (this.listenToDataProvider()) {
 									this.tree.setInput(new Root()).then(() => c(null));
-									this.dataProviderRegisteredListener.dispose();
 								}
 							}
-						});
+						}));
 					});
 				}
 			}
@@ -161,6 +159,11 @@ export class TreeView extends CollapsibleView {
 				this.dataProviderElementChangeListener.dispose();
 			}
 			this.dataProviderElementChangeListener = dataProvider.onDidChange(element => this.refresh(element));
+			const disposable = dataProvider.onDispose(() => {
+				this.dataProviderElementChangeListener.dispose();
+				this.tree.setInput(new Root());
+				disposable.dispose();
+			});
 			return true;
 		}
 		return false;
@@ -191,9 +194,6 @@ export class TreeView extends CollapsibleView {
 	}
 
 	dispose(): void {
-		if (this.dataProviderRegisteredListener) {
-			this.dataProviderRegisteredListener.dispose();
-		}
 		dispose(this.disposables);
 		if (this.dataProviderElementChangeListener) {
 			this.dataProviderElementChangeListener.dispose();
@@ -222,6 +222,9 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {
+		if (!this.getDataProvider()) {
+			return false;
+		}
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
