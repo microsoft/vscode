@@ -92,7 +92,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (this.applyEditsToBuffer(edit, model) && save) {
-			return this.textFileService.save(operation.resource)
+			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ })
 				// Reload the configuration so that we make sure all parties are updated
 				.then(() => this.configurationService.reloadConfiguration());
 		}

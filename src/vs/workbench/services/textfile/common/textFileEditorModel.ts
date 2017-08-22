@@ -21,7 +21,7 @@ import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
@@ -555,7 +555,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
-				this.doSave(versionId, SaveReason.AUTO).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
+				this.doSave(versionId, { reason: SaveReason.AUTO }).done(null, onUnexpectedError); // Very important here to not return the promise because if the timeout promise is canceled it will bubble up the error otherwise - do not change
 			}
 		});
 
@@ -572,7 +572,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	/**
 	 * Saves the current versionId of this editor model if it is dirty.
 	 */
-	public save(options: IModelSaveOptions = Object.create(null)): TPromise<void> {
+	public save(options: ISaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.as<void>(null);
 		}
@@ -582,10 +582,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromise();
 
-		return this.doSave(this.versionId, types.isUndefinedOrNull(options.reason) ? SaveReason.EXPLICIT : options.reason, options.overwriteReadonly, options.overwriteEncoding, options.force);
+		return this.doSave(this.versionId, options);
 	}
 
-	private doSave(versionId: number, reason: SaveReason, overwriteReadonly?: boolean, overwriteEncoding?: boolean, force?: boolean): TPromise<void> {
+	private doSave(versionId: number, options: ISaveOptions): TPromise<void> {
+		if (types.isUndefinedOrNull(options.reason)) {
+			options.reason = SaveReason.EXPLICIT;
+		}
+
 		diag(`doSave(${versionId}) - enter with versionId ' + versionId`, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -606,7 +610,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//             the contents and the version for which auto save was started is no longer the latest.
 		//             Thus we avoid spawning multiple auto saves and only take the latest.
 		//
-		if ((!force && !this.dirty) || versionId !== this.versionId) {
+		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
 
 			return TPromise.as<void>(null);
@@ -624,7 +628,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			diag(`doSave(${versionId}) - exit - because busy saving`, this.resource, new Date());
 
 			// Register this as the next upcoming save and return
-			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, reason, overwriteReadonly, overwriteEncoding));
+			return this.saveSequentializer.setNext(() => this.doSave(this.versionId /* make sure to use latest version id here */, options));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
@@ -638,8 +642,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// In addition we update our version right after in case it changed because of a model change
 		// We DO NOT run any save participant if we are in the shutdown phase and files are being
 		// saved as a result of that.
+		// Save participants can also be skipped through API.
 		let saveParticipantPromise = TPromise.as(versionId);
-		if (TextFileEditorModel.saveParticipant && this.lifecycleService.phase !== LifecyclePhase.ShuttingDown) {
+		if (TextFileEditorModel.saveParticipant && this.lifecycleService.phase !== LifecyclePhase.ShuttingDown && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
 
@@ -649,7 +654,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			saveParticipantPromise = TPromise.as(undefined).then(() => {
 				this.blockModelContentChange = true;
 
-				return TextFileEditorModel.saveParticipant.participate(this, { reason });
+				return TextFileEditorModel.saveParticipant.participate(this, { reason: options.reason });
 			}).then(onCompleteOrError, onCompleteOrError);
 		}
 
@@ -659,7 +664,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// the model was not dirty and no save participant changed the contents, so we do not have
 			// to write the contents to disk, as they are already on disk. we still want to trigger
 			// a change on the file though so that external file watchers can be notified
-			if (force && !this.dirty && reason === SaveReason.EXPLICIT && versionId === newVersionId) {
+			if (options.force && !this.dirty && options.reason === SaveReason.EXPLICIT && versionId === newVersionId) {
 				return this.doTouch();
 			}
 
@@ -676,8 +681,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
 			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.getValue(), {
-				overwriteReadonly,
-				overwriteEncoding,
+				overwriteReadonly: options.overwriteReadonly,
+				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
 				etag: this.lastResolvedDiskStat.etag
