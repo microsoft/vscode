@@ -10,7 +10,7 @@ import { workspace, languages, ExtensionContext, extensions, Uri, Range } from '
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-import { ColorProvider } from "./colorDecorators";
+import { ColorProvider } from './colorDecorators';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
