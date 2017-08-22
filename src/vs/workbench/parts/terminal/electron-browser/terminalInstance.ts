@@ -163,7 +163,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				if (!this._isDisposed) {
-					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
+					import('vs/workbench/parts/terminal/electron-browser/windowsShellHelper').then((helper) => {
+						this._windowsShellHelper = new helper.WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
+					});
 				}
 			});
 		}
