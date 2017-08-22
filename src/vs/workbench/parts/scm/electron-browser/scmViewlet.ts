@@ -139,6 +139,7 @@ interface ResourceTemplate {
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
+	dispose: () => void;
 }
 
 class MultipleSelectionActionRunner extends ActionRunner {
@@ -188,7 +189,12 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { element, name, fileLabel, decorationIcon, actionBar };
+		return {
+			element, name, fileLabel, decorationIcon, actionBar, dispose: () => {
+				actionBar.dispose();
+				fileLabel.dispose();
+			}
+		};
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -211,7 +217,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
-		// noop
+		template.dispose();
 	}
 }
 
@@ -236,13 +242,12 @@ class SourceControlViewDescriptor implements IViewDescriptor {
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _repository: ISCMRepository) {
-
-	}
+	constructor(private _repository: ISCMRepository) { }
 }
 
 class SourceControlView extends CollapsibleView {
 
+	private cachedHeight: number | undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
 	private listContainer: HTMLElement;
@@ -295,7 +300,7 @@ class SourceControlView extends CollapsibleView {
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
 		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		// this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
+		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
@@ -345,8 +350,25 @@ class SourceControlView extends CollapsibleView {
 		this.updateList();
 	}
 
-	layoutBody(size: number): void {
-		this.list.layout(size);
+	layoutBody(height: number = this.cachedHeight): void {
+		if (!height === undefined) {
+			return;
+		}
+
+		this.list.layout(height);
+		this.cachedHeight = height;
+		this.inputBox.layout();
+
+		const editorHeight = this.inputBox.height;
+		const listHeight = height - (editorHeight + 12 /* margin */);
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight);
+
+		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
+	}
+
+	focusBody(): void {
+		this.inputBox.focus();
 	}
 
 	getActions(): IAction[] {
@@ -457,10 +479,6 @@ class InstallAdditionalSCMProvidersAction extends Action {
 
 export class SCMViewlet extends ComposedViewsViewlet {
 
-	// private activeProvider: ISCMProvider | undefined;
-	// private cachedDimension: Dimension;
-
-	// private providers = new Map<string, ISCMProvider>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -481,41 +499,20 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.SCM, `${VIEWLET_ID}.state`, false,
+		super(VIEWLET_ID, ViewLocation.SCM, `${VIEWLET_ID}.state`, true,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const view = new SourceControlViewDescriptor(repository);
 		ViewsRegistry.registerViews([view]);
+		this.updateTitleArea();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
+		this.updateTitleArea();
 	}
-
-	// private onDidProvidersChange(): void {
-	// this.activeProvider = activeProvider;
-
-	// if (activeProvider) {
-	// 	const disposables = [];
-
-	// 	const id = activeProvider.id;
-	// 	ViewsRegistry.registerViews([new SourceControlViewDescriptor(activeProvider)]);
-
-	// 	disposables.push({
-	// 		dispose: () => {
-	// 			ViewsRegistry.deregisterViews([id], ViewLocation.SCM);
-	// 		}
-	// 	});
-
-	// 	this.providerChangeDisposable = combinedDisposable(disposables);
-	// } else {
-	// 	this.providerChangeDisposable = EmptyDisposable;
-	// }
-
-	// this.updateTitleArea();
-	// }
 
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
@@ -525,9 +522,6 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
-		// this.themeService.onThemeChange(this.update, this, this.disposables);
-
-		// return TPromise.as(null);
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
@@ -538,40 +532,24 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
 	}
 
-	// layout(dimension: Dimension = this.cachedDimension): void {
-	// 	if (!dimension) {
-	// 		return;
-	// 	}
-
-	// 	this.cachedDimension = dimension;
-	// 	this.inputBox.layout();
-
-	// 	const editorHeight = this.inputBox.height;
-	// 	const listHeight = dimension.height - (editorHeight + 12 /* margin */);
-	// 	this.listContainer.style.height = `${listHeight}px`;
-	// 	this.list.layout(listHeight);
-
-	// 	toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
-	// }
-
 	getOptimalWidth(): number {
 		return 400;
 	}
 
 	focus(): void {
 		super.focus();
-		// this.inputBox.focus();
 	}
 
 	getTitle(): string {
 		const title = localize('source control', "Source Control");
-		// const providerLabel = this.scmService.activeProvider && this.scmService.activeProvider.label;
+		const views = ViewsRegistry.getViews(ViewLocation.SCM);
 
-		// if (providerLabel) {
-		// 	return localize('viewletTitle', "{0}: {1}", title, providerLabel);
-		// } else {
-		return title;
-		// }
+		if (views.length === 1) {
+			const view = views[0];
+			return localize('viewletTitle', "{0}: {1}", title, view.name);
+		} else {
+			return title;
+		}
 	}
 
 	@memoize

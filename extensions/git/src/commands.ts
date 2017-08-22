@@ -1220,7 +1220,15 @@ export class CommandCenter {
 			} else {
 				// try to guess the repository based on the first argument
 				const repository = this.model.getRepository(args[0]);
-				const repositoryPromise = repository ? Promise.resolve(repository) : this.model.pickRepository();
+				let repositoryPromise: Promise<Repository | undefined>;
+
+				if (repository) {
+					repositoryPromise = Promise.resolve(repository);
+				} else if (this.model.repositories.length === 1) {
+					repositoryPromise = Promise.resolve(this.model.repositories[0]);
+				} else {
+					repositoryPromise = this.model.pickRepository();
+				}
 
 				result = repositoryPromise.then(repository => {
 					if (!repository) {
