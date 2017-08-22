@@ -20,7 +20,7 @@ class CheckoutStatusBar {
 	private disposables: Disposable[] = [];
 
 	constructor(private repository: Repository) {
-		repository.onDidChange(this._onDidChange.fire, this._onDidChange, this.disposables);
+		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
 	get command(): Command | undefined {
@@ -42,7 +42,8 @@ class CheckoutStatusBar {
 		return {
 			command: 'git.checkout',
 			tooltip: localize('checkout', 'Checkout...'),
-			title
+			title,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -77,7 +78,7 @@ class SyncStatusBar {
 	}
 
 	constructor(private repository: Repository) {
-		repository.onDidChange(this.onModelChange, this, this.disposables);
+		repository.onDidChangeStatus(this.onModelChange, this, this.disposables);
 		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 		this._onDidChange.fire();
 	}
@@ -98,6 +99,7 @@ class SyncStatusBar {
 	}
 
 	get command(): Command | undefined {
+		console.log(this.repository.remotes, this.state.hasRemotes);
 		if (!this.state.hasRemotes) {
 			return undefined;
 		}
@@ -134,7 +136,8 @@ class SyncStatusBar {
 		return {
 			command,
 			title: [icon, text].join(' ').trim(),
-			tooltip
+			tooltip,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -171,6 +174,7 @@ export class StatusBarCommands {
 		}
 
 		const sync = this.syncStatusBar.command;
+		console.log(sync);
 
 		if (sync) {
 			result.push(sync);

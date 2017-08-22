@@ -121,7 +121,8 @@ export class StatusBarController implements IWorkbenchContribution {
 		const disposables = commands.map(c => this.statusbarService.addEntry({
 			text: c.title,
 			tooltip: c.tooltip,
-			command: c.id
+			command: c.id,
+			arguments: c.arguments
 		}, MainThreadStatusBarAlignment.LEFT, 10000));
 
 		this.statusBarDisposable = combinedDisposable(disposables);

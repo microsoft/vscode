@@ -300,10 +300,8 @@ export class Repository implements Disposable {
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
-	@memoize
-	get onDidChange(): Event<void> {
-		return anyEvent<any>(this.onDidChangeState);
-	}
+	private _onDidChangeStatus = new EventEmitter<void>();
+	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
 
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
@@ -789,6 +787,7 @@ export class Repository implements Disposable {
 		}
 
 		commands.executeCommand('setContext', 'gitState', stateContextKey);
+		this._onDidChangeStatus.fire();
 	}
 
 	private onFSChange(uri: Uri): void {
