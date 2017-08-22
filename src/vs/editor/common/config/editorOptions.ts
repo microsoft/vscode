@@ -338,6 +338,10 @@ export interface IEditorOptions {
 	 */
 	links?: boolean;
 	/**
+	 * Enable inline color decorators rendering.
+	 */
+	colorDecorator?: boolean;
+	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
 	 */
@@ -790,6 +794,7 @@ export interface EditorContribOptions {
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
+	readonly colorDecorator: boolean;
 }
 
 /**
@@ -1134,6 +1139,7 @@ export class InternalEditorOptions {
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
+			&& a.colorDecorator === b.colorDecorator
 		);
 	}
 
@@ -1661,7 +1667,8 @@ export class EditorOptionsValidator {
 			folding: _boolean(opts.folding, defaults.folding),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
-			find: find
+			find: find,
+			colorDecorator: _boolean(opts.colorDecorator, defaults.colorDecorator),
 		};
 	}
 }
@@ -1758,7 +1765,8 @@ export class InternalEditorOptionsFactory {
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
-				find: opts.contribInfo.find
+				find: opts.contribInfo.find,
+				colorDecorator: opts.contribInfo.colorDecorator
 			}
 		};
 	}
@@ -2196,6 +2204,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false
-		}
+		},
+		colorDecorator: true
 	},
 };

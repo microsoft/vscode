@@ -42,10 +42,6 @@ export class ColorProvider implements DocumentColorProvider {
 	}
 
 	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
-		if (!this.supportedLanguages[document.languageId] || !this.decoratorEnablement[document.languageId]) {
-			return [];
-		}
-
 		const ranges = await this.decoratorProvider(document.uri.toString());
 		const result = [];
 		for (let range of ranges) {
