@@ -51,11 +51,12 @@ export class DefinitionAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
+		const progressService = accessor.get(IProgressService);
 
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		return this._getDeclarationsAtPosition(model, pos).then(references => {
+		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -105,6 +106,9 @@ export class DefinitionAction extends EditorAction {
 			// report an error
 			messageService.show(Severity.Error, err);
 		});
+
+		progressService.showWhile(definitionPromise, 250);
+		return definitionPromise;
 	}
 
 	protected _getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
@@ -279,13 +283,6 @@ export class GoToImplementationAction extends ImplementationAction {
 				primary: KeyMod.CtrlCmd | KeyCode.F12
 			}
 		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
-		const progressService = accessor.get(IProgressService);
-		const implementationPromise = super.run(accessor, editor);
-		progressService.showWhile(implementationPromise, 250);
-		return implementationPromise;
 	}
 }
 
