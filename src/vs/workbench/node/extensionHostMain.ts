@@ -18,7 +18,7 @@ import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { RemoteTelemetryService } from 'vs/workbench/api/node/extHostTelemetry';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import * as watchdog from 'native-watchdog';
+// import * as watchdog from 'native-watchdog';
 
 const nativeExit = process.exit.bind(process);
 process.exit = function () {
@@ -72,9 +72,9 @@ export class ExtensionHostMain {
 		});
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
-		if (!initData.environment.isExtensionDevelopmentDebug) {
-			watchdog.start(10000);
-		}
+		// if (!initData.environment.isExtensionDevelopmentDebug) {
+		// 	watchdog.start(10000);
+		// }
 	}
 
 	public start(): TPromise<void> {
