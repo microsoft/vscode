@@ -299,7 +299,6 @@ class SourceControlView extends CollapsibleView {
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
 			.on(this.onDidAcceptInput, this, this.disposables);
 
-
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
 		}
