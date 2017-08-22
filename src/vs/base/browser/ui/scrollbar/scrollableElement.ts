@@ -23,8 +23,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
-const SCROLL_WHEEL_SMOOTH_SCROLL_MS_TIME_TRESHOLD = 4;
-const SCROLL_WHEEL_SMOOTH_SCROLL_PX_SPACE_TRESHOLD = 7;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -47,6 +45,8 @@ class MouseWheelClassifierItem {
 
 export class MouseWheelClassifier {
 
+	public static INSTANCE = new MouseWheelClassifier();
+
 	private readonly _capacity: number;
 	private _memory: MouseWheelClassifierItem[];
 	private _front: number;
@@ -58,8 +58,6 @@ export class MouseWheelClassifier {
 		this._front = -1;
 		this._rear = -1;
 	}
-
-	// private isE
 
 	public isPhysicalMouseWheel(): boolean {
 		if (this._front === -1 && this._rear === -1) {
@@ -104,15 +102,7 @@ export class MouseWheelClassifier {
 				this._front = (this._front + 1) % this._capacity;
 			}
 			this._memory[this._rear] = item;
-
-			// if ()
-			// if (this._front === this._rea)
 		}
-		// this._lastIndex = (this._lastIndex + 1) % this._capacity;
-		// if (this._firstIndex === this._lastIndex) {
-		// 	this._firstIndex = (this._firstIndex + 1) % this._capacity;
-		// }
-		// this._memory[this._lastIndex] = item;
 	}
 
 	/**
@@ -167,8 +157,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _mouseWheelToDispose: IDisposable[];
 
-	private _previousMouseWheelEventTime: number = 0;
-
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
 
@@ -188,8 +176,6 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._onDidScroll(e);
 			this._onScroll.fire(e);
 		}));
-
-		// this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
 
 		let scrollbarHost: ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardMouseWheelEvent) => this._onMouseWheel(mouseWheelEvent),
@@ -334,7 +320,11 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
-		const currentMouseWheelEventTime = Date.now();
+
+		const classifier = MouseWheelClassifier.INSTANCE;
+		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
+			classifier.accept(Date.now(), e.deltaX, e.deltaY);
+		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
 
@@ -380,14 +370,11 @@ export abstract class AbstractScrollableElement extends Widget {
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
 			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
-				// TODO@smooth: [MUST] detect if the source of the `mousewheel` is intertial or not and use setScrollPositionSmooth
-				const deltaT = currentMouseWheelEventTime - this._previousMouseWheelEventTime;
+
 				const canPerformSmoothScroll = (
 					SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED
 					&& this._options.mouseWheelSmoothScroll
-					// If either |∆x|, |∆y| or ∆t are too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-					&& Math.max(Math.abs(deltaX), Math.abs(deltaY)) * SCROLL_WHEEL_SENSITIVITY > SCROLL_WHEEL_SMOOTH_SCROLL_PX_SPACE_TRESHOLD
-					&& deltaT > SCROLL_WHEEL_SMOOTH_SCROLL_MS_TIME_TRESHOLD
+					&& classifier.isPhysicalMouseWheel()
 				);
 
 				if (canPerformSmoothScroll) {
@@ -403,8 +390,6 @@ export abstract class AbstractScrollableElement extends Widget {
 			e.preventDefault();
 			e.stopPropagation();
 		}
-
-		this._previousMouseWheelEventTime = currentMouseWheelEventTime;
 	}
 
 	private _onDidScroll(e: ScrollEvent): void {
