@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -231,9 +231,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ICommandService private commandService: ICommandService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
-
-		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this._disposables);
-		this.scmService.input.onDidChange(this._proxy.$onInputBoxValueChange, this._proxy, this._disposables);
 	}
 
 	dispose(): void {
@@ -251,7 +248,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	$registerSourceControl(handle: number, id: string, label: string): void {
 		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, this.scmService, this.commandService);
 		this._sourceControls[handle] = provider;
-		this._sourceControlDisposables[handle] = this.scmService.registerSCMProvider(provider);
+
+		const providerDisposable = this.scmService.registerSCMProvider(provider);
+		const inputDisposable = this.scmService.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
+		this._sourceControlDisposables[handle] = combinedDisposable([providerDisposable, inputDisposable]);
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
@@ -330,10 +330,5 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	$setInputBoxValue(value: string): void {
 		this.scmService.input.value = value;
-	}
-
-	private onDidChangeProvider(provider: ISCMProvider): void {
-		const handle = Object.keys(this._sourceControls).filter(handle => this._sourceControls[handle] === provider)[0];
-		this._proxy.$onActiveSourceControlChange(handle && parseInt(handle));
 	}
 }

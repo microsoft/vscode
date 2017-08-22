@@ -8,6 +8,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -42,22 +43,12 @@ export class ExtHostSCMInputBox {
 		return this._onDidChange.event;
 	}
 
-	private _onDidAccept = new Emitter<string>();
-
-	get onDidAccept(): Event<string> {
-		return this._onDidAccept.event;
-	}
-
 	constructor(private _proxy: MainThreadSCMShape) {
 		// noop
 	}
 
 	$onInputBoxValueChange(value: string): void {
 		this.updateValue(value);
-	}
-
-	$onInputBoxAcceptChanges(): void {
-		this._onDidAccept.fire(this._value);
 	}
 
 	private updateValue(value: string): void {
@@ -171,6 +162,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._label;
 	}
 
+	private _inputBox: ExtHostSCMInputBox;
+	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
+
 	private _count: number | undefined = undefined;
 
 	get count(): number | undefined {
@@ -238,6 +232,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _id: string,
 		private _label: string,
 	) {
+		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 		this._proxy.$registerSourceControl(this._handle, _id, _label);
 	}
 
@@ -266,22 +261,16 @@ export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
+	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
-
-	private _activeProvider: vscode.SourceControl | undefined;
-	get activeProvider(): vscode.SourceControl | undefined { return this._activeProvider; }
-
-	private _inputBox: ExtHostSCMInputBox;
-	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
 	constructor(
 		mainContext: IMainContext,
 		private _commands: ExtHostCommands
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadSCM);
-		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -322,12 +311,25 @@ export class ExtHostSCM {
 		});
 	}
 
-	createSourceControl(id: string, label: string): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands.converter, id, label);
 		this._sourceControls.set(handle, sourceControl);
 
+		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
+		sourceControls.push(sourceControl);
+		this._sourceControlsByExtension.set(extension.id, sourceControls);
+
 		return sourceControl;
+	}
+
+	// Deprecated
+	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
+		const sourceControls = this._sourceControlsByExtension.get(extension.id);
+		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
+		const inputBox = sourceControl && sourceControl.inputBox;
+
+		return inputBox;
 	}
 
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
@@ -343,18 +345,14 @@ export class ExtHostSCM {
 		});
 	}
 
-	$onActiveSourceControlChange(handle: number): TPromise<void> {
-		this._activeProvider = this._sourceControls.get(handle);
-		return TPromise.as(null);
-	}
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
-	$onInputBoxValueChange(value: string): TPromise<void> {
-		this._inputBox.$onInputBoxValueChange(value);
-		return TPromise.as(null);
-	}
+		if (!sourceControl || !sourceControl.quickDiffProvider) {
+			return TPromise.as(null);
+		}
 
-	$onInputBoxAcceptChanges(): TPromise<void> {
-		this._inputBox.$onInputBoxAcceptChanges();
+		sourceControl.inputBox.$onInputBoxValueChange(value);
 		return TPromise.as(null);
 	}
 }

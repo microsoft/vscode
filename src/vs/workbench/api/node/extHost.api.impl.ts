@@ -472,7 +472,7 @@ export function createApiFactory(
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			get inputBox() {
-				return extHostSCM.inputBox;
+				return extHostSCM.getLastInputBox(extension);
 			},
 			createSourceControl(id: string, label: string) {
 				telemetryService.publicLog('registerSCMProvider', {
@@ -481,7 +481,7 @@ export function createApiFactory(
 					providerLabel: label
 				});
 
-				return extHostSCM.createSourceControl(id, label);
+				return extHostSCM.createSourceControl(extension, id, label);
 			}
 		};
 
