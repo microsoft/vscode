@@ -52,6 +52,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { distinct } from 'vs/base/common/arrays';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -871,12 +872,24 @@ export class FileDragAndDrop implements IDragAndDrop {
 			this.windowService.focusWindow();
 
 			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(result => result.stat.isDirectory);
+			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
 				if (this.contextService.hasMultiFolderWorkspace()) {
-					return this.workspaceEditingService.addRoots(folders.map(folder => folder.stat.resource));
-				} else {
-					this.messageService.show(Severity.Info, nls.localize('dropFolders', "Open a workspace first to add and show multiple folders in the files explorer."));
+					return this.workspaceEditingService.addRoots(folders);
+				}
+
+				// If we are in single-folder context, ask for confirmation to create a workspace
+				const result = this.messageService.confirm({
+					message: nls.localize('dropFolders', "Do you want to add the folders to the workspace?"),
+					type: 'question',
+					primaryButton: nls.localize('create', "&&Add Folders")
+				});
+
+				if (result) {
+					const currentRoots = this.contextService.getWorkspace().roots;
+					const newRoots = [...currentRoots, ...folders];
+
+					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.toString(true /* encoding */))));
 				}
 			}
 
