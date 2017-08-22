@@ -5397,6 +5397,11 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
+		 * The [input box](#SourceControlInputBox) for this source control.
+		 */
+		readonly inputBox: SourceControlInputBox;
+
+		/**
 		 * The UI-visible count of [resource states](#SourceControlResourceState) of
 		 * this source control.
 		 *

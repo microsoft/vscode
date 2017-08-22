@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -754,7 +754,7 @@ export class CommandCenter {
 	}
 
 	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
-		const message = scm.inputBox.value;
+		const message = repository.inputBox.value;
 		const getCommitMessage = async () => {
 			if (message) {
 				return message;
@@ -770,7 +770,7 @@ export class CommandCenter {
 		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			scm.inputBox.value = await repository.getCommitTemplate();
+			repository.inputBox.value = await repository.getCommitTemplate();
 		}
 	}
 
@@ -781,14 +781,14 @@ export class CommandCenter {
 
 	@command('git.commitWithInput', { repository: true })
 	async commitWithInput(repository: Repository): Promise<void> {
-		if (!scm.inputBox.value) {
+		if (!repository.inputBox.value) {
 			return;
 		}
 
-		const didCommit = await this.smartCommit(repository, async () => scm.inputBox.value);
+		const didCommit = await this.smartCommit(repository, async () => repository.inputBox.value);
 
 		if (didCommit) {
-			scm.inputBox.value = await repository.getCommitTemplate();
+			repository.inputBox.value = await repository.getCommitTemplate();
 		}
 	}
 
@@ -832,7 +832,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit('HEAD');
 		await repository.reset('HEAD~');
-		scm.inputBox.value = commit.message;
+		repository.inputBox.value = commit.message;
 	}
 
 	@command('git.checkout', { repository: true })

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, commands, SourceControl, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, commands, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -317,6 +317,8 @@ export class Repository implements Disposable {
 
 	private _sourceControl: SourceControl;
 	get sourceControl(): SourceControl { return this._sourceControl; }
+
+	get inputBox(): SourceControlInputBox { return this._sourceControl.inputBox; }
 
 	private _mergeGroup: SourceControlResourceGroup;
 	get mergeGroup(): GitResourceGroup { return this._mergeGroup as GitResourceGroup; }
