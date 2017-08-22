@@ -14,6 +14,8 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceCompute
 import Event from 'vs/base/common/event';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
+const SMOOTH_SCROLLING_TIME = 125;
+
 export class ViewLayout extends Disposable implements IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
@@ -30,8 +32,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._configuration = configuration;
 		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
 
-		// TODO@smooth: [MUST] have an editor option for smooth scrolling
-		this.scrollable = this._register(new Scrollable(125, scheduleAtNextAnimationFrame));
+		this.scrollable = this._register(new Scrollable(0, scheduleAtNextAnimationFrame));
+		this._configureSmoothScrollDuration();
+
 		this.scrollable.setScrollDimensions({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
@@ -53,6 +56,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
+	private _configureSmoothScrollDuration(): void {
+		this.scrollable.setSmoothScrollDuration(this._configuration.editor.viewInfo.smoothScrolling ? SMOOTH_SCROLLING_TIME : 0);
+	}
+
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): void {
@@ -64,6 +71,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 				width: this._configuration.editor.layoutInfo.contentWidth,
 				height: this._configuration.editor.layoutInfo.contentHeight
 			});
+		}
+		if (e.viewInfo) {
+			this._configureSmoothScrollDuration();
 		}
 		this._updateHeight();
 	}

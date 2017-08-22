@@ -173,7 +173,7 @@ export class Scrollable extends Disposable {
 
 	_scrollableBrand: void;
 
-	private readonly _smoothScrollDuration: number;
+	private _smoothScrollDuration: number;
 	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
 	private _state: ScrollState;
 	private _smoothScrolling: SmoothScrollingOperation;
@@ -196,6 +196,10 @@ export class Scrollable extends Disposable {
 			this._smoothScrolling = null;
 		}
 		super.dispose();
+	}
+
+	public setSmoothScrollDuration(smoothScrollDuration: number): void {
+		this._smoothScrollDuration = smoothScrollDuration;
 	}
 
 	public validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition {
