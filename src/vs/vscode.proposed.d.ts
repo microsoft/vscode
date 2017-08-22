@@ -8,7 +8,7 @@
 declare module 'vscode' {
 
 	export interface OpenDialogOptions {
-		uri: Uri;
+		uri?: Uri;
 		openFiles?: boolean;
 		openFolders?: boolean;
 		openMany?: boolean;
