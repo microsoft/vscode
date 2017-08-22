@@ -389,8 +389,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 
 		// Only after the view has been notified, let the rest of the world know...
-		if (oldState.cursorState.length !== newState.cursorState.length
-			|| oldState.cursorState.some((old, i) => !old.modelState.equals(newState.cursorState[i].modelState))
+		if (!oldState
+			|| oldState.cursorState.length !== newState.cursorState.length
+			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
 			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
 		}
