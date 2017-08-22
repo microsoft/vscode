@@ -39,6 +39,7 @@ import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_T
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 export enum Rochade {
 	NONE,
@@ -152,7 +153,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
 		@IFileService private fileService: IFileService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(themeService);
 
@@ -1118,7 +1120,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			else {
 				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
-					handleWorkspaceExternalDrop(droppedResources, $this.fileService, $this.messageService, $this.windowsService, $this.windowService).then(handled => {
+					handleWorkspaceExternalDrop(droppedResources, $this.fileService, $this.messageService, $this.windowsService, $this.windowService, $this.workspacesService).then(handled => {
 						if (handled) {
 							return;
 						}

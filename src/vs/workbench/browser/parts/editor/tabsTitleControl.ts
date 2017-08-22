@@ -43,6 +43,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 interface IEditorInputLabel {
 	name: string;
@@ -74,7 +75,8 @@ export class TabsTitleControl extends TitleControl {
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -691,7 +693,7 @@ export class TabsTitleControl extends TitleControl {
 		if (droppedResources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			handleWorkspaceExternalDrop(droppedResources, this.fileService, this.messageService, this.windowsService, this.windowService).then(handled => {
+			handleWorkspaceExternalDrop(droppedResources, this.fileService, this.messageService, this.windowsService, this.windowService, this.workspacesService).then(handled => {
 				if (handled) {
 					return;
 				}

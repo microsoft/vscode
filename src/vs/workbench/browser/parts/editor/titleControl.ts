@@ -40,10 +40,11 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
 import { IDraggedResource } from 'vs/base/browser/dnd';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import URI from 'vs/base/common/uri';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -492,7 +493,8 @@ export function handleWorkspaceExternalDrop(
 	fileService: IFileService,
 	messageService: IMessageService,
 	windowsService: IWindowsService,
-	windowService: IWindowService
+	windowService: IWindowService,
+	workspacesService: IWorkspacesService
 ): TPromise<boolean /* handled */> {
 
 	// Return early if there are no external resources
@@ -501,39 +503,53 @@ export function handleWorkspaceExternalDrop(
 		return TPromise.as(false);
 	}
 
+	const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
+		workspaces: [],
+		folders: []
+	};
+
 	return TPromise.join(externalResources.map(resource => {
 
 		// Check for Workspace
 		if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-			return TPromise.as(true); // Workspace
+			externalWorkspaceResources.workspaces.push(resource);
+
+			return void 0;
 		}
 
 		// Check for Folder
-		return fileService.resolveFile(resource).then(stat => stat.isDirectory, error => false);
-	})).then(res => {
+		return fileService.resolveFile(resource).then(stat => {
+			if (stat.isDirectory) {
+				externalWorkspaceResources.folders.push(stat.resource);
+			}
+		}, error => void 0);
+	})).then(_ => {
+		const { workspaces, folders } = externalWorkspaceResources;
 
 		// Return early if no external resource is a folder or workspace
-		const openAsWorkspace = res.some(res => !!res);
-		if (!openAsWorkspace) {
-			return false; // not handled as workspace
+		if (workspaces.length === 0 && folders.length === 0) {
+			return false;
 		}
 
 		// Pass focus to window
 		windowService.focusWindow();
 
-		// Ask the user when opening a potential large number of folders
-		let doOpen = true;
-		if (externalResources.length > 20) {
-			doOpen = messageService.confirm({
-				message: nls.localize('confirmOpen', "Are you sure you want to open {0} workspaces?", externalResources.length),
-				primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
-				type: 'question'
-			});
+		let workspacesToOpen: TPromise<string[]>;
+
+		// Open in separate windows if we drop workspaces or just one folder
+		if (workspaces.length > 0 || folders.length === 1) {
+			workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
 		}
 
-		if (doOpen) {
-			windowsService.openWindow(externalResources.map(r => r.fsPath), { forceReuseWindow: true });
+		// Multiple folders: Create new workspace with folders and open
+		else if (folders.length > 1) {
+			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.toString(true /* skip encoding to preserve drive letters readable */))).then(workspace => [workspace.configPath]);
 		}
+
+		// Open
+		workspacesToOpen.then(workspaces => {
+			windowsService.openWindow(workspaces, { forceReuseWindow: true });
+		});
 
 		return true;
 	});
