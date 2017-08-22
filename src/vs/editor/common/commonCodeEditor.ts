@@ -862,7 +862,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.model.onBeforeAttached();
 
-			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
+			this.viewModel = new ViewModel(this.id, this._configuration, this.model, (callback) => this._scheduleAtNextAnimationFrame(callback));
 
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
@@ -935,6 +935,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
+	protected abstract _scheduleAtNextAnimationFrame(callback: () => void): IDisposable;
 	protected abstract _createView(): void;
 
 	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {

@@ -21,6 +21,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
+import { IDisposable } from "vs/base/common/lifecycle";
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -38,7 +39,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _isDisposing: boolean;
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;
@@ -70,7 +71,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this.coordinatesConverter = this.lines.createCoordinatesConverter();
 
-		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount()));
+		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			this._emit([new viewEvents.ViewScrollChangedEvent(e)]);

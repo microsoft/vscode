@@ -374,7 +374,7 @@ export class ScrollableElement extends AbstractScrollableElement {
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
 		options = options || {};
 		options.mouseWheelSmoothScroll = false;
-		const scrollable = new Scrollable(0);
+		const scrollable = new Scrollable(0, (callback) => DomUtils.scheduleAtNextAnimationFrame(callback));
 		super(element, options, scrollable);
 		this._register(scrollable);
 	}

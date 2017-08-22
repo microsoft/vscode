@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
@@ -24,14 +24,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly scrollable: Scrollable;
 	public readonly onDidScroll: Event<ScrollEvent>;
 
-	constructor(configuration: editorCommon.IConfiguration, lineCount: number) {
+	constructor(configuration: editorCommon.IConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this._configuration = configuration;
 		this._linesLayout = new LinesLayout(lineCount, this._configuration.editor.lineHeight);
 
 		// TODO@smooth: [MUST] have an editor option for smooth scrolling
-		this.scrollable = this._register(new Scrollable(125));
+		this.scrollable = this._register(new Scrollable(125, scheduleAtNextAnimationFrame));
 		this.scrollable.setScrollDimensions({
 			width: configuration.editor.layoutInfo.contentWidth,
 			height: configuration.editor.layoutInfo.contentHeight
