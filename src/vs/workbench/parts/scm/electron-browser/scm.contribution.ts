@@ -49,9 +49,9 @@ export class SwitchProvider extends Action {
 	}
 
 	run(): TPromise<any> {
-		const picks: IPickOpenEntry[] = this.scmService.providers.map(provider => ({
-			label: provider.label,
-			run: () => this.scmService.activeProvider = provider
+		const picks: IPickOpenEntry[] = this.scmService.repositories.map(repository => ({
+			label: repository.provider.label,
+			run: () => this.scmService.activeRepository = repository
 		}));
 		picks.push({
 			label: localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."),
@@ -61,7 +61,7 @@ export class SwitchProvider extends Action {
 						viewlet.search('category:"SCM Providers" @sort:installs');
 						viewlet.focus();
 					});
-				return this.scmService.activeProvider;
+				return this.scmService.activeRepository;
 			},
 			separator: { border: true }
 		});

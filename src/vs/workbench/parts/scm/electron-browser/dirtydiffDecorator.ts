@@ -81,7 +81,7 @@ class DirtyDiffModelDecorator {
 		this.toDispose = [];
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
-		this.toDispose.push(scmService.onDidChangeProvider(() => this.triggerDiff()));
+		this.toDispose.push(scmService.onDidChangeRepository(() => this.triggerDiff()));
 	}
 
 	private triggerDiff(): winjs.Promise {
@@ -123,13 +123,13 @@ class DirtyDiffModelDecorator {
 			return this._originalURIPromise;
 		}
 
-		const provider = this.scmService.activeProvider;
+		const repository = this.scmService.activeRepository;
 
-		if (!provider) {
+		if (!repository) {
 			return winjs.TPromise.as(null);
 		}
 
-		this._originalURIPromise = provider.getOriginalResource(this.uri)
+		this._originalURIPromise = repository.provider.getOriginalResource(this.uri)
 			.then(originalUri => {
 				if (!originalUri) {
 					return null;

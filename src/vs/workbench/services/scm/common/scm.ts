@@ -61,15 +61,20 @@ export interface ISCMInput {
 	readonly onDidChange: Event<string>;
 }
 
+export interface ISCMRepository extends IDisposable {
+	readonly provider: ISCMProvider;
+	readonly input: ISCMInput;
+}
+
 export interface ISCMService {
 
 	readonly _serviceBrand: any;
-	readonly onDidAddProvider: Event<ISCMProvider>;
-	readonly onDidRemoveProvider: Event<ISCMProvider>;
-	readonly onDidChangeProvider: Event<ISCMProvider>;
-	readonly providers: ISCMProvider[];
-	readonly input: ISCMInput;
-	activeProvider: ISCMProvider | undefined;
+	readonly onDidAddRepository: Event<ISCMRepository>;
+	readonly onDidRemoveRepository: Event<ISCMRepository>;
+	readonly onDidChangeRepository: Event<ISCMRepository>;
 
-	registerSCMProvider(provider: ISCMProvider): IDisposable;
+	readonly repositories: ISCMRepository[];
+	activeRepository: ISCMRepository | undefined;
+
+	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 }

@@ -21,7 +21,7 @@ import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -230,13 +230,13 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 
 class SourceControlViewDescriptor implements IViewDescriptor {
 
-	get provider(): ISCMProvider { return this._provider; }
-	get id(): string { return this._provider.id; }
-	get name(): string { return this._provider.label; }
+	get repository(): ISCMRepository { return this._repository; }
+	get id(): string { return this._repository.provider.id; }
+	get name(): string { return this._repository.provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _provider: ISCMProvider) {
+	constructor(private _repository: ISCMRepository) {
 
 	}
 }
@@ -251,13 +251,12 @@ class SourceControlView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private provider: ISCMProvider,
+		private repository: ISCMRepository,
 		options: IViewletViewOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
-		@ISCMService protected scmService: ISCMService,
 		@IListService protected listService: IListService,
 		@ICommandService protected commandService: ICommandService,
 		@IMessageService protected messageService: IMessageService,
@@ -267,7 +266,7 @@ class SourceControlView extends CollapsibleView {
 	) {
 		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
-		this.menus = instantiationService.createInstance(SCMMenus, provider);
+		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
 	}
 
@@ -290,9 +289,9 @@ class SourceControlView extends CollapsibleView {
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
-		this.inputBox.value = this.scmService.input.value;
-		this.inputBox.onDidChange(value => this.scmService.input.value = value, null, this.disposables);
-		this.scmService.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+		this.inputBox.value = this.repository.input.value;
+		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
+		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
 		// this.disposables.push(this.inputBox.onDidHeightChange(() => this.layout()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
@@ -301,8 +300,8 @@ class SourceControlView extends CollapsibleView {
 			.on(this.onDidAcceptInput, this, this.disposables);
 
 
-		if (this.provider.onDidChangeCommitTemplate) {
-			this.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
+		if (this.repository.provider.onDidChangeCommitTemplate) {
+			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
 		}
 
 		this.updateInputBox();
@@ -340,7 +339,7 @@ class SourceControlView extends CollapsibleView {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.provider.onDidChange(this.updateList, this, this.disposables);
+		this.repository.provider.onDidChange(this.updateList, this, this.disposables);
 		this.updateList();
 	}
 
@@ -365,11 +364,11 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	getActionsContext(): any {
-		return this.provider;
+		return this.repository.provider;
 	}
 
 	private updateList(): void {
-		const elements = this.provider.resources
+		const elements = this.repository.provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
 
 		this.list.splice(0, this.list.length, elements);
@@ -414,20 +413,20 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.provider.commitTemplate === 'undefined') {
+		if (typeof this.repository.provider.commitTemplate === 'undefined') {
 			return;
 		}
 
-		this.inputBox.value = this.provider.commitTemplate;
+		this.inputBox.value = this.repository.provider.commitTemplate;
 	}
 
 	private onDidAcceptInput(): void {
-		if (!this.provider.acceptInputCommand) {
+		if (!this.repository.provider.acceptInputCommand) {
 			return;
 		}
 
-		const id = this.provider.acceptInputCommand.id;
-		const args = this.provider.acceptInputCommand.arguments;
+		const id = this.repository.provider.acceptInputCommand.id;
+		const args = this.repository.provider.acceptInputCommand.arguments;
 
 		this.commandService.executeCommand(id, ...args)
 			.done(undefined, onUnexpectedError);
@@ -484,13 +483,13 @@ export class SCMViewlet extends ComposedViewsViewlet {
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 	}
 
-	private onDidAddProvider(provider: ISCMProvider): void {
-		const view = new SourceControlViewDescriptor(provider);
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const view = new SourceControlViewDescriptor(repository);
 		ViewsRegistry.registerViews([view]);
 	}
 
-	private onDidRemoveProvider(provider: ISCMProvider): void {
-		ViewsRegistry.deregisterViews([provider.id], ViewLocation.SCM);
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
 	}
 
 	// private onDidProvidersChange(): void {
@@ -521,9 +520,9 @@ export class SCMViewlet extends ComposedViewsViewlet {
 
 		parent.addClass('scm-viewlet');
 
-		this.scmService.onDidAddProvider(this.onDidAddProvider, this, this.disposables);
-		this.scmService.onDidRemoveProvider(this.onDidRemoveProvider, this, this.disposables);
-		this.scmService.providers.forEach(p => this.onDidAddProvider(p));
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
 		// this.themeService.onThemeChange(this.update, this, this.disposables);
 
 		// return TPromise.as(null);
@@ -531,7 +530,7 @@ export class SCMViewlet extends ComposedViewsViewlet {
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
 		if (viewDescriptor instanceof SourceControlViewDescriptor) {
-			return this.instantiationService.createInstance(SourceControlView, viewDescriptor.provider, options);
+			return this.instantiationService.createInstance(SourceControlView, viewDescriptor.repository, options);
 		}
 
 		return this.instantiationService.createInstance(viewDescriptor.ctor, options);

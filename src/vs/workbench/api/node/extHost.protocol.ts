@@ -336,7 +336,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
-	$setInputBoxValue(value: string): void;
+	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
 
 export type DebugSessionUUID = string;

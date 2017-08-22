@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
@@ -220,8 +220,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private _proxy: ExtHostSCMShape;
-	private _sourceControls: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
-	private _sourceControlDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
+	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
 	private _disposables: IDisposable[] = [];
 
 	constructor(
@@ -234,101 +234,113 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	dispose(): void {
-		Object.keys(this._sourceControls)
-			.forEach(id => this._sourceControls[id].dispose());
-		this._sourceControls = Object.create(null);
+		Object.keys(this._repositories)
+			.forEach(id => this._repositories[id].dispose());
+		this._repositories = Object.create(null);
 
-		Object.keys(this._sourceControlDisposables)
-			.forEach(id => this._sourceControlDisposables[id].dispose());
-		this._sourceControlDisposables = Object.create(null);
+		Object.keys(this._inputDisposables)
+			.forEach(id => this._inputDisposables[id].dispose());
+		this._inputDisposables = Object.create(null);
 
 		this._disposables = dispose(this._disposables);
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string): void {
 		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, this.scmService, this.commandService);
-		this._sourceControls[handle] = provider;
+		const repository = this.scmService.registerSCMProvider(provider);
+		this._repositories[handle] = repository;
 
-		const providerDisposable = this.scmService.registerSCMProvider(provider);
-		const inputDisposable = this.scmService.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
-		this._sourceControlDisposables[handle] = combinedDisposable([providerDisposable, inputDisposable]);
+		const inputDisposable = repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
+		this._inputDisposables[handle] = inputDisposable;
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
-		const sourceControl = this._sourceControls[handle];
+		const repository = this._repositories[handle];
 
-		if (!sourceControl) {
+		if (!repository) {
 			return;
 		}
 
-		sourceControl.$updateSourceControl(features);
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$updateSourceControl(features);
 	}
 
 	$unregisterSourceControl(handle: number): void {
-		const sourceControl = this._sourceControls[handle];
+		const repository = this._repositories[handle];
 
-		if (!sourceControl) {
+		if (!repository) {
 			return;
 		}
 
-		this._sourceControlDisposables[handle].dispose();
-		delete this._sourceControlDisposables[handle];
+		this._inputDisposables[handle].dispose();
+		delete this._inputDisposables[handle];
 
-		sourceControl.dispose();
-		delete this._sourceControls[handle];
+		repository.dispose();
+		delete this._repositories[handle];
 	}
 
 	$registerGroup(sourceControlHandle: number, groupHandle: number, id: string, label: string): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$registerGroup(groupHandle, id, label);
 	}
 
 	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroup(groupHandle, features);
 	}
 
 	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
 	}
 
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupResourceStates(groupHandle, resources);
 	}
 
 	$unregisterGroup(sourceControlHandle: number, handle: number): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$unregisterGroup(handle);
 	}
 
-	$setInputBoxValue(value: string): void {
-		this.scmService.input.value = value;
+	$setInputBoxValue(sourceControlHandle: number, value: string): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.value = value;
 	}
 }

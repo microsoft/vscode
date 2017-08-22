@@ -33,7 +33,7 @@ export class ExtHostSCMInputBox {
 	}
 
 	set value(value: string) {
-		this._proxy.$setInputBoxValue(value);
+		this._proxy.$setInputBoxValue(this._sourceControlHandle, value);
 		this.updateValue(value);
 	}
 
@@ -43,7 +43,7 @@ export class ExtHostSCMInputBox {
 		return this._onDidChange.event;
 	}
 
-	constructor(private _proxy: MainThreadSCMShape) {
+	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
 
@@ -232,7 +232,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _id: string,
 		private _label: string,
 	) {
-		this._inputBox = new ExtHostSCMInputBox(this._proxy);
+		this._inputBox = new ExtHostSCMInputBox(this._proxy, this._handle);
 		this._proxy.$registerSourceControl(this._handle, _id, _label);
 	}
 
