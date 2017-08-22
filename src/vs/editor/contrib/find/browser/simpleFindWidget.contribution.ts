@@ -11,12 +11,12 @@ import { ISimpleFindWidgetService, KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_ACTIVE 
 import { SimpleFindWidget, KEYBINDING_CONTEXT_SIMPLE_FIND_WIDGET_INPUT_FOCUSED } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 
 export const SIMPLE_FIND_IDS = {
-	ShowWidgetSimpleFindCommand: 'editor.action.simplefind.show',
-	HideWidgetSimpleFindCommand: 'editor.action.simplefind.hide',
-	HistoryNextSimpleFindCommand: 'editor.action.simplefind.nextHistory',
-	HistoryPreviousSimpleFindCommand: 'editor.action.simplefind.previousHistory',
-	FindNextSimpleFindCommand: 'editor.action.simplefind.nextMatch',
-	FindPreviousSimpleFindCommand: 'editor.action.simplefind.previousMatch'
+	ShowWidgetSimpleFindCommand: 'simpleFind.show',
+	HideWidgetSimpleFindCommand: 'simpleFind.hide',
+	HistoryNextSimpleFindCommand: 'simpleFind.nextHistory',
+	HistoryPreviousSimpleFindCommand: 'simpleFind.previousHistory',
+	FindNextSimpleFindCommand: 'simpleFind.nextMatch',
+	FindPreviousSimpleFindCommand: 'simpleFind.previousMatch'
 };
 
 
