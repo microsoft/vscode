@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'windows-process-tree' {
-	type processTreeNode = {
+	interface ProcessTreeNode {
 		pid: number,
 		name: string,
-		children: processTreeNode[]
+		children: ProcessTreeNode[]
 	}
-	function get(rootPid: number, callback: (tree: processTreeNode) => void): void;
+	function get(rootPid: number, callback: (tree: ProcessTreeNode) => void): void;
 	export = get;
 }
