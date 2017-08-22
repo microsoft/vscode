@@ -30,7 +30,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -42,6 +42,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IEditorInputLabel {
 	name: string;
@@ -72,7 +73,8 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService private fileService: IFileService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -685,28 +687,32 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
-
-		// Handle resources
-		if (resources.length) {
+		const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
+		if (droppedResources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			// Add external ones to recently open list
-			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-			if (externalResources.length) {
-				this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-			}
+			handleWorkspaceExternalDrop(droppedResources, this.fileService, this.messageService, this.windowsService, this.windowService).then(handled => {
+				if (handled) {
+					return;
+				}
 
-			// Open in Editor
-			this.editorService.openEditors(resources.map(d => {
-				return {
-					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
-					position: targetPosition
-				};
-			})).then(() => {
-				this.editorGroupService.focusGroup(targetPosition);
-				return this.windowService.focusWindow();
-			}).done(null, errors.onUnexpectedError);
+				// Add external ones to recently open list
+				const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+				if (externalResources.length) {
+					this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+				}
+
+				// Open in Editor
+				this.windowService.focusWindow()
+					.then(() => this.editorService.openEditors(droppedResources.map(d => {
+						return {
+							input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
+							position: targetPosition
+						};
+					}))).then(() => {
+						this.editorGroupService.focusGroup(targetPosition);
+					}).done(null, errors.onUnexpectedError);
+			});
 		}
 	}
 

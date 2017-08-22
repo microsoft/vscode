@@ -803,8 +803,8 @@ export class ImportFileAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		const importPromise = TPromise.as(null).then(() => {
-			const input = context.input;
-			if (input.files && input.files.length > 0) {
+			const input = context.input as { paths: string[] };
+			if (input.paths && input.paths.length > 0) {
 
 				// Find parent for import
 				let targetElement: FileStat;
@@ -819,13 +819,6 @@ export class ImportFileAction extends BaseFileAction {
 					targetElement = targetElement.parent;
 				}
 
-				// Create real files array
-				const filesArray: File[] = [];
-				for (let i = 0; i < input.files.length; i++) {
-					const file = input.files[i];
-					filesArray.push(file);
-				}
-
 				// Resolve target to check for name collisions and ask user
 				return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
 
@@ -836,8 +829,8 @@ export class ImportFileAction extends BaseFileAction {
 					});
 
 					let overwrite = true;
-					if (filesArray.some((file) => {
-						return !!targetNames[isLinux ? file.name : file.name.toLowerCase()];
+					if (input.paths.some(path => {
+						return !!targetNames[isLinux ? paths.extname(path) : paths.extname(path).toLowerCase()];
 					})) {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
@@ -855,10 +848,10 @@ export class ImportFileAction extends BaseFileAction {
 
 					// Run import in sequence
 					const importPromisesFactory: ITask<TPromise<void>>[] = [];
-					filesArray.forEach(file => {
+					input.paths.forEach(path => {
 						importPromisesFactory.push(() => {
-							const sourceFile = URI.file(file.path);
-							const targetFile = URI.file(paths.join(targetElement.resource.fsPath, paths.basename(file.path)));
+							const sourceFile = URI.file(path);
+							const targetFile = URI.file(paths.join(targetElement.resource.fsPath, paths.basename(path)));
 
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the imported file. since we already
@@ -872,7 +865,7 @@ export class ImportFileAction extends BaseFileAction {
 								return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
 
 									// if we only import one file, just open it directly
-									if (filesArray.length === 1) {
+									if (input.paths.length === 1) {
 										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
 									}
 								}, error => this.onError(error));

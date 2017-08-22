@@ -50,6 +50,8 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -693,7 +695,9 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService
+		@IBackupFileService private backupFileService: IBackupFileService,
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
 
@@ -752,7 +756,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (!this.dropEnabled || target instanceof Model) {
+		if (!this.dropEnabled) {
 			return DRAG_OVER_REJECT;
 		}
 
@@ -781,6 +785,10 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 		// In-Explorer DND
 		else {
+			if (target instanceof Model) {
+				return DRAG_OVER_REJECT;
+			}
+
 			const sources: FileStat[] = data.getData();
 			if (!Array.isArray(sources)) {
 				return DRAG_OVER_REJECT;
@@ -809,126 +817,169 @@ export class FileDragAndDrop implements IDragAndDrop {
 			}
 		}
 
-		// All
-		if (target.isDirectory) {
-			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
+		// All (target = model)
+		if (target instanceof Model) {
+			return this.contextService.hasMultiFolderWorkspace() ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(false) : DRAG_OVER_REJECT; // can only drop folders to workspace
 		}
 
-		const workspace = this.contextService.getWorkspace();
-		if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
-			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
+		// All (target = file/folder)
+		else {
+			if (target.isDirectory) {
+				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
+			}
+
+			const workspace = this.contextService.getWorkspace();
+			if (workspace && workspace.roots.every(r => r.toString() !== target.resource.toString())) {
+				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
+			}
 		}
 
 		return DRAG_OVER_REJECT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): void {
 		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
-			promise = importAction.run({
-				input: {
-					files: <FileList>(<DesktopDragAndDropData>data).getData().files
-				}
-			});
+			promise = this.handleExternalDrop(tree, data, target, originalEvent);
 		}
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			const source: FileStat = data.getData()[0];
-			const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
-
-			promise = tree.expand(target).then(() => {
-
-				// Reuse duplicate action if user copies
-				if (isCopy) {
-					return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
-				}
-
-				const dirtyMoved: URI[] = [];
-
-				// Success: load all files that are dirty again to restore their dirty contents
-				// Error: discard any backups created during the process
-				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
-				const onError = (error?: Error, showError?: boolean) => {
-					if (showError) {
-						this.messageService.show(Severity.Error, error);
-					}
-
-					return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
-				};
-
-				// 1. check for dirty files that are being moved and backup to new target
-				const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath, !isLinux /* ignorecase */));
-				return TPromise.join(dirty.map(d => {
-					let moved: URI;
-
-					// If the dirty file itself got moved, just reparent it to the target folder
-					if (paths.isEqual(source.resource.fsPath, d.fsPath)) {
-						moved = URI.file(paths.join(target.resource.fsPath, source.name));
-					}
-
-					// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
-					else {
-						moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
-					}
-
-					dirtyMoved.push(moved);
-
-					const model = this.textFileService.models.get(d);
-
-					return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
-				}))
-
-					// 2. soft revert all dirty since we have backed up their contents
-					.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
-
-					// 3.) run the move operation
-					.then(() => {
-						const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
-						let didHandleConflict = false;
-
-						return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
-
-							// Conflict
-							if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-								didHandleConflict = true;
-
-								const confirm: IConfirmation = {
-									message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-									detail: nls.localize('irreversible', "This action is irreversible!"),
-									primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-									type: 'warning'
-								};
-
-								// Move with overwrite if the user confirms
-								if (this.messageService.confirm(confirm)) {
-									const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
-
-									// Make sure to revert all dirty in target first to be able to overwrite properly
-									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
-
-										// Then continue to do the move operation
-										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
-									});
-								}
-
-								return onError();
-							}
-
-							return onError(error, true);
-						});
-					})
-
-					// 4.) resolve those that were dirty to load their previous dirty contents from disk
-					.then(onSuccess, onError);
-			}, errors.onUnexpectedError);
+			if (target instanceof FileStat) {
+				promise = this.handleExplorerDrop(tree, data, target, originalEvent);
+			}
 		}
 
 		this.progressService.showWhile(promise, 800);
 
 		promise.done(null, errors.onUnexpectedError);
+	}
+
+	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
+		const fileList = <FileList>(<DesktopDragAndDropData>data).getData().files;
+		const filePaths: string[] = [];
+		for (let i = 0; i < fileList.length; i++) {
+			filePaths.push(fileList[i].path);
+		}
+
+		// Check for dropped external files to be folders
+		return this.fileService.resolveFiles(filePaths.map(filePath => { return { resource: URI.file(filePath) }; })).then(result => {
+
+			// Pass focus to window
+			this.windowService.focusWindow();
+
+			// Handle folders by adding to workspace if we are in workspace context
+			const folders = result.filter(result => result.stat.isDirectory);
+			if (folders.length > 0) {
+				if (this.contextService.hasMultiFolderWorkspace()) {
+					return this.workspaceEditingService.addRoots(folders.map(folder => folder.stat.resource));
+				} else {
+					this.messageService.show(Severity.Info, nls.localize('dropFolders', "Open a workspace first to add and show multiple folders in the files explorer."));
+				}
+			}
+
+			// Handle dropped files (only support FileStat as target)
+			else if (target instanceof FileStat) {
+				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
+				return importAction.run({
+					input: { paths: filePaths }
+				});
+			}
+
+			return void 0;
+		});
+	}
+
+	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): TPromise<void> {
+		const source: FileStat = data.getData()[0];
+		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
+
+		return tree.expand(target).then(() => {
+
+			// Reuse duplicate action if user copies
+			if (isCopy) {
+				return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
+			}
+
+			const dirtyMoved: URI[] = [];
+
+			// Success: load all files that are dirty again to restore their dirty contents
+			// Error: discard any backups created during the process
+			const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
+			const onError = (error?: Error, showError?: boolean) => {
+				if (showError) {
+					this.messageService.show(Severity.Error, error);
+				}
+
+				return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
+			};
+
+			// 1. check for dirty files that are being moved and backup to new target
+			const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, source.resource.fsPath, !isLinux /* ignorecase */));
+			return TPromise.join(dirty.map(d => {
+				let moved: URI;
+
+				// If the dirty file itself got moved, just reparent it to the target folder
+				if (paths.isEqual(source.resource.fsPath, d.fsPath)) {
+					moved = URI.file(paths.join(target.resource.fsPath, source.name));
+				}
+
+				// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
+				else {
+					moved = URI.file(paths.join(target.resource.fsPath, d.fsPath.substr(source.parent.resource.fsPath.length + 1)));
+				}
+
+				dirtyMoved.push(moved);
+
+				const model = this.textFileService.models.get(d);
+
+				return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
+			}))
+
+				// 2. soft revert all dirty since we have backed up their contents
+				.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
+
+				// 3.) run the move operation
+				.then(() => {
+					const targetResource = URI.file(paths.join(target.resource.fsPath, source.name));
+					let didHandleConflict = false;
+
+					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
+
+						// Conflict
+						if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+							didHandleConflict = true;
+
+							const confirm: IConfirmation = {
+								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+								detail: nls.localize('irreversible', "This action is irreversible!"),
+								primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+								type: 'warning'
+							};
+
+							// Move with overwrite if the user confirms
+							if (this.messageService.confirm(confirm)) {
+								const targetDirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, targetResource.fsPath, !isLinux /* ignorecase */));
+
+								// Make sure to revert all dirty in target first to be able to overwrite properly
+								return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+
+									// Then continue to do the move operation
+									return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+								});
+							}
+
+							return onError();
+						}
+
+						return onError(error, true);
+					});
+				})
+
+				// 4.) resolve those that were dirty to load their previous dirty contents from disk
+				.then(onSuccess, onError);
+		}, errors.onUnexpectedError);
 	}
 }

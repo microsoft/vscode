@@ -39,6 +39,11 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
+import { IDraggedResource } from 'vs/base/browser/dnd';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { extname } from 'vs/base/common/paths';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -476,4 +481,60 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Toolbar
 		this.editorActionsToolbar.dispose();
 	}
+}
+
+/**
+ * Shared function across some editor components to handle drag & drop of folders and workspace files
+ * to open them in the window instead of the editor.
+ */
+export function handleWorkspaceExternalDrop(
+	resources: IDraggedResource[],
+	fileService: IFileService,
+	messageService: IMessageService,
+	windowsService: IWindowsService,
+	windowService: IWindowService
+): TPromise<boolean /* handled */> {
+
+	// Return early if there are no external resources
+	const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+	if (!externalResources.length) {
+		return TPromise.as(false);
+	}
+
+	return TPromise.join(externalResources.map(resource => {
+
+		// Check for Workspace
+		if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+			return TPromise.as(true); // Workspace
+		}
+
+		// Check for Folder
+		return fileService.resolveFile(resource).then(stat => stat.isDirectory, error => false);
+	})).then(res => {
+
+		// Return early if no external resource is a folder or workspace
+		const openAsWorkspace = res.some(res => !!res);
+		if (!openAsWorkspace) {
+			return false; // not handled as workspace
+		}
+
+		// Pass focus to window
+		windowService.focusWindow();
+
+		// Ask the user when opening a potential large number of folders
+		let doOpen = true;
+		if (externalResources.length > 20) {
+			doOpen = messageService.confirm({
+				message: nls.localize('confirmOpen', "Are you sure you want to open {0} workspaces?", externalResources.length),
+				primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+				type: 'question'
+			});
+		}
+
+		if (doOpen) {
+			windowsService.openWindow(externalResources.map(r => r.fsPath), { forceReuseWindow: true });
+		}
+
+		return true;
+	});
 }
