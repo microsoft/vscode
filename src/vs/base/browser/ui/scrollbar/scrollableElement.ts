@@ -22,6 +22,9 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
+const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
+const SCROLL_WHEEL_SMOOTH_SCROLL_MS_TIME_TRESHOLD = 4;
+const SCROLL_WHEEL_SMOOTH_SCROLL_PX_SPACE_TRESHOLD = 7;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -43,6 +46,8 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _listenOnDomNode: HTMLElement;
 
 	private _mouseWheelToDispose: IDisposable[];
+
+	private _previousMouseWheelEventTime: number = 0;
 
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
@@ -209,6 +214,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
+		const currentMouseWheelEventTime = Date.now();
 
 		if (e.deltaY || e.deltaX) {
 			let deltaY = e.deltaY * this._options.mouseWheelScrollSensitivity;
@@ -253,15 +259,31 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
 				// TODO@smooth: [MUST] detect if the source of the `mousewheel` is intertial or not and use setScrollPositionSmooth
-				this._scrollable.setScrollPositionNow(desiredScrollPosition);
+				const deltaT = currentMouseWheelEventTime - this._previousMouseWheelEventTime;
+				const canPerformSmoothScroll = (
+					SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED
+					&& this._options.mouseWheelSmoothScroll
+					// If either |∆x|, |∆y| or ∆t are too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
+					&& Math.max(Math.abs(deltaX), Math.abs(deltaY)) * SCROLL_WHEEL_SENSITIVITY > SCROLL_WHEEL_SMOOTH_SCROLL_PX_SPACE_TRESHOLD
+					&& deltaT > SCROLL_WHEEL_SMOOTH_SCROLL_MS_TIME_TRESHOLD
+				);
+
+				if (canPerformSmoothScroll) {
+					this._scrollable.setScrollPositionSmooth(desiredScrollPosition);
+				} else {
+					this._scrollable.setScrollPositionNow(desiredScrollPosition);
+				}
 				this._shouldRender = true;
 			}
+
 		}
 
 		if (this._options.alwaysConsumeMouseWheel || this._shouldRender) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
+
+		this._previousMouseWheelEventTime = currentMouseWheelEventTime;
 	}
 
 	private _onDidScroll(e: ScrollEvent): void {
