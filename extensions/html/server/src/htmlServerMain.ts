@@ -47,6 +47,10 @@ let scopedSettingsSupport = false;
 
 var globalSettings: Settings = {};
 let documentSettings: { [key: string]: Thenable<Settings> } = {};
+// remove document settings on close
+documents.onDidClose(e => {
+	delete documentSettings[e.document.uri];
+});
 
 function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
 	if (scopedSettingsSupport && needsDocumentSettings()) {
