@@ -252,6 +252,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
 			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
+				// TODO@smooth: [MUST] detect if the source of the `mousewheel` is intertial or not and use setScrollPositionSmooth
 				this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				this._shouldRender = true;
 			}

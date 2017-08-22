@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable } from 'vs/base/common/scrollable';
+import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
@@ -49,12 +49,9 @@ export interface IViewLayout {
 
 	getCurrentScrollLeft(): number;
 	getCurrentScrollTop(): number;
-
-	getFutureScrollLeft(): number;
-	getFutureScrollTop(): number;
-
 	getCurrentViewport(): Viewport;
 
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 	setScrollPositionNow(position: INewScrollPosition): void;
 	setScrollPositionSmooth(position: INewScrollPosition): void;
 	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;

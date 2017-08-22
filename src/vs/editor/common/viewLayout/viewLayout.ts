@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, IScrollDimensions, IScrollPosition } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
@@ -247,13 +247,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return currentScrollPosition.scrollTop;
 	}
 
-	public getFutureScrollLeft(): number {
-		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
-		return currentScrollPosition.scrollLeft;
-	}
-	public getFutureScrollTop(): number {
-		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
-		return currentScrollPosition.scrollTop;
+	public validateScrollPosition(scrollPosition: editorCommon.INewScrollPosition): IScrollPosition {
+		return this.scrollable.validateScrollPosition(scrollPosition);
 	}
 
 	public setScrollPositionNow(position: editorCommon.INewScrollPosition): void {
