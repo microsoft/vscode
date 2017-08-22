@@ -150,7 +150,7 @@ class ModelMarkerHandler {
 				}
 			}
 
-			hoverMessage = [{ language: '_', value: message }];
+			hoverMessage = ['```_\n' + message + '\n```'];
 		}
 
 		return {

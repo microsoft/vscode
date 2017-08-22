@@ -35,13 +35,7 @@ export function renderMarkedString(markedString: MarkedString, options: RenderOp
 	// this is sort of legacy given that we have full
 	// support for markdown. Turn this into markdown
 	// and continue
-	let markdown: string;
-	if (typeof markedString === 'string') {
-		markdown = markedString;
-	} else {
-		markdown = '```' + markedString.language + '\n' + markedString.value + '\n```';
-	}
-	return renderMarkdown(markdown, options);
+	return renderMarkdown(markedString, options);
 }
 
 export function renderText(text: string, options: RenderOptions = {}): Node {

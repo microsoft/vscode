@@ -154,10 +154,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
 					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
 
-					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), {
-						language: this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath),
-						value
-					});
+					this.addDecoration(
+						new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+						'```' + this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath) + '\n' + value + '\n```'
+					);
 					ref.dispose();
 				});
 			}

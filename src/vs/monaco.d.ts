@@ -358,10 +358,7 @@ declare module monaco {
 	 * or a code-block that provides a language and a code snippet. Note that
 	 * markdown strings will be sanitized - that means html will be escaped.
 	 */
-	export type MarkedString = string | {
-		readonly language: string;
-		readonly value: string;
-	};
+	export type MarkedString = string;
 
 	export interface IKeyboardEvent {
 		readonly browserEvent: KeyboardEvent;

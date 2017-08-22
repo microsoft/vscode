@@ -143,12 +143,23 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
+export namespace MarkedString {
+	export function from(markup: vscode.MarkedString): string {
+		if (typeof markup === 'string' || !markup) {
+			return <string>markup;
+		} else {
+			const { language, value } = markup;
+			return '```' + language + '\n' + value + '\n```';
+		}
+	}
+}
+
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: r.hoverMessage,
+				hoverMessage: Array.isArray(r.hoverMessage) ? r.hoverMessage.map(MarkedString.from) : MarkedString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -256,7 +267,7 @@ export const location = {
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),
-		contents: hover.contents
+		contents: hover.contents.map(MarkedString.from)
 	};
 }
 
