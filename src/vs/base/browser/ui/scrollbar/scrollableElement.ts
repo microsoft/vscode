@@ -22,7 +22,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
-const SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD = 1.7;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -253,22 +252,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			desiredScrollPosition = this._scrollable.validateScrollPosition(desiredScrollPosition);
 
 			if (futureScrollPosition.scrollLeft !== desiredScrollPosition.scrollLeft || futureScrollPosition.scrollTop !== desiredScrollPosition.scrollTop) {
-				// TODO@smooth: [MUST] implement better heuristic for distinguishing inertia scrolling
-				// from physical mouse wheels
-				const ENABLE_MOUSE_WHEEL_SMOOTH = false;
-
-				// If |∆x| and |∆y| are too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-				const smoothScrollThresholdReached = (
-					Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD
-					|| Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD
-				);
-
-				if (ENABLE_MOUSE_WHEEL_SMOOTH && this._options.mouseWheelSmoothScroll && smoothScrollThresholdReached) {
-					this._scrollable.setScrollPositionSmooth(desiredScrollPosition);
-				} else {
-					this._scrollable.setScrollPositionNow(desiredScrollPosition);
-				}
-
+				this._scrollable.setScrollPositionNow(desiredScrollPosition);
 				this._shouldRender = true;
 			}
 		}
