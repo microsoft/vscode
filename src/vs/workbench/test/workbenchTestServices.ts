@@ -411,10 +411,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		this.storage.store(key, value, scope);
 	}
 
-	swap(key: string, valueA: any, valueB: any, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: any): void {
-		this.storage.swap(key, valueA, valueB, scope, defaultValue);
-	}
-
 	remove(key: string, scope: StorageScope = StorageScope.GLOBAL): void {
 		this.storage.remove(key, scope);
 	}
