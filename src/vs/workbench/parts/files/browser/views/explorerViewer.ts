@@ -53,6 +53,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { distinct } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -698,7 +699,8 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.toDispose = [];
 
@@ -874,6 +876,10 @@ export class FileDragAndDrop implements IDragAndDrop {
 			// Handle folders by adding to workspace if we are in workspace context
 			const folders = result.filter(result => result.stat.isDirectory).map(result => result.stat.resource);
 			if (folders.length > 0) {
+				if (this.environmentService.appQuality === 'stable') {
+					return void 0; // TODO@Ben multi root
+				}
+
 				if (this.contextService.hasMultiFolderWorkspace()) {
 					return this.workspaceEditingService.addRoots(folders);
 				}
