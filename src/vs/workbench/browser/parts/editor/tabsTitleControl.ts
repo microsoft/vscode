@@ -131,7 +131,7 @@ export class TabsTitleControl extends TitleControl {
 		// Forward scrolling inside the container to our custom scrollbar
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
-				this.scrollbar.updateState({
+				this.scrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
@@ -462,7 +462,7 @@ export class TabsTitleControl extends TitleControl {
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
 		// Update scrollbar
-		this.scrollbar.updateState({
+		this.scrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
 			scrollWidth: totalContainerWidth
 		});
@@ -482,14 +482,14 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
 		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: this.activeTab.offsetLeft
 			});
 		}
@@ -569,7 +569,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: this.tabsContainer.scrollLeft
 			});
 		}));

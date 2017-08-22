@@ -267,6 +267,11 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Enable that the editor animates scrolling to a position.
+	 * Defaults to true.
+	 */
+	smoothScrolling?: boolean;
+	/**
 	 * Enable that the editor will install an interval to check if its container dom node size has changed.
 	 * Enabling this might have a severe performance impact.
 	 * Defaults to false.
@@ -748,6 +753,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorStyle: TextEditorCursorStyle;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
+	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
@@ -1014,6 +1020,7 @@ export class InternalEditorOptions {
 			&& a.cursorStyle === b.cursorStyle
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.smoothScrolling === b.smoothScrolling
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
 			&& a.renderControlCharacters === b.renderControlCharacters
@@ -1609,6 +1616,7 @@ export class EditorOptionsValidator {
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
@@ -1709,6 +1717,7 @@ export class InternalEditorOptionsFactory {
 				cursorStyle: opts.viewInfo.cursorStyle,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
+				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2130,6 +2139,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorStyle: TextEditorCursorStyle.Line,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
+		smoothScrolling: true,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
 		renderControlCharacters: false,

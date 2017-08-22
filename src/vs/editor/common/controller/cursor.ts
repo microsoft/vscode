@@ -210,7 +210,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
-		this._viewModel.viewLayout.setScrollPosition({
+		this._viewModel.viewLayout.setScrollPositionSmooth({
 			scrollTop: desiredScrollTop
 		});
 	}

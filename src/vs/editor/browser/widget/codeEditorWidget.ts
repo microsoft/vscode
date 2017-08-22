@@ -21,7 +21,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
@@ -401,6 +401,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._view.render(false, true);
 			this.hasView = true;
 		}
+	}
+
+	protected _scheduleAtNextAnimationFrame(callback: () => void): IDisposable {
+		return dom.scheduleAtNextAnimationFrame(callback);
 	}
 
 	protected _createView(): void {

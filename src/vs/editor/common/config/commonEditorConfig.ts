@@ -248,6 +248,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.smoothScrolling': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
+			'description': nls.localize('smoothScrolling', "Controls if the editor will scroll using an animation")
+		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,

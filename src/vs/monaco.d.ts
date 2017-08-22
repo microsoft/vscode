@@ -2822,6 +2822,11 @@ declare module monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Enable that the editor animates scrolling to a position.
+		 * Defaults to true.
+		 */
+		smoothScrolling?: boolean;
+		/**
 		 * Enable that the editor will install an interval to check if its container dom node size has changed.
 		 * Enabling this might have a severe performance impact.
 		 * Defaults to false.
@@ -3242,6 +3247,7 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
+		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;

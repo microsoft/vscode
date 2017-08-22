@@ -13,7 +13,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -193,7 +193,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	private _onMouseDown(e: IMouseEvent): void {
 		let domNodePosition = DomUtils.getDomNodePagePosition(this.domNode.domNode);
-		this.setDesiredScrollPosition(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(e, domNodePosition)));
+		this._setDesiredScrollPositionNow(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(e, domNodePosition)));
 		if (e.leftButton) {
 			e.preventDefault();
 			this._sliderMouseDown(e, () => { /*nothing to do*/ });
@@ -214,13 +214,13 @@ export abstract class AbstractScrollbar extends Widget {
 
 				if (Platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
 					// The mouse has wondered away from the scrollbar => reset dragging
-					this.setDesiredScrollPosition(initialScrollbarState.getScrollPosition());
+					this._setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
 					return;
 				}
 
 				const mousePosition = this._sliderMousePosition(mouseMoveData);
 				const mouseDelta = mousePosition - initialMousePosition;
-				this.setDesiredScrollPosition(initialScrollbarState.getDesiredScrollPositionFromDelta(mouseDelta));
+				this._setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(mouseDelta));
 			},
 			() => {
 				this.slider.toggleClassName('active', false);
@@ -232,18 +232,12 @@ export abstract class AbstractScrollbar extends Widget {
 		this._host.onDragStart();
 	}
 
-	public setDesiredScrollPosition(desiredScrollPosition: number): boolean {
-		desiredScrollPosition = this.validateScrollPosition(desiredScrollPosition);
+	private _setDesiredScrollPositionNow(_desiredScrollPosition: number): void {
 
-		let oldScrollPosition = this._getScrollPosition();
-		this._setScrollPosition(desiredScrollPosition);
-		let newScrollPosition = this._getScrollPosition();
+		let desiredScrollPosition: INewScrollPosition = {};
+		this.writeScrollPosition(desiredScrollPosition, _desiredScrollPosition);
 
-		if (oldScrollPosition !== newScrollPosition) {
-			this._onElementScrollPosition(this._getScrollPosition());
-			return true;
-		}
-		return false;
+		this._scrollable.setScrollPositionNow(desiredScrollPosition);
 	}
 
 	// ----------------- Overwrite these
@@ -255,7 +249,5 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _sliderMousePosition(e: ISimplifiedMouseEvent): number;
 	protected abstract _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number;
 
-	protected abstract _getScrollPosition(): number;
-	protected abstract _setScrollPosition(elementScrollPosition: number): void;
-	public abstract validateScrollPosition(desiredScrollPosition: number): number;
+	public abstract writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void;
 }

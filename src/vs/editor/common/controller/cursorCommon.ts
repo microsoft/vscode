@@ -304,8 +304,8 @@ export class CursorContext {
 		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
-	public getScrollTop(): number {
-		return this.viewModel.viewLayout.getScrollTop();
+	public getCurrentScrollTop(): number {
+		return this.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
