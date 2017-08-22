@@ -593,6 +593,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.links,
 			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
 		},
+		'editor.colorDecorator': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.colorDecorator,
+			'description': nls.localize('colorDecorator', "Controls whether the editor should render the inline color decorators.")
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
