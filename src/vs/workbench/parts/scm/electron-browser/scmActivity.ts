@@ -12,10 +12,11 @@ import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	static ID = 'vs.scm.statusUpdater';
+	private static ID = 'vs.scm.statusUpdater';
 
 	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
@@ -25,18 +26,14 @@ export class StatusUpdater implements IWorkbenchContribution {
 		@IActivityBarService private activityBarService: IActivityBarService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		this.render(this.scmService.repositories);
-	}
-
-	getId(): string {
-		return StatusUpdater.ID;
+		this.render();
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const changeDisposable = repository.provider.onDidChange(() => this.render(this.scmService.repositories));
+		const changeDisposable = repository.provider.onDidChange(() => this.render());
 
-		const onDidRemoveThisRepository = filterEvent(this.scmService.onDidRemoveRepository, r => r === repository);
-		const removeDisposable = onDidRemoveThisRepository(() => {
+		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
+		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
 		});
@@ -45,8 +42,12 @@ export class StatusUpdater implements IWorkbenchContribution {
 		this.disposables.push(disposable);
 	}
 
-	private render(repositories: ISCMRepository[]): void {
-		const count = repositories.reduce((r, repository) => {
+	getId(): string {
+		return StatusUpdater.ID;
+	}
+
+	private render(): void {
+		const count = this.scmService.repositories.reduce((r, repository) => {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
 			} else {
@@ -64,6 +65,71 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	dispose(): void {
 		this.badgeDisposable.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class StatusBarController implements IWorkbenchContribution {
+
+	private static ID = 'vs.scm.statusBarController';
+
+	private statusBarDisposable: IDisposable = EmptyDisposable;
+	private focusDisposable: IDisposable = EmptyDisposable;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@ISCMService private scmService: ISCMService,
+		@IStatusbarService private statusbarService: IStatusbarService
+	) {
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+
+		if (this.scmService.repositories.length > 0) {
+			this.onDidFocusRepository(this.scmService.repositories[0]);
+		}
+	}
+
+	getId(): string {
+		return StatusBarController.ID;
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const changeDisposable = repository.onDidFocus(() => this.onDidFocusRepository(repository));
+		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
+		const removeDisposable = onDidRemove(() => {
+			disposable.dispose();
+			this.disposables = this.disposables.filter(d => d !== removeDisposable);
+		});
+
+		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
+		this.disposables.push(disposable);
+
+		if (this.scmService.repositories.length === 1) {
+			this.onDidFocusRepository(repository);
+		}
+	}
+
+	private onDidFocusRepository(repository: ISCMRepository): void {
+		this.focusDisposable.dispose();
+		this.focusDisposable = repository.provider.onDidChange(() => this.render(repository));
+		this.render(repository);
+	}
+
+	private render(repository: ISCMRepository): void {
+		this.statusBarDisposable.dispose();
+
+		const commands = repository.provider.statusBarCommands || [];
+		const disposables = commands.map(c => this.statusbarService.addEntry({
+			text: c.title,
+			tooltip: c.tooltip,
+			command: c.id
+		}, MainThreadStatusBarAlignment.LEFT, 10000));
+
+		this.statusBarDisposable = combinedDisposable(disposables);
+	}
+
+	dispose(): void {
+		this.focusDisposable.dispose();
+		this.statusBarDisposable.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }

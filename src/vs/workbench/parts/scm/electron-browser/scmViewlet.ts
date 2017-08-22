@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { ComposedViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -278,8 +278,11 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	renderBody(container: HTMLElement): void {
-		// Input
+		const focusTracker = trackFocus(container);
+		this.disposables.push(focusTracker.addFocusListener(() => this.repository.focus()));
+		this.disposables.push(focusTracker);
 
+		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {

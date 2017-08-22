@@ -5,12 +5,9 @@
 
 'use strict';
 
-import { IDisposable, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, DefaultSCMProviderIdStorageKey } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository } from './scm';
 
 class SCMInput implements ISCMInput {
 
@@ -31,12 +28,19 @@ class SCMInput implements ISCMInput {
 
 class SCMRepository implements ISCMRepository {
 
+	private _onDidFocus = new Emitter<void>();
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
 	readonly input: ISCMInput = new SCMInput();
 
 	constructor(
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable
 	) { }
+
+	focus(): void {
+		this._onDidFocus.fire();
+	}
 
 	dispose(): void {
 		this.disposable.dispose();
@@ -47,20 +51,6 @@ class SCMRepository implements ISCMRepository {
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
-
-	private activeProviderDisposable: IDisposable = EmptyDisposable;
-	private statusBarDisposable: IDisposable = EmptyDisposable;
-
-	private _activeRepository: ISCMRepository | undefined;
-
-	get activeRepository(): ISCMRepository | undefined {
-		return this._activeRepository;
-	}
-
-	set activeRepository(repository: ISCMRepository | undefined) {
-		this.setActiveSCMProvider(repository);
-		this.storageService.store(DefaultSCMProviderIdStorageKey, repository.provider.contextValue, StorageScope.WORKSPACE);
-	}
 
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];
@@ -75,32 +65,7 @@ export class SCMService implements ISCMService {
 	private _onDidChangeProvider = new Emitter<ISCMRepository>();
 	get onDidChangeRepository(): Event<ISCMRepository> { return this._onDidChangeProvider.event; }
 
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService,
-		@IStatusbarService private statusbarService: IStatusbarService
-	) { }
-
-	private setActiveSCMProvider(repository: ISCMRepository): void {
-		this.activeProviderDisposable.dispose();
-
-		if (!repository) {
-			throw new Error('invalid provider');
-		}
-
-		if (repository && this._repositories.indexOf(repository) === -1) {
-			throw new Error('Provider not registered');
-		}
-
-		this._activeRepository = repository;
-		const provider = repository.provider;
-
-		this.activeProviderDisposable = provider.onDidChange(() => this.onDidProviderChange(provider));
-		this.onDidProviderChange(provider);
-
-		this._onDidChangeProvider.fire(repository);
-	}
+	constructor() { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		if (this._providerIds.has(provider.id)) {
@@ -118,38 +83,13 @@ export class SCMService implements ISCMService {
 
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
-
-			if (this.activeRepository === repository) {
-				this.activeRepository = this._repositories[0];
-			}
-
 			this._onDidRemoveProvider.fire(repository);
 		});
 
 		const repository = new SCMRepository(provider, disposable);
 		this._repositories.push(repository);
-
-		const defaultProviderId = this.storageService.get(DefaultSCMProviderIdStorageKey, StorageScope.WORKSPACE);
-
-		if (this._repositories.length === 1 || defaultProviderId === provider.contextValue) {
-			this.setActiveSCMProvider(repository);
-		}
-
 		this._onDidAddProvider.fire(repository);
 
 		return repository;
-	}
-
-	private onDidProviderChange(provider: ISCMProvider): void {
-		this.statusBarDisposable.dispose();
-
-		const commands = provider.statusBarCommands || [];
-		const disposables = commands.map(c => this.statusbarService.addEntry({
-			text: c.title,
-			tooltip: c.tooltip,
-			command: c.id
-		}, MainThreadStatusBarAlignment.LEFT, 10000));
-
-		this.statusBarDisposable = combinedDisposable(disposables);
 	}
 }

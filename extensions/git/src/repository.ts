@@ -14,6 +14,7 @@ import { AutoFetcher } from './autofetch';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
+import { StatusBarCommands } from "./statusbar";
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -403,6 +404,11 @@ export class Repository implements Disposable {
 		this.disposables.push(this.workingTreeGroup);
 
 		this.disposables.push(new AutoFetcher(this));
+
+		const statusBar = new StatusBarCommands(this);
+		this.disposables.push(statusBar);
+		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
+		this._sourceControl.statusBarCommands = statusBar.commands;
 
 		this.updateCommitTemplate();
 		this.status();

@@ -16,7 +16,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StatusUpdater } from './scmActivity';
+import { StatusUpdater, StatusBarController } from './scmActivity';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -45,6 +45,9 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 
 Registry.as(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater);
+
+Registry.as(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(StatusBarController);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
