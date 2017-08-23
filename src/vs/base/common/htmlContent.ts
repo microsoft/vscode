@@ -33,14 +33,10 @@ export class MarkdownString implements IMarkdownString {
 	}
 
 	appendText(value: string): this {
-		this.value += textToMarkedString(value);
+		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 		return this;
 	}
-
-	// appendMarkdown(value: string): this {
-	// 	this.value += value;
-	// 	return this;
-	// }
 
 	appendCodeblock(langId: string, code: string): this {
 		this.value += '```';
@@ -74,10 +70,6 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else {
 		return a.value === b.value && a.enableCommands === b.enableCommands;
 	}
-}
-
-export function textToMarkedString(text: string): string {
-	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 }
 
 export function removeMarkdownEscapes(text: string): string {
