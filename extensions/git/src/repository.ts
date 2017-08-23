@@ -201,15 +201,14 @@ export enum Operation {
 	Pull = 1 << 9,
 	Push = 1 << 10,
 	Sync = 1 << 11,
-	Init = 1 << 12,
-	Show = 1 << 13,
-	Stage = 1 << 14,
-	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16,
-	Merge = 1 << 17,
-	Ignore = 1 << 18,
-	Tag = 1 << 19,
-	Stash = 1 << 20
+	Show = 1 << 12,
+	Stage = 1 << 13,
+	GetCommitTemplate = 1 << 14,
+	DeleteBranch = 1 << 15,
+	Merge = 1 << 16,
+	Ignore = 1 << 17,
+	Tag = 1 << 18,
+	Stash = 1 << 19
 }
 
 // function getOperationName(operation: Operation): string {

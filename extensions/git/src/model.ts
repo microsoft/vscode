@@ -84,7 +84,7 @@ export class Model {
 	}
 
 	@sequentialize
-	private async tryOpenRepository(path: string): Promise<void> {
+	async tryOpenRepository(path: string): Promise<void> {
 		const repository = this.getRepository(path);
 
 		if (repository) {

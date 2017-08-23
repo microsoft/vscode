@@ -311,8 +311,23 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		// TODO@joao
-		// await model.init();
+		const value = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
+			? workspace.workspaceFolders[0].uri.fsPath
+			: os.homedir();
+
+		const path = await window.showInputBox({
+			placeHolder: localize('path to init', "Folder path"),
+			prompt: localize('provide path', "Please provide a folder path to initialize a Git repository"),
+			value,
+			ignoreFocusOut: true
+		});
+
+		if (!path) {
+			return;
+		}
+
+		await this.git.init(path);
+		await this.model.tryOpenRepository(path);
 	}
 
 	@command('git.openFile')
