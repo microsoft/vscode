@@ -12,9 +12,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape } from './extHost.protocol';
+import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
@@ -112,7 +111,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _barrier: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _threadService: ExtHostThreadService;
-	private readonly _telemetryService: ITelemetryService;
+	private readonly _mainThreadTelemetry: MainThreadTelemetryShape;
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
@@ -121,18 +120,18 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(initData: IInitData, threadService: ExtHostThreadService, telemetryService: ITelemetryService) {
+	constructor(initData: IInitData, threadService: ExtHostThreadService) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._threadService = threadService;
-		this._telemetryService = telemetryService;
+		this._mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
 		this._storage = new ExtHostStorage(threadService);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = this._threadService.get(MainContext.MainThreadExtensionService);
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, this, this._telemetryService);
+		const apiFactory = createApiFactory(initData, threadService, this);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
@@ -281,7 +280,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		let event = getTelemetryActivationEvent(extensionDescription);
-		this._telemetryService.publicLog('activatePlugin', event);
+		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return TPromise.as(new EmptyExtension());

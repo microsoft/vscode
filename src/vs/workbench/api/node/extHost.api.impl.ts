@@ -43,7 +43,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
@@ -74,9 +73,10 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 export function createApiFactory(
 	initData: IInitData,
 	threadService: ExtHostThreadService,
-	extensionService: ExtHostExtensionService,
-	telemetryService: ITelemetryService
+	extensionService: ExtHostExtensionService
 ): IExtensionApiFactory {
+
+	const mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
 
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
@@ -140,7 +140,7 @@ export function createApiFactory(
 					return undefined;
 				}
 				this._seen.add(apiName);
-				return telemetryService.publicLog('apiUsage', {
+				return mainThreadTelemetry.$publicLog('apiUsage', {
 					name: apiName,
 					extension: extension.id
 				});
@@ -475,7 +475,7 @@ export function createApiFactory(
 				return extHostSCM.inputBox;
 			},
 			createSourceControl(id: string, label: string) {
-				telemetryService.publicLog('registerSCMProvider', {
+				mainThreadTelemetry.$publicLog('registerSCMProvider', {
 					extensionId: extension.id,
 					providerId: id,
 					providerLabel: label

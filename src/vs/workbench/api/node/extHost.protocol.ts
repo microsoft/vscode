@@ -288,7 +288,6 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
-	$getTelemetryInfo(): TPromise<ITelemetryInfo>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
