@@ -744,7 +744,6 @@ export class CommandCenter {
 		const message = await getCommitMessage();
 
 		if (!message) {
-			// TODO@joao: show modal dialog to confirm empty message commit
 			return false;
 		}
 
@@ -1287,7 +1286,6 @@ export class CommandCenter {
 		return result;
 	}
 
-	// TODO@Joao: possibly remove? do we really need to return resources?
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
@@ -1322,7 +1320,6 @@ export class CommandCenter {
 		const groups = resources.reduce((result, resource) => {
 			const repository = this.model.getRepository(resource);
 
-			// TODO@Joao: what should happen?
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);
 				return result;

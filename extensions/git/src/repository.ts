@@ -411,7 +411,6 @@ export class Repository implements Disposable {
 		this.status();
 	}
 
-	// TODO@Joao reorganize this
 	provideOriginalResource(uri: Uri): Uri | undefined {
 		if (uri.scheme !== 'file') {
 			return;

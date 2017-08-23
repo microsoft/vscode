@@ -83,7 +83,6 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 	};
 }
 
-// TODO@Joao: replace with Object.assign
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
 		Object.keys(source).forEach(key => destination[key] = source[key]);
