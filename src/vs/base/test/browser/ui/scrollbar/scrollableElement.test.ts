@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MouseWheelClassifier } from "vs/base/browser/ui/scrollbar/scrollableElement";
+import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import * as assert from 'assert';
 
 export type IMouseWheelEvent = [number, number, number];

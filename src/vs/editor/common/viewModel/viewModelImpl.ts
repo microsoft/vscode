@@ -21,7 +21,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
