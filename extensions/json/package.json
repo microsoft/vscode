@@ -64,6 +64,7 @@
       "properties": {
         "json.schemas": {
           "type": "array",
+          "scope": "resource",
           "description": "%json.schemas.desc%",
           "items": {
             "type": "object",
@@ -98,11 +99,13 @@
         },
         "json.format.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
           "description": "%json.format.enable.desc%"
         },
         "json.trace.server": {
           "type": "string",
+          "scope": "window",
           "enum": [
             "off",
             "messages",
@@ -113,6 +116,7 @@
         },
         "json.colorDecorators.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
           "description": "%json.colorDecorators.enable.desc%"
         }
@@ -128,7 +132,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.1.0-alpha.1",
+    "vscode-languageclient": "^3.4.0-next.13",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
