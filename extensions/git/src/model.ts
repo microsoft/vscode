@@ -160,7 +160,7 @@ export class Model {
 			for (const liveRepository of this.openRepositories) {
 				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
 
-				if (!/^\./.test(relativePath)) {
+				if (!/^\.\./.test(relativePath)) {
 					return liveRepository;
 				}
 			}
