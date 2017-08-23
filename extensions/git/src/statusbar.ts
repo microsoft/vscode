@@ -99,7 +99,6 @@ class SyncStatusBar {
 	}
 
 	get command(): Command | undefined {
-		console.log(this.repository.remotes, this.state.hasRemotes);
 		if (!this.state.hasRemotes) {
 			return undefined;
 		}
@@ -174,7 +173,6 @@ export class StatusBarCommands {
 		}
 
 		const sync = this.syncStatusBar.command;
-		console.log(sync);
 
 		if (sync) {
 			result.push(sync);
