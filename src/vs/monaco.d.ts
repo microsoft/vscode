@@ -2892,7 +2892,7 @@ declare module monaco.editor {
 		/**
 		 * Enable inline color decorators rendering.
 		 */
-		colorDecorator?: boolean;
+		colorDecorators?: boolean;
 		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
@@ -3290,7 +3290,7 @@ declare module monaco.editor {
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
-		readonly colorDecorator: boolean;
+		readonly colorDecorators: boolean;
 	}
 
 	/**
