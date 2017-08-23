@@ -80,7 +80,7 @@ export function createApiFactory(
 
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
-	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService, extensionService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));

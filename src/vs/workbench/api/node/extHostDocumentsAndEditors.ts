@@ -11,6 +11,7 @@ import { ExtHostDocumentData } from './extHostDocumentData';
 import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -29,7 +30,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext
+		private readonly _mainContext: IMainContext,
+		private readonly _extHostExtensions: ExtHostExtensionService
 	) {
 	}
 
@@ -81,6 +83,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				const documentData = this._documents.get(data.document.toString());
 				const editor = new ExtHostTextEditor(
 					this._mainContext.get(MainContext.MainThreadEditors),
+					this._mainContext.get(MainContext.MainThreadTelemetry),
+					this._extHostExtensions,
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),
