@@ -69,9 +69,9 @@ export class TableOfContentsProvider {
 	}
 
 	private static getHeaderLevel(markup: string): number {
-		if (markup == '=') {
+		if (markup === '=') {
 			return 1;
-		} else if (markup == '-') {
+		} else if (markup === '-') {
 			return 2;
 		} else { // '#', '##', ...
 			return markup.length;
