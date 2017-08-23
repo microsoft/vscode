@@ -331,7 +331,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
-					args.push('--useSingleInferredProject');
+					if (this.apiVersion.has250Features()) {
+						args.push('--useInferredProjectPerProjectRoot');
+					} else {
+						args.push('--useSingleInferredProject');
+					}
+
 					if (this.configuration.disableAutomaticTypeAcquisition) {
 						args.push('--disableAutomaticTypingAcquisition');
 					}
@@ -614,7 +619,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
 			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.uri.fsPath)) {
+				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 					return root.uri.fsPath;
 				}
 			}
