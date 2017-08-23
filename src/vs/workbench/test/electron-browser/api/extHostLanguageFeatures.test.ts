@@ -446,8 +446,8 @@ suite('ExtHostLanguageFeatures', function () {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value as Hover[];
-				assert.equal(first.contents[0], 'registered second');
-				assert.equal(second.contents[0], 'registered first');
+				assert.equal(first.contents[0].value, 'registered second');
+				assert.equal(second.contents[0].value, 'registered first');
 			});
 		});
 	});

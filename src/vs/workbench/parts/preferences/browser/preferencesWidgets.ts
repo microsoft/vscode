@@ -34,6 +34,7 @@ import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -621,7 +622,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
-				glyphMarginHoverMessage: hoverMessage,
+				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {

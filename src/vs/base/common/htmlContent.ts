@@ -8,28 +8,75 @@
 import { equals } from 'vs/base/common/arrays';
 import { marked } from 'vs/base/common/marked/marked';
 
-/**
- * MarkedString can be used to render human readable text. It is either a markdown string
- * or a code-block that provides a language and a code snippet. Note that
- * markdown strings will be sanitized - that means html will be escaped.
- */
-export type MarkedString = string;
+export interface IMarkdownString {
+	value: string;
+	enableCommands?: true;
+}
 
-export function markedStringsEquals(a: MarkedString | MarkedString[], b: MarkedString | MarkedString[]): boolean {
+export class MarkdownString implements IMarkdownString {
+
+	static isMarkdownString(thing: any): thing is IMarkdownString {
+		if (thing instanceof MarkdownString) {
+			return true;
+		} else if (typeof thing === 'object') {
+			return typeof (<IMarkdownString>thing).value === 'string'
+				&& (typeof (<IMarkdownString>thing).enableCommands === 'boolean' || (<IMarkdownString>thing).enableCommands === void 0);
+		}
+		return false;
+	}
+
+	value: string;
+	enableCommands?: true;
+
+	constructor(value: string = '') {
+		this.value = value;
+	}
+
+	appendText(value: string): this {
+		this.value += textToMarkedString(value);
+		return this;
+	}
+
+	// appendMarkdown(value: string): this {
+	// 	this.value += value;
+	// 	return this;
+	// }
+
+	appendCodeblock(langId: string, code: string): this {
+		this.value += '```';
+		this.value += langId;
+		this.value += '\n';
+		this.value += code;
+		this.value += '```\n';
+		return this;
+	}
+}
+
+export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
 	if (!a && !b) {
 		return true;
 	} else if (!a || !b) {
 		return false;
-	} else if (typeof a === 'string' && typeof b === 'string') {
-		return a === b;
 	} else if (Array.isArray(a) && Array.isArray(b)) {
-		return equals(a, b);
+		return equals(a, b, markdownStringEqual);
+	} else if (MarkdownString.isMarkdownString(a) && MarkdownString.isMarkdownString(b)) {
+		return markdownStringEqual(a, b);
 	} else {
 		return false;
 	}
 }
 
-export function textToMarkedString(text: string): MarkedString {
+function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+	if (a === b) {
+		return true;
+	} else if (!a || !b) {
+		return false;
+	} else {
+		return a.value === b.value && a.enableCommands === b.enableCommands;
+	}
+}
+
+export function textToMarkedString(text: string): string {
 	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&'); // escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 }
 
@@ -40,7 +87,7 @@ export function removeMarkdownEscapes(text: string): string {
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }
 
-export function containsCommandLink(value: MarkedString): boolean {
+export function containsCommandLink(value: string): boolean {
 	let uses = false;
 	const renderer = new marked.Renderer();
 	renderer.link = (href, title, text): string => {

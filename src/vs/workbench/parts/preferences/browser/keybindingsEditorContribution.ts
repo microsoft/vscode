@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -289,21 +289,21 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	}
 
 	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
-		let msg: MarkedString[];
+		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
 		let overviewRulerColor: string;
 
 		if (isError) {
 			// this is the error case
-			msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
+			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
 			beforeContentClassName = 'inlineKeybindingError';
 			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
 		} else {
 			// this is the info case
 			if (usLabel && uiLabel !== usLabel) {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalAndUSMessage',
 						comment: [
@@ -311,9 +311,9 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholders will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout (**{1}** for US standard).", uiLabel, usLabel)
-				];
+				);
 			} else {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalMessage',
 						comment: [
@@ -321,7 +321,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholder will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout.", uiLabel)
-				];
+				);
 			}
 			className = 'keybindingInfo';
 			beforeContentClassName = 'inlineKeybindingInfo';

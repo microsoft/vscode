@@ -5,7 +5,7 @@
 'use strict';
 
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -77,11 +77,11 @@ export interface IModelDecorationOptions {
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
-	glyphMarginHoverMessage?: MarkedString | MarkedString[];
+	glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
 	/**
-	 * Array of MarkedString to render as the decoration message.
+	 * Array of MarkdownString to render as the decoration message.
 	 */
-	hoverMessage?: MarkedString | MarkedString[];
+	hoverMessage?: IMarkdownString | IMarkdownString[];
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -1728,7 +1728,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
  */
 export interface IDecorationOptions {
 	range: IRange;
-	hoverMessage?: MarkedString | MarkedString[];
+	hoverMessage?: IMarkdownString | IMarkdownString[];
 	renderOptions?: IDecorationInstanceRenderOptions;
 }
 

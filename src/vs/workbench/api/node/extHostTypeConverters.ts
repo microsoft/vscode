@@ -16,6 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface PositionLike {
 	line: number;
@@ -144,13 +145,16 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 }
 
 export namespace MarkedString {
-	export function from(markup: vscode.MarkedString): string {
+	export function from(markup: vscode.MarkedString): IMarkdownString {
 		if (typeof markup === 'string' || !markup) {
-			return <string>markup;
+			return { value: <string>markup, enableCommands: true };
 		} else {
 			const { language, value } = markup;
-			return '```' + language + '\n' + value + '\n```';
+			return { value: '```' + language + '\n' + value + '\n```' };
 		}
+	}
+	export function to(value: IMarkdownString): vscode.MarkedString {
+		return value.value;
 	}
 }
 
@@ -272,7 +276,7 @@ export function fromHover(hover: vscode.Hover): modes.Hover {
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents, toRange(info.range));
+	return new types.Hover(info.contents.map(MarkedString.to), toRange(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {

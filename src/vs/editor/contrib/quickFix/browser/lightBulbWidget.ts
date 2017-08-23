@@ -12,13 +12,14 @@ import * as dom from 'vs/base/browser/dom';
 import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class LightBulbWidget implements IDisposable {
 
 	private readonly _options = {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		glyphMarginClassName: 'lightbulb-glyph',
-		glyphMarginHoverMessage: <string>undefined
+		glyphMarginHoverMessage: <IMarkdownString>undefined
 	};
 
 	private readonly _editor: ICodeEditor;
@@ -90,7 +91,7 @@ export class LightBulbWidget implements IDisposable {
 	}
 
 	get title() {
-		return this._options.glyphMarginHoverMessage;
+		return this._options.glyphMarginHoverMessage && this._options.glyphMarginHoverMessage.value;
 	}
 
 	show(e: QuickFixComputeEvent): void {

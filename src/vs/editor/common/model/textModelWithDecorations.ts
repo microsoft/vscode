@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
+import { IMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -894,8 +894,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	readonly staticId: number;
 	readonly stickiness: editorCommon.TrackedRangeStickiness;
 	readonly className: string;
-	readonly hoverMessage: MarkedString | MarkedString[];
-	readonly glyphMarginHoverMessage: MarkedString | MarkedString[];
+	readonly hoverMessage: IMarkdownString | IMarkdownString[];
+	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
 	readonly isWholeLine: boolean;
 	readonly showIfCollapsed: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions;
@@ -911,7 +911,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.overviewRuler = new ModelDecorationOverviewRulerOptions(options.overviewRuler);

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, { Emitter } from 'vs/base/common/event';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -136,7 +136,7 @@ class ModelMarkerHandler {
 				break;
 		}
 
-		let hoverMessage: MarkedString[] = null;
+		let hoverMessage: IMarkdownString = null;
 		let { message, source } = marker;
 
 		if (typeof message === 'string') {
@@ -150,7 +150,7 @@ class ModelMarkerHandler {
 				}
 			}
 
-			hoverMessage = ['```_\n' + message + '\n```'];
+			hoverMessage = { value: '```_\n' + message + '\n```' };
 		}
 
 		return {

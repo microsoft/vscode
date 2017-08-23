@@ -8,17 +8,17 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { GlyphHoverWidget } from './hoverWidgets';
 import { $ } from 'vs/base/browser/dom';
-import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
-	value: MarkedString;
+	value: IMarkdownString;
 }
 
 class MarginComputer implements IHoverComputer<IHoverMessage[]> {
@@ -42,10 +42,10 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
+		const hasHoverContent = (contents: IMarkdownString | IMarkdownString[]) => {
+			return contents && (!Array.isArray(contents) || (<IMarkdownString[]>contents).length > 0);
 		};
-		const toHoverMessage = (contents: MarkedString): IHoverMessage => {
+		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
 				value: contents
 			};
@@ -168,7 +168,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
-			const renderedContents = renderMarkedString(msg.value, {
+			const renderedContents = renderMarkdown(msg.value, {
 				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
 				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
 					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)

@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MarkedString, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -28,14 +28,6 @@ function createElement(options: RenderOptions): HTMLElement {
 		element.className = options.className;
 	}
 	return element;
-}
-
-
-export function renderMarkedString(markedString: MarkedString, options: RenderOptions = {}): Node {
-	// this is sort of legacy given that we have full
-	// support for markdown. Turn this into markdown
-	// and continue
-	return renderMarkdown(markedString, options);
 }
 
 export function renderText(text: string, options: RenderOptions = {}): Node {
@@ -56,7 +48,7 @@ export function renderFormattedText(formattedText: string, options: RenderOption
  * @param content a html element description
  * @param actionCallback a callback function for any action links in the string. Argument is the zero-based index of the clicked action.
  */
-export function renderMarkdown(markdown: string, options: RenderOptions = {}): Node {
+export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): Node {
 	const element = createElement(options);
 
 	const { codeBlockRenderer, actionCallback } = options;
@@ -113,7 +105,9 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 		if (!href || href.match(/^data:|javascript:/i)) {
 			return text;
 		} else if (href.match(/^command:/i)) {
-			return `<a href="#" data-href="${href}" title="${localize('hover.command', "Click to execute command")}">${text}&nbsp;<span class="octicon octicon-terminal"></span></a>`;
+			return markdown.enableCommands
+				? `<a href="#" data-href="${href}" title="${localize('hover.command', "Click to execute command")}">${text}&nbsp;<span class="octicon octicon-terminal"></span></a>`
+				: text;
 
 		} else {
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
@@ -161,7 +155,7 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 		});
 	}
 
-	element.innerHTML = marked(markdown, {
+	element.innerHTML = marked(markdown.value, {
 		sanitize: true,
 		renderer
 	});

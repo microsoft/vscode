@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
@@ -81,8 +81,8 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
+		const hasHoverContent = (contents: IMarkdownString | IMarkdownString[]) => {
+			return contents && (!Array.isArray(contents) || (<IMarkdownString[]>contents).length > 0);
 		};
 
 		const colorDetector = ColorDetector.get(this._editor);
@@ -111,7 +111,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 					return null;
 				}
 
-				let contents: MarkedString[];
+				let contents: IMarkdownString[];
 
 				if (d.options.hoverMessage) {
 					if (Array.isArray(d.options.hoverMessage)) {
@@ -155,7 +155,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	private _getLoadingMessage(): HoverPart {
 		return {
 			range: this._range,
-			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
+			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }
@@ -316,7 +316,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				msg.contents
 					.filter(contents => !!contents)
 					.forEach(contents => {
-						const renderedContents = renderMarkedString(contents, {
+						const renderedContents = renderMarkdown(contents, {
 							actionCallback: (content) => {
 								this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 							},
