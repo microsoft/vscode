@@ -291,9 +291,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "1.2.4",
-      "from": "native-keymap@1.2.4",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.4.tgz"
+      "version": "1.2.5",
+      "from": "native-keymap@1.2.5",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.5.tgz"
     },
     "native-watchdog": {
       "version": "0.2.0",

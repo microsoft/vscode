@@ -34,7 +34,7 @@
     "jschardet": "^1.4.2",
     "keytar": "^4.0.3",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.4",
+    "native-keymap": "1.2.5",
     "native-watchdog": "0.2.0",
     "node-pty": "0.7.0",
     "nsfw": "1.0.16",
