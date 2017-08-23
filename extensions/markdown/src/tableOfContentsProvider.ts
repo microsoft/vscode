@@ -54,7 +54,7 @@ export class TableOfContentsProvider {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 			const href = TableOfContentsProvider.slugify(line.text);
-			const level = TableOfContentsProvider.getHeaderLevel(tokens.markup);
+			const level = TableOfContentsProvider.getHeaderLevel(heading.markup);
 			if (href) {
 				toc.push({
 					slug: href,
