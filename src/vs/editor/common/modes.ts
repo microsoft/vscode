@@ -709,11 +709,6 @@ export interface IColorRange {
 	 * The available formats for this specific color.
 	 */
 	formatters: IColorFormatter[];
-
-	/**
-	 * Controls whether the color decorator is rendered.
-	 */
-	renderDecorator: boolean;
 }
 
 /**
@@ -721,6 +716,7 @@ export interface IColorRange {
  * @internal
  */
 export interface ColorRangeProvider {
+	onDidChange?: Event<this>;
 
 	/**
 	 * Provides the color ranges for a specific model.

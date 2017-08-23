@@ -180,19 +180,13 @@ declare module 'vscode' {
 		availableFormats: ColorFormat[];
 
 		/**
-		 * Controls whether the color decorator is rendered.
-		 */
-		renderDecorator: boolean;
-
-		/**
 		 * Creates a new color range.
 		 *
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
-		 * @param renderDecorator Controls whether the color decorator is rendered.
 		 */
-		constructor(range: Range, color: Color, availableFormats: ColorFormat[], renderDecorator: boolean);
+		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
 	}
 
 	/**
@@ -200,6 +194,10 @@ declare module 'vscode' {
 	 * picking and modifying colors in the editor.
 	 */
 	export interface DocumentColorProvider {
+		/**
+		 * An optional event to signal that the Colors from this provider have changed.
+		 */
+		onDidChangeColors?: Event<void>;
 
 		/**
 		 * Provide colors for the given document.

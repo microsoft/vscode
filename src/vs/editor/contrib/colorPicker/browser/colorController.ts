@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -28,18 +29,21 @@ export class ColorController extends Disposable implements IEditorContribution {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
+		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		super();
 		this._decorations = [];
 		this._decorationsTypes = {};
+		this._register(ColorProviderRegistry.onDidChange((e) => this.triggerUpdateDecorations()));
 		this._register(_editor.onDidChangeModel((e) => this.triggerUpdateDecorations()));
+		this._register(_editor.onDidChangeModelLanguage((e) => this.triggerUpdateDecorations()));
 		this._register(_editor.onDidChangeModelContent((e) => {
 			setTimeout(() => this.triggerUpdateDecorations(), 0);
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.triggerUpdateDecorations()));
-		this._register(_editor.onDidChangeConfiguration((e) => this.triggerUpdateDecorations()));
-		this._register(ColorProviderRegistry.onDidChange((e) => this.triggerUpdateDecorations()));
+		this._register(_configurationService.onDidUpdateConfiguration((e) => {
+			setTimeout(() => this.triggerUpdateDecorations(), 0);
+		}));
 		this.triggerUpdateDecorations();
 	}
 
@@ -49,9 +53,6 @@ export class ColorController extends Disposable implements IEditorContribution {
 			let newDecorationsTypes: { [key: string]: boolean } = {};
 
 			for (let i = 0; i < colorInfos.length && decorations.length < MAX_DECORATORS; i++) {
-				if (!colorInfos[i].renderDecorator) {
-					continue;
-				}
 				const { red, green, blue, alpha } = colorInfos[i].color;
 				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 				let subKey = hash(rgba).toString(16);

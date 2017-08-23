@@ -226,7 +226,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any>;
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any>;
+	$emitColorsEvent(eventHandle: number, event?: any): TPromise<any>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any>;
 }
 
@@ -474,7 +475,6 @@ export interface IRawColorInfo {
 	color: [number, number, number, number];
 	availableFormats: (number | [number, number])[];
 	range: IRange;
-	renderDecorator: boolean;
 }
 
 export type IRawColorFormatMap = [number, string][];

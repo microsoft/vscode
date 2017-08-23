@@ -1056,9 +1056,7 @@ export class ColorRange {
 
 	availableFormats: IColorFormat[];
 
-	renderDecorator: boolean;
-
-	constructor(range: Range, color: Color, availableFormats: IColorFormat[], renderDecorator: boolean) {
+	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
 		if (color && !(color instanceof Color)) {
 			throw illegalArgument('color');
 		}
@@ -1071,7 +1069,6 @@ export class ColorRange {
 		this.range = range;
 		this.color = color;
 		this.availableFormats = availableFormats;
-		this.renderDecorator = renderDecorator;
 	}
 }
 
