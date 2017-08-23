@@ -415,7 +415,7 @@ export class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
 	}
 }
 
