@@ -13,12 +13,10 @@ import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTelemetryShape } from './extHost.protocol';
+import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
-import { containsCommandLink } from 'vs/base/common/htmlContent';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -316,8 +314,6 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 export class ExtHostTextEditor implements vscode.TextEditor {
 
 	private readonly _proxy: MainThreadEditorsShape;
-	private readonly _telemetry: MainThreadTelemetryShape;
-	private readonly _extHostExtensions: ExtHostExtensionService;
 	private readonly _id: string;
 	private readonly _documentData: ExtHostDocumentData;
 
@@ -328,19 +324,8 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	get id(): string { return this._id; }
 
-	constructor(
-		proxy: MainThreadEditorsShape,
-		telemetry: MainThreadTelemetryShape,
-		extHostExtensions: ExtHostExtensionService,
-		id: string,
-		document: ExtHostDocumentData,
-		selections: Selection[],
-		options: IResolvedTextEditorConfiguration,
-		viewColumn: vscode.ViewColumn
-	) {
+	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
-		this._telemetry = telemetry;
-		this._extHostExtensions = extHostExtensions;
 		this._id = id;
 		this._documentData = document;
 		this._selections = selections;
@@ -429,36 +414,12 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._trySetSelection();
 	}
 
-	setDecorations(decorationType: vscode.TextEditorDecorationType, rangesOrOptions: Range[] | vscode.DecorationOptions[]): void {
-
-		const options = TypeConverters.fromRangeOrRangeWithMessage(rangesOrOptions);
-
-		let usesCommands = false;
-		for (let i = 0; i < options.length && !usesCommands; i++) {
-			const { hoverMessage } = options[i];
-			if (Array.isArray(hoverMessage)) {
-				usesCommands = hoverMessage.some(containsCommandLink);
-			} else if (hoverMessage) {
-				usesCommands = containsCommandLink(hoverMessage);
-			}
-		}
-		if (usesCommands) {
-			this._extHostExtensions.getActiveExtensionFromCallstack().then(extension => {
-				if (!extension) {
-					return;
-				}
-				this._telemetry.$publicLog('MarkedString/commandLink', {
-					extension: extension.id,
-					from: 'decoration'
-				});
-			});
-		}
-
+	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 		this._runOnProxy(
 			() => this._proxy.$trySetDecorations(
 				this._id,
 				decorationType.key,
-				options
+				TypeConverters.fromRangeOrRangeWithMessage(ranges)
 			)
 		);
 	}

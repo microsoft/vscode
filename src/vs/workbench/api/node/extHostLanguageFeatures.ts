@@ -205,7 +205,7 @@ class HoverAdapter {
 			// we wanna know which extension uses command links
 			// because that is a potential trick-attack on users
 			if (result.contents.some(containsCommandLink)) {
-				this._telemetryLog('MarkedString/commandLink', { from: 'hover' });
+				this._telemetryLog('usesCommandLink', { from: 'hover' });
 			}
 			return result;
 		});

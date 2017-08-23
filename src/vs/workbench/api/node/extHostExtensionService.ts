@@ -19,7 +19,6 @@ import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { realpath } from 'fs';
 import { TrieMap } from 'vs/base/common/map';
-import { V8CallSite } from 'vs/base/common/errors';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -228,27 +227,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return this._extensionPathIndex;
 	}
 
-	public getActiveExtensionFromCallstack(): TPromise<IExtensionDescription> {
-		const err = new Error();
-		return this.getExtensionPathIndex().then(index => {
-			let oldHandler = (<any>Error).prepareStackTrace;
-			let result: IExtensionDescription;
-			(<any>Error).prepareStackTrace = (err: Error, stacktrace: V8CallSite[]) => {
-				for (const call of stacktrace) {
-					result = index.findSubstr(call.getFileName());
-					if (result) {
-						return;
-					}
-				}
-			};
-
-			// tslint:disable-next-line:no-unused-expression
-			err.stack;
-
-			(<any>Error).prepareStackTrace = oldHandler;
-			return result;
-		});
-	}
 
 	public deactivate(extensionId: string): TPromise<void> {
 		let result: TPromise<void> = TPromise.as(void 0);
