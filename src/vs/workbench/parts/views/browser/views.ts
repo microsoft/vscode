@@ -652,7 +652,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		});
 	}
 
-	private showHeaderInTitleArea(): boolean {
+	protected showHeaderInTitleArea(): boolean {
 		if (!this.showHeaderInTitleWhenSingleView) {
 			return false;
 		}

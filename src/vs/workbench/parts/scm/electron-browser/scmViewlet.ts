@@ -9,7 +9,6 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
-import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
@@ -35,7 +34,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
-import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionItemProvider, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
@@ -552,11 +551,27 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		}
 	}
 
-	@memoize
+	getActions(): IAction[] {
+		if (this.showHeaderInTitleArea() && this.views.length === 1) {
+			return this.views[0].getActions();
+		}
+
+		return [];
+	}
+
 	getSecondaryActions(): IAction[] {
-		return [
-			this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction)
-		];
+		let result: IAction[] = [];
+
+		if (this.showHeaderInTitleArea() && this.views.length === 1) {
+			result = [
+				...this.views[0].getSecondaryActions(),
+				new Separator()
+			];
+		}
+
+		result.push(this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction));
+
+		return result;
 	}
 
 	getActionItem(action: IAction): IActionItem {
