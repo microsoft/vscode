@@ -5,7 +5,7 @@
 'use strict';
 
 import * as parse from 'parse-color';
-import { Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
+import { workspace, Range, TextDocument, DocumentColorProvider, Color, ColorRange, Event, EventEmitter } from 'vscode';
 
 const CSSColorFormats = {
 	Hex: '#{red:X}{green:X}{blue:X}',
@@ -20,12 +20,37 @@ const CSSColorFormats = {
 };
 
 export class ColorProvider implements DocumentColorProvider {
-	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>, private supportedLanguages: { [id: string]: boolean }, private isDecoratorEnabled: (languageId: string) => boolean) { }
+	private onDidChangeColorsEmitter = new EventEmitter<void>();
+	private decoratorEnablement = {};
+
+	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>, private supportedLanguages: { [id: string]: boolean }, isDecoratorEnabled: (languageId: string) => boolean) {
+		for (let languageId in supportedLanguages) {
+			this.decoratorEnablement[languageId] = isDecoratorEnabled(languageId);
+		}
+
+		workspace.onDidChangeConfiguration(_ => {
+			let hasChanges = false;
+			for (let languageId in supportedLanguages) {
+				let prev = this.decoratorEnablement[languageId];
+				let curr = isDecoratorEnabled(languageId);
+				if (prev !== curr) {
+					this.decoratorEnablement[languageId] = curr;
+					hasChanges = true;
+				}
+			}
+			if (hasChanges) {
+				this.onDidChangeColorsEmitter.fire();
+			}
+		});
+	}
+
+	public get onDidChangeColors(): Event<void> {
+		return this.onDidChangeColorsEmitter.event;
+	}
 
 	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
-		let renderDecorator = false;
-		if (document && this.isDecoratorEnabled(document.languageId)) {
-			renderDecorator = true;
+		if (!this.supportedLanguages[document.languageId] || !this.decoratorEnablement[document.languageId]) {
+			return [];
 		}
 
 		const ranges = await this.decoratorProvider(document.uri.toString());
@@ -43,7 +68,7 @@ export class ColorProvider implements DocumentColorProvider {
 				}
 			}
 			if (color) {
-				result.push(new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL], renderDecorator));
+				result.push(new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
 			}
 		}
 		return result;

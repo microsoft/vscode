@@ -276,10 +276,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- colors
 
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> {
 		const proxy = this._proxy;
-
-		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, <modes.ColorRangeProvider>{
+		const provider = <modes.ColorRangeProvider>{
 			provideColorRanges: (model, token) => {
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then(documentColors => {
@@ -303,15 +302,30 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 							return {
 								color,
 								formatters,
-								range: documentColor.range,
-								renderDecorator: documentColor.renderDecorator
+								range: documentColor.range
 							};
 						});
 					});
 			}
-		});
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<modes.ColorRangeProvider>();
+			this._registrations[eventHandle] = emitter;
+			provider.onDidChange = emitter.event;
+		}
+
+		this._registrations[handle] = modes.ColorProviderRegistry.register(selector, provider);
 
 		return TPromise.as(null);
+	}
+
+	$emitColorsEvent(eventHandle: number, event?: any): TPromise<any> {
+		const obj = this._registrations[eventHandle];
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
+		return undefined;
 	}
 
 	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any> {
