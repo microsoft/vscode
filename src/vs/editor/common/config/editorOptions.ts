@@ -340,7 +340,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable inline color decorators rendering.
 	 */
-	colorDecorator?: boolean;
+	colorDecorators?: boolean;
 	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
@@ -794,7 +794,7 @@ export interface EditorContribOptions {
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
-	readonly colorDecorator: boolean;
+	readonly colorDecorators: boolean;
 }
 
 /**
@@ -1139,7 +1139,7 @@ export class InternalEditorOptions {
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
-			&& a.colorDecorator === b.colorDecorator
+			&& a.colorDecorators === b.colorDecorators
 		);
 	}
 
@@ -1668,7 +1668,7 @@ export class EditorOptionsValidator {
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
-			colorDecorator: _boolean(opts.colorDecorator, defaults.colorDecorator),
+			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 		};
 	}
 }
@@ -1766,7 +1766,7 @@ export class InternalEditorOptionsFactory {
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
-				colorDecorator: opts.contribInfo.colorDecorator
+				colorDecorators: opts.contribInfo.colorDecorators
 			}
 		};
 	}
@@ -2205,6 +2205,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false
 		},
-		colorDecorator: true
+		colorDecorators: true
 	},
 };

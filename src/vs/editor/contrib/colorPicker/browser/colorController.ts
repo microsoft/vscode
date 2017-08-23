@@ -11,6 +11,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { hash } from 'vs/base/common/hash';
 import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { RGBA } from 'vs/base/common/color';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
 
@@ -29,27 +30,54 @@ export class ColorController extends Disposable implements IEditorContribution {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService
+		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 	) {
 		super();
-		this._isEnabled = this._editor.getConfiguration().contribInfo.colorDecorator;
+		this._isEnabled = this.isEnabled();
 		this._decorations = [];
 		this._decorationsTypes = {};
-		this._register(_editor.onDidChangeModel((e) => this.triggerUpdateDecorations()));
+		this._register(_editor.onDidChangeModel((e) => {
+			this._isEnabled = this.isEnabled();
+			this.triggerUpdateDecorations();
+		}));
 		this._register(_editor.onDidChangeModelContent((e) => {
 			setTimeout(() => this.triggerUpdateDecorations(), 0);
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.triggerUpdateDecorations()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._register(_configurationService.onDidUpdateConfiguration((e) => {
 			let prevIsEnabled = this._isEnabled;
-			this._isEnabled = this._editor.getConfiguration().contribInfo.colorDecorator;
+			this._isEnabled = this.isEnabled();
+			if (prevIsEnabled !== this._isEnabled) {
+				this.triggerUpdateDecorations(true);
+			}
+		}));
+		this._register(_editor.onDidChangeModelLanguage((e) => {
+			let prevIsEnabled = this._isEnabled;
+			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
 				this.triggerUpdateDecorations(true);
 			}
 		}));
 
 		this._register(ColorProviderRegistry.onDidChange((e) => this.triggerUpdateDecorations()));
-		this.triggerUpdateDecorations();
+	}
+
+	isEnabled(): boolean {
+		const model = this._editor.getModel();
+		if (!model) {
+			return false;
+		}
+		const languageId = model.getLanguageIdentifier();
+		// handle deprecated settings. [languageId].colorDecorators.enable
+		let deprecatedConfig = this._configurationService.getConfiguration(languageId.language);
+		if (deprecatedConfig) {
+			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			if (colorDecorators && colorDecorators['enable'] !== undefined) {
+				return colorDecorators['enable'];
+			}
+		}
+
+		return this._editor.getConfiguration().contribInfo.colorDecorators;
 	}
 
 	triggerUpdateDecorations(settingsChanges = false) {
