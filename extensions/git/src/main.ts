@@ -34,6 +34,11 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const model = new Model(git);
 	disposables.push(model);
 
+	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
+	model.onDidOpenRepository(onRepository, null, disposables);
+	model.onDidCloseRepository(onRepository, null, disposables);
+	onRepository();
+
 	if (!enabled) {
 		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);

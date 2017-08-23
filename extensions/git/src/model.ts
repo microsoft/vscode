@@ -32,6 +32,12 @@ interface OpenRepository extends Disposable {
 
 export class Model {
 
+	private _onDidOpenRepository = new EventEmitter<Repository>();
+	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
+
+	private _onDidCloseRepository = new EventEmitter<Repository>();
+	readonly onDidCloseRepository: Event<Repository> = this._onDidCloseRepository.event;
+
 	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
 	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
 
@@ -114,10 +120,12 @@ export class Model {
 			changeListener.dispose();
 			repository.dispose();
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
+			this._onDidCloseRepository.fire(repository);
 		};
 
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
+		this._onDidOpenRepository.fire(repository);
 	}
 
 	async pickRepository(): Promise<Repository | undefined> {
