@@ -6,6 +6,7 @@
 'use strict';
 
 import { equals } from 'vs/base/common/arrays';
+import { marked } from 'vs/base/common/marked/marked';
 
 /**
  * MarkedString can be used to render human readable text. It is either a markdown string
@@ -37,4 +38,17 @@ export function removeMarkdownEscapes(text: string): string {
 		return text;
 	}
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+}
+
+export function containsCommandLink(value: MarkedString): boolean {
+	let uses = false;
+	const renderer = new marked.Renderer();
+	renderer.link = (href, title, text): string => {
+		if (href.match(/^command:/i)) {
+			uses = true;
+		}
+		return 'link';
+	};
+	marked(value, { renderer });
+	return uses;
 }
