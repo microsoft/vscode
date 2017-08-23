@@ -311,7 +311,7 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = !!arg;
+		const preserveFocus = arg instanceof Resource;
 
 		let uris: Uri[] | undefined;
 
@@ -389,7 +389,7 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = !!arg;
+		const preserveFocus = arg instanceof Resource;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
