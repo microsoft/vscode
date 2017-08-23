@@ -180,6 +180,7 @@ class SaturationBox extends Disposable {
 
 		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
 		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+		whiteGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
 		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
 		const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
