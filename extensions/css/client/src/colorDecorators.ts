@@ -58,15 +58,12 @@ export class ColorProvider implements DocumentColorProvider {
 		for (let range of ranges) {
 			let color;
 			const value = document.getText(range);
-			if (value[0] === '#') {
-				color = Color.fromHex(value);
-			} else {
-				const parsedColor = parse(value);
-				if (parsedColor && parsedColor.rgba) {
-					const [red, green, blue, alpha] = parsedColor.rgba;
-					color = new Color(red, green, blue, alpha);
-				}
+			const parsedColor = parse(value);
+			if (parsedColor && parsedColor.rgba) {
+				const [red, green, blue, alpha] = parsedColor.rgba;
+				color = new Color(red, green, blue, alpha);
 			}
+
 			if (color) {
 				result.push(new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]));
 			}

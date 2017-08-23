@@ -343,7 +343,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let formatterIndex = 0;
 
 				for (let i = 0; i < formatters.length; i++) {
-					if (text === formatters[i].format(color)) {
+					if (text === formatters[i].format(msg.color)) {
 						formatterIndex = i;
 						break;
 					}
@@ -356,7 +356,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
 
 				const updateEditorModel = () => {
-					const text = model.formatter.format(model.color);
+					const text = model.formatter.format({
+						red: model.color.rgba.r / 255,
+						green: model.color.rgba.g / 255,
+						blue: model.color.rgba.b / 255,
+						alpha: model.color.rgba.a
+					});
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};

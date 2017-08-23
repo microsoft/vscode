@@ -278,7 +278,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> {
 		const proxy = this._proxy;
-		const provider = <modes.ColorRangeProvider>{
+		const provider = <modes.DocumentColorProvider>{
 			provideColorRanges: (model, token) => {
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then(documentColors => {
@@ -310,7 +310,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		};
 
 		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<modes.ColorRangeProvider>();
+			const emitter = new Emitter<modes.DocumentColorProvider>();
 			this._registrations[eventHandle] = emitter;
 			provider.onDidChange = emitter.event;
 		}
