@@ -459,6 +459,7 @@
         },
         {
           "command": "git.pullFrom",
+          "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git"
         },
         {
