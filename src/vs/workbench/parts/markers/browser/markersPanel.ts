@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
 import { IAction, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -44,7 +43,6 @@ export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
 
-	private toDispose: lifecycle.IDisposable[];
 	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
@@ -78,7 +76,6 @@ export class MarkersPanel extends Panel {
 		@IThemeService themeService: IThemeService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
-		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set<string>();
 		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
@@ -89,7 +86,7 @@ export class MarkersPanel extends Panel {
 		this.markersModel = new MarkersModel();
 
 		this.rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-		this.toDispose.push(this.rangeHighlightDecorations);
+		this.toUnbind.push(this.rangeHighlightDecorations);
 
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
@@ -233,7 +230,7 @@ export class MarkersPanel extends Panel {
 			this.markerFocusContextKey.set(false);
 		});
 
-		this.toDispose.push(this.listService.register(this.tree));
+		this.toUnbind.push(this.listService.register(this.tree));
 	}
 
 	private createActions(): void {
@@ -244,15 +241,15 @@ export class MarkersPanel extends Panel {
 			this.collapseAllAction
 		];
 		this.actions.forEach(a => {
-			this.toDispose.push(a);
+			this.toUnbind.push(a);
 		});
 	}
 
 	private createListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
-		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
-		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toDispose.push(this.tree.addListener('selection', () => this.onSelected()));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
+		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
+		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -409,10 +406,10 @@ export class MarkersPanel extends Panel {
 	}
 
 	public dispose(): void {
+		super.dispose();
+
 		this.delayedRefresh.cancel();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.tree.dispose();
 		this.markersModel.dispose();
-		super.dispose();
 	}
 }

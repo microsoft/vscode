@@ -283,6 +283,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		this.activeCount = 0;
 		this.icons = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {

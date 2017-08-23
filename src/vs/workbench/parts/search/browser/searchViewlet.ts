@@ -69,7 +69,6 @@ export class SearchViewlet extends Viewlet {
 	private static SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private isDisposed: boolean;
-	private toDispose: lifecycle.IDisposable[];
 
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
@@ -126,7 +125,6 @@ export class SearchViewlet extends Viewlet {
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
-		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
@@ -483,7 +481,7 @@ export class SearchViewlet extends Viewlet {
 					keyboardSupport: false
 				});
 
-			this.toDispose.push(attachListStyler(this.tree, this.themeService));
+			this.toUnbind.push(attachListStyler(this.tree, this.themeService));
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
@@ -1426,8 +1424,6 @@ export class SearchViewlet extends Viewlet {
 
 	public dispose(): void {
 		this.isDisposed = true;
-
-		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		if (this.tree) {
 			this.tree.dispose();
