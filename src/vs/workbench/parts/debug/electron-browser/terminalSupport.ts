@@ -81,7 +81,7 @@ export class TerminalSupport {
 			shellType = ShellType.cmd;
 		} else if (shell.indexOf('bash') >= 0) {
 			shellType = ShellType.bash;
-		} else if (shell.indexOf('c:\\program files\\git\\bin\\bash.exe') >= 0) {
+		} else if (shell.indexOf('git\\bin\\bash.exe') >= 0) {
 			shellType = ShellType.bash;
 		}
 
@@ -105,8 +105,12 @@ export class TerminalSupport {
 						command += `$env:${key}='${args.env[key]}'; `;
 					}
 				}
-				for (let a of args.args) {
-					command += `${quote(a)} `;
+				if (args.args && args.args.length > 0) {
+					const cmd = quote(args.args.shift());
+					command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
+					for (let a of args.args) {
+						command += `${quote(a)} `;
+					}
 				}
 				break;
 
