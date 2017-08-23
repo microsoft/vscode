@@ -15,7 +15,7 @@ import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './se
 const localize = nls.loadMessageBundle();
 
 const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been been disabled in this document'),
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been disabled in this document'),
 	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
 	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
 };
