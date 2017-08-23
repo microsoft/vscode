@@ -336,6 +336,21 @@ suite('ExtHostConfiguration', function () {
 		assert.throws(() => config['get'] = <any>'get-prop');
 	});
 
+	test('update: no target passes null', function () {
+		const shape = new RecordingShape();
+		const allConfig = createExtHostConfiguration({
+			'foo': {
+				'bar': 1,
+				'far': 1
+			}
+		}, shape);
+
+		let config = allConfig.getConfiguration('foo');
+		config.update('bar', 42);
+
+		assert.equal(shape.lastArgs[0], null);
+	});
+
 	test('update/section to key', function () {
 
 		const shape = new RecordingShape();
@@ -349,6 +364,7 @@ suite('ExtHostConfiguration', function () {
 		let config = allConfig.getConfiguration('foo');
 		config.update('bar', 42, true);
 
+		assert.equal(shape.lastArgs[0], ConfigurationTarget.USER);
 		assert.equal(shape.lastArgs[1], 'foo.bar');
 		assert.equal(shape.lastArgs[2], 42);
 
