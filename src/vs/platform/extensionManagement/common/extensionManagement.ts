@@ -143,6 +143,7 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
+	telemetryData: any;
 }
 
 export interface IGalleryMetadata {
