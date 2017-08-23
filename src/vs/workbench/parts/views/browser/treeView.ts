@@ -31,7 +31,6 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class TreeView extends CollapsibleView {
 
@@ -51,7 +50,6 @@ export class TreeView extends CollapsibleView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
-		@IWorkbenchThemeService private workbenchThemeService: IWorkbenchThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
@@ -61,7 +59,6 @@ export class TreeView extends CollapsibleView {
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
-		this.workbenchThemeService.onDidFileIconThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (!options.collapsed) {
 			this.activate();
 		}
@@ -268,8 +265,7 @@ class TreeRenderer implements IRenderer {
 	private static ITEM_HEIGHT = 22;
 	private static TREE_TEMPLATE_ID = 'treeExplorer';
 
-	constructor( @IThemeService private themeService: IThemeService,
-		@IWorkbenchThemeService private workbenchThemeService: IWorkbenchThemeService) {
+	constructor( @IThemeService private themeService: IThemeService) {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -296,8 +292,7 @@ class TreeRenderer implements IRenderer {
 		templateData.label.text(node.label).title(node.label);
 
 		const theme = this.themeService.getTheme();
-		const fileIconTheme = this.workbenchThemeService.getFileIconTheme();
-		const icon = (fileIconTheme.hasFileIcons || fileIconTheme.hasFolderIcons) ? (theme.type === LIGHT ? node.icon : node.iconDark) : null;
+		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
 
 		if (icon) {
 			templateData.icon.getHTMLElement().style.backgroundImage = `url('${icon}')`;
