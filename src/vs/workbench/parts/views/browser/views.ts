@@ -349,8 +349,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.viewsStates = this.loadViewsStates();
 
-		this._register(ViewsRegistry.onViewsRegistered(() => this.onViewDescriptorsChanged()));
-		this._register(ViewsRegistry.onViewsDeregistered(() => this.onViewDescriptorsChanged()));
+		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
+		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
 
 		extensionService.onReady().then(() => {
@@ -373,7 +373,7 @@ export class ComposedViewsViewlet extends Viewlet {
 			}
 		}));
 
-		return this.onViewDescriptorsChanged()
+		return this.onViewsRegistered(ViewsRegistry.getViews(this.location))
 			.then(() => {
 				this.lastFocusedView = this.splitView.getViews<IView>()[0];
 				this.focus();
@@ -469,7 +469,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.updateViews();
 	}
 
-	private onViewDescriptorsChanged(): TPromise<any> {
+	private onViewsRegistered(views: IViewDescriptor[]): TPromise<IView[]> {
 		this.viewsContextKeys.clear();
 		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			if (viewDescriptor.when) {
@@ -478,7 +478,12 @@ export class ComposedViewsViewlet extends Viewlet {
 				}
 			}
 		}
+
 		return this.updateViews();
+	}
+
+	private onViewsDeregistered(views: IViewDescriptor[]): TPromise<IView[]> {
+		return this.updateViews(views);
 	}
 
 	private onContextChanged(keys: string[]): void {
@@ -499,7 +504,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		}
 	}
 
-	protected updateViews(): TPromise<IView[]> {
+	protected updateViews(unregisteredViews: IViewDescriptor[] = []): TPromise<IView[]> {
 		if (this.splitView) {
 
 			const registeredViews = this.getViewDescriptorsFromRegistry();
@@ -521,7 +526,7 @@ export class ComposedViewsViewlet extends Viewlet {
 
 				return result;
 
-			}, [[], [], []]);
+			}, [[], [], unregisteredViews]);
 
 			const toCreate = [];
 
