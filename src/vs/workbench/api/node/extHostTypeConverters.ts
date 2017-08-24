@@ -147,7 +147,7 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 export namespace MarkedString {
 	export function from(markup: vscode.MarkedString): IMarkdownString {
 		if (typeof markup === 'string' || !markup) {
-			return { value: <string>markup || '', enableCommands: true };
+			return { value: <string>markup || '', trusted: true };
 		} else {
 			const { language, value } = markup;
 			return { value: '```' + language + '\n' + value + '\n```' };

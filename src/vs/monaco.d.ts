@@ -355,7 +355,7 @@ declare module monaco {
 	}
 	export interface IMarkdownString {
 		value: string;
-		enableCommands?: true;
+		trusted?: true;
 	}
 
 	export interface IKeyboardEvent {

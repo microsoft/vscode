@@ -105,7 +105,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		if (!href || href.match(/^data:|javascript:/i)) {
 			return text;
 		} else if (href.match(/^command:/i)) {
-			return markdown.enableCommands
+			return markdown.trusted
 				? `<a href="#" data-href="${href}" title="${localize('hover.command', "Click to execute command")}">${text}&nbsp;<span class="octicon octicon-terminal"></span></a>`
 				: text;
 

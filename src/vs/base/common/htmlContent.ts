@@ -10,7 +10,7 @@ import { marked } from 'vs/base/common/marked/marked';
 
 export interface IMarkdownString {
 	value: string;
-	enableCommands?: true;
+	trusted?: true;
 }
 
 export class MarkdownString implements IMarkdownString {
@@ -30,13 +30,13 @@ export class MarkdownString implements IMarkdownString {
 			return true;
 		} else if (typeof thing === 'object') {
 			return typeof (<IMarkdownString>thing).value === 'string'
-				&& (typeof (<IMarkdownString>thing).enableCommands === 'boolean' || (<IMarkdownString>thing).enableCommands === void 0);
+				&& (typeof (<IMarkdownString>thing).trusted === 'boolean' || (<IMarkdownString>thing).trusted === void 0);
 		}
 		return false;
 	}
 
 	value: string;
-	enableCommands?: true;
+	trusted?: true;
 
 	constructor(value: string = '') {
 		this.value = value;
@@ -78,7 +78,7 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.enableCommands === b.enableCommands;
+		return a.value === b.value && a.trusted === b.trusted;
 	}
 }
 
