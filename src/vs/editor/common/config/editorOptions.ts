@@ -338,7 +338,7 @@ export interface IEditorOptions {
 	 */
 	links?: boolean;
 	/**
-	 * Enable inline color decorators rendering.
+	 * Enable inline color decorators and color picker rendering.
 	 */
 	colorDecorators?: boolean;
 	/**
