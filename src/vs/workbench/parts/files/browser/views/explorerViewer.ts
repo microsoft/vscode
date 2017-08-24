@@ -930,8 +930,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 								return onError(error, true);
 							});
 						}
-
-						return 0; // Not sure what to do here.
 					})
 
 					// 4.) resolve those that were dirty to load their previous dirty contents from disk
