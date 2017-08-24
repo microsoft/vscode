@@ -23,7 +23,7 @@ export function activate(context: ExtensionContext) {
 }
 
 function createAccount() {
-	opn('https://azure.microsoft.com/en-us/free');
+	opn('https://azure.microsoft.com/en-us/free/?utm_source=campaign&utm_campaign=vscode-azure-account&mktingSource=vscode-azure-account');
 }
 
 function createStatusBarItem(api: AzureAccount) {
