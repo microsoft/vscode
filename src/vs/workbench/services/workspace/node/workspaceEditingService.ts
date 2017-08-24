@@ -13,7 +13,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -69,7 +69,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
+			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => ({ uri: newWorkspaceRoot });
+
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value }, true);
 		} else {
 			// TODO: Sandeep - Removing all roots?
 		}

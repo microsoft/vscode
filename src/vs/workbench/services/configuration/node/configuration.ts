@@ -454,7 +454,9 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			contributionRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 				default: {
 					folders: [
-						'file:///'
+						{
+							uri: 'file:///'
+						}
 					],
 					settings: {
 					}
@@ -466,8 +468,14 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 						uniqueItems: true,
 						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `file:///root/folderA`"),
 						items: {
-							type: 'string',
-							pattern: '^file:\/\/[^/]*\/'
+							type: 'object',
+							default: { uri: 'file:///' },
+							properties: {
+								uri: {
+									type: 'string',
+									pattern: '^file:\/\/[^/]*\/'
+								}
+							}
 						}
 					},
 					'settings': {

@@ -89,7 +89,9 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		return mkdirp(untitledWorkspaceConfigFolder).then(() => {
 			const storedWorkspace: IStoredWorkspace = {
-				folders
+				folders: folders.map(folder => ({
+					uri: folder
+				}))
 			};
 
 			return writeFile(untitledWorkspaceConfigPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => ({

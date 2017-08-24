@@ -32,8 +32,12 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
+export interface IStoredWorkspaceFolder {
+	uri: string;
+}
+
 export interface IStoredWorkspace {
-	folders: string[];
+	folders: IStoredWorkspaceFolder[];
 }
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IStoredWorkspace { }

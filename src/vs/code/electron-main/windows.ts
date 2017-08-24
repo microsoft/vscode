@@ -1230,8 +1230,8 @@ export class WindowsManager implements IWindowsMainService {
 				defaultPath = path.dirname(workspace);
 			} else {
 				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
-				if (resolvedWorkspace) {
-					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0]).fsPath);
+				if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
+					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0].uri).fsPath);
 				}
 			}
 		}
