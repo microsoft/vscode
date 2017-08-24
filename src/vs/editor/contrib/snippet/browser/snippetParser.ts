@@ -285,6 +285,26 @@ export class Choice extends Marker {
 	}
 }
 
+export class Transform extends Marker {
+
+	regexp: Text;
+	format: Text;
+	options: Text;
+
+	toTextmateString(): string {
+		return `/${this.regexp.toTextmateString()}/${this.format.toTextmateString()}/${this.options.toTextmateString()}`;
+	}
+
+	clone(): Transform {
+		let ret = new Transform();
+		ret.regexp = this.regexp.clone();
+		ret.format = this.format.clone();
+		ret.options = this.options.clone();
+		return ret;
+	}
+
+}
+
 export class Variable extends Marker {
 
 	constructor(public name: string) {
@@ -689,6 +709,16 @@ export class SnippetParser {
 				return true;
 			}
 
+		} else if (this._accept(TokenType.Forwardslash)) {
+			// ${foo/<regex>/<format>/<options>}
+			if (this._parseTransform(variable)) {
+				parent.appendChild(variable);
+				return true;
+			}
+
+			this._backTo(token);
+			return false;
+
 		} else if (this._accept(TokenType.CurlyClose)) {
 			// ${foo}
 			parent.appendChild(variable);
@@ -698,6 +728,31 @@ export class SnippetParser {
 			// ${foo <- missing curly or colon
 			return this._backTo(token);
 		}
+	}
+
+	private _parseTransform(parent: Variable): boolean {
+		let marker = new Transform();
+		let parts: string[] = [''];
+		while (this._token.type !== TokenType.EOF && this._token.type !== TokenType.CurlyClose) {
+			if (this._accept(TokenType.Forwardslash)) {
+				// move to next part
+				parts.unshift('');
+			} else {
+				// append things to current part
+				parts[0] += this._scanner.tokenText(this._token);
+				this._accept(undefined);
+			}
+		}
+
+		if (this._accept(TokenType.CurlyClose) && parts.length === 3) {
+			marker.regexp = new Text(parts[0]);
+			marker.format = new Text(parts[1]);
+			marker.options = new Text(parts[2]);
+			parent.appendChild(marker);
+			return true;
+		}
+
+		return false;
 	}
 
 	private _parseAnything(marker: Marker): boolean {

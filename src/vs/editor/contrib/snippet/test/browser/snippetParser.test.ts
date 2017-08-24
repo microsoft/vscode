@@ -210,6 +210,16 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
 
+	test('Parser, variable transforms', function () {
+		assertTextAndMarker('${foo/regex/format/options}', '', Variable);
+		assertTextAndMarker('${foo///}', '', Variable);
+		assertTextAndMarker('${foo///', '${foo///', Text);
+		assertTextAndMarker('${foo/regex/format/options', '${foo/regex/format/options', Text);
+
+		// assertMarker('${foo/regex\/format/options}', Text);
+		// assertMarker('${foo/.*/${0:fooo}/options}', Variable);
+	});
+
 	test('Parser, placeholder with choice', () => {
 
 		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
