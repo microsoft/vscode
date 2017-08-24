@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { DefaultEndOfLine } from "vs/editor/common/editorCommon";
+import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
 suite('ModelService', () => {
 	let modelService: ModelServiceImpl;
