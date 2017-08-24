@@ -38,10 +38,12 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 
 	migrate(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
 		this.migrateStorage(toWorkspaceId);
+
 		return this.migrateConfiguration(toWorkspaceId);
 	}
 
 	migrateStorage(toWorkspaceId: IWorkspaceIdentifier): void {
+
 		// The shutdown sequence could have been stopped due to a veto. Make sure to
 		// always dispose the shutdown listener if we are called again in the same session.
 		if (this.shutdownListener) {
@@ -49,7 +51,10 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 			this.shutdownListener = void 0;
 		}
 
+		// Since many components write to storage only on shutdown, we register a shutdown listener
+		// very late to be called as the last one.
 		this.shutdownListener = once(this.lifecycleService.onShutdown)(() => {
+
 			// TODO@Ben revisit this when we move away from local storage to a file based approach
 			const storageImpl = this.storageService as StorageService;
 			migrateStorageToMultiRootWorkspace(storageImpl.storageId, toWorkspaceId, storageImpl.workspaceStorage);
@@ -57,6 +62,10 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 	}
 
 	private migrateConfiguration(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
+		if (!this.contextService.hasFolderWorkspace()) {
+			return TPromise.as(void 0); // return early if not a folder workspace is opened
+		}
+
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.configurationService.keys().workspace) {
@@ -64,6 +73,7 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 				targetWorkspaceConfiguration[key] = this.configurationService.lookup(key).workspace;
 			}
 		}
+
 		return this.jsonEditingService.write(URI.file(toWorkspaceId.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

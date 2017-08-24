@@ -5,7 +5,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
@@ -42,11 +41,6 @@ export interface IWorkspaceContextService {
 	 * without workspace (empty);
 	 */
 	getWorkspace(): IWorkspace;
-
-	/**
-	 * Save the existing workspace in the given location
-	 */
-	saveWorkspace(location: URI): TPromise<void>;
 
 	/**
 	 * An event which fires on workspace name changes.

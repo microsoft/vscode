@@ -211,11 +211,15 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			}
 
 			if (this.contextService.hasMultiFolderWorkspace()) {
-				return this.contextService.saveWorkspace(URI.file(configPath));
+				return this.saveWorkspace(configPath);
 			}
 		}
 
 		return TPromise.as(null);
+	}
+
+	private saveWorkspace(configPath: string): TPromise<void> {
+		return this.windowService.saveAndOpenWorkspace(configPath);
 	}
 
 	private saveFolderWorkspace(configPath: string): TPromise<void> {

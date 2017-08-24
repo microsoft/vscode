@@ -29,7 +29,7 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } fr
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicLabel } from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
@@ -215,9 +215,6 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
-
-		// Handle workspace save event
-		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -478,23 +475,6 @@ export class WindowsManager implements IWindowsMainService {
 		// Handle workspaces to open (instructed and to restore)
 		const allWorkspacesToOpen = arrays.distinct([...workspacesToOpen, ...workspacesToRestore], workspace => workspace.id); // prevent duplicates
 		if (allWorkspacesToOpen.length > 0) {
-
-			// Check for existing instances that have same workspace ID but different configuration path
-			// For now we reload that window with the new configuration so that the configuration path change
-			// can travel properly.
-			allWorkspacesToOpen.forEach(workspaceToOpen => {
-				const existingWindow = findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen);
-				if (existingWindow && existingWindow.openedWorkspace.configPath !== workspaceToOpen.configPath) {
-					usedWindows.push(this.doOpenFolderOrWorkspace(openConfig, { workspace: workspaceToOpen }, false, filesToOpen, filesToCreate, filesToDiff, existingWindow));
-
-					// Reset these because we handled them
-					filesToOpen = [];
-					filesToCreate = [];
-					filesToDiff = [];
-
-					openFolderInNewWindow = true; // any other folders to open must open in new window then
-				}
-			});
 
 			// Check for existing instances
 			const windowsOnWorkspace = arrays.coalesce(allWorkspacesToOpen.map(workspaceToOpen => findWindowOnWorkspace(WindowsManager.WINDOWS, workspaceToOpen)));
@@ -826,7 +806,7 @@ export class WindowsManager implements IWindowsMainService {
 					if (!options || !options.forceOpenWorkspaceAsFile) {
 						const workspace = this.workspacesService.resolveWorkspaceSync(candidate);
 						if (workspace) {
-							return { workspace: { id: workspace.id, configPath: candidate } };
+							return { workspace: { id: workspace.id, configPath: workspace.configPath } };
 						}
 					}
 
@@ -1171,42 +1151,54 @@ export class WindowsManager implements IWindowsMainService {
 		});
 	}
 
+	public saveAndOpenWorkspace(window: CodeWindow, path: string): TPromise<void> {
+		if (!window || !window.win || window.readyState !== ReadyState.READY || !window.openedWorkspace || !path) {
+			return TPromise.as(null); // return early if the window is not ready or disposed or does not have a workspace
+		}
+
+		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
+	}
+
 	public createAndOpenWorkspace(window: CodeWindow, folders?: string[], path?: string): TPromise<void> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 
 		return this.workspacesService.createWorkspace(folders).then(workspace => {
-			let savePromise: TPromise<IWorkspaceIdentifier>;
-			if (path) {
-				savePromise = this.workspacesService.saveWorkspace(workspace, path);
-			} else {
-				savePromise = TPromise.as(workspace);
-			}
+			return this.doSaveAndOpenWorkspace(window, workspace, path);
+		});
+	}
 
-			return savePromise.then(workspace => {
-				window.focus();
+	private doSaveAndOpenWorkspace(window: CodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<void> {
+		let savePromise: TPromise<IWorkspaceIdentifier>;
+		if (path) {
+			savePromise = this.workspacesService.saveWorkspace(workspace, path);
+		} else {
+			savePromise = TPromise.as(workspace);
+		}
 
-				// Only open workspace when the window has not vetoed this
-				return this.lifecycleService.unload(window, UnloadReason.RELOAD, workspace).done(veto => {
-					if (!veto) {
+		return savePromise.then(workspace => {
+			window.focus();
 
-						// Register window for backups and migrate current backups over
-						let backupPath: string;
-						if (window.config && !window.config.extensionDevelopmentPath) {
-							backupPath = this.backupService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
-						}
+			// Only open workspace when the window has not vetoed this
+			return this.lifecycleService.unload(window, UnloadReason.RELOAD, workspace).done(veto => {
+				if (!veto) {
 
-						// Craft a new window configuration to use for the transition
-						const configuration: IWindowConfiguration = mixin({}, window.config);
-						configuration.folderPath = void 0;
-						configuration.workspace = workspace;
-						configuration.backupPath = backupPath;
-
-						// Reload
-						window.reload(configuration);
+					// Register window for backups and migrate current backups over
+					let backupPath: string;
+					if (window.config && !window.config.extensionDevelopmentPath) {
+						backupPath = this.backupService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
 					}
-				});
+
+					// Craft a new window configuration to use for the transition
+					const configuration: IWindowConfiguration = mixin({}, window.config);
+					configuration.folderPath = void 0;
+					configuration.workspace = workspace;
+					configuration.backupPath = backupPath;
+
+					// Reload
+					window.reload(configuration);
+				}
 			});
 		});
 	}
@@ -1331,18 +1323,6 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			}
 		}
-	}
-
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// A workspace was saved to a different config location. Make sure to update our
-		// window states with this new location.
-		const states = [this.lastClosedWindowState, this.windowsState.lastActiveWindow, this.windowsState.lastPluginDevelopmentHostWindow, ...this.windowsState.openedWindows];
-		states.forEach(state => {
-			if (state && state.workspace && state.workspace.id === e.workspace.id && state.workspace.configPath !== e.workspace.configPath) {
-				state.workspace.configPath = e.workspace.configPath;
-			}
-		});
 	}
 
 	public focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow {
