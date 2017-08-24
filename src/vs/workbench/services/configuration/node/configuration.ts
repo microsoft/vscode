@@ -350,7 +350,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	saveWorkspace(location: URI): TPromise<void> {
 		return this.workspacesService.saveWorkspace({ id: this.workspace.id, configPath: this.workspace.configuration.fsPath }, location.fsPath)
-			.then(workspaceIdentifier => this.onWorkspaceSaved(URI.file(workspaceIdentifier.configPath)));
+			.then(workspaceIdentifier => this.onWorkspaceChange(URI.file(workspaceIdentifier.configPath)));
 	}
 
 	public getUnsupportedWorkspaceKeys(): string[] {
@@ -407,7 +407,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			});
 	}
 
-	private onWorkspaceSaved(configPath: URI): TPromise<void> {
+	private onWorkspaceChange(configPath: URI): TPromise<void> {
 		let workspaceName = this.workspace.name;
 		this.workspaceConfigPath = configPath;
 
