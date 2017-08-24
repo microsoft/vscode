@@ -316,8 +316,10 @@ export class SettingsTargetsWidget extends Widget {
 
 	private showContextMenu(event: IMouseEvent): void {
 		const actions = this.getSettingsTargetsActions();
+		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
+		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.settingsTargetsContainer,
+			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
 		event.stopPropagation();
