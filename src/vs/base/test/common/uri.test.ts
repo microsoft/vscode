@@ -312,7 +312,7 @@ suite('URI', () => {
 
 	test('VSCode URI module\'s driveLetterPath regex is incorrect, #32961', function () {
 		let uri = URI.parse('file:///_:/path');
-		assert.equal(uri.fsPath, '/_:/path');
+		assert.equal(uri.fsPath, isWindows ? '\\_:\\path' : '/_:/path');
 	});
 
 	test('URI#file, no path-is-uri check', () => {
