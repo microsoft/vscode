@@ -32,12 +32,13 @@ interface IExtensionsContent {
 }
 
 const empty: { [key: string]: any; } = Object.create(null);
+const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
-	private _recommendations: { [id: string]: boolean; } = Object.create(null);
+	private _recommendations: { [id: string]: number; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
@@ -111,9 +112,23 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this.importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 
 		// retrieve ids of previous recommendations
-		const storedRecommendations = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
-		for (let id of storedRecommendations) {
-			this._recommendations[id] = true;
+		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
+		if (Array.isArray<string>(storedRecommendationsJson)) {
+			for (let id of <string[]>storedRecommendationsJson) {
+				this._recommendations[id] = Date.now();
+			}
+		} else {
+			const now = Date.now();
+			forEach(storedRecommendationsJson, entry => {
+				if (typeof entry.value === 'number') {
+					const diff = (now - entry.value) / milliSecondsInADay;
+					if (diff > 7) {
+						delete this._recommendations[entry.value];
+					} else {
+						this._recommendations[entry.key] = entry.value;
+					}
+				}
+			});
 		}
 
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
@@ -158,18 +173,19 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// the critical path - in case glob-match is slow
 		setImmediate(() => {
 
+			const now = Date.now();
 			forEach(this._availableRecommendations, entry => {
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, uri.fsPath)) {
 					for (let id of ids) {
-						this._recommendations[id] = true;
+						this._recommendations[id] = now;
 					}
 				}
 			});
 
 			this.storageService.store(
 				'extensionsAssistant/recommendations',
-				JSON.stringify(Object.keys(this._recommendations)),
+				JSON.stringify(this._recommendations),
 				StorageScope.GLOBAL
 			);
 
