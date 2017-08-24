@@ -310,7 +310,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
-					.filter(contents => !!contents)
+					.filter(contents => !MarkdownString.isEmpty(contents))
 					.forEach(contents => {
 						const renderedContents = renderMarkdown(contents, {
 							actionCallback: (content) => {

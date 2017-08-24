@@ -17,7 +17,7 @@ export class MarkdownString implements IMarkdownString {
 
 	static isEmpty(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
 		if (MarkdownString.isMarkdownString(oneOrMany)) {
-			return Boolean(oneOrMany.value);
+			return !oneOrMany.value;
 		} else if (Array.isArray(oneOrMany)) {
 			return oneOrMany.every(MarkdownString.isEmpty);
 		} else {
@@ -49,11 +49,11 @@ export class MarkdownString implements IMarkdownString {
 	}
 
 	appendCodeblock(langId: string, code: string): this {
-		this.value += '```';
+		this.value += '\n```';
 		this.value += langId;
 		this.value += '\n';
 		this.value += code;
-		this.value += '```\n';
+		this.value += '\n```\n';
 		return this;
 	}
 }
