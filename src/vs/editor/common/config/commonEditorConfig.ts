@@ -596,7 +596,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.colorDecorators': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.colorDecorators,
-			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators.")
+			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
