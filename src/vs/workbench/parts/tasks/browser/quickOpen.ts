@@ -117,7 +117,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Task[], groupLabel: string, withBorder: boolean = false) {
 		let first = true;
 		for (let task of tasks) {
-			let highlights = Filters.matchesContiguousSubString(input, task._label);
+			let highlights = Filters.matchesFuzzy(input, task._label);
 			if (!highlights) {
 				continue;
 			}
