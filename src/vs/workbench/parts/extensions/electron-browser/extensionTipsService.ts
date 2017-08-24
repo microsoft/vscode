@@ -26,6 +26,7 @@ import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as cp from 'child_process';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -65,6 +66,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
+		this._suggestBasedOnExecutables();
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -95,7 +97,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _getAllRecommendationsInProduct(): string[] {
 		if (!this._allRecommendations) {
-			this._allRecommendations = [...Object.keys(this.importantRecommendations)];
+			this._allRecommendations = [...Object.keys(this.importantRecommendations), ...Object.keys(product.exeBasedExtensionTips)];
 			forEach(this._availableRecommendations, ({ value: ids }) => {
 				this._allRecommendations.push(...ids);
 			});
@@ -302,6 +304,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					return this.setIgnoreRecommendationsConfig(true);
 				case 1: return this.setIgnoreRecommendationsConfig(false);
 			}
+		});
+	}
+
+	private _suggestBasedOnExecutables() {
+		const cmd = process.platform === 'win32' ? 'where' : 'which';
+		forEach(product.exeBasedExtensionTips, entry => {
+			cp.exec(`${cmd} ${entry.value.replace(/,/g, ' ')}`, (err, stdout, stderr) => {
+				if (stdout) {
+					this._recommendations[entry.key] = true;
+				}
+			});
 		});
 	}
 
