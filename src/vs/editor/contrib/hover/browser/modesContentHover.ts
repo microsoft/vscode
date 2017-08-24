@@ -81,10 +81,6 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: IMarkdownString | IMarkdownString[]) => {
-			return contents && (!Array.isArray(contents) || (<IMarkdownString[]>contents).length > 0);
-		};
-
 		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
@@ -107,7 +103,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 				const { color, formatters } = colorRange;
 				return new ColorHover(d.range, color, formatters);
 			} else {
-				if (!hasHoverContent(d.options.hoverMessage)) {
+				if (MarkdownString.isEmpty(d.options.hoverMessage)) {
 					return null;
 				}
 

@@ -15,6 +15,16 @@ export interface IMarkdownString {
 
 export class MarkdownString implements IMarkdownString {
 
+	static isEmpty(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
+		if (MarkdownString.isMarkdownString(oneOrMany)) {
+			return Boolean(oneOrMany.value);
+		} else if (Array.isArray(oneOrMany)) {
+			return oneOrMany.every(MarkdownString.isEmpty);
+		} else {
+			return false;
+		}
+	}
+
 	static isMarkdownString(thing: any): thing is IMarkdownString {
 		if (thing instanceof MarkdownString) {
 			return true;

@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -42,9 +42,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		const hasHoverContent = (contents: IMarkdownString | IMarkdownString[]) => {
-			return contents && (!Array.isArray(contents) || (<IMarkdownString[]>contents).length > 0);
-		};
+
 		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
 				value: contents
@@ -63,7 +61,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
 			let hoverMessage = d.options.glyphMarginHoverMessage;
 
-			if (!hasHoverContent(hoverMessage)) {
+			if (!MarkdownString.isEmpty(hoverMessage)) {
 				continue;
 			}
 
