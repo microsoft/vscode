@@ -112,9 +112,12 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
 	return validateWorkspacePath(configuration).then(() => {
-		const workspaceConfigPath = configuration.workspace ? uri.file(configuration.workspace.configPath) : null;
-		const folderPath = configuration.folderPath ? uri.file(configuration.folderPath) : null;
-		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, folderPath, environmentService, workspacesService) : new EmptyWorkspaceServiceImpl(environmentService);
+		let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
+		if (configuration.workspace || configuration.folderPath) {
+			workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
+		} else {
+			workspaceService = new EmptyWorkspaceServiceImpl(environmentService);
+		}
 
 		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
 	});
