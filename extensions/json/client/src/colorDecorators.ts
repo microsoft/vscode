@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { workspace, Range, TextDocument, DocumentColorProvider, Color, ColorRange, Event, EventEmitter } from 'vscode';
+import { Range, TextDocument, DocumentColorProvider, Color, ColorRange } from 'vscode';
 
 const ColorFormat_HEX = {
 	opaque: '"#{red:X}{green:X}{blue:X}"',
@@ -12,34 +12,7 @@ const ColorFormat_HEX = {
 };
 
 export class ColorProvider implements DocumentColorProvider {
-	private onDidChangeColorsEmitter = new EventEmitter<void>();
-	private decoratorEnablement = {};
-
-	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>, private supportedLanguages: { [id: string]: boolean }, isDecoratorEnabled: (languageId: string) => boolean) {
-		for (let languageId in supportedLanguages) {
-			this.decoratorEnablement[languageId] = isDecoratorEnabled(languageId);
-		}
-
-		workspace.onDidChangeConfiguration(_ => {
-			let hasChanges = false;
-			for (let languageId in supportedLanguages) {
-				let prev = this.decoratorEnablement[languageId];
-				let curr = isDecoratorEnabled(languageId);
-				if (prev !== curr) {
-					this.decoratorEnablement[languageId] = curr;
-					hasChanges = true;
-				}
-			}
-			if (hasChanges) {
-				this.onDidChangeColorsEmitter.fire();
-			}
-		});
-	}
-
-
-	public get onDidChangeColors(): Event<void> {
-		return this.onDidChangeColorsEmitter.event;
-	}
+	constructor(private decoratorProvider: (uri: string) => Thenable<Range[]>) { }
 
 	async provideDocumentColors(document: TextDocument): Promise<ColorRange[]> {
 		const ranges = await this.decoratorProvider(document.uri.toString());

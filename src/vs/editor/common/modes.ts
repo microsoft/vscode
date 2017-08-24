@@ -711,8 +711,6 @@ export interface IColorRange {
  * A provider of colors for editor models.
  */
 export interface DocumentColorProvider {
-	onDidChange?: Event<this>;
-
 	/**
 	 * Provides the color ranges for a specific model.
 	 */

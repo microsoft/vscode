@@ -195,11 +195,6 @@ declare module 'vscode' {
 	 */
 	export interface DocumentColorProvider {
 		/**
-		 * An optional event to signal that the Colors from this provider have changed.
-		 */
-		onDidChangeColors?: Event<void>;
-
-		/**
 		 * Provide colors for the given document.
 		 *
 		 * @param document The document in which the command was invoked.

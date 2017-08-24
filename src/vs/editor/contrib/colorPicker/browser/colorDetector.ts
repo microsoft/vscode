@@ -15,6 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { getColors } from 'vs/editor/contrib/colorPicker/common/color';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
 
@@ -25,27 +26,63 @@ export class ColorDetector implements IEditorContribution {
 
 	static RECOMPUTE_TIME = 1000; // ms
 
-	private globalToDispose: IDisposable[] = [];
-	private localToDispose: IDisposable[] = [];
-	private computePromise: TPromise<void>;
-	private timeoutPromise: TPromise<void>;
+	private _globalToDispose: IDisposable[] = [];
+	private _localToDispose: IDisposable[] = [];
+	private _computePromise: TPromise<void>;
+	private _timeoutPromise: TPromise<void>;
 
-	private decorationsIds: string[] = [];
-	private colorRanges = new Map<string, IColorRange>();
+	private _decorationsIds: string[] = [];
+	private _colorRanges = new Map<string, IColorRange>();
 
-	private _colorDecorators: string[] = [];
+	private _colorDecoratorIds: string[] = [];
 	private _decorationsTypes: { [key: string]: boolean } = {};
 
-	constructor(private editor: ICodeEditor,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-	) {
-		this.globalToDispose.push(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.globalToDispose.push(editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this.globalToDispose.push(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
+	private _isEnabled: boolean;
 
-		this.timeoutPromise = null;
-		this.computePromise = null;
+	constructor(private _editor: ICodeEditor,
+		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@IConfigurationService private _configurationService: IConfigurationService
+	) {
+		this._globalToDispose.push(_editor.onDidChangeModel((e) => {
+			this._isEnabled = this.isEnabled();
+			this.onModelChanged();
+		}));
+		this._globalToDispose.push(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
+		this._globalToDispose.push(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
+		this._globalToDispose.push(_editor.onDidChangeConfiguration((e) => {
+			let prevIsEnabled = this._isEnabled;
+			this._isEnabled = this.isEnabled();
+			if (prevIsEnabled !== this._isEnabled) {
+				if (this._isEnabled) {
+					this.onModelChanged();
+				} else {
+					this.removeAllDecorations();
+				}
+			}
+		}));
+
+		this._timeoutPromise = null;
+		this._computePromise = null;
+		this._isEnabled = this.isEnabled();
 		this.onModelChanged();
+	}
+
+	isEnabled(): boolean {
+		const model = this._editor.getModel();
+		if (!model) {
+			return false;
+		}
+		const languageId = model.getLanguageIdentifier();
+		// handle deprecated settings. [languageId].colorDecorators.enable
+		let deprecatedConfig = this._configurationService.getConfiguration(languageId.language);
+		if (deprecatedConfig) {
+			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
+			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
+				return colorDecorators['enable'];
+			}
+		}
+
+		return this._editor.getConfiguration().contribInfo.colorDecorators;
 	}
 
 	getId(): string {
@@ -58,15 +95,20 @@ export class ColorDetector implements IEditorContribution {
 
 	dispose(): void {
 		this.stop();
-		this.globalToDispose = dispose(this.globalToDispose);
+		this.removeAllDecorations();
+		this._globalToDispose = dispose(this._globalToDispose);
 	}
 
 	private onModelChanged(): void {
 		this.stop();
-		const model = this.editor.getModel();
-		if (!model) {
+
+		if (!this._isEnabled) {
 			return;
 		}
+		const model = this._editor.getModel();
+		// if (!model) {
+		// 	return;
+		// }
 
 		if (!ColorProviderRegistry.has(model)) {
 			return;
@@ -75,25 +117,25 @@ export class ColorDetector implements IEditorContribution {
 		for (const provider of ColorProviderRegistry.all(model)) {
 			if (typeof provider.onDidChange === 'function') {
 				let registration = provider.onDidChange(() => {
-					if (this.timeoutPromise) {
-						this.timeoutPromise.cancel();
-						this.timeoutPromise = null;
+					if (this._timeoutPromise) {
+						this._timeoutPromise.cancel();
+						this._timeoutPromise = null;
 					}
-					if (this.computePromise) {
-						this.computePromise.cancel();
-						this.computePromise = null;
+					if (this._computePromise) {
+						this._computePromise.cancel();
+						this._computePromise = null;
 					}
 					this.beginCompute();
 				});
-				this.localToDispose.push(registration);
+				this._localToDispose.push(registration);
 			}
 		}
 
-		this.localToDispose.push(this.editor.onDidChangeModelContent((e) => {
-			if (!this.timeoutPromise) {
-				this.timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
-				this.timeoutPromise.then(() => {
-					this.timeoutPromise = null;
+		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
+			if (!this._timeoutPromise) {
+				this._timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
+				this._timeoutPromise.then(() => {
+					this._timeoutPromise = null;
 					this.beginCompute();
 				});
 			}
@@ -102,23 +144,23 @@ export class ColorDetector implements IEditorContribution {
 	}
 
 	private beginCompute(): void {
-		this.computePromise = getColors(this.editor.getModel()).then(colorInfos => {
+		this._computePromise = getColors(this._editor.getModel()).then(colorInfos => {
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
-			this.computePromise = null;
+			this._computePromise = null;
 		});
 	}
 
 	private stop(): void {
-		if (this.timeoutPromise) {
-			this.timeoutPromise.cancel();
-			this.timeoutPromise = null;
+		if (this._timeoutPromise) {
+			this._timeoutPromise.cancel();
+			this._timeoutPromise = null;
 		}
-		if (this.computePromise) {
-			this.computePromise.cancel();
-			this.computePromise = null;
+		if (this._computePromise) {
+			this._computePromise.cancel();
+			this._computePromise = null;
 		}
-		this.localToDispose = dispose(this.localToDispose);
+		this._localToDispose = dispose(this._localToDispose);
 	}
 
 	private updateDecorations(colorInfos: IColorRange[]): void {
@@ -138,10 +180,10 @@ export class ColorDetector implements IEditorContribution {
 			formatters: c.formatters
 		}));
 
-		this.decorationsIds = this.editor.deltaDecorations(this.decorationsIds, decorations);
+		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
 
-		this.colorRanges = new Map<string, IColorRange>();
-		this.decorationsIds.forEach((id, i) => this.colorRanges.set(id, colorRanges[i]));
+		this._colorRanges = new Map<string, IColorRange>();
+		this._decorationsIds.forEach((id, i) => this._colorRanges.set(id, colorRanges[i]));
 	}
 
 	private updateColorDecorators(colorInfos: IColorRange[]): void {
@@ -191,18 +233,27 @@ export class ColorDetector implements IEditorContribution {
 			}
 		}
 
-		this._colorDecorators = this.editor.deltaDecorations(this._colorDecorators, decorations);
+		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, decorations);
+	}
+
+	private removeAllDecorations(): void {
+		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, []);
+		this._colorDecoratorIds = this._editor.deltaDecorations(this._colorDecoratorIds, []);
+
+		for (let subType in this._decorationsTypes) {
+			this._codeEditorService.removeDecorationType(subType);
+		}
 	}
 
 	getColorRange(position: Position): IColorRange | null {
-		const decorations = this.editor.getModel()
+		const decorations = this._editor.getModel()
 			.getDecorationsInRange(Range.fromPositions(position, position))
-			.filter(d => this.colorRanges.has(d.id));
+			.filter(d => this._colorRanges.has(d.id));
 
 		if (decorations.length === 0) {
 			return null;
 		}
 
-		return this.colorRanges.get(decorations[0].id);
+		return this._colorRanges.get(decorations[0].id);
 	}
 }
