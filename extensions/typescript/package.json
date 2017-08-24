@@ -92,12 +92,14 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.tsdk.desc%"
+          "description": "%typescript.tsdk.desc%",
+          "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.disableAutomaticTypeAcquisition%"
+          "description": "%typescript.disableAutomaticTypeAcquisition%",
+          "scope": "window"
         },
         "typescript.npm": {
           "type": [
@@ -106,12 +108,14 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true
+          "isExecutable": true,
+          "scope": "window"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.check.npmIsInstalled%"
+          "description": "%typescript.check.npmIsInstalled%",
+          "scope": "window"
         },
         "javascript.referencesCodeLens.enabled": {
           "type": "boolean",
@@ -327,7 +331,8 @@
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.checkJs%"
+          "description": "%javascript.implicitProjectConfig.checkJs%",
+          "scope": "window"
         },
         "javascript.nameSuggestions": {
           "type": "boolean",
@@ -461,7 +466,9 @@
     "taskDefinitions": [
       {
         "type": "typescript",
-        "required": ["tsconfig"],
+        "required": [
+          "tsconfig"
+        ],
         "properties": {
           "tsconfig": {
             "type": "string",
