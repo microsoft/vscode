@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
-import { ComposedViewsViewlet, IView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, IView, IViewletViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -35,7 +35,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-export class ExplorerViewlet extends ComposedViewsViewlet {
+export class ExplorerViewlet extends PersistentViewsViewlet {
 
 	private static EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 

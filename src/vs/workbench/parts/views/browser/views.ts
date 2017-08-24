@@ -304,7 +304,7 @@ export interface IViewletViewOptions extends IViewOptions {
 
 }
 
-interface IViewState {
+export interface IViewState {
 
 	collapsed: boolean;
 
@@ -316,7 +316,7 @@ interface IViewState {
 
 }
 
-export class ComposedViewsViewlet extends Viewlet {
+export class ViewsViewlet extends Viewlet {
 
 	protected viewletContainer: HTMLElement;
 	protected lastFocusedView: IView;
@@ -327,13 +327,12 @@ export class ComposedViewsViewlet extends Viewlet {
 	private viewletSettings: object;
 
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
-	private readonly viewsStates: Map<string, IViewState>;
+	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
 	constructor(
 		id: string,
 		private location: ViewLocation,
-		private viewletStateStorageId: string,
 		private showHeaderInTitleWhenSingleView: boolean,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
@@ -347,7 +346,6 @@ export class ComposedViewsViewlet extends Viewlet {
 		super(id, telemetryService, themeService);
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
-		this.viewsStates = this.loadViewsStates();
 
 		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
@@ -440,7 +438,6 @@ export class ComposedViewsViewlet extends Viewlet {
 	}
 
 	public shutdown(): void {
-		this.saveViewsStates();
 		this.splitView.getViews<IView>().forEach((view) => view.shutdown());
 		super.shutdown();
 	}
@@ -677,7 +674,7 @@ export class ComposedViewsViewlet extends Viewlet {
 		return true;
 	}
 
-	private getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
+	protected getViewDescriptorsFromRegistry(defaultOrder: boolean = false): IViewDescriptor[] {
 		return ViewsRegistry.getViews(this.location)
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
@@ -694,6 +691,61 @@ export class ComposedViewsViewlet extends Viewlet {
 
 				return orderA - orderB;
 			});
+	}
+
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
+		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+	}
+
+	protected get views(): IView[] {
+		return this.splitView ? this.splitView.getViews<IView>() : [];
+	}
+
+	protected getView(id: string): IView {
+		return this.splitView.getViews<IView>().filter(view => view.id === id)[0];
+	}
+
+	private updateViewStateSize(view: IView): IViewState {
+		const currentState = this.viewsStates.get(view.id);
+		const newViewState = this.createViewState(view);
+		return currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
+	}
+
+	protected createViewState(view: IView): IViewState {
+		const collapsed = !view.isExpanded();
+		const size = collapsed && view instanceof CollapsibleView ? view.previousSize : view.size;
+		return {
+			collapsed,
+			size: size && size > 0 ? size : void 0,
+			isHidden: false,
+			order: this.splitView.getViews<IView>().indexOf(view)
+		};
+	}
+}
+
+export class PersistentViewsViewlet extends ViewsViewlet {
+
+	constructor(
+		id: string,
+		location: ViewLocation,
+		private viewletStateStorageId: string,
+		showHeaderInTitleWhenSingleView: boolean,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		this.loadViewsStates();
+	}
+
+	shutdown(): void {
+		this.saveViewsStates();
+		super.shutdown();
 	}
 
 	private saveViewsStates(): void {
@@ -715,41 +767,8 @@ export class ComposedViewsViewlet extends Viewlet {
 		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewsStates), this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 	}
 
-	private loadViewsStates(): Map<string, IViewState> {
+	private loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		return Object.keys(viewsStates).reduce((result, id) => {
-			const viewState = <IViewState>viewsStates[id];
-			result.set(id, viewState);
-			return result;
-		}, new Map<string, IViewState>());
-	}
-
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
-	}
-
-	protected get views(): IView[] {
-		return this.splitView ? this.splitView.getViews<IView>() : [];
-	}
-
-	protected getView(id: string): IView {
-		return this.splitView.getViews<IView>().filter(view => view.id === id)[0];
-	}
-
-	private updateViewStateSize(view: IView): IViewState {
-		const currentState = this.viewsStates.get(view.id);
-		const newViewState = this.createViewState(view);
-		return currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
-	}
-
-	private createViewState(view: IView): IViewState {
-		const collapsed = !view.isExpanded();
-		const size = collapsed && view instanceof CollapsibleView ? view.previousSize : view.size;
-		return {
-			collapsed,
-			size: size && size > 0 ? size : void 0,
-			isHidden: false,
-			order: this.splitView.getViews<IView>().indexOf(view)
-		};
+		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>viewsStates[id]));
 	}
 }

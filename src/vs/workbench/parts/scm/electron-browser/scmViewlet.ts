@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { ComposedViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { ViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -476,7 +476,7 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
-export class SCMViewlet extends ComposedViewsViewlet {
+export class SCMViewlet extends ViewsViewlet {
 
 	private disposables: IDisposable[] = [];
 
@@ -498,7 +498,7 @@ export class SCMViewlet extends ComposedViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.SCM, `${VIEWLET_ID}.state`, true,
+		super(VIEWLET_ID, ViewLocation.SCM, true,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 	}
 
