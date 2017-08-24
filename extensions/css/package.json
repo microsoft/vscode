@@ -528,8 +528,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-				  "description": "%less.colorDecorators.enable.desc%",
-				  "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
+                  "description": "%less.colorDecorators.enable.desc%",
+                  "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
                 },
                 "less.lint.compatibleVendorPrefixes": {
                   "type": "string",
