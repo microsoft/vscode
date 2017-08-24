@@ -4831,7 +4831,6 @@ declare module monaco.languages {
 	 * A provider of colors for editor models.
 	 */
 	export interface DocumentColorProvider {
-		onDidChange?: IEvent<this>;
 		/**
 		 * Provides the color ranges for a specific model.
 		 */

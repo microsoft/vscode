@@ -1039,16 +1039,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		const eventHandle = typeof provider.onDidChangeColors === 'function' ? this._nextHandle() : undefined;
 		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
-		this._proxy.$registerDocumentColorProvider(handle, selector, eventHandle);
-		let result = this._createDisposable(handle);
-
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChangeColors(_ => this._proxy.$emitColorsEvent(eventHandle));
-			result = Disposable.from(result, subscription);
-		}
-		return result;
+		this._proxy.$registerDocumentColorProvider(handle, selector);
+		return this._createDisposable(handle);
 	}
 
 	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]> {

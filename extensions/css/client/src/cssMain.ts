@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, workspace, ExtensionContext } from 'vscode';
+import { languages, window, commands, ExtensionContext } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
 import { ColorProvider } from './colorDecorators';
@@ -56,11 +56,8 @@ export function activate(context: ExtensionContext) {
 		let colorRequestor = (uri: string) => {
 			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
 		};
-		let isDecoratorEnabled = (languageId: string) => {
-			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
-		};
 
-		context.subscriptions.push(languages.registerColorProvider(['css', 'scss', 'less'], new ColorProvider(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled)));
+		context.subscriptions.push(languages.registerColorProvider(['css', 'scss', 'less'], new ColorProvider(colorRequestor)));
 	});
 
 	let indentationRules = {
