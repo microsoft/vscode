@@ -69,7 +69,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => ({ uri: newWorkspaceRoot });
+			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => ({ uri: newWorkspaceRoot }));
 
 			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value }, true);
 		} else {
