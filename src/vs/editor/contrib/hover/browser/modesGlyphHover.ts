@@ -15,7 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -61,7 +61,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
 			let hoverMessage = d.options.glyphMarginHoverMessage;
 
-			if (!MarkdownString.isEmpty(hoverMessage)) {
+			if (!isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 

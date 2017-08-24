@@ -15,26 +15,6 @@ export interface IMarkdownString {
 
 export class MarkdownString implements IMarkdownString {
 
-	static isEmpty(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
-		if (MarkdownString.isMarkdownString(oneOrMany)) {
-			return !oneOrMany.value;
-		} else if (Array.isArray(oneOrMany)) {
-			return oneOrMany.every(MarkdownString.isEmpty);
-		} else {
-			return false;
-		}
-	}
-
-	static isMarkdownString(thing: any): thing is IMarkdownString {
-		if (thing instanceof MarkdownString) {
-			return true;
-		} else if (typeof thing === 'object') {
-			return typeof (<IMarkdownString>thing).value === 'string'
-				&& (typeof (<IMarkdownString>thing).trusted === 'boolean' || (<IMarkdownString>thing).trusted === void 0);
-		}
-		return false;
-	}
-
 	value: string;
 	trusted?: true;
 
@@ -42,13 +22,18 @@ export class MarkdownString implements IMarkdownString {
 		this.value = value;
 	}
 
-	appendText(value: string): this {
+	appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 		return this;
 	}
 
-	appendCodeblock(langId: string, code: string): this {
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+
+	appendCodeblock(langId: string, code: string): MarkdownString {
 		this.value += '\n```';
 		this.value += langId;
 		this.value += '\n';
@@ -58,6 +43,26 @@ export class MarkdownString implements IMarkdownString {
 	}
 }
 
+export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
+	if (isMarkdownString(oneOrMany)) {
+		return !oneOrMany.value;
+	} else if (Array.isArray(oneOrMany)) {
+		return oneOrMany.every(isEmptyMarkdownString);
+	} else {
+		return true;
+	}
+}
+
+export function isMarkdownString(thing: any): thing is IMarkdownString {
+	if (thing instanceof MarkdownString) {
+		return true;
+	} else if (typeof thing === 'object') {
+		return typeof (<IMarkdownString>thing).value === 'string'
+			&& (typeof (<IMarkdownString>thing).trusted === 'boolean' || (<IMarkdownString>thing).trusted === void 0);
+	}
+	return false;
+}
+
 export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
 	if (!a && !b) {
 		return true;
@@ -65,7 +70,7 @@ export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: I
 		return false;
 	} else if (Array.isArray(a) && Array.isArray(b)) {
 		return equals(a, b, markdownStringEqual);
-	} else if (MarkdownString.isMarkdownString(a) && MarkdownString.isMarkdownString(b)) {
+	} else if (isMarkdownString(a) && isMarkdownString(b)) {
 		return markdownStringEqual(a, b);
 	} else {
 		return false;
