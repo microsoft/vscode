@@ -32,7 +32,12 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
-	public async provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Promise<Command[]> {
+	public async provideCodeActions(
+		document: TextDocument,
+		range: Range,
+		context: CodeActionContext,
+		token: CancellationToken
+	): Promise<Command[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -70,7 +75,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.actionToEdit(source, action));
+		return (response.body || []).map(action => this.getCommandForAction(source, action));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -94,7 +99,15 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 				.filter(code => supportedActions[code])));
 	}
 
-	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
+	private getCommandForAction(source: Source, action: Proto.CodeAction): Command {
+		return {
+			title: action.description,
+			command: this.commandId,
+			arguments: [source, action]
+		};
+	}
+
+	private async onCodeAction(source: Source, action: Proto.CodeAction): Promise<boolean> {
 		const workspaceEdit = new WorkspaceEdit();
 		for (const change of action.changes) {
 			for (const textChange of change.textChanges) {
@@ -105,14 +118,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 					textChange.newText);
 			}
 		}
-		return {
-			title: action.description,
-			command: this.commandId,
-			arguments: [source, workspaceEdit]
-		};
-	}
 
-	private async onCodeAction(source: Source, workspaceEdit: WorkspaceEdit): Promise<boolean> {
 		const success = workspace.applyEdit(workspaceEdit);
 		if (!success) {
 			return false;
