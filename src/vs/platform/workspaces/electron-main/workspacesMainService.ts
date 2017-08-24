@@ -11,7 +11,7 @@ import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname } from 'path';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
 import { copy, delSync, readdirSync } from 'vs/base/node/extfs';
 import { nfcall } from 'vs/base/common/async';
@@ -20,6 +20,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
+
+// TODO@Ben migration
+export interface ILegacyStoredWorkspace {
+	id: string;
+	folders: string[];
+}
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -55,11 +61,21 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		}
 
 		try {
-			const workspace = JSON.parse(readFileSync(path, 'utf8')) as IStoredWorkspace;
+			const rawWorkspace = JSON.parse(readFileSync(path, 'utf8'));
+
+			const workspace = rawWorkspace as IStoredWorkspace;
 			if (!Array.isArray(workspace.folders) || workspace.folders.length === 0) {
 				this.logService.log(`${path} looks like an invalid workspace file.`);
 
 				return null; // looks like an invalid workspace file
+			}
+
+			// TODO@Ben migration
+			const legacyStoredWorkspace = rawWorkspace as ILegacyStoredWorkspace;
+			if (typeof legacyStoredWorkspace.id === 'string') {
+				delete legacyStoredWorkspace.id;
+				(rawWorkspace as IStoredWorkspace).folders = legacyStoredWorkspace.folders.map(folder => ({ uri: folder }));
+				writeFileSync(path, JSON.stringify(rawWorkspace, null, '\t'));
 			}
 
 			return {
