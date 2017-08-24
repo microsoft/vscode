@@ -194,8 +194,8 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
 	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
 
-	private _modelCreationOptionsByLanguage: {
-		[language: string]: editorCommon.ITextModelCreationOptions;
+	private _modelCreationOptionsByLanguageAndResource: {
+		[languageAndResource: string]: editorCommon.ITextModelCreationOptions;
 	};
 
 	/**
@@ -210,7 +210,7 @@ export class ModelServiceImpl implements IModelService {
 		this._markerService = markerService;
 		this._configurationService = configurationService;
 		this._models = {};
-		this._modelCreationOptionsByLanguage = Object.create(null);
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 		this._onModelAdded = new Emitter<editorCommon.IModel>();
 		this._onModelRemoved = new Emitter<editorCommon.IModel>();
 		this._onModelModeChanged = new Emitter<{ model: editorCommon.IModel; oldModeId: string; }>();
@@ -238,7 +238,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		let newDefaultEOL = DEFAULT_EOL;
-		const eol = config.files && config.files.eol; // TODO@Sandeep (https://github.com/Microsoft/vscode/issues/29119)
+		const eol = config.files && config.files.eol;
 		if (eol === '\r\n') {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 		} else if (eol === '\n') {
@@ -264,18 +264,18 @@ export class ModelServiceImpl implements IModelService {
 		};
 	}
 
-	public getCreationOptions(language: string): editorCommon.ITextModelCreationOptions {
-		let creationOptions = this._modelCreationOptionsByLanguage[language];
+	public getCreationOptions(language: string, resource: URI): editorCommon.ITextModelCreationOptions {
+		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language }));
-			this._modelCreationOptionsByLanguage[language] = creationOptions;
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language, resource }));
+			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;
 	}
 
 	private _updateModelOptions(): void {
-		let oldOptionsByLanguage = this._modelCreationOptionsByLanguage;
-		this._modelCreationOptionsByLanguage = Object.create(null);
+		let oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
 		// Update options on all models
 		let keys = Object.keys(this._models);
@@ -283,8 +283,9 @@ export class ModelServiceImpl implements IModelService {
 			let modelId = keys[i];
 			let modelData = this._models[modelId];
 			const language = modelData.model.getLanguageIdentifier().language;
-			const oldOptions = oldOptionsByLanguage[language];
-			const newOptions = this.getCreationOptions(language);
+			const uri = modelData.model.uri;
+			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
+			const newOptions = this.getCreationOptions(language, uri);
 			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
 		}
 	}
@@ -341,13 +342,16 @@ export class ModelServiceImpl implements IModelService {
 				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
 			}
 		}
+
+		// clean up cache
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
 	}
 
 	// --- begin IModelService
 
 	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
-		const options = this.getCreationOptions(languageIdentifier.language);
+		const options = this.getCreationOptions(languageIdentifier.language, resource);
 		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
 		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
 		let modelId = MODEL_ID(model.uri);
@@ -364,7 +368,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	public updateModel(model: editorCommon.IModel, value: string | IRawTextSource): void {
-		let options = this.getCreationOptions(model.getLanguageIdentifier().language);
+		let options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
 		const textSource = TextSource.create(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
@@ -485,8 +489,8 @@ export class ModelServiceImpl implements IModelService {
 				const model = modelData.model;
 				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;
-				const oldOptions = this.getCreationOptions(oldModeId);
-				const newOptions = this.getCreationOptions(newModeId);
+				const oldOptions = this.getCreationOptions(oldModeId, model.uri);
+				const newOptions = this.getCreationOptions(newModeId, model.uri);
 				ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
 				this._onModelModeChanged.fire({ model, oldModeId });
 			}

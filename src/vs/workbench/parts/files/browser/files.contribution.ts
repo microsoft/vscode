@@ -220,6 +220,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
 			'description': nls.localize('eol', "The default end of line character. Use \\n for LF and \\r\\n for CRLF."),
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
