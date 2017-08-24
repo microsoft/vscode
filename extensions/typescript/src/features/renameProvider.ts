@@ -12,11 +12,17 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
 		private client: ITypescriptServiceClient) { }
 
-	public provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): Promise<WorkspaceEdit | undefined | null> {
+	public async provideRenameEdits(
+		document: TextDocument,
+		position: Position,
+		newName: string,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve(null);
+			return null;
 		}
+
 		const args: Proto.RenameRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
@@ -25,32 +31,33 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 			findInComments: false
 		};
 
-		return this.client.execute('rename', args, token).then((response) => {
+		try {
+			const response = await this.client.execute('rename', args, token);
 			const renameResponse = response.body;
 			if (!renameResponse) {
-				return Promise.resolve(null);
+				return null;
 			}
 			const renameInfo = renameResponse.info;
-			const result = new WorkspaceEdit();
 
 			if (!renameInfo.canRename) {
 				return Promise.reject<WorkspaceEdit>(renameInfo.localizedErrorMessage);
 			}
-
-			renameResponse.locs.forEach((spanGroup) => {
+			const result = new WorkspaceEdit();
+			for (const spanGroup of renameResponse.locs) {
 				const resource = this.client.asUrl(spanGroup.file);
 				if (!resource) {
-					return;
+					continue;
 				}
-				spanGroup.locs.forEach((textSpan) => {
+				for (const textSpan of spanGroup.locs) {
 					result.replace(resource,
 						new Range(textSpan.start.line - 1, textSpan.start.offset - 1, textSpan.end.line - 1, textSpan.end.offset - 1),
 						newName);
-				});
-			});
+				}
+			}
 			return result;
-		}, () => {
-			return null;
-		});
+		} catch (e) {
+			// noop
+		}
+		return null;
 	}
 }
