@@ -535,18 +535,22 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		const foldersChanged = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 		if (foldersChanged) {
 			this.workspace.roots = configuredFolders;
-			this._onDidChangeWorkspaceRoots.fire();
-			this.onFoldersChanged();
-			return;
-		}
-
-		const configurationChanged = this.updateWorkspaceConfiguration(true);
-		if (configurationChanged) {
-			this.triggerConfigurationChange();
+			this.onFoldersChanged()
+				.then(configurationChanged => {
+					this._onDidChangeWorkspaceRoots.fire();
+					if (configurationChanged) {
+						this.triggerConfigurationChange();
+					}
+				});
+		} else {
+			const configurationChanged = this.updateWorkspaceConfiguration(true);
+			if (configurationChanged) {
+				this.triggerConfigurationChange();
+			}
 		}
 	}
 
-	private onFoldersChanged(): void {
+	private onFoldersChanged(): TPromise<boolean> {
 		let configurationChangedOnRemoval = false;
 
 		// Remove the configurations of deleted folders
@@ -563,13 +567,13 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		const toInitialize = this.workspace.roots.filter(folder => !this.cachedFolderConfigs.has(folder));
 		if (toInitialize.length) {
 			this.initCachesForFolders(toInitialize);
-			this.updateConfiguration(toInitialize)
-				.then(changed => configurationChangedOnRemoval || changed)
-				.then(changed => changed ? this.triggerConfigurationChange() : void 0);
+			return this.updateConfiguration(toInitialize)
+				.then(changed => configurationChangedOnRemoval || changed);
 		} else if (configurationChangedOnRemoval) {
 			this.updateWorkspaceConfiguration(false);
-			this.triggerConfigurationChange();
+			return TPromise.as(true);
 		}
+		return TPromise.as(false);
 	}
 
 	private updateFolderConfiguration(folder: URI, folderConfiguration: FolderConfigurationModel<any>, compare: boolean): boolean {
