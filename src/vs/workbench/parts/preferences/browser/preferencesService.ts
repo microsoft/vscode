@@ -103,9 +103,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	private readonly defaultWorkbenchSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	private readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/resourceSettings.json' });
-	private readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
+	readonly defaultSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
+	readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/resourceSettings.json' });
+	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private readonly workspaceConfigSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'settings', path: '/workspaceSettings.json' });
 
 	get userSettingsResource(): URI {
@@ -131,7 +131,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		if (this.defaultWorkbenchSettingsResource.fsPath === uri.fsPath) {
+		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
@@ -268,7 +268,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (configurationTarget === ConfigurationTarget.FOLDER) {
 			return this.defaultResourceSettingsResource;
 		}
-		return this.defaultWorkbenchSettingsResource;
+		return this.defaultSettingsResource;
 	}
 
 	private getPreferencesEditorInputName(target: ConfigurationTarget, resource: URI): string {

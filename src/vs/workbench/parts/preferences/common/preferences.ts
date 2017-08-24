@@ -68,6 +68,8 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
+	defaultSettingsResource: URI;
+	defaultResourceSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
 

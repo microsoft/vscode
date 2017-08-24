@@ -518,7 +518,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
 		return editor.setInput(input, options)
-			.then(() => (<CodeEditor>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).createPreferencesRenderer(associatedPreferencesModelUri));
+			.then(() => (<CodeEditor>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -710,31 +710,25 @@ class DefaultPreferencesCodeEditor extends CodeEditor {
 
 interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
-	createPreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>>;
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>>;
 
 }
 
-class DefaultSettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
+abstract class AbstractSettingsEditorContribution extends Disposable {
 
-	static ID: string = 'editor.contrib.defaultsettings';
+	protected preferencesRenderer: TPromise<IPreferencesRenderer<ISetting>>;
 
-	private preferencesRenderer: TPromise<IPreferencesRenderer<ISetting>>;
-
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPreferencesService private preferencesService: IPreferencesService
+	constructor(protected editor: ICodeEditor,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IPreferencesService protected preferencesService: IPreferencesService
 	) {
 		super();
 		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
-	getId(): string {
-		return DefaultSettingsEditorContribution.ID;
-	}
-
-	createPreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
+	updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
 		if (!this.preferencesRenderer) {
-			return TPromise.as(null);
+			this.preferencesRenderer = this._createPreferencesRenderer();
 		}
 
 		return this._hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri)
@@ -753,18 +747,6 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 		return this.preferencesRenderer.then(preferencesRenderer => {
 			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.fsPath === associatedPreferencesModelUri.fsPath);
 		});
-	}
-
-	private _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
-		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
-			.then(editorModel => {
-				if (editorModel instanceof DefaultSettingsEditorModel) {
-					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
-					preferencesRenderer.render();
-					return preferencesRenderer;
-				}
-				return null;
-			});
 	}
 
 	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
@@ -799,29 +781,42 @@ class DefaultSettingsEditorContribution extends Disposable implements ISettingsE
 		this.disposePreferencesRenderer();
 		super.dispose();
 	}
+
+	protected abstract _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>>;
+}
+
+class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
+
+	static ID: string = 'editor.contrib.defaultsettings';
+
+	getId(): string {
+		return DefaultSettingsEditorContribution.ID;
+	}
+
+	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
+			.then(editorModel => {
+				if (editorModel instanceof DefaultSettingsEditorModel) {
+					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
+					preferencesRenderer.render();
+					return preferencesRenderer;
+				}
+				return null;
+			});
+	}
 }
 
 @editorContribution
-class SettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
+class SettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static ID: string = 'editor.contrib.settings';
-
-	private preferencesRenderer: TPromise<IPreferencesRenderer<ISetting>>;
-
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPreferencesService private preferencesService: IPreferencesService
-	) {
-		super();
-	}
 
 	getId(): string {
 		return SettingsEditorContribution.ID;
 	}
 
-	createPreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
-		this.disposePreferencesRenderer();
-		this.preferencesRenderer = TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(associatedPreferencesModelUri), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
+	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
+		return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
 			.then(([defaultSettingsModel, settingsModel]) => {
 				if (settingsModel instanceof SettingsEditorModel) {
 					switch (settingsModel.configurationTarget) {
@@ -841,23 +836,8 @@ class SettingsEditorContribution extends Disposable implements ISettingsEditorCo
 				}
 				return preferencesRenderer;
 			});
-		return this.preferencesRenderer;
 	}
 
-	private disposePreferencesRenderer(): void {
-		if (this.preferencesRenderer) {
-			this.preferencesRenderer.then(preferencesRenderer => {
-				if (preferencesRenderer) {
-					preferencesRenderer.dispose();
-				}
-			});
-		}
-	}
-
-	dispose() {
-		this.disposePreferencesRenderer();
-		super.dispose();
-	}
 }
 
 abstract class SettingsCommand extends Command {
