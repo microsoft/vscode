@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/make.tmbundle/blob/master/Syntaxes/Makefile.plist",
+		"This file has been converted from https://github.com/fadeevab/make.tmbundle/blob/master/Syntaxes/Makefile.plist",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/make.tmbundle/commit/1a1827da81e20fdce56e2658451340c070ca44b7",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/3c1e978bb465ffbf53a36639a69bae99ed047f08",
 	"fileTypes": [
 		"Makefile",
 		"makefile",
@@ -15,6 +15,9 @@
 	"patterns": [
 		{
 			"include": "#comment"
+		},
+		{
+			"include": "#variables"
 		},
 		{
 			"include": "#variable-assignment"
@@ -43,7 +46,7 @@
 							"name": "punctuation.definition.comment.makefile"
 						}
 					},
-					"end": "\\n",
+					"end": "(?=[^\\\\])$",
 					"name": "comment.line.number-sign.makefile",
 					"patterns": [
 						{
@@ -323,12 +326,12 @@
 					"name": "punctuation.separator.key-value.makefile"
 				}
 			},
-			"end": "^(?!\\t)",
+			"end": "[^\\\\]$",
 			"name": "meta.scope.target.makefile",
 			"patterns": [
 				{
 					"begin": "\\G",
-					"end": "^",
+					"end": "(?=[^\\\\])$",
 					"name": "meta.scope.prerequisites.makefile",
 					"patterns": [
 						{
@@ -427,11 +430,11 @@
 							"include": "#variables"
 						},
 						{
-							"match": "\\G(MAKEFILES|VPATH|SHELL|MAKESHELL|MAKE|MAKELEVEL|MAKEFLAGS|MAKECMDGOALS|CURDIR|SUFFIXES|\\.LIBPATTERNS)(?=\\s*\\))",
+							"match": "(?<=\\()(MAKEFILES|VPATH|SHELL|MAKESHELL|MAKE|MAKELEVEL|MAKEFLAGS|MAKECMDGOALS|CURDIR|SUFFIXES|\\.LIBPATTERNS)(?=\\s*\\))",
 							"name": "variable.language.makefile"
 						},
 						{
-							"begin": "\\G(subst|patsubst|strip|findstring|filter(-out)?|sort|word(list)?|firstword|lastword|dir|notdir|suffix|basename|addsuffix|addprefix|join|wildcard|realpath|abspath|info|error|warning|shell|foreach|if|or|and|call|eval|value|file|guile)\\s",
+							"begin": "(?<=\\()(subst|patsubst|strip|findstring|filter(-out)?|sort|word(list)?|firstword|lastword|dir|notdir|suffix|basename|addsuffix|addprefix|join|wildcard|realpath|abspath|info|error|warning|shell|foreach|if|or|and|call|eval|value|file|guile)\\s",
 							"beginCaptures": {
 								"1": {
 									"name": "support.function.$1.makefile"
@@ -450,8 +453,13 @@
 							]
 						},
 						{
-							"begin": "\\G(origin|flavor)\\s(?=[^\\s)]+\\s*\\))",
+							"begin": "(?<=\\()(origin|flavor)\\s(?=[^\\s)]+\\s*\\))",
 							"contentName": "variable.other.makefile",
+							"beginCaptures": {
+								"1": {
+									"name": "support.function.$1.makefile"
+								}
+							},
 							"end": "(?=\\))",
 							"name": "meta.scope.function-call.makefile",
 							"patterns": [
@@ -461,7 +469,7 @@
 							]
 						},
 						{
-							"begin": "\\G(?!\\))",
+							"begin": "(?<=\\()(?!\\))",
 							"end": "(?=\\))",
 							"name": "variable.other.makefile",
 							"patterns": [

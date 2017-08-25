@@ -22,7 +22,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { LogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
-import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 
 suite('BackupMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');

@@ -411,10 +411,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 		this.storage.store(key, value, scope);
 	}
 
-	swap(key: string, valueA: any, valueB: any, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: any): void {
-		this.storage.swap(key, valueA, valueB, scope, defaultValue);
-	}
-
 	remove(key: string, scope: StorageScope = StorageScope.GLOBAL): void {
 		this.storage.remove(key, scope);
 	}
@@ -711,10 +707,6 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(null);
-	}
-
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return TPromise.timeout(1).then(() => {
 			return {
@@ -764,9 +756,7 @@ export class TestFileService implements IFileService {
 	watchFileChanges(resource: URI): void {
 	}
 
-	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
-	unwatchFileChanges(arg1: any): void {
+	unwatchFileChanges(resource: URI): void {
 	}
 
 	updateOptions(options: any): void {

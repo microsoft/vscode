@@ -49,7 +49,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
-import { IBroadcastService, IBroadcast } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -251,7 +251,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		// focus first stack frame from top that has source location if no other stack frame is focussed
+		// focus first stack frame from top that has source location if no other stack frame is focused
 		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
 		if (!stackFrameToFocus) {
 			return TPromise.as(null);

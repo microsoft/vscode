@@ -43,7 +43,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
@@ -74,13 +73,14 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 export function createApiFactory(
 	initData: IInitData,
 	threadService: ExtHostThreadService,
-	extensionService: ExtHostExtensionService,
-	telemetryService: ITelemetryService
+	extensionService: ExtHostExtensionService
 ): IExtensionApiFactory {
+
+	const mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
 
 	// Addressable instances
 	const extHostHeapService = threadService.set(ExtHostContext.ExtHostHeapService, new ExtHostHeapService());
-	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
+	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService, extensionService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
@@ -140,7 +140,7 @@ export function createApiFactory(
 					return undefined;
 				}
 				this._seen.add(apiName);
-				return telemetryService.publicLog('apiUsage', {
+				return mainThreadTelemetry.$publicLog('apiUsage', {
 					name: apiName,
 					extension: extension.id
 				});
@@ -242,7 +242,7 @@ export function createApiFactory(
 				return languageFeatures.registerTypeDefinitionProvider(selector, provider);
 			},
 			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
-				return languageFeatures.registerHoverProvider(selector, provider);
+				return languageFeatures.registerHoverProvider(selector, provider, extension.id);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return languageFeatures.registerDocumentHighlightProvider(selector, provider);
@@ -327,13 +327,13 @@ export function createApiFactory(
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
 			showInformationMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Info, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Info, message, first, rest);
 			},
 			showWarningMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Warning, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Warning, message, first, rest);
 			},
 			showErrorMessage(message, first, ...rest) {
-				return extHostMessageService.showMessage(extension.id, Severity.Error, message, first, rest);
+				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showQuickPick(items, options, token);
@@ -368,10 +368,10 @@ export function createApiFactory(
 			},
 			// proposed API
 			sampleFunction: proposedApiFunction(extension, () => {
-				return extHostMessageService.showMessage(extension.id, Severity.Info, 'Hello Proposed Api!', {}, []);
+				return extHostMessageService.showMessage(extension, Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			showOpenDialog: proposedApiFunction(extension, () => {
-				return extHostDialogs.showOpenDialog();
+			showOpenDialog: proposedApiFunction(extension, options => {
+				return extHostDialogs.showOpenDialog(options);
 			})
 		};
 
@@ -475,7 +475,7 @@ export function createApiFactory(
 				return extHostSCM.getLastInputBox(extension);
 			},
 			createSourceControl(id: string, label: string) {
-				telemetryService.publicLog('registerSCMProvider', {
+				mainThreadTelemetry.$publicLog('registerSCMProvider', {
 					extensionId: extension.id,
 					providerId: id,
 					providerLabel: label

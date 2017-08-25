@@ -26,7 +26,7 @@ import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
-import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -112,9 +112,12 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
 	return validateWorkspacePath(configuration).then(() => {
-		const workspaceConfigPath = configuration.workspace ? uri.file(configuration.workspace.configPath) : null;
-		const folderPath = configuration.folderPath ? uri.file(configuration.folderPath) : null;
-		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, folderPath, environmentService, workspacesService) : new EmptyWorkspaceServiceImpl(environmentService);
+		let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
+		if (configuration.workspace || configuration.folderPath) {
+			workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
+		} else {
+			workspaceService = new EmptyWorkspaceServiceImpl(environmentService);
+		}
 
 		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
 	});

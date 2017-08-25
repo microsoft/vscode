@@ -7,9 +7,10 @@
 import * as path from 'path';
 
 import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
-import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
+import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { activateColorDecorations, ColorProvider } from "./colorDecorators";
+import { activateColorDecorations, ColorProvider } from './colorDecorators';
+import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -36,6 +37,27 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
+interface Settings {
+	json?: {
+		schemas?: JSONSchemaSettings[];
+		format?: { enable: boolean; };
+	};
+	http?: {
+		proxy: string;
+		proxyStrictSSL: boolean;
+	};
+}
+
+interface JSONSettings {
+	schemas: JSONSchemaSettings[];
+}
+
+interface JSONSchemaSettings {
+	fileMatch?: string[];
+	url?: string;
+	schema?: any;
+}
+
 export function activate(context: ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
@@ -45,7 +67,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -60,13 +82,20 @@ export function activate(context: ExtensionContext) {
 		documentSelector: ['json'],
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
-			configurationSection: ['json', 'http.proxy', 'http.proxyStrictSSL'],
+			configurationSection: ['json', 'http'],
 			fileEvents: workspace.createFileSystemWatcher('**/*.json')
+		},
+		middleware: {
+			workspace: {
+				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
+			}
 		}
 	};
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
+	client.registerFeature(new ConfigurationFeature(client));
+
 	let disposable = client.start();
 	client.onReady().then(() => {
 		client.onTelemetry(e => {
@@ -143,6 +172,48 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 		}
 	});
 	return associations;
+}
+
+function getSettings(): Settings {
+	let httpSettings = workspace.getConfiguration('http');
+	let jsonSettings = workspace.getConfiguration('json');
+
+	let schemas = [];
+
+	let settings: Settings = {
+		http: {
+			proxy: httpSettings.get('proxy'),
+			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
+		},
+		json: {
+			format: jsonSettings.get('format'),
+			schemas: schemas,
+		}
+	};
+	let settingsSchemas = jsonSettings.get('schemas');
+	if (Array.isArray(settingsSchemas)) {
+		schemas.push(...settingsSchemas);
+	}
+
+	let folders = workspace.workspaceFolders;
+	folders.forEach(folder => {
+		let jsonConfig = workspace.getConfiguration('json', folder.uri);
+		let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
+		let folderSchemas = schemaConfigInfo.workspaceFolderValue;
+		if (Array.isArray(folderSchemas)) {
+			folderSchemas.forEach(schema => {
+				let url = schema.url;
+				if (!url && schema.schema) {
+					url = schema.schema.id;
+				}
+				if (url && url[0] === '.') {
+					url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
+				}
+				schemas.push({ url, fileMatch: schema.fileMatch, schema: schema.schema });
+			});
+		};
+	});
+	return settings;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {

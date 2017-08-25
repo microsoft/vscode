@@ -332,7 +332,7 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = !!arg;
+		const preserveFocus = arg instanceof Resource;
 
 		let uris: Uri[] | undefined;
 
@@ -410,7 +410,7 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = !!arg;
+		const preserveFocus = arg instanceof Resource;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -662,54 +662,73 @@ export class CommandCenter {
 
 	@command('git.cleanAll', { repository: true })
 	async cleanAll(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		let scope = config.get<string>('discardAllScope') || 'prompt';
 		let resources = repository.workingTreeGroup.resourceStates;
 
 		if (resources.length === 0) {
 			return;
 		}
 
-		const untrackedCount = resources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 
-		if (scope === 'prompt' && untrackedCount > 0) {
-			const message = localize('there are untracked files', "There are untracked files ({0}) which will be DELETED if discarded.\n\nWould you like to delete untracked files when discarding all changes?", untrackedCount);
-			const yes = localize('yes', "Yes");
-			const always = localize('always', "Always");
-			const no = localize('no', "No");
-			const never = localize('never', "Never");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, no, never);
+		if (untrackedResources.length === 0) {
+			const message = resources.length === 1
+				? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+				: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
+			const yes = resources.length === 1
+				? localize('discardAll multiple', "Discard 1 File")
+				: localize('discardAll', "Discard All {0} Files", resources.length);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
-			if (typeof pick === 'undefined') {
+			if (pick !== yes) {
 				return;
-			} else if (pick === always) {
-				await config.update('discardAllScope', 'all', true);
-			} else if (pick === never) {
-				await config.update('discardAllScope', 'tracked', true);
 			}
 
-			if (pick === never || pick === no) {
-				scope = 'tracked';
+			await repository.clean(resources.map(r => r.resourceUri));
+			return;
+		} else if (resources.length === 1) {
+			const message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(resources[0].resourceUri.fsPath));
+			const yes = localize('delete file', "Delete file");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
 			}
+
+			await repository.clean(resources.map(r => r.resourceUri));
+		} else if (trackedResources.length === 0) {
+			const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?", resources.length);
+			const yes = localize('delete files', "Delete Files");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+
+			await repository.clean(resources.map(r => r.resourceUri));
+
+		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
+			const untrackedMessage = untrackedResources.length === 1
+				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
+				: localize('there are untracked files', "There are {0} untracked files which will be DELETED FROM DISK if discarded.", untrackedResources.length);
+
+			const message = localize('confirm discard all 2', "{0}\n\nThis is IRREVERSIBLE, your current working set will be FOREVER LOST.", untrackedMessage, resources.length);
+
+			const yesTracked = trackedResources.length === 1
+				? localize('yes discard tracked', "Discard 1 Tracked File", trackedResources.length)
+				: localize('yes discard tracked multiple', "Discard {0} Tracked Files", trackedResources.length);
+
+			const yesAll = localize('discardAll', "Discard All {0} Files", resources.length);
+			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
+
+			if (pick === yesTracked) {
+				resources = trackedResources;
+			} else if (pick !== yesAll) {
+				return;
+			}
+
+			await repository.clean(resources.map(r => r.resourceUri));
 		}
-
-		if (scope === 'tracked') {
-			resources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
-		}
-
-		if (resources.length === 0) {
-			return;
-		}
-
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL ({0}) changes?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST.", resources.length);
-		const yes = localize('discardAll', "Discard ALL Changes");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
-
-		await repository.clean(resources.map(r => r.resourceUri));
 	}
 
 	private async smartCommit(

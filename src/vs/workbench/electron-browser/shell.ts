@@ -49,13 +49,13 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ExtensionService } from "vs/workbench/services/extensions/electron-browser/extensionService";
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, LifecyclePhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
@@ -90,11 +90,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
-import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { StorageService } from 'vs/platform/storage/common/storageService';
-import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
-import { once } from 'vs/base/common/event';
+import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 
 /**
  * Services that we require for the Shell
@@ -135,7 +131,6 @@ export class WorkbenchShell {
 	private previousErrorTime: number;
 	private content: HTMLElement;
 	private contentsContainer: Builder;
-	private shutdownListener: IDisposable;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
@@ -319,7 +314,6 @@ export class WorkbenchShell {
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
 		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
-		this.toUnbind.push(lifecycleService.onWillShutdown(event => this.onWillShutdown(event)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		disposables.push(lifecycleTelemetry(this.telemetryService, lifecycleService));
 		this.lifecycleService = lifecycleService;
@@ -444,33 +438,6 @@ export class WorkbenchShell {
 		return this.workbench.joinCreation();
 	}
 
-	private onWillShutdown(event: ShutdownEvent): void {
-
-		// The shutdown sequence could have been stopped due to a veto. Make sure to
-		// always dispose the shutdown listener if we are called again in the same session.
-		if (this.shutdownListener) {
-			this.shutdownListener.dispose();
-			this.shutdownListener = void 0;
-		}
-
-		if (event.reason === ShutdownReason.RELOAD) {
-			const workspace = event.payload;
-
-			// We are transitioning into a workspace from an empty workspace or folder workspace
-			// As such we want to migrate UI state from the current workspace to the new one. Since
-			// many components write to storage only on shutdown, we register a shutdown listener
-			// very late to be called as the last one.
-			if (isWorkspaceIdentifier(workspace) && !this.contextService.hasMultiFolderWorkspace()) {
-				this.shutdownListener = once(this.lifecycleService.onShutdown)(() => {
-
-					// TODO@Ben revisit this when we move away from local storage to a file based approach
-					const storageImpl = this.storageService as StorageService;
-					migrateStorageToMultiRootWorkspace(storageImpl.storageId, workspace, storageImpl.workspaceStorage);
-				});
-			}
-		}
-	}
-
 	public dispose(): void {
 
 		// Workbench
@@ -482,11 +449,6 @@ export class WorkbenchShell {
 
 		// Listeners
 		this.toUnbind = dispose(this.toUnbind);
-
-		if (this.shutdownListener) {
-			this.shutdownListener.dispose();
-			this.shutdownListener = void 0;
-		}
 
 		// Container
 		$(this.container).empty();

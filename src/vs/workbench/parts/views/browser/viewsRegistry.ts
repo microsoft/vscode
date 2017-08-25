@@ -64,6 +64,8 @@ export interface IViewsRegistry {
 
 	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider): void;
 
+	deregisterTreeViewDataProviders(): void;
+
 	getViews(loc: ViewLocation): IViewDescriptor[];
 
 	getTreeViewDataProvider(id: string): ITreeViewDataProvider;
@@ -120,6 +122,10 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		}
 		this._treeViewDataPoviders.set(id, factory);
 		this._onTreeViewDataProviderRegistered.fire(id);
+	}
+
+	deregisterTreeViewDataProviders(): void {
+		this._treeViewDataPoviders.clear();
 	}
 
 	getViews(loc: ViewLocation): IViewDescriptor[] {

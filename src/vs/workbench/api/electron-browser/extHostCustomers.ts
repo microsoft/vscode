@@ -8,7 +8,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContext } from "vs/workbench/api/node/extHost.protocol";
+import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
 

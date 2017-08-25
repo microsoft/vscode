@@ -4,31 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadTelemetryShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry implements MainThreadTelemetryShape {
 
-	private _telemetryService: ITelemetryService;
+	private static _name = 'pluginHostTelemetry';
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
-		this._telemetryService = telemetryService;
+		//
 	}
 
-	public dispose(): void {
+	dispose(): void {
+		//
 	}
 
-	public $publicLog(eventName: string, data?: any): void {
+	$publicLog(eventName: string, data: any = Object.create(null)): void {
+		data[MainThreadTelemetry._name] = true;
 		this._telemetryService.publicLog(eventName, data);
-	}
-
-	public $getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return this._telemetryService.getTelemetryInfo();
 	}
 }

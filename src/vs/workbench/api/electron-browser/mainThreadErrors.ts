@@ -6,7 +6,7 @@
 
 import { SerializedError, onUnexpectedError } from 'vs/base/common/errors';
 import { MainThreadErrorsShape, MainContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadErrors)
 export class MainThreadErrors implements MainThreadErrorsShape {

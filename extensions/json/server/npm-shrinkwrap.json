@@ -28,9 +28,9 @@
       "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
     },
     "jsonc-parser": {
-      "version": "0.4.2",
-      "from": "jsonc-parser@0.4.2",
-      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.4.2.tgz"
+      "version": "1.0.0",
+      "from": "jsonc-parser@>=1.0.0 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-1.0.0.tgz"
     },
     "ms": {
       "version": "0.7.3",
@@ -43,24 +43,24 @@
       "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.2.1.tgz"
     },
     "vscode-json-languageservice": {
-      "version": "2.0.13",
+      "version": "2.0.14",
       "from": "vscode-json-languageservice@next",
-      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.13.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-json-languageservice/-/vscode-json-languageservice-2.0.14.tgz"
     },
     "vscode-jsonrpc": {
-      "version": "3.1.0-alpha.1",
-      "from": "vscode-jsonrpc@>=3.1.0-alpha.1 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.1.0-alpha.1.tgz"
+      "version": "3.3.1",
+      "from": "vscode-jsonrpc@>=3.3.0 <4.0.0",
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.3.1.tgz"
     },
     "vscode-languageserver": {
-      "version": "3.1.0-alpha.1",
+      "version": "3.4.0-next.4",
       "from": "vscode-languageserver@next",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.1.0-alpha.1.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver/-/vscode-languageserver-3.4.0-next.4.tgz"
     },
     "vscode-languageserver-types": {
-      "version": "3.0.3",
+      "version": "3.3.0",
       "from": "vscode-languageserver-types@>=3.0.3 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.0.3.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.3.0.tgz"
     },
     "vscode-nls": {
       "version": "2.0.2",

@@ -28,7 +28,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from './terminalColorRegistry';
-import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from "vs/workbench/electron-browser/actions";
+import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
 import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';

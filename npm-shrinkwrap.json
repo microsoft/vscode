@@ -291,9 +291,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "1.2.4",
-      "from": "native-keymap@1.2.4",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.4.tgz"
+      "version": "1.2.5",
+      "from": "native-keymap@1.2.5",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.5.tgz"
     },
     "native-watchdog": {
       "version": "0.2.0",
@@ -301,9 +301,9 @@
       "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.2.0.tgz"
     },
     "node-pty": {
-      "version": "0.6.9",
-      "from": "node-pty@0.6.9",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.9.tgz",
+      "version": "0.7.0",
+      "from": "node-pty@0.7.0",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.0.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",
@@ -569,7 +569,7 @@
     "xterm": {
       "version": "2.9.1",
       "from": "Tyriar/xterm.js#vscode-release/1.16",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#cdf3177fd735ab64403a34778d69daa833e539a5"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#39c35bcf880e12e04376bd2f54886cd5e33fa78a"
     },
     "yauzl": {
       "version": "2.8.0",

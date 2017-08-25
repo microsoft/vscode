@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 export class ExtHostDialogs {
 
@@ -15,12 +16,9 @@ export class ExtHostDialogs {
 		this._proxy = mainContext.get(MainContext.MainThreadDialogs);
 	}
 
-	showOpenDialog(): Thenable<URI[]> {
-		return this._proxy.$showOpenDialog().then(filepaths => {
-			if (!filepaths) {
-				return undefined;
-			}
-			return filepaths.map(URI.file);
+	showOpenDialog(options: vscode.OpenDialogOptions): Thenable<URI[]> {
+		return this._proxy.$showOpenDialog(<any>options).then(filepaths => {
+			return filepaths && filepaths.map(URI.file);
 		});
 	}
 }

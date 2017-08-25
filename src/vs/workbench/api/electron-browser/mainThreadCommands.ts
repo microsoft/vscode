@@ -8,7 +8,7 @@ import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'v
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {

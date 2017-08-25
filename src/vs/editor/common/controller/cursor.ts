@@ -210,7 +210,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
-		this._viewModel.viewLayout.setScrollPosition({
+		this._viewModel.viewLayout.setScrollPositionSmooth({
 			scrollTop: desiredScrollTop
 		});
 	}
@@ -389,7 +389,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 
 		// Only after the view has been notified, let the rest of the world know...
-		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+		if (!oldState
+			|| oldState.cursorState.length !== newState.cursorState.length
+			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
+		) {
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+		}
 
 		return true;
 	}

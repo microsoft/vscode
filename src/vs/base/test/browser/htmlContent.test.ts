@@ -87,35 +87,35 @@ suite('HtmlContent', () => {
 		assert.strictEqual(result.innerHTML, '**bold**');
 	});
 	test('image rendering conforms to default', () => {
-		const markdown = `![image](someimageurl 'caption')`;
+		const markdown = { value: `![image](someimageurl 'caption')` };
 		const result: HTMLElement = <any>renderMarkdown(markdown);
 		const renderer = new marked.Renderer();
-		const imageFromMarked = marked(markdown, {
+		const imageFromMarked = marked(markdown.value, {
 			sanitize: true,
 			renderer
 		}).trim();
 		assert.strictEqual(result.innerHTML, imageFromMarked);
 	});
 	test('image rendering conforms to default without title', () => {
-		const markdown = `![image](someimageurl)`;
+		const markdown = { value: `![image](someimageurl)` };
 		const result: HTMLElement = <any>renderMarkdown(markdown);
 		const renderer = new marked.Renderer();
-		const imageFromMarked = marked(markdown, {
+		const imageFromMarked = marked(markdown.value, {
 			sanitize: true,
 			renderer
 		}).trim();
 		assert.strictEqual(result.innerHTML, imageFromMarked);
 	});
 	test('image width from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|width=100 'caption')`);
+		var result: HTMLElement = <any>renderMarkdown({ value: `![image](someimageurl|width=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100"></p>`);
 	});
 	test('image height from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|height=100 'caption')`);
+		var result: HTMLElement = <any>renderMarkdown({ value: `![image](someimageurl|height=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" height="100"></p>`);
 	});
 	test('image width and height from title params', () => {
-		var result: HTMLElement = <any>renderMarkdown(`![image](someimageurl|height=200,width=100 'caption')`);
+		var result: HTMLElement = <any>renderMarkdown({ value: `![image](someimageurl|height=200,width=100 'caption')` });
 		assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100" height="200"></p>`);
 	});
 });

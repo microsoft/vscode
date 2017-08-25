@@ -112,9 +112,9 @@ function hasCodeSettings(folder: string, normalizedUserHome?: string, codeSettin
 }
 
 export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
-	const lastFocussedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
+	const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-	return windows.filter(window => window.lastFocusTime === lastFocussedDate)[0];
+	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
 }
 
 export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {

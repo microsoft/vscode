@@ -113,8 +113,16 @@ export interface MainThreadDiagnosticsShape extends IDisposable {
 	$clear(owner: string): TPromise<any>;
 }
 
+export interface MainThreadDialogOptions {
+	uri?: URI;
+	openLabel?: string;
+	openFiles?: boolean;
+	openFolders?: boolean;
+	openMany?: boolean;
+}
+
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(): TPromise<string[]>;
+	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]>;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
@@ -227,7 +235,7 @@ export interface MainThreadLanguagesShape extends IDisposable {
 }
 
 export interface MainThreadMessageOptions {
-	extensionId?: string;
+	extension?: IExtensionDescription;
 	modal?: boolean;
 }
 
@@ -280,7 +288,6 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
-	$getTelemetryInfo(): TPromise<ITelemetryInfo>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

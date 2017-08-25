@@ -34,6 +34,7 @@ import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -315,8 +316,10 @@ export class SettingsTargetsWidget extends Widget {
 
 	private showContextMenu(event: IMouseEvent): void {
 		const actions = this.getSettingsTargetsActions();
+		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
+		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.settingsTargetsContainer,
+			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
 		event.stopPropagation();
@@ -346,12 +349,13 @@ export class SettingsTargetsWidget extends Widget {
 		}
 
 		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+			const currentRoot = this.uri instanceof URI ? this.workspaceContextService.getRoot(this.uri) : null;
 			actions.push(new Separator());
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
-					checked: this.uri instanceof URI && this.uri.fsPath === root.fsPath,
+					checked: currentRoot && currentRoot.fsPath === root.fsPath,
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};
@@ -621,7 +625,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
-				glyphMarginHoverMessage: hoverMessage,
+				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {

@@ -1439,7 +1439,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 }
 
-CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtensions', function (accessor: ServicesAccessor, fileExtension: string) {
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)

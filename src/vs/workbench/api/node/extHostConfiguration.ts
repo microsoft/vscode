@@ -62,7 +62,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
 			if (arg === void 0 || arg === null) {
-				return ConfigurationTarget.WORKSPACE;
+				return null;
 			}
 			if (typeof arg === 'boolean') {
 				return arg ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;

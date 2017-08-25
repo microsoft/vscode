@@ -70,7 +70,8 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
-		dependencies: extension.properties.dependencies.length > 0
+		dependencies: extension.properties.dependencies.length > 0,
+		...extension.telemetryData
 	};
 }
 

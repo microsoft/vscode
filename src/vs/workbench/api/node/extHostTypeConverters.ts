@@ -16,6 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface PositionLike {
 	line: number;
@@ -143,12 +144,26 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
+export namespace MarkedString {
+	export function from(markup: vscode.MarkedString): IMarkdownString {
+		if (typeof markup === 'string' || !markup) {
+			return { value: <string>markup || '', trusted: true };
+		} else {
+			const { language, value } = markup;
+			return { value: '```' + language + '\n' + value + '\n```' };
+		}
+	}
+	export function to(value: IMarkdownString): vscode.MarkedString {
+		return value.value;
+	}
+}
+
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
 		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: r.hoverMessage,
+				hoverMessage: Array.isArray(r.hoverMessage) ? r.hoverMessage.map(MarkedString.from) : MarkedString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -256,12 +271,12 @@ export const location = {
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),
-		contents: hover.contents
+		contents: hover.contents.map(MarkedString.from)
 	};
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents, toRange(info.range));
+	return new types.Hover(info.contents.map(MarkedString.to), toRange(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {

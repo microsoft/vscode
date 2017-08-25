@@ -90,6 +90,10 @@ function getLanguageService(document: TextDocument) {
 }
 
 let documentSettings: { [key: string]: Thenable<LanguageSettings> } = {};
+// remove document settings on close
+documents.onDidClose(e => {
+	delete documentSettings[e.document.uri];
+});
 function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings> {
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];

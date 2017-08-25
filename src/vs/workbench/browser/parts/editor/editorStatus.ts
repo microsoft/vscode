@@ -742,7 +742,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.commandService.executeCommand('workbench.extensions.action.showLanguageExtensions', this.fileExtension).then(() => void 0);
+		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
 	}
 }
 
@@ -827,12 +827,12 @@ export class ChangeModeAction extends Action {
 		let galleryAction: Action;
 		if (fileResource) {
 			const ext = paths.extname(fileResource.fsPath) || paths.basename(fileResource.fsPath);
-			// Disabled see issue https://github.com/Microsoft/vscode/issues/31972
-			//
-			// galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
-			// if (galleryAction.enabled) {
-			// 	picks.unshift(galleryAction);
-			// }
+
+			galleryAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
+			if (galleryAction.enabled) {
+				picks.unshift(galleryAction);
+			}
+
 
 			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
 			picks.unshift(configureModeSettings);

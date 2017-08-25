@@ -155,7 +155,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	private createWorkspace(folders: URI[]): TPromise<void> {
-		const workspaceFolders = distinct(folders.map(folder => folder.toString(true /* encoding */)));
+		const workspaceFolders = distinct(folders.map(folder => folder.toString(true /* skip encoding to preserve drive letters readable */)));
 
 		return this.windowService.createAndOpenWorkspace(workspaceFolders);
 	}

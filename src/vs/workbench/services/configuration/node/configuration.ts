@@ -33,7 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 interface IStat {
 	resource: URI;
@@ -338,19 +338,28 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	public _serviceBrand: any;
 
+	private workspaceConfigPath: URI;
+	private folderPath: URI;
 	private baseConfigurationService: GlobalConfigurationService<any>;
 	private workspaceConfiguration: WorkspaceConfiguration;
 	private cachedFolderConfigs: StrictResourceMap<FolderConfiguration<any>>;
 
-	constructor(private workspaceConfigPath: URI, private folderPath: URI, private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
+	constructor(private workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier, private environmentService: IEnvironmentService, private workspacesService: IWorkspacesService, private workspaceSettingsRootFolder: string = WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME) {
 		super();
+
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			this.folderPath = URI.file(workspaceIdentifier);
+		} else {
+			this.workspaceConfigPath = URI.file(workspaceIdentifier.configPath);
+		}
+
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration());
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 	}
 
 	saveWorkspace(location: URI): TPromise<void> {
 		return this.workspacesService.saveWorkspace({ id: this.workspace.id, configPath: this.workspace.configuration.fsPath }, location.fsPath)
-			.then(workspaceIdentifier => this.onWorkspaceSaved(URI.file(workspaceIdentifier.configPath)));
+			.then(workspaceIdentifier => this.onWorkspaceChange(URI.file(workspaceIdentifier.configPath)));
 	}
 
 	public getUnsupportedWorkspaceKeys(): string[] {
@@ -407,7 +416,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 			});
 	}
 
-	private onWorkspaceSaved(configPath: URI): TPromise<void> {
+	private onWorkspaceChange(configPath: URI): TPromise<void> {
 		let workspaceName = this.workspace.name;
 		this.workspaceConfigPath = configPath;
 
@@ -435,11 +444,12 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		return this.workspaceConfiguration.load(this.workspaceConfigPath)
 			.then(() => {
 				const workspaceConfigurationModel = this.workspaceConfiguration.workspaceConfigurationModel;
-				if (!workspaceConfigurationModel.id || !workspaceConfigurationModel.folders.length) {
+				if (!workspaceConfigurationModel.folders.length) {
 					return TPromise.wrapError<void>(new Error('Invalid workspace configuraton file ' + this.workspaceConfigPath));
 				}
-				const workspaceName = getWorkspaceLabel({ id: workspaceConfigurationModel.id, configPath: this.workspaceConfigPath.fsPath }, this.environmentService);
-				this.workspace = new Workspace(workspaceConfigurationModel.id, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfigPath);
+				const workspaceId = (this.workspaceIdentifier as IWorkspaceIdentifier).id;
+				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: this.workspaceConfigPath.fsPath }, this.environmentService);
+				this.workspace = new Workspace(workspaceId, workspaceName, workspaceConfigurationModel.folders, this.workspaceConfigPath);
 				this.legacyWorkspace = new LegacyWorkspace(this.workspace.roots[0]);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 				return null;
@@ -525,26 +535,30 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		const foldersChanged = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
 		if (foldersChanged) {
 			this.workspace.roots = configuredFolders;
-			this._onDidChangeWorkspaceRoots.fire();
-			this.onFoldersChanged();
-			return;
-		}
-
-		const configurationChanged = this.updateWorkspaceConfiguration(true);
-		if (configurationChanged) {
-			this.triggerConfigurationChange();
+			this.onFoldersChanged()
+				.then(configurationChanged => {
+					this._onDidChangeWorkspaceRoots.fire();
+					if (configurationChanged) {
+						this.triggerConfigurationChange();
+					}
+				});
+		} else {
+			const configurationChanged = this.updateWorkspaceConfiguration(true);
+			if (configurationChanged) {
+				this.triggerConfigurationChange();
+			}
 		}
 	}
 
-	private onFoldersChanged(): void {
-		let configurationChanged = false;
+	private onFoldersChanged(): TPromise<boolean> {
+		let configurationChangedOnRemoval = false;
 
 		// Remove the configurations of deleted folders
 		for (const key of this.cachedFolderConfigs.keys()) {
 			if (!this.workspace.roots.filter(folder => folder.toString() === key.toString())[0]) {
 				this.cachedFolderConfigs.delete(key);
 				if (this._configuration.deleteFolderConfiguration(key)) {
-					configurationChanged = true;
+					configurationChangedOnRemoval = true;
 				}
 			}
 		}
@@ -553,10 +567,13 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 		const toInitialize = this.workspace.roots.filter(folder => !this.cachedFolderConfigs.has(folder));
 		if (toInitialize.length) {
 			this.initCachesForFolders(toInitialize);
-			this.updateConfiguration(toInitialize)
-				.then(changed => configurationChanged || changed)
-				.then(changed => changed ? this.triggerConfigurationChange() : void 0);
+			return this.updateConfiguration(toInitialize)
+				.then(changed => configurationChangedOnRemoval || changed);
+		} else if (configurationChangedOnRemoval) {
+			this.updateWorkspaceConfiguration(false);
+			return TPromise.as(true);
 		}
+		return TPromise.as(false);
 	}
 
 	private updateFolderConfiguration(folder: URI, folderConfiguration: FolderConfigurationModel<any>, compare: boolean): boolean {
@@ -823,8 +840,9 @@ export class Configuration<T> extends BaseConfiguration<T> {
 	updateBaseConfiguration(baseConfiguration: BaseConfiguration<T>): boolean {
 		const current = new Configuration(this._baseConfiguration, this._workspaceConfiguration, this.folders, this._workspace);
 
-		this._defaults = baseConfiguration.defaults;
-		this._user = baseConfiguration.user;
+		this._baseConfiguration = baseConfiguration;
+		this._defaults = this._baseConfiguration.defaults;
+		this._user = this._baseConfiguration.user;
 		this.merge();
 
 		return !this.equals(current);
@@ -854,8 +872,10 @@ export class Configuration<T> extends BaseConfiguration<T> {
 			return false;
 		}
 
+		const changed = this.folders.get(folder).keys.length > 0;
 		this.folders.delete(folder);
-		return this._foldersConsolidatedConfigurations.delete(folder);
+		this._foldersConsolidatedConfigurations.delete(folder);
+		return changed;
 	}
 
 	getFolderConfigurationModel(folder: URI): FolderConfigurationModel<T> {

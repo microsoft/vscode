@@ -58,6 +58,12 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {

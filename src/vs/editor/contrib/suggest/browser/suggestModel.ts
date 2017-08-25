@@ -39,6 +39,7 @@ export class LineContext {
 			return false;
 		}
 		const pos = editor.getPosition();
+		model.tokenizeIfCheap(pos.lineNumber);
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;

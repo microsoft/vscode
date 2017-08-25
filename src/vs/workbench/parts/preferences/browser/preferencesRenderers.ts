@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -67,7 +68,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, public readonly associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -77,7 +78,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	) {
 		super();
 		this._register(preferencesModel);
-		this._register(associatedPreferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
@@ -85,6 +85,15 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
 		this.createHeader();
+	}
+
+	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
+		return this._associatedPreferencesModel;
+	}
+
+	public set associatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>) {
+		this._associatedPreferencesModel = associatedPreferencesModel;
+		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
 	}
 
 	protected createHeader(): void {
@@ -1022,7 +1031,7 @@ class UnsupportedWorkbenchSettingsRenderer extends Disposable {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
-		hoverMessage: nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly.")
+		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."))
 	});
 
 	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {

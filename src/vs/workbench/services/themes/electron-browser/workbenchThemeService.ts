@@ -40,7 +40,7 @@ import colorThemeSchema = require('vs/workbench/services/themes/common/colorThem
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IBroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 
 // implementation
 

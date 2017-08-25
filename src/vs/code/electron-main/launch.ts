@@ -13,7 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWindowsMainService, ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);

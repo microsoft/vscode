@@ -513,7 +513,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return -1;
 		}
-		return this.viewModel.viewLayout.getScrollLeft();
+		return this.viewModel.viewLayout.getCurrentScrollLeft();
 	}
 
 	public getScrollHeight(): number {
@@ -526,7 +526,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return -1;
 		}
-		return this.viewModel.viewLayout.getScrollTop();
+		return this.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
 	public setScrollLeft(newScrollLeft: number): void {
@@ -536,7 +536,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this.viewModel.viewLayout.setScrollPosition({
+		this.viewModel.viewLayout.setScrollPositionNow({
 			scrollLeft: newScrollLeft
 		});
 	}
@@ -547,7 +547,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this.viewModel.viewLayout.setScrollPosition({
+		this.viewModel.viewLayout.setScrollPositionNow({
 			scrollTop: newScrollTop
 		});
 	}
@@ -555,7 +555,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (!this.hasView) {
 			return;
 		}
-		this.viewModel.viewLayout.setScrollPosition(position);
+		this.viewModel.viewLayout.setScrollPositionNow(position);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState {
@@ -862,7 +862,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.model.onBeforeAttached();
 
-			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
+			this.viewModel = new ViewModel(this.id, this._configuration, this.model, (callback) => this._scheduleAtNextAnimationFrame(callback));
 
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
@@ -935,6 +935,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
+	protected abstract _scheduleAtNextAnimationFrame(callback: () => void): IDisposable;
 	protected abstract _createView(): void;
 
 	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {

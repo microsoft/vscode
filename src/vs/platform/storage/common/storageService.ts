@@ -149,25 +149,6 @@ export class StorageService implements IStorageService {
 		return value;
 	}
 
-	public remove(key: string, scope = StorageScope.GLOBAL): void {
-		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
-		const storageKey = this.toStorageKey(key, scope);
-
-		// Remove
-		storage.removeItem(storageKey);
-	}
-
-	public swap(key: string, valueA: any, valueB: any, scope = StorageScope.GLOBAL, defaultValue?: any): void {
-		const value = this.get(key, scope);
-		if (types.isUndefinedOrNull(value) && defaultValue) {
-			this.store(key, defaultValue, scope);
-		} else if (value === valueA.toString()) { // Convert to string because store is string based
-			this.store(key, valueB, scope);
-		} else {
-			this.store(key, valueA, scope);
-		}
-	}
-
 	public getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
 		const value = this.get(key, scope, defaultValue);
 
@@ -190,6 +171,14 @@ export class StorageService implements IStorageService {
 		}
 
 		return value ? true : false;
+	}
+
+	public remove(key: string, scope = StorageScope.GLOBAL): void {
+		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
+		const storageKey = this.toStorageKey(key, scope);
+
+		// Remove
+		storage.removeItem(storageKey);
 	}
 
 	private toStorageKey(key: string, scope: StorageScope): string {

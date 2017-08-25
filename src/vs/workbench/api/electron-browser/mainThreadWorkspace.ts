@@ -19,7 +19,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RemoteFileService, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { Emitter } from 'vs/base/common/event';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {

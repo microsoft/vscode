@@ -173,7 +173,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
 			if (this.textFileService.isDirty()) {
-				this.textFileService.saveAll(void 0, reason).done(null, errors.onUnexpectedError);
+				this.textFileService.saveAll(void 0, { reason }).done(null, errors.onUnexpectedError);
 			}
 		}
 	}

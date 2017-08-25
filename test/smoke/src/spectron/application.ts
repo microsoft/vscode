@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { SpectronClient } from './client';
-import { Screenshot } from "../helpers/screenshot";
+import { Screenshot } from '../helpers/screenshot';
 var fs = require('fs');
 var path = require('path');
 

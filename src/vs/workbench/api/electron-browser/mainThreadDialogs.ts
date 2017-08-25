@@ -6,8 +6,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { MainThreadDiaglogsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOptions } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
@@ -24,14 +24,40 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(): TPromise<string[]> {
+	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]> {
+		// TODO@joh what about remote dev setup?
+		if (options.uri && options.uri.scheme !== 'file') {
+			return TPromise.wrapError(new Error('bad path'));
+		}
 		return new TPromise<string[]>(resolve => {
-			this._windowService.showOpenDialog({
-
-			}, filenames => {
-				// TODO@joh what about remote dev setup?
+			this._windowService.showOpenDialog(MainThreadDialogs._convertOptions(options), filenames => {
 				resolve(isFalsyOrEmpty(filenames) ? undefined : filenames);
 			});
 		});
+	}
+
+	private static _convertOptions(options: MainThreadDialogOptions): Electron.OpenDialogOptions {
+		const result: Electron.OpenDialogOptions = {
+			properties: ['createDirectory']
+		};
+		if (options.openLabel) {
+			result.buttonLabel = options.openLabel;
+		}
+		if (options.uri) {
+			result.defaultPath = options.uri.fsPath;
+		}
+		if (!options.openFiles && !options.openFolders) {
+			options.openFiles = true;
+		}
+		if (options.openFiles) {
+			result.properties.push('openFile');
+		}
+		if (options.openFolders) {
+			result.properties.push('openDirectory');
+		}
+		if (options.openMany) {
+			result.properties.push('multiSelections');
+		}
+		return result;
 	}
 }

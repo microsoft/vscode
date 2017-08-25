@@ -8,7 +8,7 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { equals, distinct } from 'vs/base/common/arrays';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

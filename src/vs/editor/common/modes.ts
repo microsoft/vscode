@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -160,7 +160,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[];
+	contents: IMarkdownString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the

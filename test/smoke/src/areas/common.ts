@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from "../spectron/application";
+import { SpectronApplication } from '../spectron/application';
 import { Util } from '../helpers/utilities';
 
 /**

@@ -6,14 +6,15 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/common/views';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
-export class MainThreadTreeViews implements MainThreadTreeViewsShape {
+export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
 	private _proxy: ExtHostTreeViewsShape;
 
@@ -21,16 +22,12 @@ export class MainThreadTreeViews implements MainThreadTreeViewsShape {
 		extHostContext: IExtHostContext,
 		@IMessageService private messageService: IMessageService
 	) {
+		super();
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostTreeViews);
 	}
 
-	public dispose(): void {
-		// TODO@Sandeep: please implement this
-		// will be called when the extension host process is gone.
-	}
-
 	$registerView(treeViewId: string): void {
-		ViewsRegistry.registerTreeViewDataProvider(treeViewId, new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
+		ViewsRegistry.registerTreeViewDataProvider(treeViewId, this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService)));
 	}
 
 	$refresh(treeViewId: string, treeItemHandles: number[]): void {
@@ -38,6 +35,11 @@ export class MainThreadTreeViews implements MainThreadTreeViewsShape {
 		if (treeViewDataProvider) {
 			treeViewDataProvider.refresh(treeItemHandles);
 		}
+	}
+
+	dispose(): void {
+		ViewsRegistry.deregisterTreeViewDataProviders();
+		super.dispose();
 	}
 }
 
@@ -47,6 +49,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 
 	private _onDidChange: Emitter<ITreeItem[] | undefined | null> = new Emitter<ITreeItem[] | undefined | null>();
 	readonly onDidChange: Event<ITreeItem[] | undefined | null> = this._onDidChange.event;
+
+	private _onDispose: Emitter<void> = new Emitter<void>();
+	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
@@ -92,6 +97,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		} else {
 			this._onDidChange.fire();
 		}
+	}
+
+	dispose(): void {
+		this._onDispose.fire();
 	}
 
 	private clearChildren(treeItemHandle: TreeItemHandle): void {

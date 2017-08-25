@@ -353,15 +353,10 @@ declare module monaco {
 		static readonly WinCtrl: number;
 		static chord(firstPart: number, secondPart: number): number;
 	}
-	/**
-	 * MarkedString can be used to render human readable text. It is either a markdown string
-	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.
-	 */
-	export type MarkedString = string | {
-		readonly language: string;
-		readonly value: string;
-	};
+	export interface IMarkdownString {
+		value: string;
+		trusted?: true;
+	}
 
 	export interface IKeyboardEvent {
 		readonly browserEvent: KeyboardEvent;
@@ -1118,11 +1113,11 @@ declare module monaco.editor {
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
-		glyphMarginHoverMessage?: MarkedString | MarkedString[];
+		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
-		 * Array of MarkedString to render as the decoration message.
+		 * Array of MarkdownString to render as the decoration message.
 		 */
-		hoverMessage?: MarkedString | MarkedString[];
+		hoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -2825,6 +2820,11 @@ declare module monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Enable that the editor animates scrolling to a position.
+		 * Defaults to true.
+		 */
+		smoothScrolling?: boolean;
+		/**
 		 * Enable that the editor will install an interval to check if its container dom node size has changed.
 		 * Enabling this might have a severe performance impact.
 		 * Defaults to false.
@@ -3245,6 +3245,7 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
+		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
@@ -4407,7 +4408,7 @@ declare module monaco.languages {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: MarkedString[];
+		contents: IMarkdownString[];
 		/**
 		 * The range to which this hover applies. When missing, the
 		 * editor will use the range at the current position or the

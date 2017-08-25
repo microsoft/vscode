@@ -40,7 +40,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private static PRIORITY_PROP = 'priority';
 	private static ALIGNMENT_PROP = 'alignment';
 
-	private toDispose: IDisposable[];
 	private statusItemsContainer: Builder;
 	private statusMsgDispose: IDisposable;
 
@@ -52,7 +51,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this.toDispose = [];
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -120,7 +123,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
 
-		this.toDispose.push(...descriptors.map(descriptor => {
+		this.toUnbind.push(...descriptors.map(descriptor => {
 			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
@@ -199,12 +202,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		return dispose;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }
 

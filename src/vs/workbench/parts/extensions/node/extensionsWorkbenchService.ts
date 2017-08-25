@@ -412,6 +412,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
+		this.telemetryService.publicLog('extensionGallery:open', extension.telemetryData);
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 

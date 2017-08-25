@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {

@@ -9,12 +9,15 @@ const program = require('commander');
 const git = require('simple-git')();
 const child_process = require('child_process');
 const path = require('path');
+const mkdirp = require('mkdirp');
 
-const tempFolder = 'test_data';
-const codeWorkspace = path.join(process.cwd(), tempFolder, 'smoketest.code-workspace');
+const testDataPath = path.join(process.cwd(), 'test_data');
+const codeWorkspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
-const testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
+const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
 const keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
+
+mkdirp.sync(testDataPath);
 
 program
 	.option('-l, --latest <file path>', 'path to the latest VS Code to test')
@@ -51,7 +54,7 @@ process.env.SMOKETEST_REPO = testRepoLocalDir;
 if (program.latest && (program.latest.indexOf('Code - Insiders') /* macOS/Windows */ || program.latest.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
 }
-process.env.VSCODE_WORKSPACE_PATH = codeWorkspace;
+process.env.VSCODE_WORKSPACE_PATH = codeWorkspacePath;
 
 // Setting up 'vscode-smoketest-express' project
 let os = process.platform.toString();
@@ -62,22 +65,25 @@ else if (os === 'win32') {
 	os = 'win';
 }
 
-var promises: Promise<any>[] = [];
+main().catch(err => console.error(err));
 
-promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
-promises.push(createWorkspaceFile(codeWorkspace, [
-	toUri(path.join(testRepoLocalDir, 'public')),
-	toUri(path.join(testRepoLocalDir, 'routes')),
-	toUri(path.join(testRepoLocalDir, 'views'))
-]));
-promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
+async function main(): Promise<void> {
+	await getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, path.join(testDataPath, 'keybindings.json'));
 
-Promise.all(promises)
-	.then(() => execute('npm install', testRepoLocalDir))
-	.then(() => runTests())
-	.catch(reason => {
-		throw new Error('Error caught running the smoke test: ' + reason);
-	});
+	const workspace = {
+		id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
+		folders: [
+			toUri(path.join(testRepoLocalDir, 'public')),
+			toUri(path.join(testRepoLocalDir, 'routes')),
+			toUri(path.join(testRepoLocalDir, 'views'))
+		]
+	};
+
+	await createWorkspaceFile(codeWorkspacePath, workspace);
+	await cleanOrClone(testRepoUrl, testRepoLocalDir);
+	await execute('npm install', testRepoLocalDir);
+	await runTests();
+}
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -102,7 +108,7 @@ function runTests(): void {
 	});
 	proc.stderr.on('data', data => {
 		var date = new Date().toLocaleString();
-		fs.appendFile(`${tempFolder}/errors.log`, `${date}: ${data.toString()}`, (err) => {
+		fs.appendFile(path.join(testDataPath, 'errors.log'), `${date}: ${data.toString()}`, (err) => {
 			if (err) {
 				throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
 			};
@@ -198,18 +204,13 @@ function getKeybindings(url: string, location: string): Promise<any> {
 	});
 }
 
-function createWorkspaceFile(path: string, folders: string[]): Promise<any> {
+function createWorkspaceFile(path: string, workspace: any): Promise<any> {
 	console.log(`Creating workspace file at ${path}...`);
 	return new Promise((resolve, reject) => {
 		fs.exists(path, exists => {
 			if (exists) {
 				return resolve();
 			}
-
-			const workspace = {
-				id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
-				folders
-			};
 
 			fs.writeFile(path, JSON.stringify(workspace, null, '\t'), error => {
 				if (error) {
