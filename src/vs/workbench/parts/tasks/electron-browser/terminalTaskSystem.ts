@@ -451,14 +451,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
-			let basename: string;
+			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
-				basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				windowsShellArgs = true;
+				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if (basename === 'bash.exe') {
+					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
@@ -478,7 +480,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
+			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation.echo) {
 				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
 			}
