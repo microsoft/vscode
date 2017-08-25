@@ -58,5 +58,7 @@ If you did a fix in VS Code that you need in order for the smoke test to succeed
 * open `application.ts`
   * pass in the vscode folder as argument to the application
   * e.g. instead of `args: args` type `args: ['/Users/bpasero/Development/vscode', ...args]`
-* run `npm test -- --latest <path to electron>`
+* `cd test/smoke`
+* `npm install`
+* `npm test -- --latest <path to electron>`
   * e.g. on macOS: `npm test -- --latest <path to vscode>/.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron`
