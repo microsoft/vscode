@@ -46,7 +46,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { ComposedViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -62,7 +62,7 @@ const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', f
 const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', false);
 
-export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensionsViewlet {
+export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
 	private extensionsViewletVisibleContextKey: IContextKey<boolean>;
@@ -307,10 +307,10 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
 		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
 
-		await this.updateViews(!!value);
+		await this.updateViews([], !!value);
 	}
 
-	protected async updateViews(showAll?: boolean): TPromise<IView[]> {
+	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<IView[]> {
 		const created = await super.updateViews();
 		const toShow = showAll ? this.views : created;
 		if (toShow.length) {

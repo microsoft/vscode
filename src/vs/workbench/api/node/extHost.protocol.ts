@@ -343,7 +343,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
-	$setInputBoxValue(value: string): void;
+	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
 
 export type DebugSessionUUID = string;
@@ -515,9 +515,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI>;
-	$onActiveSourceControlChange(sourceControlHandle: number): TPromise<void>;
-	$onInputBoxValueChange(value: string): TPromise<void>;
-	$onInputBoxAcceptChanges(): TPromise<void>;
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 }
 
 export interface ExtHostTaskShape {
