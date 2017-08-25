@@ -27,7 +27,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let workbenchEditorService: IWorkbenchEditorService;
 	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
-	const hugeModelString = new Array(2 + (5 * 1024 * 1024)).join('-');
+	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
 	setup(() => {
 		deltas.length = 0;
