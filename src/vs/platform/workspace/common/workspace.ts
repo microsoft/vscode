@@ -10,6 +10,7 @@ import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
+import { distinct } from 'vs/base/common/arrays';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -154,13 +155,13 @@ export class Workspace implements IWorkspace {
 			return roots;
 		}
 
-		return roots.map(root => {
+		return distinct(roots.map(root => {
 			if (paths.isAbsolute(root.fsPath)) {
 				return URI.file(root.fsPath);
 			}
 
 			return URI.file(paths.join(paths.dirname(this.configuration.fsPath), root.fsPath));
-		}).filter(root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
+		}), root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
 	}
 
 	public get roots(): URI[] {

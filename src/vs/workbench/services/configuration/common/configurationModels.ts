@@ -54,7 +54,13 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	private parseFolders(): URI[] {
 		const folders: IStoredWorkspaceFolder[] = this._raw['folders'] || [];
 
-		return folders.map(folder => URI.parse(folder.path));
+		return folders.map(folder => {
+			try {
+				return URI.parse(folder.path);
+			} catch (error) {
+				return null; // parsing a URI can fail for invalid characters
+			}
+		}).filter(f => !!f);
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {
