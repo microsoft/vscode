@@ -223,7 +223,7 @@ export class BackupMainService implements IBackupMainService {
 			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
 			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
-			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+			const missingWorkspace = hasBackups && (!fs.existsSync(workspacePath) || workspaceId !== this.workspacesService.getWorkspaceId(workspacePath) /* TODO@Ben migration to new workspace id */);
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
