@@ -27,8 +27,8 @@ export class SpectronApplication {
 	private screenshot: Screenshot;
 
 	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
-	private readonly pollTrials = 5;
-	private readonly pollTimeout = 10; // in secs
+	private readonly pollTrials = 50;
+	private readonly pollTimeout = 1; // in secs
 
 	constructor(electronPath: string, testName: string, private testRetry: number, args?: string[], chromeDriverArgs?: string[]) {
 		if (!args) {
