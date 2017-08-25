@@ -22,10 +22,6 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	private _launchConfiguration: ConfigurationModel<T>;
 	private _workspaceConfiguration: ConfigurationModel<T>;
 
-	constructor(content: string = '', name: string = '') {
-		super(content, name);
-	}
-
 	public update(content: string): void {
 		super.update(content);
 		this._worksapaceSettings = new ConfigurationModel(this._worksapaceSettings.contents, this._worksapaceSettings.keys, this.overrides);

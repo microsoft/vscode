@@ -155,7 +155,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	private createWorkspace(folders: URI[]): TPromise<void> {
-		const workspaceFolders = distinct(folders.map(folder => folder.fsPath));
+		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 
 		return this.windowService.createAndOpenWorkspace(workspaceFolders);
 	}
