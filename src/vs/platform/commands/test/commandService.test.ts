@@ -27,6 +27,9 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensionsStatus() {
 		return undefined;
 	}
+	getExtensionsActivationTimes() {
+		return undefined;
+	}
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
 	}

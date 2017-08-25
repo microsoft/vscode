@@ -60,6 +60,7 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+	machineUUID: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;

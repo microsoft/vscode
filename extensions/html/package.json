@@ -16,7 +16,7 @@
     "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
     "postinstall": "cd server && npm install",
     "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.json",
-    "install-client-next": "npm install vscode-languageserver-types@next -f -S && npm install vscode-languageclient@next -f -S",
+    "install-client-next": "npm install vscode-languageserver-types -f -S && npm install vscode-languageclient@next -f -S",
     "install-client-local": "npm install ../../../vscode-languageserver-node/types -f -S && npm install ../../../vscode-languageserver-node/client -f -S"
   },
   "contributes": {
@@ -193,6 +193,12 @@
           "default": true,
           "description": "%html.validate.styles%"
         },
+        "html.autoClosingTags.enable": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.autoClosingTags.enable%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -209,7 +215,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.4.0-next.10",
+    "vscode-languageclient": "3.4.0-next.17",
     "vscode-languageserver-types": "^3.3.0",
     "vscode-nls": "2.0.2"
   },

@@ -115,7 +115,7 @@ export class ExtensionHostMain {
 
 	// Handle "eager" activation extensions
 	private handleEagerExtensions(): TPromise<void> {
-		this._extensionService.activateByEvent('*').then(null, (err) => {
+		this._extensionService.activateByEvent('*', true).then(null, (err) => {
 			console.error(err);
 		});
 		return this.handleWorkspaceContainsEagerExtensions();
@@ -163,15 +163,14 @@ export class ExtensionHostMain {
 				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
 			} else {
 				// find exact path
-				return new TPromise<string>(async resolve => {
+				return (async resolve => {
 					for (const { fsPath } of this._workspace.roots) {
 						if (await pfs.exists(join(fsPath, p))) {
-							resolve(p);
-							return;
+							return p;
 						}
 					}
-					resolve(undefined);
-				});
+					return undefined;
+				})();
 			}
 		});
 
@@ -181,7 +180,7 @@ export class ExtensionHostMain {
 				.forEach(p => {
 					const activationEvent = `workspaceContains:${p}`;
 
-					this._extensionService.activateByEvent(activationEvent)
+					this._extensionService.activateByEvent(activationEvent, true)
 						.done(null, err => console.error(err));
 				});
 		});

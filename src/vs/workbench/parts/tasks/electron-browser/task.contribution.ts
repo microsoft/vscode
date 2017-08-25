@@ -46,6 +46,8 @@ import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -88,6 +90,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
@@ -668,7 +672,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IWindowService private _windowServive: IWindowService
 	) {
 
 		super();
@@ -706,7 +711,19 @@ class TaskService extends EventEmitter implements ITaskService {
 					? ExecutionEngine.Process
 					: ExecutionEngine._default;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
-				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine requires to reload the Window'
+						),
+						actions: [
+							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
+							new CloseMessageAction()
+						]
+					}
+				);
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));

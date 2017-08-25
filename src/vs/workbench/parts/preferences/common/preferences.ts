@@ -72,6 +72,7 @@ export interface IPreferencesService {
 	defaultResourceSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
+	getFolderSettingsResource(resource: URI): URI;
 
 	resolveContent(uri: URI): TPromise<string>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;

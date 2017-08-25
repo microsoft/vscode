@@ -119,24 +119,16 @@ function runTests(): void {
 	});
 }
 
-function cleanOrClone(repo: string, dir: string): Promise<any> {
+async function cleanOrClone(repo: string, dir: string): Promise<any> {
 	console.log('Cleaning or cloning test project repository...');
 
-	return new Promise(async (res, rej) => {
-		if (!folderExists(dir)) {
-			await gitClone(repo, dir);
-			res();
-		} else {
-			git.cwd(dir);
-			git.fetch(async err => {
-				if (err) {
-					rej(err);
-				}
-				await gitResetAndClean();
-				res();
-			});
-		}
-	});
+	if (!folderExists(dir)) {
+		await gitClone(repo, dir);
+	} else {
+		git.cwd(dir);
+		await new Promise((c, e) => git.fetch(err => err ? e(err) : c()));
+		await gitResetAndClean();
+	}
 }
 
 function gitClone(repo: string, dir: string): Promise<any> {
@@ -148,22 +140,10 @@ function gitClone(repo: string, dir: string): Promise<any> {
 	});
 }
 
-function gitResetAndClean(): Promise<any> {
-	return new Promise((res, rej) => {
-		git.reset(['FETCH_HEAD', '--hard'], err => {
-			if (err) {
-				rej(err);
-			}
-
-			git.clean('f', ['-d'], err => {
-				if (err) {
-					rej(err);
-				}
-				console.log('Test project was successfully reset to initial state.');
-				res();
-			});
-		});
-	});
+async function gitResetAndClean(): Promise<any> {
+	await new Promise((c, e) => git.reset(['FETCH_HEAD', '--hard'], err => err ? e(err) : c()));
+	await new Promise((c, e) => git.clean('f', ['-d'], err => err ? e(err) : c()));
+	console.log('Test project was successfully reset to initial state.');
 }
 
 function execute(cmd: string, dir: string): Promise<any> {

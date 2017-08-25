@@ -355,7 +355,7 @@ declare module monaco {
 	}
 	export interface IMarkdownString {
 		value: string;
-		trusted?: true;
+		isTrusted?: boolean;
 	}
 
 	export interface IKeyboardEvent {

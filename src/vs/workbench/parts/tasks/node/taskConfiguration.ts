@@ -793,7 +793,7 @@ namespace CommandConfiguration {
 			if (Types.isStringArray(config.args)) {
 				result.args = config.args.slice(0);
 			} else {
-				context.problemReporter.fatal(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
+				context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
 			}
 		}
 		if (config.options !== void 0) {
@@ -1125,10 +1125,15 @@ namespace ConfiguringTask {
 		let type = external.type;
 		let customize = (external as CustomizeShape).customize;
 		if (!type && !customize) {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 		let typeDeclaration = TaskDefinitionRegistry.get(type);
+		if (!typeDeclaration) {
+			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is not registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
+			context.problemReporter.error(message);
+			return undefined;
+		}
 		let identifier: TaskIdentifier;
 		if (Types.isString(customize)) {
 			if (customize.indexOf(grunt) === 0) {
@@ -1198,12 +1203,12 @@ namespace CustomTask {
 			type = 'custom';
 		}
 		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 		let taskName = external.taskName;
 		if (!taskName) {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 

@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
@@ -103,7 +103,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 				const { color, formatters } = colorRange;
 				return new ColorHover(d.range, color, formatters);
 			} else {
-				if (MarkdownString.isEmpty(d.options.hoverMessage)) {
+				if (isEmptyMarkdownString(d.options.hoverMessage)) {
 					return null;
 				}
 
@@ -310,7 +310,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
-					.filter(contents => !MarkdownString.isEmpty(contents))
+					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
 						const renderedContents = renderMarkdown(contents, {
 							actionCallback: (content) => {

@@ -22,7 +22,7 @@ export function testDataLoss() {
 			dl = new DataLoss(app);
 			await common.removeDirectory(USER_DIR);
 
-			return await app.start();
+			await app.start();
 		});
 		afterEach(async function () {
 			return await app.stop();

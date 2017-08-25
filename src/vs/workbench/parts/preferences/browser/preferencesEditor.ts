@@ -716,35 +716,40 @@ interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
 abstract class AbstractSettingsEditorContribution extends Disposable {
 
-	protected preferencesRenderer: TPromise<IPreferencesRenderer<ISetting>>;
+	private preferencesRendererCreationPromise: TPromise<IPreferencesRenderer<ISetting>>;
 
 	constructor(protected editor: ICodeEditor,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IPreferencesService protected preferencesService: IPreferencesService
+		@IPreferencesService protected preferencesService: IPreferencesService,
+		@IWorkspaceContextService protected workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 		this._register(this.editor.onDidChangeModel(() => this._onModelChanged()));
 	}
 
 	updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
-		if (!this.preferencesRenderer) {
-			this.preferencesRenderer = this._createPreferencesRenderer();
+		if (!this.preferencesRendererCreationPromise) {
+			this.preferencesRendererCreationPromise = this._createPreferencesRenderer();
 		}
 
-		return this._hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri)
-			.then(changed => changed ? this._updatePreferencesRenderer(associatedPreferencesModelUri) : this.preferencesRenderer);
+		if (this.preferencesRendererCreationPromise) {
+			return this._hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri)
+				.then(changed => changed ? this._updatePreferencesRenderer(associatedPreferencesModelUri) : this.preferencesRendererCreationPromise);
+		}
+
+		return TPromise.as(null);
 	}
 
 	private _onModelChanged(): void {
 		const model = this.editor.getModel();
 		this.disposePreferencesRenderer();
 		if (model) {
-			this.preferencesRenderer = this._createPreferencesRenderer();
+			this.preferencesRendererCreationPromise = this._createPreferencesRenderer();
 		}
 	}
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
-		return this.preferencesRenderer.then(preferencesRenderer => {
+		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.fsPath === associatedPreferencesModelUri.fsPath);
 		});
 	}
@@ -752,7 +757,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 	private _updatePreferencesRenderer(associatedPreferencesModelUri: URI): TPromise<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel<ISetting>(associatedPreferencesModelUri)
 			.then(associatedPreferencesEditorModel => {
-				return this.preferencesRenderer.then(preferencesRenderer => {
+				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 					if (preferencesRenderer) {
 						if (preferencesRenderer.associatedPreferencesModel) {
 							preferencesRenderer.associatedPreferencesModel.dispose();
@@ -765,8 +770,8 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 	}
 
 	private disposePreferencesRenderer(): void {
-		if (this.preferencesRenderer) {
-			this.preferencesRenderer.then(preferencesRenderer => {
+		if (this.preferencesRendererCreationPromise) {
+			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
 					if (preferencesRenderer.associatedPreferencesModel) {
 						preferencesRenderer.associatedPreferencesModel.dispose();
@@ -816,26 +821,56 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	}
 
 	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
-		return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
-			.then(([defaultSettingsModel, settingsModel]) => {
-				if (settingsModel instanceof SettingsEditorModel) {
-					switch (settingsModel.configurationTarget) {
-						case ConfigurationTarget.USER:
-							return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
-						case ConfigurationTarget.WORKSPACE:
-							return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
-						case ConfigurationTarget.FOLDER:
-							return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+		if (this.isSettingsModel()) {
+			return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
+				.then(([defaultSettingsModel, settingsModel]) => {
+					if (settingsModel instanceof SettingsEditorModel) {
+						switch (settingsModel.configurationTarget) {
+							case ConfigurationTarget.USER:
+								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+							case ConfigurationTarget.WORKSPACE:
+								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+							case ConfigurationTarget.FOLDER:
+								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+						}
 					}
+					return null;
+				})
+				.then(preferencesRenderer => {
+					if (preferencesRenderer) {
+						preferencesRenderer.render();
+					}
+					return preferencesRenderer;
+				});
+		}
+		return null;
+	}
+
+	private isSettingsModel(): boolean {
+		const model = this.editor.getModel();
+		if (!model) {
+			return false;
+		}
+
+		if (this.preferencesService.userSettingsResource && this.preferencesService.userSettingsResource.fsPath === model.uri.fsPath) {
+			return true;
+		}
+
+		if (this.preferencesService.workspaceSettingsResource && this.preferencesService.workspaceSettingsResource.fsPath === model.uri.fsPath) {
+			return true;
+		}
+
+		const workspace = this.workspaceContextService.getWorkspace();
+		if (workspace) {
+			for (const root of workspace.roots) {
+				const folderSettingsResource = this.preferencesService.getFolderSettingsResource(root);
+				if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
+					return true;
 				}
-				return null;
-			})
-			.then(preferencesRenderer => {
-				if (preferencesRenderer) {
-					preferencesRenderer.render();
-				}
-				return preferencesRenderer;
-			});
+			}
+		}
+
+		return false;
 	}
 
 }
