@@ -6,7 +6,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorModel, IEncodingSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -38,16 +38,13 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private contentChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
-	private preferredEncoding: string;
-
-	private hasAssociatedFilePath: boolean;
-	private initialValue: string;
 
 	constructor(
 		private modeId: string,
 		private resource: URI,
-		hasAssociatedFilePath: boolean,
-		initialValue: string,
+		private hasAssociatedFilePath: boolean,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private backupFileService: IBackupFileService,
@@ -56,8 +53,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	) {
 		super(modelService, modeService);
 
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.initialValue = initialValue;
 		this.dirty = false;
 		this.versionId = 0;
 
@@ -93,7 +88,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private registerListeners(): void {
 
 		// Config Changes
-		this.configurationChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+		this.configurationChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>()));
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -158,7 +153,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public load(): TPromise<EditorModel> {
+	public load(): TPromise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -181,18 +176,18 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 				// Listen to content changes
-				this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged());
+				this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
 
 				return model;
 			});
 		});
 	}
 
-	private doLoad(content: string): TPromise<EditorModel> {
+	private doLoad(content: string): TPromise<UntitledEditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(content, this.resource, this.modeId);
+			return this.createTextEditorModel(content, this.resource, this.modeId).then(model => this);
 		}
 
 		// Otherwise update
@@ -200,7 +195,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.updateTextEditorModel(content);
 		}
 
-		return TPromise.as<EditorModel>(this);
+		return TPromise.as<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {

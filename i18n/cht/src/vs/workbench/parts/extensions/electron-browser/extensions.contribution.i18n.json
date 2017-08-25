@@ -10,5 +10,6 @@
 	"extensions": "擴充功能",
 	"view": "檢視",
 	"extensionsConfigurationTitle": "擴充功能",
-	"extensionsAutoUpdate": "自動更新擴充功能"
+	"extensionsAutoUpdate": "自動更新擴充功能",
+	"extensionsIgnoreRecommendations": "忽略延伸模組建議"
 }

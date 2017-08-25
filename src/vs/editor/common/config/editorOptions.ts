@@ -98,6 +98,11 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the rendering of the minimap slider.
+	 * Defaults to 'mouseover'.
+	 */
+	showSlider?: 'always' | 'mouseover';
+	/**
 	 * Render the actual text on a line (as opposed to color blocks).
 	 * Defaults to true.
 	 */
@@ -241,10 +246,11 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?: boolean;
 	/**
-	 * Disable the use of `translate3d`.
+	 * Disable the use of `will-change` for the editor margin and lines layers.
+	 * The usage of `will-change` acts as a hint for browsers to create an extra layer.
 	 * Defaults to false.
 	 */
-	disableTranslate3d?: boolean;
+	disableLayerHinting?: boolean;
 	/**
 	 * Disable the optimizations for monospace fonts.
 	 * Defaults to false.
@@ -260,6 +266,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	scrollBeyondLastLine?: boolean;
+	/**
+	 * Enable that the editor animates scrolling to a position.
+	 * Defaults to true.
+	 */
+	smoothScrolling?: boolean;
 	/**
 	 * Enable that the editor will install an interval to check if its container dom node size has changed.
 	 * Enabling this might have a severe performance impact.
@@ -322,6 +333,11 @@ export interface IEditorOptions {
 	 */
 	hover?: boolean;
 	/**
+	 * Enable detecting links and making them clickable.
+	 * Defaults to true.
+	 */
+	links?: boolean;
+	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
 	 */
@@ -365,6 +381,11 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	autoClosingBrackets?: boolean;
+	/**
+	 * Enable auto indentation adjustment.
+	 * Defaults to false.
+	 */
+	autoIndent?: boolean;
 	/**
 	 * Enable format on type.
 	 * Defaults to false.
@@ -691,6 +712,7 @@ export interface InternalEditorScrollbarOptions {
 
 export interface InternalEditorMinimapOptions {
 	readonly enabled: boolean;
+	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
 }
@@ -731,6 +753,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorStyle: TextEditorCursorStyle;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
+	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
@@ -745,6 +768,7 @@ export interface InternalEditorViewOptions {
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
+	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
@@ -780,7 +804,7 @@ export interface IValidatedEditorOptions {
 	readonly lineDecorationsWidth: number | string;
 	readonly readOnly: boolean;
 	readonly mouseStyle: 'text' | 'default' | 'copy';
-	readonly disableTranslate3d: boolean;
+	readonly disableLayerHinting: boolean;
 	readonly automaticLayout: boolean;
 	readonly wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	readonly wordWrapColumn: number;
@@ -790,6 +814,7 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakAfterCharacters: string;
 	readonly wordWrapBreakObtrusiveCharacters: string;
 	readonly autoClosingBrackets: boolean;
+	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
@@ -806,7 +831,7 @@ export interface IValidatedEditorOptions {
 export class InternalEditorOptions {
 	readonly _internalEditorOptionsBrand: void;
 
-	readonly canUseTranslate3d: boolean;
+	readonly canUseLayerHinting: boolean;
 	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
@@ -820,6 +845,7 @@ export class InternalEditorOptions {
 	// ---- cursor options
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: boolean;
+	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
@@ -836,7 +862,7 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	constructor(source: {
-		canUseTranslate3d: boolean;
+		canUseLayerHinting: boolean;
 		pixelRatio: number;
 		editorClassName: string;
 		lineHeight: number;
@@ -845,6 +871,7 @@ export class InternalEditorOptions {
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		wordSeparators: string;
 		autoClosingBrackets: boolean;
+		autoIndent: boolean;
 		useTabStops: boolean;
 		tabFocusMode: boolean;
 		dragAndDrop: boolean;
@@ -855,7 +882,7 @@ export class InternalEditorOptions {
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 	}) {
-		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
@@ -864,6 +891,7 @@ export class InternalEditorOptions {
 		this.multiCursorModifier = source.multiCursorModifier;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
+		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
 		this.tabFocusMode = source.tabFocusMode;
 		this.dragAndDrop = source.dragAndDrop;
@@ -880,7 +908,7 @@ export class InternalEditorOptions {
 	 */
 	public equals(other: InternalEditorOptions): boolean {
 		return (
-			this.canUseTranslate3d === other.canUseTranslate3d
+			this.canUseLayerHinting === other.canUseLayerHinting
 			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
@@ -889,6 +917,7 @@ export class InternalEditorOptions {
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
+			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
@@ -906,7 +935,7 @@ export class InternalEditorOptions {
 	 */
 	public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent {
 		return {
-			canUseTranslate3d: (this.canUseTranslate3d !== newOpts.canUseTranslate3d),
+			canUseLayerHinting: (this.canUseLayerHinting !== newOpts.canUseLayerHinting),
 			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
@@ -915,6 +944,7 @@ export class InternalEditorOptions {
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
 			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
+			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
@@ -923,7 +953,7 @@ export class InternalEditorOptions {
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
 			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
-			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
+			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo))
 		};
 	}
 
@@ -990,6 +1020,7 @@ export class InternalEditorOptions {
 			&& a.cursorStyle === b.cursorStyle
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.smoothScrolling === b.smoothScrolling
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
 			&& a.renderControlCharacters === b.renderControlCharacters
@@ -1028,6 +1059,7 @@ export class InternalEditorOptions {
 	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
 		return (
 			a.enabled === b.enabled
+			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
 		);
@@ -1080,6 +1112,7 @@ export class InternalEditorOptions {
 		return (
 			a.selectionClipboard === b.selectionClipboard
 			&& a.hover === b.hover
+			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
 			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
@@ -1244,7 +1277,7 @@ export interface EditorLayoutInfo {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	readonly canUseTranslate3d: boolean;
+	readonly canUseLayerHinting: boolean;
 	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
@@ -1253,6 +1286,7 @@ export interface IConfigurationChangedEvent {
 	readonly multiCursorModifier: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
+	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
@@ -1274,7 +1308,6 @@ export interface IEnvironmentalOptions {
 	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
-	readonly canUseTranslate3d: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
@@ -1421,7 +1454,7 @@ export class EditorOptionsValidator {
 			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
 			readOnly: _boolean(opts.readOnly, defaults.readOnly),
 			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
-			disableTranslate3d: _boolean(opts.disableTranslate3d, defaults.disableTranslate3d),
+			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
 			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
 			wordWrap: wordWrap,
 			wordWrapColumn: _clampedInt(opts.wordWrapColumn, defaults.wordWrapColumn, 1, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1431,6 +1464,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets: _boolean(opts.autoClosingBrackets, defaults.autoClosingBrackets),
+			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
@@ -1474,6 +1508,7 @@ export class EditorOptionsValidator {
 		}
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
+			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
 		};
@@ -1581,6 +1616,7 @@ export class EditorOptionsValidator {
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
@@ -1604,6 +1640,7 @@ export class EditorOptionsValidator {
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
+			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
@@ -1644,7 +1681,7 @@ export class InternalEditorOptionsFactory {
 			lineDecorationsWidth: opts.lineDecorationsWidth,
 			readOnly: opts.readOnly,
 			mouseStyle: opts.mouseStyle,
-			disableTranslate3d: opts.disableTranslate3d,
+			disableLayerHinting: opts.disableLayerHinting,
 			automaticLayout: opts.automaticLayout,
 			wordWrap: opts.wordWrap,
 			wordWrapColumn: opts.wordWrapColumn,
@@ -1654,6 +1691,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
+			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
 			useTabStops: opts.useTabStops,
@@ -1679,6 +1717,7 @@ export class InternalEditorOptionsFactory {
 				cursorStyle: opts.viewInfo.cursorStyle,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
+				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1689,6 +1728,7 @@ export class InternalEditorOptionsFactory {
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
+					showSlider: opts.viewInfo.minimap.showSlider,
 					maxColumn: opts.viewInfo.minimap.maxColumn
 				},
 				fixedOverflowWidgets: opts.viewInfo.fixedOverflowWidgets
@@ -1697,6 +1737,7 @@ export class InternalEditorOptionsFactory {
 			contribInfo: {
 				selectionClipboard: opts.contribInfo.selectionClipboard,
 				hover: opts.contribInfo.hover,
+				links: (accessibilityIsOn ? false : opts.contribInfo.links), // DISABLED WHEN SCREEN READER IS ATTACHED
 				contextmenu: opts.contribInfo.contextmenu,
 				quickSuggestions: opts.contribInfo.quickSuggestions,
 				quickSuggestionsDelay: opts.contribInfo.quickSuggestionsDelay,
@@ -1849,7 +1890,7 @@ export class InternalEditorOptionsFactory {
 		}
 
 		return new InternalEditorOptions({
-			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d,
+			canUseLayerHinting: opts.disableLayerHinting ? false : true,
 			pixelRatio: env.pixelRatio,
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
@@ -1858,6 +1899,7 @@ export class InternalEditorOptionsFactory {
 			multiCursorModifier: opts.multiCursorModifier,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
+			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
@@ -2061,16 +2103,17 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	lineDecorationsWidth: 10,
 	readOnly: false,
 	mouseStyle: 'text',
-	disableTranslate3d: false,
+	disableLayerHinting: false,
 	automaticLayout: false,
 	wordWrap: 'off',
 	wordWrapColumn: 80,
 	wordWrapMinified: true,
 	wrappingIndent: WrappingIndent.Same,
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
-	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
+	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: true,
+	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
 	useTabStops: true,
@@ -2096,6 +2139,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorStyle: TextEditorCursorStyle.Line,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
+		smoothScrolling: true,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
 		renderControlCharacters: false,
@@ -2118,6 +2162,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		minimap: {
 			enabled: true,
+			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120
 		},
@@ -2127,13 +2172,14 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	contribInfo: {
 		selectionClipboard: true,
 		hover: true,
+		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
 		quickSuggestionsDelay: 10,
 		parameterHints: true,
 		iconsInSuggestions: true,
 		formatOnType: false,
-		formatOnPaste: true,
+		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
 		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,

@@ -9,5 +9,6 @@
 	"vscode.extension.contributes.snippets-path": "Chemin du fichier d'extraits de code. Le chemin est relatif au dossier d'extensions et commence généralement par './snippets/'.",
 	"invalid.language": "Langage inconnu dans 'contributes.{0}.language'. Valeur fournie : {1}",
 	"invalid.path.0": "Chaîne attendue dans 'contributes.{0}.path'. Valeur fournie : {1}",
-	"invalid.path.1": "'contributes.{0}.path' ({1}) est censé être inclus dans le dossier ({2}) de l'extension. Cela risque de rendre l'extension non portable."
+	"invalid.path.1": "'contributes.{0}.path' ({1}) est censé être inclus dans le dossier ({2}) de l'extension. Cela risque de rendre l'extension non portable.",
+	"badVariableUse": "L'extrait de code \"{0}\" confond très probablement les variables et les espaces réservés d'extrait de code. Consultez https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax pour plus d'informations."
 }

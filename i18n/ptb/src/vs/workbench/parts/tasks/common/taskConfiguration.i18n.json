@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "Erro: ProblemMatcher inválido referência: {0}\n",
 	"ConfigurationParser.noTaskName": "Erro: tarefas devem fornecer uma propriedade taskName. A tarefa será ignorada.\n{0}\n",
 	"taskConfiguration.shellArgs": "Aviso: a tarefa '{0}' é um comando do shell e o nome de comando ou um dos seus argumentos tem  espaços sem escape. Para garantir a linha de comando correta por favor mesclar argumentos no comando.",
+	"taskConfiguration.noCommandOrDependsOn": "Erro: a tarefa '{0}' não especifica nem um comando nem uma propriedade dependsOn. A tarefa será ignorada. Sua definição é: \n{1}",
 	"taskConfiguration.noCommand": "Erro: a tarefa '{0}' não define um comando. A tarefa será ignorada. Sua definição é: {1}"
 }

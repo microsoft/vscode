@@ -6,5 +6,7 @@
 {
 	"TerminalTaskSystem.unknownError": "Si è verificato un errore sconosciuto durante l'esecuzione di un'attività. Per dettagli, vedere il log di output dell'attività.",
 	"TerminalTaskSystem.terminalName": "Attività - {0}",
-	"TerminalTaskSystem": "Non è possibile eseguire un comando della shell su un'unità UNC."
+	"reuseTerminal": "Terminale verrà riutilizzato dalle attività, premere un tasto qualsiasi per chiuderlo.",
+	"TerminalTaskSystem": "Non è possibile eseguire un comando della shell su un'unità UNC.",
+	"unkownProblemMatcher": "Il matcher problemi {0} non può essere risolto. il matcher verrà ignorato"
 }

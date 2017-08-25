@@ -21,6 +21,8 @@
 	"menus.scmTitle": "Menu du titre du contrôle de code source",
 	"menus.resourceGroupContext": "Menu contextuel du groupe de ressources du contrôle de code source",
 	"menus.resourceStateContext": "Menu contextuel de l'état des ressources du contrôle de code source",
+	"view.viewTitle": "Menu de titre de la vue ajoutée",
+	"view.itemContext": "Menu contextuel de l'élément de vue ajoutée",
 	"nonempty": "valeur non vide attendue.",
 	"opticon": "la propriété 'icon' peut être omise, ou bien elle doit être une chaîne ou un littéral tel que '{dark, light}'",
 	"requireStringOrObject": "la propriété `{0}` est obligatoire et doit être de type `string` ou `object`",

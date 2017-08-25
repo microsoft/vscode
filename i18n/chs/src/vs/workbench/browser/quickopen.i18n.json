@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "没有匹配的结果",
 	"noResultsFound2": "未找到结果",
-	"entryAriaLabel": "{0}，命令",
-	"noCommands": "没有匹配的命令"
+	"entryAriaLabel": "{0}，命令"
 }

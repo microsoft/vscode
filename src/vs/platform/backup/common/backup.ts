@@ -4,27 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IBackupWorkspacesFormat {
+	rootWorkspaces: IWorkspaceIdentifier[];
 	folderWorkspaces: string[];
 	emptyWorkspaces: string[];
 }
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
-export const IBackupService = createDecorator<IBackupService>('backupService');
 
-export interface IBackupMainService extends IBackupService {
+export interface IBackupMainService {
 	_serviceBrand: any;
 
-	getWorkspaceBackupPaths(): string[];
-	getEmptyWorkspaceBackupPaths(): string[];
+	isHotExitEnabled(): boolean;
 
-	registerWindowForBackupsSync(windowId: number, isEmptyWorkspace: boolean, backupFolder?: string, workspacePath?: string): void;
-}
+	getWorkspaceBackups(): IWorkspaceIdentifier[];
+	getFolderBackupPaths(): string[];
+	getEmptyWindowBackupPaths(): string[];
 
-export interface IBackupService {
-	_serviceBrand: any;
-
-	getBackupPath(windowId: number): TPromise<string>;
+	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
+	registerFolderBackupSync(folderPath: string): string;
+	registerEmptyWindowBackupSync(backupFolder?: string): string;
 }

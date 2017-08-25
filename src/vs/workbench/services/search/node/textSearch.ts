@@ -64,6 +64,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
 
+		const fileEncoding = this.config.folderQueries.length === 1 ?
+			this.config.folderQueries[0].fileEncoding || 'utf8' :
+			'utf8';
+
 		const progress = () => {
 			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
 				onProgress({ total: this.totalBytes, worked: this.processedBytes }); // buffer progress in chunks to reduce pressure
@@ -93,7 +97,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
-			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
+			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding };
 			worker.search(searchArgs).then(result => {
 				if (!result || this.limitReached || this.isCanceled) {
 					return unwind(batchBytes);
@@ -122,7 +126,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
-		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
+		this.walker.walk(this.config.folderQueries, this.config.extraFiles, result => {
 			let bytes = result.size || 1;
 			this.totalBytes += bytes;
 

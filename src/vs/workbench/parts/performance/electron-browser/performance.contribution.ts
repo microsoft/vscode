@@ -16,19 +16,17 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { localize } from 'vs/nls';
 import { toPromise, filterEvent } from 'vs/base/common/event';
 import { platform, Platform } from 'vs/base/common/platform';
-import { readdir, stat } from 'vs/base/node/pfs';
+import { readdir } from 'vs/base/node/pfs';
 import { release } from 'os';
 import { stopProfiling } from 'vs/base/node/profiler';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { forEach } from 'vs/base/common/collections';
-import URI from 'vs/base/common/uri';
 
 class ProfilingHint implements IWorkbenchContribution {
 
@@ -107,7 +105,7 @@ class ProfilingHint implements IWorkbenchContribution {
 
 		// Ignore virtual machines and only ask users
 		// to profile with a certain propability
-		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 50) !== 1) {
+		if (virtualMachineHint.value() >= .5 || Math.ceil(Math.random() * 1000) !== 1) {
 			return;
 		}
 
@@ -192,7 +190,7 @@ class StartupProfiler implements IWorkbenchContribution {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 					TPromise.join<any>([
 						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`)
+						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {
 						// keep window stable until restart is selected
 						this._messageService.confirm({
@@ -215,46 +213,6 @@ class StartupProfiler implements IWorkbenchContribution {
 	}
 }
 
-class PerformanceTelemetry implements IWorkbenchContribution {
-
-	constructor(
-		@ITimerService private readonly _timerService: ITimerService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IExtensionService extensionService: IExtensionService,
-	) {
-		TPromise.join<any>([
-			TPromise.timeout(7 * 1000),
-			extensionService.onReady()
-		]).then(() => {
-			this._sendWorkbenchMainSizeTelemetry();
-			this._validateTimers();
-		});
-	}
-
-	getId(): string {
-		return 'performance.PerformanceTelemetry';
-	}
-
-	private _validateTimers(): void {
-		const { startupMetrics } = this._timerService;
-		const invalidTimers: string[] = [];
-		forEach(startupMetrics.timers, (entry) => {
-			if (entry.value < 0) {
-				invalidTimers.push(entry.key);
-			}
-		});
-		this._telemetryService.publicLog('perf:invalidTimers', { invalidTimers });
-	}
-
-	private _sendWorkbenchMainSizeTelemetry(): void {
-		const { fsPath } = URI.parse(require.toUrl('vs/workbench/electron-browser/workbench.main.js'));
-		stat(fsPath).then(stats => {
-			this._telemetryService.publicLog('perf:jsFileSize', { workbenchMain: stats.size });
-		});
-	}
-}
-
 const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 registry.registerWorkbenchContribution(ProfilingHint);
 registry.registerWorkbenchContribution(StartupProfiler);
-registry.registerWorkbenchContribution(PerformanceTelemetry);

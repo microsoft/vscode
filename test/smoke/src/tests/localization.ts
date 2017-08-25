@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, USER_DIR } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, USER_DIR } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { Localization, ViewletType } from "../areas/localization";
+import { Localization, ViewletType } from '../areas/localization';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testLocalization() {
-	context('Localization', () => {
+	describe('Localization', () => {
 		afterEach(async function () {
 			return await app.stop();
 		});
@@ -34,6 +34,7 @@ export function testLocalization() {
 			assert.equal(text.toLowerCase(), 'suchen');
 
 			await locale.openViewlet(ViewletType.SCM);
+			await app.wait(); // wait until git extension is loaded
 			text = await locale.getOpenedViewletTitle();
 			assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
 

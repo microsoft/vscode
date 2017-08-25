@@ -46,8 +46,10 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "e.g. myFile.txt")));
 		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "e.g. myFolder/myFile.txt")));
 		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myProject")));
+		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myFolder1, myFolder2, myFolder3")));
 		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
+		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "e.g. myFolder")));
+		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "e.g. /Users/Development/myFolder")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
 		completions.push(this.newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
 		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));

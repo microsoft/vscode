@@ -7,11 +7,16 @@
 
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
-import { IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges } from 'vs/editor/common/model/indentRanges';
 
+export interface IndentRange {
+	startLineNumber: number;
+	endLineNumber: number;
+	indent: number;
+}
+
 suite('Indentation Folding', () => {
-	function assertRanges(lines: string[], expected: IFoldingRange[]): void {
+	function assertRanges(lines: string[], expected: IndentRange[]): void {
 		let model = Model.createFromString(lines.join('\n'));
 		let actual = computeRanges(model);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
@@ -19,7 +24,7 @@ suite('Indentation Folding', () => {
 		model.dispose();
 	}
 
-	function r(startLineNumber: number, endLineNumber: number, indent: number): IFoldingRange {
+	function r(startLineNumber: number, endLineNumber: number, indent: number): IndentRange {
 		return { startLineNumber, endLineNumber, indent };
 	}
 

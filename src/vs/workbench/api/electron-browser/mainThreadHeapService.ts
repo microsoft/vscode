@@ -6,16 +6,20 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ObjectIdentifier } from '../node/extHost.protocol';
+import { ExtHostContext, ObjectIdentifier, IExtHostContext } from '../node/extHost.protocol';
 import { consumeSignals, GCSignal } from 'gc-signals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
 
 export interface IHeapService {
 	_serviceBrand: any;
+
+	readonly onGarbageCollection: Event<number[]>;
 
 	/**
 	 * Track gc-collection for all new objects that
@@ -31,17 +35,18 @@ export interface IHeapService {
 }
 
 
-export class MainThreadHeapService implements IHeapService {
+export class HeapService implements IHeapService {
 
 	_serviceBrand: any;
+
+	private _onGarbageCollection: Emitter<number[]> = new Emitter<number[]>();
+	public readonly onGarbageCollection: Event<number[]> = this._onGarbageCollection.event;
 
 	private _activeSignals = new WeakMap<any, GCSignal>();
 	private _activeIds = new Set<number>();
 	private _consumeHandle: number;
 
-	constructor( @IThreadService threadService: IThreadService) {
-		const proxy = threadService.get(ExtHostContext.ExtHostHeapService);
-
+	constructor() {
 		this._consumeHandle = setInterval(() => {
 			const ids = consumeSignals();
 
@@ -51,8 +56,8 @@ export class MainThreadHeapService implements IHeapService {
 					this._activeIds.delete(id);
 				}
 
-				// send to ext host
-				proxy.$onGarbageCollection(ids);
+				// fire event
+				this._onGarbageCollection.fire(ids);
 			}
 
 		}, 15 * 1000);
@@ -109,4 +114,26 @@ export class MainThreadHeapService implements IHeapService {
 	}
 }
 
-registerSingleton(IHeapService, MainThreadHeapService);
+@extHostCustomer
+export class MainThreadHeapService {
+
+	private _toDispose: IDisposable;
+
+	constructor(
+		extHostContext: IExtHostContext,
+		@IHeapService heapService: IHeapService,
+	) {
+		const proxy = extHostContext.get(ExtHostContext.ExtHostHeapService);
+		this._toDispose = heapService.onGarbageCollection((ids) => {
+			// send to ext host
+			proxy.$onGarbageCollection(ids);
+		});
+	}
+
+	public dispose(): void {
+		this._toDispose.dispose();
+	}
+
+}
+
+registerSingleton(IHeapService, HeapService);

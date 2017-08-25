@@ -11,7 +11,7 @@ export enum CSSProblem {
 };
 
 export class CSS {
-	
+
 	constructor(private spectron: SpectronApplication) {
 		// noop
 	}
@@ -56,7 +56,7 @@ export class CSS {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 }

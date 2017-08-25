@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
-function outputResults(promises: TPromise<Location[]>[]) {
+function outputResults(promises: TPromise<Location | Location[]>[]) {
 	return TPromise.join(promises).then(allReferences => {
 		let result: Location[] = [];
 		for (let references of allReferences) {
@@ -41,10 +41,9 @@ function getDefinitions<T>(
 	const promises = provider.map((provider, idx) => {
 		return asWinJsPromise((token) => {
 			return provide(provider, model, position, token);
-		}).then(result => {
-			return result;
-		}, err => {
+		}).then(undefined, err => {
 			onUnexpectedExternalError(err);
+			return null;
 		});
 	});
 	return outputResults(promises);

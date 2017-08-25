@@ -10,5 +10,6 @@
 	"extensions": "Extensions",
 	"view": "Affichage",
 	"extensionsConfigurationTitle": "Extensions",
-	"extensionsAutoUpdate": "Mettre à jour automatiquement les extensions"
+	"extensionsAutoUpdate": "Mettre à jour automatiquement les extensions",
+	"extensionsIgnoreRecommendations": "Ignorer les recommandations d'extension"
 }

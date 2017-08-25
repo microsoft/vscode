@@ -5,14 +5,23 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { BoundedMap } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
+}
+
+export function getEmptyExpression(): IExpression {
+	return Object.create(null);
+}
+
+export function mergeExpressions(...expressions: IExpression[]): IExpression {
+	return objects.assign(getEmptyExpression(), ...expressions.filter(expr => !!expr));
 }
 
 export interface SiblingClause {
@@ -224,6 +233,9 @@ export type ParsedPattern = (path: string, basename?: string) => boolean;
 export type ParsedExpression = (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>) => string | TPromise<string> /* the matching pattern */;
 
 export interface IGlobOptions {
+	/**
+	 * Simplify patterns for use as exclusion filters during tree traversal to skip entire subtrees. Cannot be used outside of a tree traversal.
+	 */
 	trimForExclusions?: boolean;
 }
 
@@ -242,7 +254,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedLinkedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;
@@ -436,7 +448,8 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
 	const parsedExpression = parse(expression, options);
 	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
-		return TPromise.as(parsedExpression(path, basename, siblingsFn));
+		const result = parsedExpression(path, basename, siblingsFn);
+		return result instanceof TPromise ? result : TPromise.as(result);
 	};
 }
 

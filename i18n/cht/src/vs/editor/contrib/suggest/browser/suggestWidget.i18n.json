@@ -12,6 +12,7 @@
 	"readMore": "進一步了解...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}，建議，有詳細資料",
 	"suggestionAriaLabel": "{0}，建議",
+	"readLess": "簡易說明...{0}",
 	"suggestWidget.loading": "正在載入...",
 	"suggestWidget.noSuggestions": "無建議。",
 	"suggestionAriaAccepted": "{0}，接受",

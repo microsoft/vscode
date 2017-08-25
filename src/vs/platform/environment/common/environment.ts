@@ -11,6 +11,7 @@ export interface ParsedArgs {
 	help?: boolean;
 	version?: boolean;
 	wait?: boolean;
+	waitMarkerFilePath?: string;
 	diff?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
@@ -30,6 +31,7 @@ export interface ParsedArgs {
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugBrkPluginHost?: string;
+	debugId?: string;
 	debugPluginHost?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
@@ -58,9 +60,12 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+	machineUUID: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
+
+	workspacesHome: string;
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean;
@@ -68,7 +73,8 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; };
+	debugExtensionHost: { port: number; break: boolean; debugId: string };
+
 
 	logExtensionHostCommunication: boolean;
 

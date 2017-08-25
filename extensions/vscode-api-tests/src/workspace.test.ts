@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from './utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
 
 suite('workspace-namespace', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 
 	test('textDocuments', () => {
@@ -260,6 +260,19 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, with selection', function () {
+		return createRandomFile('foo\nbar\nbar').then(file => {
+			return vscode.workspace.openTextDocument(file).then(doc => {
+				return vscode.window.showTextDocument(doc, { selection: new vscode.Range(new vscode.Position(1, 1), new vscode.Position(1, 2)) }).then(editor => {
+					assert.equal(editor.selection.start.line, 1);
+					assert.equal(editor.selection.start.character, 1);
+					assert.equal(editor.selection.end.line, 1);
+					assert.equal(editor.selection.end.character, 2);
+				});
+			});
+		});
+	});
+
 	test('registerTextDocumentContentProvider, simple', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
@@ -455,7 +468,7 @@ suite('workspace-namespace', () => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
 		});
-	});
+	}).timeout(60 * 1000); // Increase timeout for search-based test
 
 	// TODO@Joh this test fails randomly
 	// test('findFiles, cancellation', () => {

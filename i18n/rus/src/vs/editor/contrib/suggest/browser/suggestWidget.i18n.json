@@ -12,6 +12,7 @@
 	"readMore": "Подробнее...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, предложение, содержит данные",
 	"suggestionAriaLabel": "{0}, предложение",
+	"readLess": "Кратко...{0}",
 	"suggestWidget.loading": "Идет загрузка...",
 	"suggestWidget.noSuggestions": "Предложения отсутствуют.",
 	"suggestionAriaAccepted": "{0}, принято",

@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/moby/moby/commit/abd39744c6f3ed854500e423f5fabf952165161f",
 	"fileTypes": [
 		"Dockerfile"
 	],
@@ -18,7 +19,7 @@
 					"name": "keyword.other.special-method.dockerfile"
 				}
 			},
-			"match": "^\\s*\\b(FROM)\\b.*?\\b(AS)\\b"
+			"match": "^\\s*\\b(?i:(FROM))\\b.*?\\b(?i:(AS))\\b"
 		},
 		{
 			"captures": {
@@ -29,7 +30,7 @@
 					"name": "keyword.other.special-method.dockerfile"
 				}
 			},
-			"match": "^\\s*(?:(ONBUILD)\\s+)?(ADD|ARG|CMD|COPY|ENTRYPOINT|ENV|EXPOSE|FROM|HEALTHCHECK|LABEL|MAINTAINER|RUN|SHELL|STOPSIGNAL|USER|VOLUME|WORKDIR)\\s"
+			"match": "^\\s*(?i:(ONBUILD)\\s+)?(?i:(ADD|ARG|CMD|COPY|ENTRYPOINT|ENV|EXPOSE|FROM|HEALTHCHECK|LABEL|MAINTAINER|RUN|SHELL|STOPSIGNAL|USER|VOLUME|WORKDIR))\\s"
 		},
 		{
 			"captures": {
@@ -40,7 +41,7 @@
 					"name": "keyword.other.special-method.dockerfile"
 				}
 			},
-			"match": "^\\s*(?:(ONBUILD)\\s+)?(CMD|ENTRYPOINT)\\s"
+			"match": "^\\s*(?i:(ONBUILD)\\s+)?(?i:(CMD|ENTRYPOINT))\\s"
 		},
 		{
 			"begin": "\"",

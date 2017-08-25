@@ -18,8 +18,10 @@ export class ConfigurationView {
 		// noop
 	}
 
-	public getEditorLineNumbers(): any {
-		return this.spectron.client.elements('.line-numbers');
+	public async getEditorLineNumbers(): Promise<any> {
+		const lineNumbers = await this.spectron.client.elements('.line-numbers');
+
+		return lineNumbers.value.length;
 	}
 
 	public enterKeybindingsView(): any {

@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
-import { realpathSync } from 'vs/base/node/extfs';
+import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
 import { IWatcherRequest, IWatcherService } from './watcher';
@@ -43,7 +43,7 @@ export class ChokidarWatcherService implements IWatcherService {
 		// so we have to find the real casing of the path and do some path massaging to fix this
 		// see https://github.com/paulmillr/chokidar/issues/418
 		const originalBasePath = request.basePath;
-		const realBasePath = isMacintosh ? (realpathSync(originalBasePath) || originalBasePath) : originalBasePath;
+		const realBasePath = isMacintosh ? (realcaseSync(originalBasePath) || originalBasePath) : originalBasePath;
 		const realBasePathLength = realBasePath.length;
 		const realBasePathDiffers = (originalBasePath !== realBasePath);
 

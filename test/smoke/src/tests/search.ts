@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { Search } from "../areas/search";
+import { Search } from '../areas/search';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testSearch() {
-	context('Search', () => {
+	describe('Search', () => {
 		let search: Search;
 
 		beforeEach(async function () {
@@ -53,7 +53,7 @@ export function testSearch() {
 			await s.dismissResult();
 			await app.wait();
 			const result = await s.getResultText();
-			assert.equal(result, '3 results in 3 files');
+			assert.equal(result, '3 results in 3 files', 'Result number after dismissal does not match to expected.');
 		});
 
 		it('replaces first search result with a replace term', async function () {
@@ -67,7 +67,7 @@ export function testSearch() {
 			await app.wait();
 			await common.saveOpenedFile();
 			const result = await s.getResultText();
-			assert.equal(result, '3 results in 3 files');
+			assert.equal(result, '3 results in 3 files', 'Result number after replacemenet does not match to expected.');
 		});
 	});
 }

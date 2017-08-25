@@ -64,6 +64,7 @@ export class CursorConfiguration {
 	public readonly wordSeparators: string;
 	public readonly emptySelectionClipboard: boolean;
 	public readonly autoClosingBrackets: boolean;
+	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
@@ -99,6 +100,7 @@ export class CursorConfiguration {
 		this.wordSeparators = c.wordSeparators;
 		this.emptySelectionClipboard = c.emptySelectionClipboard;
 		this.autoClosingBrackets = c.autoClosingBrackets;
+		this.autoIndent = c.autoIndent;
 
 		this.autoClosingPairsOpen = {};
 		this.autoClosingPairsClose = {};
@@ -302,8 +304,8 @@ export class CursorContext {
 		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
-	public getScrollTop(): number {
-		return this.viewModel.viewLayout.getScrollTop();
+	public getCurrentScrollTop(): number {
+		return this.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
@@ -413,7 +415,7 @@ export class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
 	}
 }
 

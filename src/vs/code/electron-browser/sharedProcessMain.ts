@@ -24,7 +24,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties, machineIdStorageKey } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
@@ -32,12 +32,35 @@ import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
-import { ActiveWindowManager } from 'vs/code/common/windows';
 import { ipcRenderer } from 'electron';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
+}
+
+class ActiveWindowManager implements IDisposable {
+	private disposables: IDisposable[] = [];
+	private _activeWindowId: number;
+
+	constructor( @IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+	}
+
+	private setActiveWindow(windowId: number) {
+		this._activeWindowId = windowId;
+	}
+
+	public get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
+	}
+
+	public dispose() {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 const eventPrefix = 'monacoworkbench';
@@ -75,12 +98,20 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
 		const services = new ServiceCollection();
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = accessor.get(IEnvironmentService);
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath } = accessor.get(IEnvironmentService);
 
 		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+			const disableStorage = !!extensionTestsPath; // never keep any state when running extension tests!
+			const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
+			const storageService = new StorageService(storage, storage);
+
 			const config: ITelemetryServiceConfig = {
 				appender,
-				commonProperties: resolveCommonProperties(product.commit, pkg.version),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version)
+					.then(result => Object.defineProperty(result, 'common.machineId', {
+						get: () => storageService.get(machineIdStorageKey),
+						enumerable: true
+					})),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
@@ -107,7 +138,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 function setupIPC(hook: string): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(hook).then<Server>(null, err => {
+		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
 				return TPromise.wrapError(err);
 			}

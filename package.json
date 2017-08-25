@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.14.0",
-  "electronVersion": "1.6.6",
-  "distro": "cb257c519d1ee526acfd00c0a7adc6b0fa4c18d2",
+  "version": "1.16.0",
+  "electronVersion": "1.7.3",
+  "distro": "35d378d476d512db1fb93969c69b0dc8f88df8cc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,6 @@
   "dependencies": {
     "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
-    "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
@@ -33,20 +32,24 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
+    "keytar": "^4.0.3",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.4",
-    "node-pty": "0.6.6",
+    "native-keymap": "1.2.5",
+    "native-watchdog": "0.2.0",
+    "node-pty": "0.7.0",
+    "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.20.0",
-    "vscode-ripgrep": "0.0.12",
+    "vscode-debugprotocol": "1.22.0",
+    "vscode-ripgrep": "0.0.25",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.13",
-    "yauzl": "2.3.1"
+    "xterm": "Tyriar/xterm.js#vscode-release/1.16",
+    "yauzl": "2.8.0"
   },
   "devDependencies": {
     "7zip": "0.0.6",
+    "@types/keytar": "^4.0.0",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",
@@ -58,6 +61,7 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
+    "electron-mksnapshot": "~1.7.0",
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
@@ -70,6 +74,7 @@
     "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.0",
     "gulp-cssnano": "^2.1.0",
+    "gulp-eslint": "^3.0.1",
     "gulp-filter": "^3.0.0",
     "gulp-flatmap": "^1.0.0",
     "gulp-image-resize": "^0.10.0",
@@ -80,9 +85,9 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.11.0",
-    "gulp-tsb": "^2.0.3",
+    "gulp-tsb": "^2.0.4",
     "gulp-tslint": "^7.0.1",
-    "gulp-uglify": "^2.0.0",
+    "gulp-uglify": "^3.0.0",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.2.2",
     "husky": "^0.13.1",
@@ -104,12 +109,13 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.3.3",
+    "typescript": "2.4.1",
     "typescript-formatter": "4.0.1",
-    "uglify-js": "2.4.8",
+    "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
+    "vsce": "^1.25.1",
     "vscode-nls-dev": "^2.0.1"
   },
   "repository": {
@@ -120,6 +126,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "windows-process-tree": "0.1.3",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
     "fsevents": "0.3.8"

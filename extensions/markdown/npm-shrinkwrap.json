@@ -58,13 +58,13 @@
       "resolved": "https://registry.npmjs.org/uc.micro/-/uc.micro-1.0.3.tgz"
     },
     "vscode-extension-telemetry": {
-      "version": "0.0.6",
-      "from": "vscode-extension-telemetry@>=0.0.6 <0.0.7",
-      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.6.tgz"
+      "version": "0.0.7",
+      "from": "vscode-extension-telemetry@>=0.0.8 <0.0.9",
+      "resolved": "https://registry.npmjs.org/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz"
     },
     "vscode-nls": {
       "version": "2.0.2",
-      "from": "vscode-nls@latest",
+      "from": "vscode-nls@>=2.0.1 <3.0.0",
       "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
     },
     "winreg": {

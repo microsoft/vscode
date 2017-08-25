@@ -24,9 +24,9 @@ import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/br
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -49,18 +49,39 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+/**  A context key that is set when an extension editor webview has focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
+/**  A context key that is set when an extension editor webview not have focus. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
 
 function renderBody(body: string): string {
-	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
 		</html>`;
+}
+
+function removeEmbeddedSVGs(documentContent: string): string {
+	const newDocument = new DOMParser().parseFromString(documentContent, 'text/html');
+
+	// remove all inline svgs
+	const allSVGs = newDocument.documentElement.querySelectorAll('svg');
+	for (let i = 0; i < allSVGs.length; i++) {
+		allSVGs[i].parentNode.removeChild(allSVGs[i]);
+	}
+
+	return newDocument.documentElement.outerHTML;
 }
 
 class NavBar {
@@ -146,10 +167,12 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest>;
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
+	private contextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[];
+	private activeWebview: WebView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -163,7 +186,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
 		@IListService private listService: IListService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -173,6 +198,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
+		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -308,9 +334,22 @@ export class ExtensionEditor extends BaseEditor {
 		super.changePosition(position);
 	}
 
+	showFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.showFind();
+		}
+	}
+
+	hideFind(): void {
+		if (this.activeWebview) {
+			this.activeWebview.hideFind();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
+		this.activeWebview = null;
 		switch (id) {
 			case NavbarSection.Readme: return this.openReadme();
 			case NavbarSection.Contributions: return this.openContributions();
@@ -323,22 +362,25 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => content
 			.then(marked.parse)
 			.then(renderBody)
+			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
-				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
+				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, webViewOptions);
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-				webview.style(this.themeService.getTheme());
-				webview.contents = [body];
+				this.activeWebview.style(this.themeService.getTheme());
+				this.activeWebview.contents = [body];
 
-				webview.onDidClickLink(link => {
+				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links
 					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
 						this.openerService.open(link);
 					}
 				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
-				this.contentDisposables.push(webview);
+				this.themeService.onThemeChange(theme => this.activeWebview.style(theme), null, this.contentDisposables);
+				this.contentDisposables.push(this.activeWebview);
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -358,7 +400,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => this.extensionManifest.get()
 			.then(manifest => {
 				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				const scrollableContent = new DomScrollableElement(content, {});
 
 				const layout = () => scrollableContent.scanDomNode();
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
@@ -396,15 +438,15 @@ export class ExtensionEditor extends BaseEditor {
 		return this.loadContents(() => {
 			return this.extensionDependencies.get().then(extensionDependencies => {
 				const content = $('div', { class: 'subcontent' });
-				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				const scrollableContent = new DomScrollableElement(content, {});
 				append(this.content, scrollableContent.getDomNode());
 				this.contentDisposables.push(scrollableContent);
 
 				const tree = this.renderDependencies(content, extensionDependencies);
 				const layout = () => {
 					scrollableContent.scanDomNode();
-					const scrollState = scrollableContent.getScrollState();
-					tree.layout(scrollState.height);
+					const scrollDimensions = scrollableContent.getScrollDimensions();
+					tree.layout(scrollDimensions.height);
 				};
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -487,8 +529,13 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('debuggers', "Debuggers ({0})", contrib.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('debugger name', "Name"))),
-				...contrib.map(d => $('tr', null, $('td', null, d.label || d.type)))
+				$('tr', null,
+					$('th', null, localize('debugger name', "Name")),
+					$('th', null, localize('debugger type', "Type")),
+				),
+				...contrib.map(d => $('tr', null,
+					$('td', null, d.label),
+					$('td', null, d.type)))
 			)
 		);
 
@@ -750,3 +797,53 @@ export class ExtensionEditor extends BaseEditor {
 		super.dispose();
 	}
 }
+
+class ShowExtensionEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.showFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const showCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.showfind',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class HideExtensionEditorFindCommand extends Command {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			extensionEditor.hideFind();
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+const hideCommand = new ShowExtensionEditorFindCommand({
+	id: 'editor.action.extensioneditor.hidefind',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	kbOpts: {
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

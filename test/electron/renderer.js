@@ -243,11 +243,19 @@ function runTests(opts) {
 			mocha.reporter(IPCReporter);
 		}
 
-		mocha.run(() => {
+		const runner = mocha.run(() => {
 			createCoverageReport(opts).then(() => {
 				ipcRenderer.send('all done');
 			});
 		});
+
+		if (opts.debug) {
+			runner.on('fail', (test, err) => {
+
+				console.error(test.fullTitle());
+				console.error(err.stack);
+			});
+		}
 	});
 }
 

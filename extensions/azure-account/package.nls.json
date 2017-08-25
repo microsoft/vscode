@@ -1,0 +1,8 @@
+{
+	"azure-account.commands.azure": "Azure",
+	"azure-account.commands.login": "Login",
+	"azure-account.commands.logout": "Logout",
+	"azure-account.commands.addResourceFilter": "Add Resource Filter",
+	"azure-account.commands.removeResourceFilter": "Remove Resource Filter",
+	"azure-account.commands.createAccount": "Create an Account"
+}

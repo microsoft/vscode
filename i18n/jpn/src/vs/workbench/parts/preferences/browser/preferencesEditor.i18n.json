@@ -11,5 +11,7 @@
 	"noSettingsFound": "結果なし",
 	"oneSettingFound": "1 つの設定が一致します",
 	"settingsFound": "{0} 個の設定が一致します",
+	"fileEditorWithInputAriaLabel": "{0}。テキスト ファイル エディター。",
+	"fileEditorAriaLabel": "テキスト ファイル エディター。",
 	"preferencesAriaLabel": "既定の基本設定。読み取り専用のテキスト エディター。"
 }

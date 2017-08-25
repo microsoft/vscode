@@ -16,6 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import * as htmlContent from 'vs/base/common/htmlContent';
 
 export interface PositionLike {
 	line: number;
@@ -143,12 +144,35 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
+export namespace MarkdownString {
+
+	export function fromMany(markup: (vscode.MarkdownString | vscode.MarkedString)[]): htmlContent.IMarkdownString[] {
+		return markup.map(MarkdownString.from);
+	}
+
+	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		if (htmlContent.isMarkdownString(markup)) {
+			return markup;
+		} else if (typeof markup === 'string' || !markup) {
+			return { value: <string>markup || '', isTrusted: true };
+		} else {
+			const { language, value } = markup;
+			return { value: '```' + language + '\n' + value + '\n```' };
+		}
+	}
+	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
+		const ret = new htmlContent.MarkdownString(value.value);
+		ret.isTrusted = value.isTrusted;
+		return ret;
+	}
+}
+
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
-		return ranges.map((r): IDecorationOptions => {
+		return ranges.map(r => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: r.hoverMessage,
+				hoverMessage: Array.isArray(r.hoverMessage) ? MarkdownString.fromMany(r.hoverMessage) : r.hoverMessage && MarkdownString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -256,12 +280,12 @@ export const location = {
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),
-		contents: hover.contents
+		contents: MarkdownString.fromMany(hover.contents)
 	};
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents, toRange(info.range));
+	return new types.Hover(info.contents.map(MarkdownString.to), toRange(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {

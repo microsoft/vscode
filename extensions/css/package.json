@@ -11,6 +11,7 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
+  "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
@@ -61,16 +62,19 @@
               "properties": {
                 "css.validate": {
                   "type": "boolean",
+                  "scope": "resource",
                   "default": true,
                   "description": "%css.validate.desc%"
                 },
                 "css.colorDecorators.enable": {
                   "type": "boolean",
+                  "scope": "window",
                   "default": true,
                   "description": "%css.colorDecorators.enable.desc%"
                 },
                 "css.lint.compatibleVendorPrefixes": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -81,6 +85,7 @@
                 },
                 "css.lint.vendorPrefix": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -91,6 +96,7 @@
                 },
                 "css.lint.duplicateProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -101,6 +107,7 @@
                 },
                 "css.lint.emptyRules": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -111,6 +118,7 @@
                 },
                 "css.lint.importStatement": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -121,6 +129,7 @@
                 },
                 "css.lint.boxModel": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -131,6 +140,7 @@
                 },
                 "css.lint.universalSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -141,6 +151,7 @@
                 },
                 "css.lint.zeroUnits": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -151,6 +162,7 @@
                 },
                 "css.lint.fontFaceProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -161,6 +173,7 @@
                 },
                 "css.lint.hexColorLength": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -171,6 +184,7 @@
                 },
                 "css.lint.argumentsInColorFunction": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -181,6 +195,7 @@
                 },
                 "css.lint.unknownProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -191,6 +206,7 @@
                 },
                 "css.lint.ieHack": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -201,6 +217,7 @@
                 },
                 "css.lint.unknownVendorSpecificProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -211,6 +228,7 @@
                 },
                 "css.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -221,6 +239,7 @@
                 },
                 "css.lint.important": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -231,6 +250,7 @@
                 },
                 "css.lint.float": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -241,6 +261,7 @@
                 },
                 "css.lint.idSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -251,6 +272,7 @@
                 },
                 "css.trace.server": {
                   "type": "string",
+                  "scope": "window",
                   "enum": [
                     "off",
                     "messages",
@@ -273,16 +295,19 @@
               "properties": {
                 "scss.validate": {
                   "type": "boolean",
+                  "scope": "resource",
                   "default": true,
                   "description": "%scss.validate.desc%"
                 },
                 "scss.colorDecorators.enable": {
                   "type": "boolean",
+                  "scope": "window",
                   "default": true,
                   "description": "%scss.colorDecorators.enable.desc%"
                 },
                 "scss.lint.compatibleVendorPrefixes": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -293,6 +318,7 @@
                 },
                 "scss.lint.vendorPrefix": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -303,6 +329,7 @@
                 },
                 "scss.lint.duplicateProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -313,6 +340,7 @@
                 },
                 "scss.lint.emptyRules": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -323,6 +351,7 @@
                 },
                 "scss.lint.importStatement": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -333,6 +362,7 @@
                 },
                 "scss.lint.boxModel": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -343,6 +373,7 @@
                 },
                 "scss.lint.universalSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -353,6 +384,7 @@
                 },
                 "scss.lint.zeroUnits": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -363,6 +395,7 @@
                 },
                 "scss.lint.fontFaceProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -373,6 +406,7 @@
                 },
                 "scss.lint.hexColorLength": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -383,6 +417,7 @@
                 },
                 "scss.lint.argumentsInColorFunction": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -393,6 +428,7 @@
                 },
                 "scss.lint.unknownProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -403,6 +439,7 @@
                 },
                 "scss.lint.ieHack": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -413,6 +450,7 @@
                 },
                 "scss.lint.unknownVendorSpecificProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -423,6 +461,7 @@
                 },
                 "scss.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -433,6 +472,7 @@
                 },
                 "scss.lint.important": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -443,6 +483,7 @@
                 },
                 "scss.lint.float": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -453,6 +494,7 @@
                 },
                 "scss.lint.idSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -476,16 +518,19 @@
               "properties": {
                 "less.validate": {
                   "type": "boolean",
+                  "scope": "resource",
                   "default": true,
                   "description": "%less.validate.desc%"
                 },
                 "less.colorDecorators.enable": {
                   "type": "boolean",
+                  "scope": "window",
                   "default": true,
                   "description": "%less.colorDecorators.enable.desc%"
                 },
                 "less.lint.compatibleVendorPrefixes": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -496,6 +541,7 @@
                 },
                 "less.lint.vendorPrefix": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -506,6 +552,7 @@
                 },
                 "less.lint.duplicateProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -516,6 +563,7 @@
                 },
                 "less.lint.emptyRules": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -526,6 +574,7 @@
                 },
                 "less.lint.importStatement": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -536,6 +585,7 @@
                 },
                 "less.lint.boxModel": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -546,6 +596,7 @@
                 },
                 "less.lint.universalSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -556,6 +607,7 @@
                 },
                 "less.lint.zeroUnits": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -566,6 +618,7 @@
                 },
                 "less.lint.fontFaceProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -576,6 +629,7 @@
                 },
                 "less.lint.hexColorLength": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -586,6 +640,7 @@
                 },
                 "less.lint.argumentsInColorFunction": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -596,6 +651,7 @@
                 },
                 "less.lint.unknownProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -606,6 +662,7 @@
                 },
                 "less.lint.ieHack": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -616,6 +673,7 @@
                 },
                 "less.lint.unknownVendorSpecificProperties": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -626,6 +684,7 @@
                 },
                 "less.lint.propertyIgnoredDueToDisplay": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -636,6 +695,7 @@
                 },
                 "less.lint.important": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -646,6 +706,7 @@
                 },
                 "less.lint.float": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -656,6 +717,7 @@
                 },
                 "less.lint.idSelector": {
                   "type": "string",
+                  "scope": "resource",
                   "enum": [
                     "ignore",
                     "warning",
@@ -672,7 +734,8 @@
     }
   },
   "dependencies": {
-    "vscode-languageclient": "^3.2.0",
+    "parse-color": "^1.0.0",
+    "vscode-languageclient": "3.4.0-next.17",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {

@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import { Builder } from 'vs/base/browser/builder';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Panel } from 'vs/workbench/browser/panel';
 import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions, IFileInputFactory } from 'vs/workbench/common/editor';
 import { IEditor, Position } from 'vs/platform/editor/common/editor';

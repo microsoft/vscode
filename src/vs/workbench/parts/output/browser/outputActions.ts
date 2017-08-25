@@ -43,7 +43,7 @@ export class ClearOutputAction extends Action {
 		super(id, label, 'output-action clear-output');
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		this.outputService.getActiveChannel().clear();
 		this.panelService.getActivePanel().focus();
 
@@ -64,7 +64,7 @@ export class ToggleOutputScrollLockAction extends Action {
 		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
 			activeChannel.scrollLock = !activeChannel.scrollLock;

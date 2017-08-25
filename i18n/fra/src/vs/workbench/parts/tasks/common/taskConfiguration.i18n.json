@@ -12,5 +12,6 @@
 	"ConfigurationParser.invalidVaraibleReference": "Erreur : référence à problemMatcher non valide : {0}\n",
 	"ConfigurationParser.noTaskName": "Erreur : les tâches doivent fournir une propriété taskName. La tâche va être ignorée.\n{0}\n",
 	"taskConfiguration.shellArgs": "Avertissement : La tâche '{0}' est une commande d'interpréteur de commandes, et le nom de la commande ou l'un de ses arguments contient des espaces non précédés d'un caractère d'échappement. Pour garantir une ligne de commande correcte, fusionnez les arguments dans la commande.",
+	"taskConfiguration.noCommandOrDependsOn": "Erreur : La tâche '{0}' ne spécifie ni une commande, ni une propriété dependsOn. La tâche est ignorée. Sa définition est :\n{1}",
 	"taskConfiguration.noCommand": "Erreur : La tâche '{0}' ne définit aucune commande. La tâche va être ignorée. Sa définition est :\n{1}"
 }

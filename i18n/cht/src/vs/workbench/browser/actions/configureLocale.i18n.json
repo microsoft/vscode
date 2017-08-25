@@ -7,7 +7,7 @@
 	"configureLocale": "設定語言",
 	"displayLanguage": "定義 VSCode 的顯示語言。",
 	"doc": "如需支援的語言清單，請參閱 {0}。",
-	"restart": "變更值必須重新啟動 VSCode。",
+	"restart": "改變設定值後需要重新啟動 VSCode.",
 	"fail.createSettings": "無法建立 '{0}' ({1})。",
 	"JsonSchema.locale": "要使用的 UI 語言。"
 }

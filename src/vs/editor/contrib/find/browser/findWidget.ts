@@ -25,7 +25,7 @@ import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -81,7 +81,7 @@ export class FindWidgetViewZone implements IViewZone {
 }
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-	private static ID = 'editor.contrib.findWidget';;
+	private static ID = 'editor.contrib.findWidget';
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
@@ -105,7 +105,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocussed: IContextKey<boolean>;
+	private _findInputFocused: IContextKey<boolean>;
 	private _viewZone: FindWidgetViewZone;
 	private _viewZoneId: number;
 
@@ -192,10 +192,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
-			this._findInputFocussed.set(true);
+			this._findInputFocused.set(true);
 
 			if (this._toggleSelectionFind.checked) {
 				let selection = this._codeEditor.getSelection();
@@ -212,7 +212,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		});
 		this._focusTracker.addBlurListener(() => {
-			this._findInputFocussed.set(false);
+			this._findInputFocused.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);
@@ -850,6 +850,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'editor-widget find-widget';
 		this._domNode.setAttribute('aria-hidden', 'true');
+		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
+		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
@@ -968,14 +970,14 @@ class SimpleCheckbox extends Widget {
 	}
 }
 
-interface ISimpleButtonOpts {
+export interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: () => void;
 	onKeyDown: (e: IKeyboardEvent) => void;
 }
 
-class SimpleButton extends Widget {
+export class SimpleButton extends Widget {
 
 	private _opts: ISimpleButtonOpts;
 	private _domNode: HTMLElement;

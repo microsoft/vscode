@@ -16,7 +16,7 @@ export class Margin extends ViewPart {
 	public static CLASS_NAME = 'glyph-margin';
 
 	private _domNode: FastDomNode<HTMLElement>;
-	private _canUseTranslate3d: boolean;
+	private _canUseLayerHinting: boolean;
 	private _contentLeft: number;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
@@ -24,7 +24,7 @@ export class Margin extends ViewPart {
 
 	constructor(context: ViewContext) {
 		super(context);
-		this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
+		this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
@@ -57,8 +57,8 @@ export class Margin extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.canUseTranslate3d) {
-			this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
+		if (e.canUseLayerHinting) {
+			this._canUseLayerHinting = this._context.configuration.editor.canUseLayerHinting;
 		}
 
 		if (e.layoutInfo) {
@@ -80,15 +80,9 @@ export class Margin extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		this._domNode.setLayerHinting(this._canUseLayerHinting);
 		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
-		if (this._canUseTranslate3d) {
-			let transform = 'translate3d(0px, ' + -adjustedScrollTop + 'px, 0px)';
-			this._domNode.setTransform(transform);
-			this._domNode.setTop(0);
-		} else {
-			this._domNode.setTransform('');
-			this._domNode.setTop(-adjustedScrollTop);
-		}
+		this._domNode.setTop(-adjustedScrollTop);
 
 		let height = Math.min(ctx.scrollHeight, 1000000);
 		this._domNode.setHeight(height);

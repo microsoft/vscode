@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-go/commit/c413bc93966c03031cd114c53c54bc7927eea25b",
 	"scopeName": "source.go",
 	"name": "Go",
 	"comment": "Go language",
@@ -308,16 +309,46 @@
 		"brackets": {
 			"patterns": [
 				{
-					"match": "\\{|\\}",
-					"name": "punctuation.other.bracket.curly.go"
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.begin.bracket.curly.go"
+						}
+					},
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.curly.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
 				},
 				{
-					"match": "\\(|\\)",
-					"name": "punctuation.other.bracket.round.go"
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.begin.bracket.round.go"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.round.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
 				},
 				{
 					"match": "\\[|\\]",
-					"name": "punctuation.other.bracket.square.go"
+					"name": "punctuation.definition.bracket.square.go"
 				}
 			]
 		},
@@ -387,13 +418,13 @@
 					"begin": "\\(",
 					"beginCaptures": {
 						"0": {
-							"name": "punctuation.other.bracket.round.go"
+							"name": "punctuation.definition.imports.begin.bracket.round.go"
 						}
 					},
 					"end": "\\)",
 					"endCaptures": {
 						"0": {
-							"name": "punctuation.other.bracket.round.go"
+							"name": "punctuation.definition.imports.end.bracket.round.go"
 						}
 					},
 					"patterns": [
@@ -488,12 +519,29 @@
 		"runes": {
 			"patterns": [
 				{
-					"match": "\\'(\\\\([0-7]{3}|[abfnrtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})|\\p{Any})\\'",
-					"name": "constant.other.rune.go"
-				},
-				{
-					"match": "\\'.*\\'",
-					"name": "invalid.illegal.unknown-rune.go"
+					"begin": "'",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.go"
+						}
+					},
+					"end": "'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.go"
+						}
+					},
+					"name": "string.quoted.rune.go",
+					"patterns": [
+						{
+							"match": "\\G(\\\\([0-7]{3}|[abfnrtv\\\\'\"]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})|.)(?=')",
+							"name": "constant.other.rune.go"
+						},
+						{
+							"match": "[^']+",
+							"name": "invalid.illegal.unknown-rune.go"
+						}
+					]
 				}
 			]
 		},
@@ -609,13 +657,13 @@
 					"begin": "\\(",
 					"beginCaptures": {
 						"0": {
-							"name": "punctuation.other.bracket.round.go"
+							"name": "punctuation.definition.variables.begin.bracket.round.go"
 						}
 					},
 					"end": "\\)",
 					"endCaptures": {
 						"0": {
-							"name": "punctuation.other.bracket.round.go"
+							"name": "punctuation.definition.variables.end.bracket.round.go"
 						}
 					},
 					"patterns": [

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from "../spectron/application";
+import { SpectronApplication } from '../spectron/application';
 
 export class DataLoss {
 
@@ -20,7 +20,7 @@ export class DataLoss {
 		if (el.status === 0) {
 			return el;
 		}
-		
+
 		return undefined;
 	}
 }

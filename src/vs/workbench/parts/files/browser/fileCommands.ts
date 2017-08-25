@@ -18,7 +18,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -54,7 +54,7 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 	const windowService = accessor.get(IWindowService);
 
-	windowService.openFolderPicker(forceNewWindow);
+	windowService.pickFolderAndOpen({ forceNewWindow });
 };
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
@@ -68,7 +68,7 @@ export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
 
 	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-	windowService.openFilePicker(true, fileResource ? paths.dirname(fileResource.fsPath) : void 0);
+	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
 };
 
 export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {
@@ -111,7 +111,7 @@ export const revealInExplorerCommand = (accessor: ServicesAccessor, resource: UR
 };
 
 function openFocusedFilesExplorerViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocussedFilesExplorerViewItem(accessor).then(res => {
+	withFocusedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 
 			// Directory: Toggle expansion
@@ -128,8 +128,8 @@ function openFocusedFilesExplorerViewItem(accessor: ServicesAccessor, sideBySide
 	});
 }
 
-function openFocussedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocussedOpenEditorsViewItem(accessor).then(res => {
+function openFocusedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
+	withFocusedOpenEditorsViewItem(accessor).then(res => {
 		if (res) {
 			const editorService = accessor.get(IWorkbenchEditorService);
 
@@ -139,7 +139,7 @@ function openFocussedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySid
 }
 
 function runActionOnFocusedFilesExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
-	withFocussedFilesExplorerViewItem(accessor).then(res => {
+	withFocusedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 			res.explorer.getViewletState().actionProvider.runAction(res.tree, res.item, id, context).done(null, errors.onUnexpectedError);
 		}
@@ -154,11 +154,11 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 		return TPromise.as(void 0); // Return early if the active viewlet is not the explorer
 	}
 
-	return viewletService.openViewlet(VIEWLET_ID, false);
+	return viewletService.openViewlet(VIEWLET_ID, false) as TPromise<ExplorerViewlet>;
 };
 
-export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
-	return withFocussedFilesExplorer(accessor).then(res => {
+export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
+	return withFocusedFilesExplorer(accessor).then(res => {
 		if (!res) {
 			return void 0;
 		}
@@ -172,7 +172,7 @@ export function withFocussedFilesExplorerViewItem(accessor: ServicesAccessor): T
 	});
 };
 
-export function withFocussedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
+export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
 	return withVisibleExplorer(accessor).then(explorer => {
 		if (!explorer || !explorer.getExplorerView()) {
 			return void 0; // empty folder or hidden explorer
@@ -180,7 +180,7 @@ export function withFocussedFilesExplorer(accessor: ServicesAccessor): TPromise<
 
 		const tree = explorer.getExplorerView().getViewer();
 
-		// Ignore if in highlight mode or not focussed
+		// Ignore if in highlight mode or not focused
 		if (tree.getHighlight() || !tree.isDOMFocused()) {
 			return void 0;
 		}
@@ -189,7 +189,7 @@ export function withFocussedFilesExplorer(accessor: ServicesAccessor): TPromise<
 	});
 };
 
-function withFocussedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: OpenEditor }> {
+function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: OpenEditor }> {
 	return withVisibleExplorer(accessor).then(explorer => {
 		if (!explorer || !explorer.getOpenEditorsView()) {
 			return void 0; // empty folder or hidden explorer
@@ -197,7 +197,7 @@ function withFocussedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{
 
 		const tree = explorer.getOpenEditorsView().getViewer();
 
-		// Ignore if in highlight mode or not focussed
+		// Ignore if in highlight mode or not focused
 		const focus = tree.getFocus();
 		if (tree.getHighlight() || !tree.isDOMFocused() || !(focus instanceof OpenEditor)) {
 			return void 0;
@@ -208,19 +208,19 @@ function withFocussedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{
 };
 
 function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
-	return withFocussedFilesExplorerViewItem(accessor).then(res => {
+	return withFocusedFilesExplorerViewItem(accessor).then(res => {
 		if (res) {
 			return res.item;
 		}
 
-		return withFocussedOpenEditorsViewItem(accessor).then(res => {
+		return withFocusedOpenEditorsViewItem(accessor).then(res => {
 			if (res) {
-				return res.item;
+				return res.item as FileStat | OpenEditor;
 			}
 
 			return void 0;
 		});
-	}) as TPromise<FileStat | OpenEditor>; // TypeScript fail
+	});
 };
 
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
@@ -253,7 +253,7 @@ export const openFocusedExplorerItemSideBySideCommand = (accessor: ServicesAcces
 		if (item instanceof FileStat) {
 			openFocusedFilesExplorerViewItem(accessor, true);
 		} else {
-			openFocussedOpenedEditorsViewItem(accessor, true);
+			openFocusedOpenedEditorsViewItem(accessor, true);
 		}
 	});
 };

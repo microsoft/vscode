@@ -11,9 +11,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IListService, ListFocusContext } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import errors = require('vs/base/common/errors');
@@ -366,8 +365,8 @@ export function registerCommands(): void {
 		when: NoEditorsVisibleContext,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		handler: accessor => {
-			const windowService = accessor.get(IWindowIPCService);
-			windowService.getWindow().close();
+			const windowService = accessor.get(IWindowService);
+			windowService.closeWindow();
 		}
 	});
 
@@ -400,8 +399,7 @@ export function registerCommands(): void {
 
 		if (!options || typeof options !== 'object') {
 			options = {
-				preserveFocus: false,
-				pinned: true
+				preserveFocus: false
 			};
 		}
 

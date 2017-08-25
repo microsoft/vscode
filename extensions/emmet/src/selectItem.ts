@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, isStyleSheet } from './util';
+import { validate, parseDocument } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
-import parseStylesheet from '@emmetio/css-parser';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { isStyleSheet } from 'vscode-emmet-helper';
+
 
 export function fetchSelectItem(direction: string): void {
 	let editor = vscode.window.activeTextEditor;
@@ -19,22 +18,26 @@ export function fetchSelectItem(direction: string): void {
 
 	let nextItem;
 	let prevItem;
-	let parseContent;
 
 	if (isStyleSheet(editor.document.languageId)) {
 		nextItem = nextItemStylesheet;
 		prevItem = prevItemStylesheet;
-		parseContent = parseStylesheet;
 	} else {
 		nextItem = nextItemHTML;
 		prevItem = prevItemHTML;
-		parseContent = parse;
 	}
 
-	let rootNode: Node = parseContent(editor.document.getText());
+	let rootNode = parseDocument(editor.document);
+	if (!rootNode) {
+		return;
+	}
+
 	let newSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
-		let updatedSelection = direction === 'next' ? nextItem(selection, editor, rootNode) : prevItem(selection, editor, rootNode);
+		const selectionStart = selection.isReversed ? selection.active : selection.anchor;
+		const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
+
+		let updatedSelection = direction === 'next' ? nextItem(selectionStart, selectionEnd, editor, rootNode) : prevItem(selectionStart, selectionEnd, editor, rootNode);
 		newSelections.push(updatedSelection ? updatedSelection : selection);
 	});
 	editor.selections = newSelections;

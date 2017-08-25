@@ -14,7 +14,7 @@ import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, IFileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
@@ -195,10 +195,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.load().done(() => {
 			const mtime = getLastModifiedTime(model);
-			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
-				message: 'error',
-				fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
-			});
+			accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_MODIFIED_SINCE));
 
 			return model.load().then((model: TextFileEditorModel) => {
 				assert.ok(model);
@@ -214,10 +211,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.load().done(() => {
-			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
-				message: 'error',
-				fileOperationResult: FileOperationResult.FILE_NOT_FOUND
-			});
+			accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
 
 			return model.load().then((model: TextFileEditorModel) => {
 				assert.ok(model);
@@ -329,7 +323,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.wrapError('boom');
+				return TPromise.wrapError(new Error('boom'));
 			}
 		});
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
+import platform = require('vs/platform/registry/common/platform');
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

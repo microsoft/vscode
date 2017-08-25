@@ -59,7 +59,7 @@ export function withElementById(id: string, offdom?: boolean): Builder {
 	return null;
 }
 
-export let Build = {
+export const Build = {
 	withElementById: withElementById
 };
 
@@ -2096,7 +2096,7 @@ export function getBindingFromElement(element: HTMLElement): any {
 	return getPropertyFromElement(element, DATA_BINDING_ID);
 }
 
-export let Binding = {
+export const Binding = {
 	setPropertyOnElement: setPropertyOnElement,
 	getPropertyFromElement: getPropertyFromElement,
 	removePropertyFromElement: removePropertyFromElement,
@@ -2107,7 +2107,7 @@ export let Binding = {
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export let $: QuickBuilder = function (arg?: any): Builder {
+export const $: QuickBuilder = function (arg?: any): Builder {
 
 	// Off-DOM use
 	if (types.isUndefined(arg)) {

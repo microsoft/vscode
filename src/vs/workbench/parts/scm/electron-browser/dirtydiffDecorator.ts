@@ -8,14 +8,14 @@
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as winjs from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as ext from 'vs/workbench/common/contributions';
 import * as common from 'vs/editor/common/editorCommon';
 import * as widget from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -63,7 +63,7 @@ class DirtyDiffModelDecorator {
 	private decorations: string[];
 	private baselineModel: common.IModel;
 	private diffDelayer: ThrottledDelayer<common.IChange[]>;
-	private _originalURIPromise: winjs.TPromise<URI>;
+	private _originalURIPromise: TPromise<URI>;
 	private toDispose: IDisposable[];
 
 	constructor(
@@ -74,19 +74,19 @@ class DirtyDiffModelDecorator {
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.decorations = [];
 		this.diffDelayer = new ThrottledDelayer<common.IChange[]>(200);
 		this.toDispose = [];
 		this.triggerDiff();
 		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
-		this.toDispose.push(scmService.onDidChangeProvider(() => this.triggerDiff()));
+		this.toDispose.push(scmService.onDidChangeRepository(() => this.triggerDiff()));
 	}
 
-	private triggerDiff(): winjs.Promise {
+	private triggerDiff(): TPromise<any> {
 		if (!this.diffDelayer) {
-			return winjs.TPromise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.diffDelayer
@@ -104,28 +104,26 @@ class DirtyDiffModelDecorator {
 			});
 	}
 
-	private diff(): winjs.TPromise<common.IChange[]> {
+	private diff(): TPromise<common.IChange[]> {
 		return this.getOriginalURIPromise().then(originalURI => {
 			if (!this.model || this.model.isDisposed() || !originalURI) {
-				return winjs.TPromise.as([]); // disposed
+				return TPromise.as([]); // disposed
+			}
+
+			if (!this.editorWorkerService.canComputeDirtyDiff(originalURI, this.model.uri)) {
+				return TPromise.as([]); // Files too large
 			}
 
 			return this.editorWorkerService.computeDirtyDiff(originalURI, this.model.uri, true);
 		});
 	}
 
-	private getOriginalURIPromise(): winjs.TPromise<URI> {
+	private getOriginalURIPromise(): TPromise<URI> {
 		if (this._originalURIPromise) {
 			return this._originalURIPromise;
 		}
 
-		const provider = this.scmService.activeProvider;
-
-		if (!provider) {
-			return winjs.TPromise.as(null);
-		}
-
-		this._originalURIPromise = provider.getOriginalResource(this.uri)
+		this._originalURIPromise = this.getOriginalResource()
 			.then(originalUri => {
 				if (!originalUri) {
 					return null;
@@ -145,6 +143,18 @@ class DirtyDiffModelDecorator {
 		return always(this._originalURIPromise, () => {
 			this._originalURIPromise = null;
 		});
+	}
+
+	private async getOriginalResource(): TPromise<URI> {
+		for (const repository of this.scmService.repositories) {
+			const result = repository.provider.getOriginalResource(this.uri);
+
+			if (result) {
+				return result;
+			}
+		}
+
+		return null;
 	}
 
 	private static changesToDecorations(diff: common.IChange[]): common.IModelDeltaDecoration[] {

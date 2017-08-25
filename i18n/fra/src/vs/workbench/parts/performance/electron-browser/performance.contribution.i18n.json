@@ -9,5 +9,7 @@
 	"prof.message": "Création réussie des profils.",
 	"prof.detail": "Créez un problème et joignez manuellement les fichiers suivants :\n{0}",
 	"prof.restartAndFileIssue": "Créer le problème et redémarrer",
-	"prof.restart": "Redémarrer"
+	"prof.restart": "Redémarrer",
+	"prof.thanks": "Merci de votre aide.",
+	"prof.detail.restart": "Un redémarrage final est nécessaire pour continuer à utiliser '{0}'. Nous vous remercions une fois de plus pour votre contribution."
 }

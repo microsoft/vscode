@@ -70,7 +70,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		return TPromise.join<EditorModel>([
+		return TPromise.join([
 			this.originalInput.resolve(refresh),
 			this.modifiedInput.resolve(refresh)
 		]).then((models) => {

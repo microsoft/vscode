@@ -39,6 +39,7 @@ export class LineContext {
 			return false;
 		}
 		const pos = editor.getPosition();
+		model.tokenizeIfCheap(pos.lineNumber);
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
@@ -293,7 +294,7 @@ export class SuggestModel implements IDisposable {
 						} else if (quickSuggestions === true) {
 							// all good
 						} else {
-							model.forceTokenization(pos.lineNumber);
+							model.tokenizeIfCheap(pos.lineNumber);
 							const { tokenType } = model
 								.getLineTokens(pos.lineNumber)
 								.findTokenAtOffset(pos.column - 1);
@@ -402,8 +403,8 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (ctx.column > this.context.column && this.completionModel.incomplete) {
-			// typed -> moved cursor RIGHT & incomple model -> retrigger
+		if (ctx.column > this.context.column && this.completionModel.incomplete && ctx.leadingWord.word.length !== 0) {
+			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
 			const { complete, incomplete } = this.completionModel.resolveIncompleteInfo();
 			this.trigger(this._state === State.Auto, true, incomplete, complete);
 
@@ -429,6 +430,13 @@ export class SuggestModel implements IDisposable {
 					// freeze when IntelliSense was manually requested
 					this.completionModel.lineContext = oldLineContext;
 					isFrozen = this.completionModel.items.length > 0;
+
+					if (isFrozen && ctx.leadingWord.word.length === 0) {
+						// there were results before but now there aren't
+						// and also we are not on a word anymore -> cancel
+						this.cancel();
+						return;
+					}
 
 				} else {
 					// nothing left

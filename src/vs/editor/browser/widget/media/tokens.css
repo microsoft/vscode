@@ -6,6 +6,4 @@
 .monaco-editor .vs-whitespace {
 	display:inline-block;
 }
-.monaco-editor.hc-black .view-line {
-	mix-blend-mode: difference;
-}
+

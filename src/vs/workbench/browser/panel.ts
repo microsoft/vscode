@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPanel } from 'vs/workbench/common/panel';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -101,7 +101,7 @@ export abstract class TogglePanelAction extends Action {
 		return panel && panel.getId() === this.panelId;
 	}
 
-	protected isPanelFocussed(): boolean {
+	protected isPanelFocused(): boolean {
 		const activePanel = this.panelService.getActivePanel();
 		const activeElement = document.activeElement;
 

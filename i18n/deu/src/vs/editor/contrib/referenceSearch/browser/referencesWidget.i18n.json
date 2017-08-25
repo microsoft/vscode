@@ -16,9 +16,12 @@
 	"peekViewTitleInfoForeground": "Farbe der Titelinformationen in der Peek-Ansicht.",
 	"peekViewBorder": "Farbe der Peek-Ansichtsränder und des Pfeils.",
 	"peekViewResultsBackground": "Hintergrundfarbe der Ergebnisliste in der Peek-Ansicht.",
+	"peekViewResultsMatchForeground": "Vordergrundfarbe für Zeilenknoten in der Ergebnisliste der Peek-Ansicht.",
+	"peekViewResultsFileForeground": "Vordergrundfarbe für Dateiknoten in der Ergebnisliste der Peek-Ansicht.",
 	"peekViewResultsSelectionBackground": "Hintergrundfarbe des ausgewählten Eintrags in der Ergebnisliste der Peek-Ansicht.",
 	"peekViewResultsSelectionForeground": "Vordergrundfarbe des ausgewählten Eintrags in der Ergebnisliste der Peek-Ansicht.",
 	"peekViewEditorBackground": "Hintergrundfarbe des Peek-Editors.",
+	"peekViewEditorGutterBackground": "Hintergrundfarbe der Leiste im Peek-Editor.",
 	"peekViewResultsMatchHighlight": "Farbe für Übereinstimmungsmarkierungen in der Ergebnisliste der Peek-Ansicht.",
 	"peekViewEditorMatchHighlight": "Farbe für Übereinstimmungsmarkierungen im Peek-Editor."
 }

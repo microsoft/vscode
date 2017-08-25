@@ -19,11 +19,17 @@ export class Localization {
 	}
 
 	public async getOpenEditorsText(): Promise<string> {
-		const explorerTitles = await this.spectron.client.getText('div[id="workbench.view.explorer"] .title span');
+		let explorerTitles;
+		try {
+			explorerTitles = await this.spectron.client.getText('div[id="workbench.view.explorer"] .title span');
+		} catch (e) {
+			return Promise.reject('Failed to get span of title in explorer viewlet.');
+		}
+
 		return explorerTitles[0];
 	}
 
-	public openViewlet(type: ViewletType): Promise<any> {
+	public async openViewlet(type: ViewletType): Promise<any> {
 		let command;
 
 		switch (type) {
@@ -41,15 +47,24 @@ export class Localization {
 				break;
 		}
 
-		return this.spectron.command(command, false);
+		await this.spectron.command(command, false);
+		return this.spectron.wait();
 	}
 
 	public getOpenedViewletTitle(): Promise<string> {
-		return this.spectron.client.getText('div[id="workbench.parts.sidebar"] .title-label span');
+		try {
+			return this.spectron.client.getText('div[id="workbench.parts.sidebar"] .title-label span');
+		} catch (e) {
+			return Promise.reject('Failed to get span of title label in explorer viewlet.');
+		}
 	}
 
 	public getExtensionsSearchPlaceholder(): Promise<string> {
-		return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
+		try {
+			return this.spectron.client.getAttribute('div[id="workbench.view.extensions"] .search-box', 'placeholder');
+		} catch (e) {
+			return Promise.reject('Failed to get extension viewlet search box placeholder.');
+		}
 	}
 
 }

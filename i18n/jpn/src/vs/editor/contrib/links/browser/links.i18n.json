@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "command キーを押しながらクリックしてリンク先を表示",
 	"links.navigate": "Ctrl キーを押しながらクリックしてリンク先を表示",
+	"links.command.mac": "command キーを押しながらクリックしてコマンドを実行",
+	"links.command": "Ctrl キーを押しながらクリックしてコマンドを実行",
 	"links.navigate.al": "Altl キーを押しながらクリックしてリンク先を表示",
+	"links.command.al": "Alt キーを押しながらクリックしてコマンドを実行",
 	"invalid.url": "申し訳ありません。このリンクは形式が正しくないため開くことができませんでした: {0}",
 	"missing.url": "申し訳ありません。このリンクはターゲットが存在しないため開くことができませんでした。",
 	"label": "リンクを開く"

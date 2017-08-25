@@ -12,23 +12,10 @@ import URI from 'vs/base/common/uri';
 import { ConfigurationSource, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { StorageService } from 'vs/platform/storage/common/storageService';
-import * as objects from 'vs/base/common/objects';
-
-export const defaultExperiments: ITelemetryExperiments = {
-	showNewUserWatermark: false,
-	openUntitledFile: true,
-	enableWelcomePage: true,
-	mergeQuickLinks: false,
-};
+import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = {
 	_serviceBrand: undefined,
-	_experiments: defaultExperiments,
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return TPromise.as<void>(null);
 	},
@@ -39,104 +26,8 @@ export const NullTelemetryService = {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	},
-	getExperiments(): ITelemetryExperiments {
-		return this._experiments;
 	}
 };
-
-export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperiments {
-	const contextService = accessor.get(IWorkspaceContextService);
-	const storageService = accessor.get(IStorageService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	updateExperimentsOverrides(configurationService, storageService);
-	configurationService.onDidUpdateConfiguration(e => updateExperimentsOverrides(configurationService, storageService));
-
-	let {
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
-		mergeQuickLinks,
-	} = splitExperimentsRandomness(storageService);
-
-	const newUserDuration = 24 * 60 * 60 * 1000;
-	const firstSessionDate = storageService.get('telemetry.firstSessionDate');
-	const isNewUser = !firstSessionDate || Date.now() - Date.parse(firstSessionDate) < newUserDuration;
-	if (!isNewUser || contextService.hasWorkspace()) {
-		showNewUserWatermark = defaultExperiments.showNewUserWatermark;
-		openUntitledFile = defaultExperiments.openUntitledFile;
-	}
-
-	return applyOverrides({
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
-		mergeQuickLinks,
-	}, storageService);
-}
-
-export function isWelcomePageEnabled(storageService: IStorageService) {
-	const overrides = getExperimentsOverrides(storageService);
-	return 'enableWelcomePage' in overrides ? overrides.enableWelcomePage : splitExperimentsRandomness(storageService).enableWelcomePage;
-}
-
-function applyOverrides(experiments: ITelemetryExperiments, storageService: IStorageService): ITelemetryExperiments {
-	const experimentsConfig = getExperimentsOverrides(storageService);
-	Object.keys(experiments).forEach(key => {
-		if (key in experimentsConfig) {
-			experiments[key] = experimentsConfig[key];
-		}
-	});
-	return experiments;
-}
-
-function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
-	const random1 = getExperimentsRandomness(storageService);
-	const [random2, showNewUserWatermark] = splitRandom(random1);
-	const [random3, openUntitledFile] = splitRandom(random2);
-	const [random4, mergeQuickLinks] = splitRandom(random3);
-	const [, enableWelcomePage] = splitRandom(random4);
-	return {
-		showNewUserWatermark,
-		openUntitledFile,
-		enableWelcomePage,
-		mergeQuickLinks,
-	};
-}
-
-function getExperimentsRandomness(storageService: IStorageService) {
-	const key = StorageService.GLOBAL_PREFIX + 'experiments.randomness';
-	let valueString = storageService.get(key);
-	if (!valueString) {
-		valueString = Math.random().toString();
-		storageService.store(key, valueString);
-	}
-
-	return parseFloat(valueString);
-}
-
-function splitRandom(random: number): [number, boolean] {
-	const scaled = random * 2;
-	const i = Math.floor(scaled);
-	return [scaled - i, i === 1];
-}
-
-const experimentsOverridesKey = StorageService.GLOBAL_PREFIX + 'experiments.overrides';
-
-function getExperimentsOverrides(storageService: IStorageService): ITelemetryExperiments {
-	const valueString = storageService.get(experimentsOverridesKey);
-	return valueString ? JSON.parse(valueString) : <any>{};
-}
-
-function updateExperimentsOverrides(configurationService: IConfigurationService, storageService: IStorageService) {
-	const storageOverrides = getExperimentsOverrides(storageService);
-	const config: any = configurationService.getConfiguration('telemetry');
-	const configOverrides = config && config.experiments || {};
-	if (!objects.equals(storageOverrides, configOverrides)) {
-		storageService.store(experimentsOverridesKey, JSON.stringify(configOverrides));
-	}
-}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
@@ -218,6 +109,7 @@ const configurationValueWhitelist = [
 	'editor.quickSuggestionsDelay',
 	'editor.parameterHints',
 	'editor.autoClosingBrackets',
+	'editor.autoIndent',
 	'editor.formatOnType',
 	'editor.formatOnPaste',
 	'editor.suggestOnTriggerCharacters',
@@ -255,7 +147,6 @@ const configurationValueWhitelist = [
 	'window.zoomLevel',
 	'files.autoSave',
 	'files.hotExit',
-	'typescript.check.tscVersion',
 	'files.associations',
 	'workbench.statusBar.visible',
 	'files.trimTrailingWhitespace',
@@ -264,6 +155,7 @@ const configurationValueWhitelist = [
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
 	'window.reopenFolders',
+	'window.restoreWindows',
 	'extensions.autoUpdate',
 	'files.eol',
 	'explorer.openEditors.visible',
@@ -281,6 +173,7 @@ const configurationValueWhitelist = [
 	'php.validate.enable',
 	'php.validate.run',
 	'workbench.welcome.enabled',
+	'workbench.startupEditor',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {

@@ -4,41 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode } from './util';
-import parse from '@emmetio/html-matcher';
-import Node from '@emmetio/node';
+import { HtmlNode } from 'EmmetNode';
+import { getNode, parseDocument, validate } from './util';
 
-export function updateTag(tagName: string) {
+export function updateTag(tagName: string): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+	if (!validate(false)) {
+		return;
+	}
+	let rootNode = <HtmlNode>parseDocument(editor.document);
+	if (!rootNode) {
 		return;
 	}
 
-	let rootNode: Node = parse(editor.document.getText());
 	let rangesToUpdate = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
 	});
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		rangesToUpdate.forEach(range => {
 			editBuilder.replace(range, tagName);
 		});
 	});
 }
 
-function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: Node): vscode.Range[] {
-	let offset = editor.document.offsetAt(selection.start);
-	let nodeToUpdate = getNode(rootNode, offset);
+function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
+	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+	if (!nodeToUpdate) {
+		return [];
+	}
 
-	let openStart = editor.document.positionAt(nodeToUpdate.open.start + 1);
+	let openStart = nodeToUpdate.open.start.translate(0, 1);
 	let openEnd = openStart.translate(0, nodeToUpdate.name.length);
 
 	let ranges = [new vscode.Range(openStart, openEnd)];
 	if (nodeToUpdate.close) {
-		let closeStart = editor.document.positionAt(nodeToUpdate.close.start + 2);
-		let closeEnd = editor.document.positionAt(nodeToUpdate.close.end - 1);
+		let closeStart = nodeToUpdate.close.start.translate(0, 2);
+		let closeEnd = nodeToUpdate.close.end.translate(0, -1);
 		ranges.push(new vscode.Range(closeStart, closeEnd));
 	}
 	return ranges;

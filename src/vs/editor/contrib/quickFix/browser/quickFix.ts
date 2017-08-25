@@ -7,20 +7,24 @@
 import URI from 'vs/base/common/uri';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { Command, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
+export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Command[]> {
 
-	const allResults: CodeAction[] = [];
+	const allResults: Command[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
 		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
 			if (Array.isArray(result)) {
-				allResults.push(...result);
+				for (const quickFix of result) {
+					if (quickFix) {
+						allResults.push(quickFix);
+					}
+				}
 			}
 		}, err => {
 			onUnexpectedExternalError(err);

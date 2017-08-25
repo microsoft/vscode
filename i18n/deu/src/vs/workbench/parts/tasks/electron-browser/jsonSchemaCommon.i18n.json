@@ -7,6 +7,7 @@
 	"JsonSchema.options": "Weitere Befehlsoptionen",
 	"JsonSchema.options.cwd": "Das aktuelle Arbeitsverzeichnis des ausgeführten Programms oder Skripts. Wenn keine Angabe erfolgt, wird das aktuelle Arbeitsbereich-Stammverzeichnis des Codes verwendet.",
 	"JsonSchema.options.env": "Die Umgebung des ausgeführten Programms oder der Shell. Wenn keine Angabe erfolgt, wird Umgebung des übergeordneten Prozesses verwendet.",
+	"JsonSchema.shellConfiguration": "Konfiguriert die zu verwendende Shell.",
 	"JsonSchema.shell.executable": "Die zu verwendende Shell.",
 	"JsonSchema.shell.args": "Die Shell-Argumente.",
 	"JsonSchema.command": "Der auszuführende Befehl. Es kann sich um ein externes Programm oder einen Shellbefehl handeln.",

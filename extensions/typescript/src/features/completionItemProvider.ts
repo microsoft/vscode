@@ -223,8 +223,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return completionItems;
-		}, (err) => {
-			this.client.error(`'completions' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}
@@ -264,8 +263,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			return item;
-		}, (err) => {
-			this.client.error(`'completionEntryDetails' request failed with error.`, err);
+		}, () => {
 			return item;
 		});
 	}
@@ -280,7 +278,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		// Don't complete function calls inside of destructive assigments or imports
 		return this.client.execute('quickinfo', args).then(infoResponse => {
 			const info = infoResponse.body;
-			switch (info && info.kind) {
+			switch (info && info.kind as string) {
 				case 'var':
 				case 'let':
 				case 'const':

@@ -23,6 +23,11 @@ export interface IBackupFileService {
 	_serviceBrand: any;
 
 	/**
+	 * If backups are enabled.
+	 */
+	backupEnabled: boolean;
+
+	/**
 	 * Finds out if there are any backups stored.
 	 */
 	hasBackups(): TPromise<boolean>;

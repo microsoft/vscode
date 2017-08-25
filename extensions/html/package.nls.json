@@ -1,5 +1,5 @@
 {
-	"html.format.enable.desc": "Enable/disable default HTML formatter (requires restart)",
+	"html.format.enable.desc": "Enable/disable default HTML formatter",
 	"html.format.wrapLineLength.desc": "Maximum amount of characters per line (0 = disable).",
 	"html.format.unformatted.desc": "List of tags, comma separated, that shouldn't be reformatted. 'null' defaults to all tags listed at https://www.w3.org/TR/html5/dom.html#phrasing-content.",
 	"html.format.contentUnformatted.desc": "List of tags, comma separated, where the content shouldn't be reformatted. 'null' defaults to the 'pre' tag.",
@@ -18,5 +18,6 @@
 	"html.suggest.ionic.desc": "Configures if the built-in HTML language support suggests Ionic tags, properties and values.",
 	"html.suggest.html5.desc":"Configures if the built-in HTML language support suggests HTML5 tags, properties and values.",
 	"html.validate.scripts": "Configures if the built-in HTML language support validates embedded scripts.",
-	"html.validate.styles": "Configures if the built-in HTML language support validates embedded styles."
+	"html.validate.styles": "Configures if the built-in HTML language support validates embedded styles.",
+	"html.autoClosingTags.enable": "Enable/disable autoclosing of HTML tags."
 }

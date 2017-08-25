@@ -7,14 +7,14 @@
   "license": "MIT",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "enableProposedApi": true,
   "engines": {
     "vscode": "*"
   },
-  "enableProposedApi": true,
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.7",
-    "vscode-nls": "^2.0.1"
+    "vscode-extension-telemetry": "0.0.8",
+    "vscode-nls": "2.0.1"
   },
   "devDependencies": {
     "@types/node": "^7.0.4",
@@ -92,17 +92,14 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.tsdk.desc%"
+          "description": "%typescript.tsdk.desc%",
+          "scope": "window"
         },
         "typescript.disableAutomaticTypeAcquisition": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.disableAutomaticTypeAcquisition%"
-        },
-        "typescript.check.tscVersion": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.check.tscVersion%"
+          "description": "%typescript.disableAutomaticTypeAcquisition%",
+          "scope": "window"
         },
         "typescript.npm": {
           "type": [
@@ -111,12 +108,14 @@
           ],
           "default": null,
           "description": "%typescript.npm%",
-          "isExecutable": true
+          "isExecutable": true,
+          "scope": "window"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.check.npmIsInstalled%"
+          "description": "%typescript.check.npmIsInstalled%",
+          "scope": "window"
         },
         "javascript.referencesCodeLens.enabled": {
           "type": "boolean",
@@ -174,6 +173,11 @@
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
         },
+        "typescript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
+        },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
@@ -224,6 +228,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
         },
+        "typescript.format.insertSpaceAfterTypeAssertion": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterTypeAssertion%"
+        },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
@@ -248,6 +257,11 @@
           "type": "boolean",
           "default": true,
           "description": "%format.insertSpaceAfterCommaDelimiter%"
+        },
+        "javascript.format.insertSpaceAfterConstructor": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterConstructor%"
         },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
@@ -317,7 +331,8 @@
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.implicitProjectConfig.checkJs%"
+          "description": "%javascript.implicitProjectConfig.checkJs%",
+          "scope": "window"
         },
         "javascript.nameSuggestions": {
           "type": "boolean",
@@ -448,6 +463,20 @@
         "url": "http://json.schemastore.org/typings"
       }
     ],
+    "taskDefinitions": [
+      {
+        "type": "typescript",
+        "required": [
+          "tsconfig"
+        ],
+        "properties": {
+          "tsconfig": {
+            "type": "string",
+            "description": "The tsconfig file that defines the TS build"
+          }
+        }
+      }
+    ],
     "problemPatterns": [
       {
         "name": "tsc",
@@ -462,6 +491,7 @@
     "problemMatchers": [
       {
         "name": "tsc",
+        "label": "%typescript.problemMatchers.tsc.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [
@@ -472,6 +502,7 @@
       },
       {
         "name": "tsc-watch",
+        "label": "%typescript.problemMatchers.tscWatch.label%",
         "owner": "typescript",
         "applyTo": "closedDocuments",
         "fileLocation": [

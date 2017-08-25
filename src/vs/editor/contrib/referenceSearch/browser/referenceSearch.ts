@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -85,11 +84,7 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => {
-			const model = new ReferencesModel(references);
-			alert(model.getAriaMessage());
-			return model;
-		});
+		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }

@@ -123,14 +123,33 @@ export class FoldingController implements IFoldingController {
 		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
 			return;
 		}
+		let newFolded = <IFoldingRange[]>state.collapsedRegions;
 
-		// State should be applied on the clean state
-		// Clean the state
-		this.cleanState();
-		// apply state
-		this.applyRegions(<IFoldingRange[]>state.collapsedRegions);
-		// Start listening to the model
-		this.onModelChanged();
+		if (this.decorations.length > 0) {
+			let hasChanges = false;
+			let i = 0;
+			this.editor.changeDecorations(changeAccessor => {
+				this.decorations.forEach(d => {
+					if (i === newFolded.length || d.startLineNumber < newFolded[i].startLineNumber) {
+						if (d.isCollapsed) {
+							d.setCollapsed(false, changeAccessor);
+							hasChanges = true;
+						}
+					} else if (d.startLineNumber === newFolded[i].startLineNumber) {
+						if (!d.isCollapsed) {
+							d.setCollapsed(true, changeAccessor);
+							hasChanges = true;
+						}
+						i++;
+					} else {
+						return; // folding regions doesn't match, don't try to restore
+					}
+				});
+			});
+			if (hasChanges) {
+				this.updateHiddenAreas(void 0);
+			}
+		}
 	}
 
 	private cleanState(): void {
@@ -363,13 +382,14 @@ export class FoldingController implements IFoldingController {
 			if (!decRange) {
 				return;
 			}
+			let isLineHidden = line => line > decRange.startLineNumber && line <= decRange.endLineNumber;
 			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
-				if (Range.containsPosition(decRange, selection.getStartPosition())) {
+				if (isLineHidden(selection.getStartPosition().lineNumber)) {
 					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
 					updateSelections = true;
 				}
-				if (Range.containsPosition(decRange, selection.getEndPosition())) {
+				if (isLineHidden(selection.getEndPosition().lineNumber)) {
 					selections[i] = selection.setEndPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
 					updateSelections = true;
 				}

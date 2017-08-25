@@ -11,8 +11,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
-import { IWorkspaceProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
+import { IRootProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -99,30 +98,15 @@ export class IconLabel {
 
 export class FileLabel extends IconLabel {
 
-	constructor(container: HTMLElement, file: uri, provider: IWorkspaceProvider, userHome?: IUserHomeProvider) {
+	constructor(container: HTMLElement, file: uri, provider: IRootProvider, userHome?: IUserHomeProvider) {
 		super(container);
 
 		this.setFile(file, provider, userHome);
 	}
 
-	public setFile(file: uri, provider: IWorkspaceProvider, userHome: IUserHomeProvider): void {
-		const path = getPath(file);
-		const parent = paths.dirname(path);
+	public setFile(file: uri, provider: IRootProvider, userHome: IUserHomeProvider): void {
+		const parent = paths.dirname(file.fsPath);
 
-		this.setValue(paths.basename(path), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: path });
+		this.setValue(paths.basename(file.fsPath), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
 	}
-}
-
-function getPath(arg1: uri | IWorkspaceProvider): string {
-	if (!arg1) {
-		return null;
-	}
-
-	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		const ws = (<IWorkspaceProvider>arg1).getWorkspace();
-
-		return ws ? ws.resource.fsPath : void 0;
-	}
-
-	return (<uri>arg1).fsPath;
 }

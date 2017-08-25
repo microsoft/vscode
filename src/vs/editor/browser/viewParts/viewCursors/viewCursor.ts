@@ -12,6 +12,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as dom from 'vs/base/browser/dom';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -137,9 +138,9 @@ export class ViewCursor {
 			}
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = 2;
+				width = dom.computeScreenAwareSize(2);
 			} else {
-				width = 1;
+				width = dom.computeScreenAwareSize(1);
 			}
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
 			return new ViewCursorRenderData(top, visibleRange.left, width, '');

@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./messageController';
-import { any } from 'vs/base/common/event';
 import { setDisposableTimeout } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -62,12 +61,10 @@ export class MessageController {
 		this._messageWidget = new MessageWidget(this._editor, position, message);
 
 		// close on blur, cursor, model change, dispose
-		this._messageListeners.push(any<any>(
-			this._editor.onDidBlurEditorText,
-			this._editor.onDidChangeCursorPosition,
-			this._editor.onDidDispose,
-			this._editor.onDidChangeModel
-		)(this.closeMessage, this));
+		this._messageListeners.push(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+		this._messageListeners.push(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
+		this._messageListeners.push(this._editor.onDidDispose(() => this.closeMessage()));
+		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
 
 		// close after 3s
 		this._messageListeners.push(setDisposableTimeout(() => this.closeMessage(), 3000));

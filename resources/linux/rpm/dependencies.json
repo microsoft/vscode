@@ -62,7 +62,8 @@
 		"libc.so.6(GLIBC_2.7)(64bit)",
 		"libc.so.6(GLIBC_2.9)(64bit)",
 		"libxcb.so.1()(64bit)",
-		"libxkbfile.so.1()(64bit)"
+		"libxkbfile.so.1()(64bit)",
+		"libsecret-1.so.0()(64bit)"
 	],
 	"i386": [
 		"ld-linux.so.2",
@@ -140,6 +141,7 @@
 		"libstdc++.so.6(GLIBCXX_3.4.15)",
 		"libstdc++.so.6(GLIBCXX_3.4.9)",
 		"libxcb.so.1",
-		"libxkbfile.so.1"
+		"libxkbfile.so.1",
+		"libsecret-1.so.0"
 	]
 }
