@@ -976,7 +976,7 @@ export class Workbench implements IPartService {
 			const workspace = event.payload;
 
 			// We are transitioning into a workspace from an empty workspace or workspace, and
-			// as such we want to migrate UI state from the current workspace to the new one. 
+			// as such we want to migrate UI state from the current workspace to the new one.
 			if (isWorkspaceIdentifier(workspace)) {
 				event.veto(this.instantiationService.createInstance(WorkspaceMigrationService).migrate(workspace).then(() => false, () => false));
 			}
