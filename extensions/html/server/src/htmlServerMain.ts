@@ -9,7 +9,7 @@ import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
-import { GetConfigurationRequest } from 'vscode-languageserver/lib/protocol.proposed';
+import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
