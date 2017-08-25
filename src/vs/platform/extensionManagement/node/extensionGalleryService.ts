@@ -233,7 +233,7 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 	const assets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -265,7 +265,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		},
 		telemetryData: {
 			index: ((query.pageNumber - 1) * query.pageSize) + index,
-			searchText: query.searchText
+			searchText: query.searchText,
+			querySource
 		}
 	};
 }
@@ -355,12 +356,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query));
+			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = pageIndex => {
 				const nextPageQuery = query.withPage(pageIndex + 1);
 				return this.queryGallery(nextPageQuery)
-					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery)));
+					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
 			};
 
 			return { firstPage: extensions, total, pageSize, getPage };

@@ -194,6 +194,7 @@ export interface IQueryOptions {
 	pageSize?: number;
 	sortBy?: SortBy;
 	sortOrder?: SortOrder;
+	source?: string;
 }
 
 export enum StatisticType {
