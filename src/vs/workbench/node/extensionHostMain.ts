@@ -163,15 +163,14 @@ export class ExtensionHostMain {
 				return this._diskSearch.search(query).then(result => result.results.length ? p : undefined);
 			} else {
 				// find exact path
-				return new TPromise<string>(async resolve => {
+				return (async resolve => {
 					for (const { fsPath } of this._workspace.roots) {
 						if (await pfs.exists(join(fsPath, p))) {
-							resolve(p);
-							return;
+							return p;
 						}
 					}
-					resolve(undefined);
-				});
+					return undefined;
+				})();
 			}
 		});
 
