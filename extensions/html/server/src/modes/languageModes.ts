@@ -41,6 +41,7 @@ export interface LanguageMode {
 	findReferences?: (document: TextDocument, position: Position) => Location[];
 	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
 	findColorSymbols?: (document: TextDocument) => Range[];
+	doAutoClose?: (document: TextDocument, position: Position) => string;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
