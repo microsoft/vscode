@@ -114,23 +114,6 @@ export class ColorDetector implements IEditorContribution {
 			return;
 		}
 
-		for (const provider of ColorProviderRegistry.all(model)) {
-			if (typeof provider.onDidChange === 'function') {
-				let registration = provider.onDidChange(() => {
-					if (this._timeoutPromise) {
-						this._timeoutPromise.cancel();
-						this._timeoutPromise = null;
-					}
-					if (this._computePromise) {
-						this._computePromise.cancel();
-						this._computePromise = null;
-					}
-					this.beginCompute();
-				});
-				this._localToDispose.push(registration);
-			}
-		}
-
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
 			if (!this._timeoutPromise) {
 				this._timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
