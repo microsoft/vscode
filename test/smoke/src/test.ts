@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { testDataLoss } from './tests/data-loss';
 import { testDataMigration } from './tests/data-migration';
+import { testDataLoss } from './tests/data-loss';
 import { testExplorer } from './tests/explorer';
 import { testConfigViews } from './tests/configuration-views';
 import { testSearch } from './tests/search';

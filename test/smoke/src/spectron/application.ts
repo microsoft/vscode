@@ -68,13 +68,9 @@ export class SpectronApplication {
 	}
 
 	public async start(): Promise<any> {
-		try {
-			await this.spectron.start();
-			await this.focusOnWindow(1); // focuses on main renderer window
-			return this.checkWindowReady();
-		} catch (err) {
-			throw err;
-		}
+		await this.spectron.start();
+		await this.focusOnWindow(1); // focuses on main renderer window
+		await this.checkWindowReady();
 	}
 
 	public async stop(): Promise<any> {
@@ -95,8 +91,8 @@ export class SpectronApplication {
 		return this.client.windowByIndex(index);
 	}
 
-	private checkWindowReady(): Promise<any> {
-		return this.waitFor(this.spectron.client.getHTML, '[id="workbench.main.container"]');
+	private async checkWindowReady(): Promise<any> {
+		await this.waitFor(this.spectron.client.getHTML, '[id="workbench.main.container"]');
 	}
 
 	private retrieveKeybindings() {
@@ -112,30 +108,27 @@ export class SpectronApplication {
 		});
 	}
 
-	private callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
+	private async callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
 		let trial = 1;
-		return new Promise(async (res, rej) => {
-			while (true) {
-				if (trial > this.pollTrials) {
-					rej(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
-					break;
-				}
 
-				let result;
-				try {
-					result = await func.call(this.client, args, false);
-				} catch (e) { }
-
-				if (result && result !== '') {
-					await this.screenshot.capture();
-					res(result);
-					break;
-				}
-
-				await this.wait();
-				trial++;
+		while (true) {
+			if (trial > this.pollTrials) {
+				throw new Error(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
 			}
-		});
+
+			let result;
+			try {
+				result = await func.call(this.client, args, false);
+			} catch (e) { }
+
+			if (result && result !== '') {
+				await this.screenshot.capture();
+				return result;
+			}
+
+			await this.wait();
+			trial++;
+		}
 	}
 
 	/**

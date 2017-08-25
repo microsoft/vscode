@@ -130,55 +130,57 @@ export class JavaScript {
 	}
 
 	private getLineIndexOfFirst(string: string, selector: string): Promise<number> {
-		return new Promise(async (res, rej) => {
-			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
-			let lineIndex: number = 0;
-			let stringFound: boolean;
-			let parser = new htmlparser.Parser({
-				onopentag: function (name: string, attribs: any) {
-					if (name === 'div' && attribs.class === 'view-line') {
-						lineIndex++;
+		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+			return new Promise<number>((res, rej) => {
+				let lineIndex: number = 0;
+				let stringFound: boolean;
+				let parser = new htmlparser.Parser({
+					onopentag: function (name: string, attribs: any) {
+						if (name === 'div' && attribs.class === 'view-line') {
+							lineIndex++;
+						}
+					},
+					ontext: function (text) {
+						if (!stringFound && text === string) {
+							stringFound = true;
+							parser.end();
+						}
+					},
+					onend: function () {
+						if (!stringFound) {
+							return rej(`No ${string} in editor found.`);
+						}
+						return res(lineIndex);
 					}
-				},
-				ontext: function (text) {
-					if (!stringFound && text === string) {
-						stringFound = true;
-						parser.end();
-					}
-				},
-				onend: function () {
-					if (!stringFound) {
-						return rej(`No ${string} in editor found.`);
-					}
-					return res(lineIndex);
-				}
+				});
+				parser.write(html);
 			});
-			parser.write(html);
 		});
 	}
 
 	private getLineIndexOfFirstFoldableElement(selector: string): Promise<number> {
-		return new Promise(async (res, rej) => {
-			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
-			let lineIndex: number = 0;
-			let foldFound: boolean;
-			let parser = new htmlparser.Parser({
-				onopentag: function (name: string, attribs: any) {
-					if (name === 'div' && !attribs.class) {
-						lineIndex++;
-					} else if (name === 'div' && attribs.class.indexOf('cldr folding') !== -1) {
-						foldFound = true;
-						parser.end();
+		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+			return new Promise<number>((res, rej) => {
+				let lineIndex: number = 0;
+				let foldFound: boolean;
+				let parser = new htmlparser.Parser({
+					onopentag: function (name: string, attribs: any) {
+						if (name === 'div' && !attribs.class) {
+							lineIndex++;
+						} else if (name === 'div' && attribs.class.indexOf('cldr folding') !== -1) {
+							foldFound = true;
+							parser.end();
+						}
+					},
+					onend: function () {
+						if (!foldFound) {
+							return rej(`No foldable elements found.`);
+						}
+						return res(lineIndex);
 					}
-				},
-				onend: function () {
-					if (!foldFound) {
-						return rej(`No foldable elements found.`);
-					}
-					return res(lineIndex);
-				}
+				});
+				parser.write(html);
 			});
-			parser.write(html);
 		});
 	}
 }
