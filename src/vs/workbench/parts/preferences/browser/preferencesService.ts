@@ -116,6 +116,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
 
+	getFolderSettingsResource(resource: URI): URI {
+		return this.getEditableSettingsURI(ConfigurationTarget.FOLDER, resource);
+	}
+
 	resolveContent(uri: URI): TPromise<string> {
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
