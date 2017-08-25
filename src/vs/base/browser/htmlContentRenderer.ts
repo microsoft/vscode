@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
@@ -102,12 +101,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
-		if (!href || href.match(/^data:|javascript:/i)) {
+		if (
+			!href
+			|| href.match(/^data:|javascript:/i)
+			|| (href.match(/^command:/i) && !markdown.isTrusted)
+		) {
+			// drop the link
 			return text;
-		} else if (href.match(/^command:/i)) {
-			return markdown.trusted
-				? `<a href="#" data-href="${href}" title="${localize('hover.command', "Click to execute command")}">${text}&nbsp;<span class="octicon octicon-terminal"></span></a>`
-				: text;
 
 		} else {
 			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;

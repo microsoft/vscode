@@ -10,13 +10,13 @@ import { marked } from 'vs/base/common/marked/marked';
 
 export interface IMarkdownString {
 	value: string;
-	trusted?: true;
+	isTrusted?: boolean;
 }
 
 export class MarkdownString implements IMarkdownString {
 
 	value: string;
-	trusted?: true;
+	isTrusted?: boolean;
 
 	constructor(value: string = '') {
 		this.value = value;
@@ -58,7 +58,7 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 		return true;
 	} else if (typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).trusted === 'boolean' || (<IMarkdownString>thing).trusted === void 0);
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
 	}
 	return false;
 }
@@ -83,7 +83,7 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.trusted === b.trusted;
+		return a.value === b.value && a.isTrusted === b.isTrusted;
 	}
 }
 
