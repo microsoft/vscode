@@ -2821,7 +2821,7 @@ declare module monaco.editor {
 		scrollBeyondLastLine?: boolean;
 		/**
 		 * Enable that the editor animates scrolling to a position.
-		 * Defaults to true.
+		 * Defaults to false.
 		 */
 		smoothScrolling?: boolean;
 		/**

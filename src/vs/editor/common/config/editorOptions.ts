@@ -268,7 +268,7 @@ export interface IEditorOptions {
 	scrollBeyondLastLine?: boolean;
 	/**
 	 * Enable that the editor animates scrolling to a position.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	smoothScrolling?: boolean;
 	/**
@@ -2139,7 +2139,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorStyle: TextEditorCursorStyle.Line,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
-		smoothScrolling: true,
+		smoothScrolling: false,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
 		renderControlCharacters: false,
