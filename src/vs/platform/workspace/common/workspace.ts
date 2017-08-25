@@ -156,7 +156,7 @@ export class Workspace implements IWorkspace {
 
 		return roots.map(root => {
 			if (paths.isAbsolute(root.fsPath)) {
-				return root;
+				return URI.file(root.fsPath);
 			}
 
 			return URI.file(paths.join(paths.dirname(this.configuration.fsPath), root.fsPath));
