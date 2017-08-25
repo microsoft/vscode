@@ -5452,8 +5452,8 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * The [input box](#SourceControlInputBox) for the last source control
-		 * created by the extension.
+		 * ~~The [input box](#SourceControlInputBox) for the last source control
+		 * created by the extension.~~
 		 *
 		 * @deprecated Use [SourceControl.inputBox](#SourceControl.inputBox) instead
 		 */
