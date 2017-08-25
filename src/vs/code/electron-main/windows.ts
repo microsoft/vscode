@@ -32,7 +32,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicLabel } from 'vs/base/common/labels';
-import URI from 'vs/base/common/uri';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1240,7 +1239,7 @@ export class WindowsManager implements IWindowsMainService {
 			} else {
 				const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
 				if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
-					defaultPath = path.dirname(URI.parse(resolvedWorkspace.folders[0].uri).fsPath);
+					defaultPath = path.dirname(resolvedWorkspace.folders[0].path);
 				}
 			}
 		}

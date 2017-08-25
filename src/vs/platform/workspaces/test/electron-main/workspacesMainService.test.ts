@@ -73,8 +73,8 @@ suite('WorkspacesMainService', () => {
 
 			const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
 			assert.equal(ws.folders.length, 2); //
-			assert.equal(ws.folders[0].uri, process.cwd());
-			assert.equal(ws.folders[1].uri, os.tmpdir());
+			assert.equal(ws.folders[0].path, process.cwd());
+			assert.equal(ws.folders[1].path, os.tmpdir());
 
 			done();
 		});
@@ -125,8 +125,8 @@ suite('WorkspacesMainService', () => {
 
 				const ws = JSON.parse(fs.readFileSync(savedWorkspace.configPath).toString()) as IStoredWorkspace;
 				assert.equal(ws.folders.length, 2);
-				assert.equal(ws.folders[0].uri, process.cwd());
-				assert.equal(ws.folders[1].uri, os.tmpdir());
+				assert.equal(ws.folders[0].path, process.cwd());
+				assert.equal(ws.folders[1].path, os.tmpdir());
 
 				assert.equal(savedWorkspace, savedEvent.workspace);
 				assert.equal(workspace.configPath, savedEvent.oldConfigPath);
@@ -156,8 +156,8 @@ suite('WorkspacesMainService', () => {
 
 					const ws = JSON.parse(fs.readFileSync(newSavedWorkspace.configPath).toString()) as IStoredWorkspace;
 					assert.equal(ws.folders.length, 2);
-					assert.equal(ws.folders[0].uri, process.cwd());
-					assert.equal(ws.folders[1].uri, os.tmpdir());
+					assert.equal(ws.folders[0].path, process.cwd());
+					assert.equal(ws.folders[1].path, os.tmpdir());
 
 					extfs.delSync(workspaceConfigPath);
 					extfs.delSync(newWorkspaceConfigPath);

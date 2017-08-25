@@ -33,7 +33,7 @@ export interface IWorkspaceIdentifier {
 }
 
 export interface IStoredWorkspaceFolder {
-	uri: string;
+	path: string;
 }
 
 export interface IStoredWorkspace {

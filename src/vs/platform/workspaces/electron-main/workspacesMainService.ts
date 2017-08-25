@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
+import URI from 'vs/base/common/uri';
 
 // TODO@Ben migration
 export interface ILegacyStoredWorkspace {
@@ -74,7 +75,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			const legacyStoredWorkspace = rawWorkspace as ILegacyStoredWorkspace;
 			if (typeof legacyStoredWorkspace.id === 'string') {
 				delete legacyStoredWorkspace.id;
-				(rawWorkspace as IStoredWorkspace).folders = legacyStoredWorkspace.folders.map(folder => ({ uri: folder }));
+				(rawWorkspace as IStoredWorkspace).folders = legacyStoredWorkspace.folders.map(folder => ({ path: URI.parse(folder).fsPath }));
 				writeFileSync(path, JSON.stringify(rawWorkspace, null, '\t'));
 			}
 
@@ -106,7 +107,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return mkdirp(untitledWorkspaceConfigFolder).then(() => {
 			const storedWorkspace: IStoredWorkspace = {
 				folders: folders.map(folder => ({
-					uri: folder
+					path: folder
 				}))
 			};
 

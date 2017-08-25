@@ -455,7 +455,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				default: {
 					folders: [
 						{
-							uri: 'file:///'
+							path: ''
 						}
 					],
 					settings: {
@@ -466,14 +466,13 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 					'folders': {
 						minItems: 1,
 						uniqueItems: true,
-						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `file:///root/folderA`"),
+						description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace. Must be a file path. e.g. `/root/folderA`"),
 						items: {
 							type: 'object',
-							default: { uri: 'file:///' },
+							default: { path: '' },
 							properties: {
-								uri: {
-									type: 'string',
-									pattern: '^file:\/\/[^/]*\/'
+								path: {
+									type: 'string'
 								}
 							}
 						}

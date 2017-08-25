@@ -14,6 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { isLinux } from 'vs/base/common/platform';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -51,8 +52,8 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 
 	private parseFolders(): URI[] {
 		const folders: IStoredWorkspaceFolder[] = this._raw['folders'] || [];
-		return distinct(folders.map(folder => URI.parse(folder.uri))
-			.filter(r => r.scheme === Schemas.file), folder => folder.toString(true)); // only support files for now
+		return distinct(folders.map(folder => URI.file(folder.path))
+			.filter(r => r.scheme === Schemas.file), folder => isLinux ? folder.fsPath : folder.fsPath.toLowerCase()); // only support files for now
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {
