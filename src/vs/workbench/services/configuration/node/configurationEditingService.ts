@@ -86,7 +86,8 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
 		return this.resolveAndValidate(target, operation, checkDirtyConfiguration, options.scopes || {})
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration));
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration)
+				.then(() => reference.dispose()));
 	}
 
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
