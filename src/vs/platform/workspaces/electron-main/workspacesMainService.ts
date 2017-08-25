@@ -5,11 +5,11 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { extname, join, dirname } from 'path';
+import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { readFileSync, writeFileSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
@@ -79,10 +79,21 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				writeFileSync(path, JSON.stringify(rawWorkspace, null, '\t'));
 			}
 
+			let absoluteFolders: IStoredWorkspaceFolder[] = [];
+			workspace.folders.forEach(folder => {
+				if (isAbsolute(folder.path)) {
+					absoluteFolders.push(folder);
+				} else {
+					absoluteFolders.push({
+						path: resolve(dirname(path), folder.path) // relative paths get resolved against the workspace location
+					});
+				}
+			});
+
 			return {
 				id: this.getWorkspaceId(path),
 				configPath: path,
-				folders: workspace.folders
+				folders: absoluteFolders
 			};
 		} catch (error) {
 			this.logService.log(`${path} cannot be parsed as JSON file (${error}).`);

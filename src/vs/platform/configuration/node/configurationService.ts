@@ -32,7 +32,7 @@ export class ConfigurationService<T> extends Disposable implements IConfiguratio
 
 		this.userConfigModelWatcher = new ConfigWatcher(environmentService.appSettingsPath, {
 			changeBufferDelay: 300, onError: error => onUnexpectedError(error), defaultConfig: new CustomConfigurationModel<T>(null, environmentService.appSettingsPath), parse: (content: string, parseErrors: any[]) => {
-				const userConfigModel = new CustomConfigurationModel<T>(content, environmentService.appSettingsPath);
+				const userConfigModel = new CustomConfigurationModel<T>(null, content, environmentService.appSettingsPath);
 				parseErrors = [...userConfigModel.errors];
 				return userConfigModel;
 			}

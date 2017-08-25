@@ -8,6 +8,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as json from 'vs/base/common/json';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationModel, IOverrides } from 'vs/platform/configuration/common/configuration';
+import URI from 'vs/base/common/uri';
 
 export function getDefaultValues(): any {
 	const valueTreeRoot: any = Object.create(null);
@@ -93,7 +94,7 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 
 	protected _parseErrors: any[] = [];
 
-	constructor(content: string = '', private name: string = '') {
+	constructor(private contentPath?: URI, content: string = '', private name: string = '') {
 		super();
 		if (content) {
 			this.update(content);
@@ -169,7 +170,7 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 				this._parseErrors = [e];
 			}
 		}
-		this.processRaw(parsed);
+		this.processRaw(parsed, this.contentPath);
 
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		this._overrides = overrides.map<IOverrides<T>>(override => {
@@ -187,7 +188,7 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 		});
 	}
 
-	protected processRaw(raw: T): void {
+	protected processRaw(raw: T, contentPath?: URI): void {
 		this._contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this.name}: ${message}`));
 		this._keys = Object.keys(raw);
 	}

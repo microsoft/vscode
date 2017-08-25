@@ -16,6 +16,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { LogMainService } from 'vs/platform/log/common/log';
+import URI from 'vs/base/common/uri';
 
 suite('WorkspacesMainService', () => {
 	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
@@ -97,6 +98,39 @@ suite('WorkspacesMainService', () => {
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ something: 'something' })); // invalid workspace
 			const resolvedInvalid = service.resolveWorkspaceSync(workspace.configPath);
 			assert.ok(!resolvedInvalid);
+
+			done();
+		});
+	});
+
+	test('resolveWorkspace (support relative paths)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: './ticino-playground/lib' }] }));
+
+			const resolved = service.resolveWorkspaceSync(workspace.configPath);
+			assert.equal(resolved.folders[0].path, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
+
+			done();
+		});
+	});
+
+	test('resolveWorkspace (support relative paths #2)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: './ticino-playground/lib/../other' }] }));
+
+			const resolved = service.resolveWorkspaceSync(workspace.configPath);
+			assert.equal(resolved.folders[0].path, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'other')).fsPath);
+
+			done();
+		});
+	});
+
+	test('resolveWorkspace (support relative paths #3)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: 'ticino-playground/lib' }] }));
+
+			const resolved = service.resolveWorkspaceSync(workspace.configPath);
+			assert.equal(resolved.folders[0].path, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
 
 			done();
 		});

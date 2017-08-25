@@ -15,6 +15,7 @@ import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, Confi
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { isLinux } from 'vs/base/common/platform';
+import { isAbsolute, join, dirname } from 'vs/base/common/paths';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -24,6 +25,10 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	private _tasksConfiguration: ConfigurationModel<T>;
 	private _launchConfiguration: ConfigurationModel<T>;
 	private _workspaceConfiguration: ConfigurationModel<T>;
+
+	constructor(workspaceConfigPath: URI, content: string = '', name: string = '') {
+		super(workspaceConfigPath, content, name);
+	}
 
 	public update(content: string): void {
 		super.update(content);
@@ -39,20 +44,30 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		return this._workspaceConfiguration;
 	}
 
-	protected processRaw(raw: T): void {
+	protected processRaw(raw: T, contentPath: URI): void {
 		this._raw = raw;
 
-		this._folders = this.parseFolders();
+		this._folders = this.parseFolders(contentPath);
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
 		this._tasksConfiguration = this.parseConfigurationModel('tasks');
 		this._launchConfiguration = this.parseConfigurationModel('launch');
 
-		super.processRaw(raw);
+		super.processRaw(raw, contentPath);
 	}
 
-	private parseFolders(): URI[] {
+	private parseFolders(contentPath: URI): URI[] {
 		const folders: IStoredWorkspaceFolder[] = this._raw['folders'] || [];
-		return distinct(folders.map(folder => URI.file(folder.path))
+
+		let absoluteFolderPaths: string[] = [];
+		folders.forEach(folder => {
+			if (isAbsolute(folder.path)) {
+				absoluteFolderPaths.push(folder.path);
+			} else {
+				absoluteFolderPaths.push(join(dirname(contentPath.fsPath), folder.path));
+			}
+		});
+
+		return distinct(absoluteFolderPaths.map(folder => URI.file(folder))
 			.filter(r => r.scheme === Schemas.file), folder => isLinux ? folder.fsPath : folder.fsPath.toLowerCase()); // only support files for now
 	}
 

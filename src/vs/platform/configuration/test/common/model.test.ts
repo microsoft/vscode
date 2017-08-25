@@ -29,20 +29,20 @@ suite('Configuration', () => {
 	});
 
 	test('simple merge using models', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new CustomConfigurationModel(JSON.stringify({ 'a': 3, 'c': 4 }));
+		let base = new CustomConfigurationModel(null, JSON.stringify({ 'a': 1, 'b': 2 }));
+		let add = new CustomConfigurationModel(null, JSON.stringify({ 'a': 3, 'c': 4 }));
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
 	test('simple merge with an undefined contents', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
+		let base = new CustomConfigurationModel(null, JSON.stringify({ 'a': 1, 'b': 2 }));
 		let add = new CustomConfigurationModel(null);
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
 		base = new CustomConfigurationModel(null);
-		add = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
+		add = new CustomConfigurationModel(null, JSON.stringify({ 'a': 1, 'b': 2 }));
 		result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
@@ -53,22 +53,22 @@ suite('Configuration', () => {
 	});
 
 	test('Recursive merge using config models', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		let add = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 2 } }));
+		let base = new CustomConfigurationModel(null, JSON.stringify({ 'a': { 'b': 1 } }));
+		let add = new CustomConfigurationModel(null, JSON.stringify({ 'a': { 'b': 2 } }));
 		let result = base.merge(add);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
-		let testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1 }));
+		let testObject = new CustomConfigurationModel(null, JSON.stringify({ 'a': 1 }));
 		assert.deepEqual(testObject.getContentsFor('a'), 1);
 
-		testObject = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
+		testObject = new CustomConfigurationModel(null, JSON.stringify({ 'a': { 'b': 1 } }));
 		assert.deepEqual(testObject.getContentsFor('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new CustomConfigurationModel(JSON.stringify({
+		const testObject = new CustomConfigurationModel(null, JSON.stringify({
 			awesome: true
 		}));
 
@@ -82,7 +82,7 @@ suite('Configuration', () => {
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
-		const testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+		const testObject = new CustomConfigurationModel(null, JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
 		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
