@@ -94,7 +94,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 	constructor(content: string, name: string, public readonly scope: string) {
-		super(null, name);
+		super(null, null, name);
 		this.update(content);
 	}
 
