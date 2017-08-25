@@ -6,16 +6,12 @@
 
 import { clone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { distinct } from 'vs/base/common/arrays';
 import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { isLinux } from 'vs/base/common/platform';
-import { isAbsolute, join, dirname } from 'vs/base/common/paths';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -26,8 +22,8 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	private _launchConfiguration: ConfigurationModel<T>;
 	private _workspaceConfiguration: ConfigurationModel<T>;
 
-	constructor(workspaceConfigPath: URI, content: string = '', name: string = '') {
-		super(workspaceConfigPath, content, name);
+	constructor(content: string = '', name: string = '') {
+		super(content, name);
 	}
 
 	public update(content: string): void {
@@ -44,31 +40,21 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		return this._workspaceConfiguration;
 	}
 
-	protected processRaw(raw: T, contentPath: URI): void {
+	protected processRaw(raw: T): void {
 		this._raw = raw;
 
-		this._folders = this.parseFolders(contentPath);
+		this._folders = this.parseFolders();
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
 		this._tasksConfiguration = this.parseConfigurationModel('tasks');
 		this._launchConfiguration = this.parseConfigurationModel('launch');
 
-		super.processRaw(raw, contentPath);
+		super.processRaw(raw);
 	}
 
-	private parseFolders(contentPath: URI): URI[] {
+	private parseFolders(): URI[] {
 		const folders: IStoredWorkspaceFolder[] = this._raw['folders'] || [];
 
-		let absoluteFolderPaths: string[] = [];
-		folders.forEach(folder => {
-			if (isAbsolute(folder.path)) {
-				absoluteFolderPaths.push(folder.path);
-			} else {
-				absoluteFolderPaths.push(join(dirname(contentPath.fsPath), folder.path));
-			}
-		});
-
-		return distinct(absoluteFolderPaths.map(folder => URI.file(folder))
-			.filter(r => r.scheme === Schemas.file), folder => isLinux ? folder.fsPath : folder.fsPath.toLowerCase()); // only support files for now
+		return folders.map(folder => URI.parse(folder.path));
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {
@@ -94,7 +80,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 	constructor(content: string, name: string, public readonly scope: string) {
-		super(null, null, name);
+		super(null, name);
 		this.update(content);
 	}
 

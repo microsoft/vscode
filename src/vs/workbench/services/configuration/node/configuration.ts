@@ -527,7 +527,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	private onWorkspaceConfigurationChanged(): void {
 		let configuredFolders = this.workspaceConfiguration.workspaceConfigurationModel.folders;
 		const foldersChanged = !equals(this.workspace.roots, configuredFolders, (r1, r2) => r1.toString() === r2.toString());
-		if (foldersChanged) {
+		if (foldersChanged) { // TODO@Sandeep be smarter here about detecting changes
 			this.workspace.roots = configuredFolders;
 			this.onFoldersChanged()
 				.then(configurationChanged => {
@@ -609,8 +609,8 @@ class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfigurationWatcherDisposables = dispose(this._workspaceConfigurationWatcherDisposables);
 		return new TPromise<void>((c, e) => {
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
-				changeBufferDelay: 300, onError: error => errors.onUnexpectedError(error), defaultConfig: new WorkspaceConfigurationModel(this._workspaceConfigPath, null, this._workspaceConfigPath.fsPath), parse: (content: string, parseErrors: any[]) => {
-					const workspaceConfigurationModel = new WorkspaceConfigurationModel(this._workspaceConfigPath, content, this._workspaceConfigPath.fsPath);
+				changeBufferDelay: 300, onError: error => errors.onUnexpectedError(error), defaultConfig: new WorkspaceConfigurationModel(null, this._workspaceConfigPath.fsPath), parse: (content: string, parseErrors: any[]) => {
+					const workspaceConfigurationModel = new WorkspaceConfigurationModel(content, this._workspaceConfigPath.fsPath);
 					parseErrors = [...workspaceConfigurationModel.errors];
 					return workspaceConfigurationModel;
 				}, initCallback: () => c(null)
@@ -621,7 +621,7 @@ class WorkspaceConfiguration extends Disposable {
 	}
 
 	get workspaceConfigurationModel(): WorkspaceConfigurationModel<any> {
-		return this._workspaceConfigurationWatcher ? this._workspaceConfigurationWatcher.getConfig() : new WorkspaceConfigurationModel(this._workspaceConfigPath);
+		return this._workspaceConfigurationWatcher ? this._workspaceConfigurationWatcher.getConfig() : new WorkspaceConfigurationModel();
 	}
 
 	private _reload(): TPromise<void> {
@@ -749,7 +749,7 @@ class FolderConfiguration<T> extends Disposable {
 	private createConfigModel<T>(content: IContent): ConfigurationModel<T> {
 		const path = this.toFolderRelativePath(content.resource);
 		if (path === WORKSPACE_CONFIG_DEFAULT_PATH) {
-			return new FolderSettingsModel<T>(content.resource, content.value, content.resource.toString());
+			return new FolderSettingsModel<T>(content.value, content.resource.toString());
 		} else {
 			const matches = /\/([^\.]*)*\.json/.exec(path);
 			if (matches && matches[1]) {
