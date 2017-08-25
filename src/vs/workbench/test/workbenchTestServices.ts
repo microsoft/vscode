@@ -112,10 +112,6 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public saveWorkspace(location: URI): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public getRoot(resource: URI): URI {
 		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
 	}
@@ -876,6 +872,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	saveAndOpenWorkspace(path: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	toggleFullScreen(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1009,6 +1009,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

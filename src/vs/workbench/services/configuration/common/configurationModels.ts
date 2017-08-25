@@ -6,13 +6,12 @@
 
 import { clone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { distinct } from 'vs/base/common/arrays';
 import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
@@ -49,9 +48,15 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	}
 
 	private parseFolders(): URI[] {
-		const folders: string[] = this._raw['folders'] || [];
-		return distinct(folders.map(folder => URI.parse(folder))
-			.filter(r => r.scheme === Schemas.file), folder => folder.toString(true)); // only support files for now
+		const folders: IStoredWorkspaceFolder[] = this._raw['folders'] || [];
+
+		return folders.map(folder => {
+			try {
+				return URI.parse(folder.path);
+			} catch (error) {
+				return null; // parsing a URI can fail for invalid characters
+			}
+		}).filter(f => !!f);
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {

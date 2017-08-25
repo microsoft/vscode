@@ -543,7 +543,7 @@ export function handleWorkspaceExternalDrop(
 
 		// Multiple folders: Create new workspace with folders and open
 		else if (folders.length > 1) {
-			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.toString(true /* skip encoding to preserve drive letters readable */))).then(workspace => [workspace.configPath]);
+			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.fsPath)).then(workspace => [workspace.configPath]);
 		}
 
 		// Open

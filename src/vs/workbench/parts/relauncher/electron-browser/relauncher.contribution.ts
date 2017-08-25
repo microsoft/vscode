@@ -31,7 +31,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 	private rootCount: number;
-	private workspaceId: string;
 	private firstRootPath: string;
 
 	constructor(
@@ -48,7 +47,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		if (workspace) {
 			this.rootCount = workspace.roots.length;
 			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-			this.workspaceId = workspace.id;
 		} else {
 			this.rootCount = 0;
 		}
@@ -106,7 +104,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 		const newRootCount = workspace ? workspace.roots.length : 0;
 		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-		const newWorkspaceId = workspace ? workspace.id : void 0;
 
 		let reloadWindow = false;
 		let reloadExtensionHost = false;
@@ -117,17 +114,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			reloadWindow = true; // transition: from 1+ folders to 0
 		}
 
-		if (this.workspaceId !== newWorkspaceId) {
-			reloadWindow = true; // workspace id changed
-		}
-
 		if (this.firstRootPath !== newFirstRootPath) {
 			reloadExtensionHost = true; // first root folder changed (impact on deprecated workspace.rootPath API)
 		}
 
 		this.rootCount = newRootCount;
 		this.firstRootPath = newFirstRootPath;
-		this.workspaceId = newWorkspaceId;
 
 		// Reload window if this is needed
 		if (reloadWindow) {

@@ -32,10 +32,15 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
-export interface IStoredWorkspace {
-	id: string;
-	folders: string[];
+export interface IStoredWorkspaceFolder {
+	path: string;
 }
+
+export interface IStoredWorkspace {
+	folders: IStoredWorkspaceFolder[];
+}
+
+export interface IResolvedWorkspace extends IWorkspaceIdentifier, IStoredWorkspace { }
 
 export interface IWorkspaceSavedEvent {
 	workspace: IWorkspaceIdentifier;
@@ -46,21 +51,24 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
 	onWorkspaceSaved: Event<IWorkspaceSavedEvent>;
-	onWorkspaceDeleted: Event<IWorkspaceIdentifier>;
+	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
-	resolveWorkspaceSync(path: string): IStoredWorkspace;
+	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+
+	resolveWorkspaceSync(path: string): IResolvedWorkspace;
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
+
+	getWorkspaceId(workspacePath: string): string;
 }
 
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {

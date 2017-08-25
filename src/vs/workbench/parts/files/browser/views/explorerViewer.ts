@@ -895,7 +895,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					const currentRoots = this.contextService.getWorkspace().roots;
 					const newRoots = [...currentRoots, ...folders];
 
-					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.toString(true /* skip encoding to preserve drive letters readable */))));
+					return this.windowService.createAndOpenWorkspace(distinct(newRoots.map(root => root.fsPath)));
 				}
 			}
 

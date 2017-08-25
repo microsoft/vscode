@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -35,28 +35,6 @@ export class BackupMainService implements IBackupMainService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		this.loadSync();
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
-	}
-
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// A workspace was saved to a new configuration location. Make sure to update
-		// our backup state with this new location.
-		let needsUpdate = false;
-		this.backups.rootWorkspaces.forEach(workspace => {
-			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
-				workspace.configPath = e.workspace.configPath;
-				needsUpdate = true;
-			}
-		});
-
-		if (needsUpdate) {
-			this.saveSync();
-		}
 	}
 
 	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
@@ -245,7 +223,7 @@ export class BackupMainService implements IBackupMainService {
 			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
 			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
-			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+			const missingWorkspace = hasBackups && (!fs.existsSync(workspacePath) || workspaceId !== this.workspacesService.getWorkspaceId(workspacePath) /* TODO@Ben migration to new workspace id */);
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones

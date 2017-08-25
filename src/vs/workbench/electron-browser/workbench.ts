@@ -975,11 +975,9 @@ export class Workbench implements IPartService {
 		if (event.reason === ShutdownReason.RELOAD) {
 			const workspace = event.payload;
 
-			// We are transitioning into a workspace from an empty workspace or folder workspace
-			// As such we want to migrate UI state from the current workspace to the new one. Since
-			// many components write to storage only on shutdown, we register a shutdown listener
-			// very late to be called as the last one.
-			if (isWorkspaceIdentifier(workspace) && !this.contextService.hasMultiFolderWorkspace()) {
+			// We are transitioning into a workspace from an empty workspace or workspace, and
+			// as such we want to migrate UI state from the current workspace to the new one.
+			if (isWorkspaceIdentifier(workspace)) {
 				event.veto(this.instantiationService.createInstance(WorkspaceMigrationService).migrate(workspace).then(() => false, () => false));
 			}
 		}

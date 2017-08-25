@@ -155,7 +155,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	private createWorkspace(folders: URI[]): TPromise<void> {
-		const workspaceFolders = distinct(folders.map(folder => folder.toString(true /* skip encoding to preserve drive letters readable */)));
+		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
 
 		return this.windowService.createAndOpenWorkspace(workspaceFolders);
 	}
@@ -211,15 +211,19 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			}
 
 			if (this.contextService.hasMultiFolderWorkspace()) {
-				return this.contextService.saveWorkspace(URI.file(configPath));
+				return this.saveWorkspace(configPath);
 			}
 		}
 
 		return TPromise.as(null);
 	}
 
+	private saveWorkspace(configPath: string): TPromise<void> {
+		return this.windowService.saveAndOpenWorkspace(configPath);
+	}
+
 	private saveFolderWorkspace(configPath: string): TPromise<void> {
-		const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.toString(true /* skip encoding */));
+		const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.fsPath);
 
 		return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 	}
