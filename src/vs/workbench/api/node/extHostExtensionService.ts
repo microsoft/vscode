@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { realpath } from 'fs';
@@ -270,7 +270,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _activateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		return this._doActivateExtension(extensionDescription).then((activatedExtension) => {
-			this._proxy.$onExtensionActivated(extensionDescription.id);
+			const activationTimes = activatedExtension.activationTimes;
+			this._proxy.$onExtensionActivated(extensionDescription.id, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime);
 			return activatedExtension;
 		}, (err) => {
 			this._proxy.$onExtensionActivationFailed(extensionDescription.id);
@@ -283,13 +284,15 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
-			return TPromise.as(new EmptyExtension());
+			return TPromise.as(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
+
+		const activationTimesBuilder = new ExtensionActivationTimesBuilder();
 		return TPromise.join<any>([
-			loadCommonJSModule(extensionDescription.main),
+			loadCommonJSModule(extensionDescription.main, activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
-			return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1]);
+			return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
 		}, (errors: any[]) => {
 			// Avoid failing with an array of errors, fail with a single error
 			if (errors[0]) {
@@ -323,22 +326,30 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivate(extensionModule: IExtensionModule, context: IExtensionContext): TPromise<ActivatedExtension> {
+	private static _callActivate(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
 			deactivate: undefined
 		};
 
-		return this._callActivateOptional(extensionModule, context).then((extensionExports) => {
-			return new ActivatedExtension(false, extensionModule, extensionExports, context.subscriptions);
+		return this._callActivateOptional(extensionModule, context, activationTimesBuilder).then((extensionExports) => {
+			return new ActivatedExtension(false, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
 		});
 	}
 
-	private static _callActivateOptional(extensionModule: IExtensionModule, context: IExtensionContext): TPromise<IExtensionAPI> {
+	private static _callActivateOptional(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<IExtensionAPI> {
 		if (typeof extensionModule.activate === 'function') {
 			try {
-				return TPromise.as(extensionModule.activate.apply(global, [context]));
+				activationTimesBuilder.activateCallStart();
+				const activateResult = extensionModule.activate.apply(global, [context]);
+				activationTimesBuilder.activateCallStop();
+
+				activationTimesBuilder.activateResolveStart();
+				return TPromise.as(activateResult).then((value) => {
+					activationTimesBuilder.activateResolveStop();
+					return value;
+				});
 			} catch (err) {
 				return TPromise.wrapError(err);
 			}
@@ -355,12 +366,15 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 }
 
-function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
+function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<T> {
 	let r: T = null;
+	activationTimesBuilder.codeLoadingStart();
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
 	} catch (e) {
 		return TPromise.wrapError<T>(e);
+	} finally {
+		activationTimesBuilder.codeLoadingStop();
 	}
 	return TPromise.as(r);
 }

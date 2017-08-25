@@ -43,15 +43,96 @@ export interface IExtensionAPI {
 	// _extensionAPIBrand: any;
 }
 
+export class ExtensionActivationTimes {
+
+	public static NONE = new ExtensionActivationTimes(-1, -1, -1);
+
+	public readonly codeLoadingTime: number;
+	public readonly activateCallTime: number;
+	public readonly activateResolvedTime: number;
+
+	constructor(codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+		this.codeLoadingTime = codeLoadingTime;
+		this.activateCallTime = activateCallTime;
+		this.activateResolvedTime = activateResolvedTime;
+	}
+}
+
+export class ExtensionActivationTimesBuilder {
+
+	private _codeLoadingStart: number;
+	private _codeLoadingStop: number;
+	private _activateCallStart: number;
+	private _activateCallStop: number;
+	private _activateResolveStart: number;
+	private _activateResolveStop: number;
+
+	constructor() {
+		this._codeLoadingStart = -1;
+		this._codeLoadingStop = -1;
+		this._activateCallStart = -1;
+		this._activateCallStop = -1;
+		this._activateResolveStart = -1;
+		this._activateResolveStop = -1;
+	}
+
+	private _delta(start: number, stop: number): number {
+		if (start === -1 || stop === -1) {
+			return -1;
+		}
+		return stop - start;
+	}
+
+	public build(): ExtensionActivationTimes {
+		return new ExtensionActivationTimes(
+			this._delta(this._codeLoadingStart, this._codeLoadingStop),
+			this._delta(this._activateCallStart, this._activateCallStop),
+			this._delta(this._activateResolveStart, this._activateResolveStop)
+		);
+	}
+
+	public codeLoadingStart(): void {
+		this._codeLoadingStart = Date.now();
+	}
+
+	public codeLoadingStop(): void {
+		this._codeLoadingStop = Date.now();
+	}
+
+	public activateCallStart(): void {
+		this._activateCallStart = Date.now();
+	}
+
+	public activateCallStop(): void {
+		this._activateCallStop = Date.now();
+	}
+
+	public activateResolveStart(): void {
+		this._activateResolveStart = Date.now();
+	}
+
+	public activateResolveStop(): void {
+		this._activateResolveStop = Date.now();
+	}
+}
+
 export class ActivatedExtension {
 
-	activationFailed: boolean;
-	module: IExtensionModule;
-	exports: IExtensionAPI;
-	subscriptions: IDisposable[];
+	public readonly activationFailed: boolean;
+	public readonly activationTimes: ExtensionActivationTimes;
+	public readonly module: IExtensionModule;
+	public readonly exports: IExtensionAPI;
+	public readonly subscriptions: IDisposable[];
 
-	constructor(activationFailed: boolean, module: IExtensionModule, exports: IExtensionAPI, subscriptions: IDisposable[]) {
+	constructor(
+		activationFailed: boolean,
+		activationTimes: ExtensionActivationTimes,
+		module: IExtensionModule,
+		exports: IExtensionAPI,
+		subscriptions: IDisposable[]
+	) {
 		this.activationFailed = activationFailed;
+		this.activationTimes = activationTimes;
 		this.module = module;
 		this.exports = exports;
 		this.subscriptions = subscriptions;
@@ -59,14 +140,14 @@ export class ActivatedExtension {
 }
 
 export class EmptyExtension extends ActivatedExtension {
-	constructor() {
-		super(false, { activate: undefined, deactivate: undefined }, undefined, []);
+	constructor(activationTimes: ExtensionActivationTimes) {
+		super(false, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
 export class FailedExtension extends ActivatedExtension {
-	constructor() {
-		super(true, { activate: undefined, deactivate: undefined }, undefined, []);
+	constructor(activationTimes: ExtensionActivationTimes) {
+		super(true, activationTimes, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
@@ -140,7 +221,7 @@ export class ExtensionsActivator {
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
 				this._host.showMessage(Severity.Error, nls.localize('unknownDep', "Extension `{1}` failed to activate. Reason: unknown dependency `{0}`.", depId, currentExtension.id));
-				this._activatedExtensions[currentExtension.id] = new FailedExtension();
+				this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
 				return;
 			}
 
@@ -149,7 +230,7 @@ export class ExtensionsActivator {
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
 					this._host.showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentExtension.id));
-					this._activatedExtensions[currentExtension.id] = new FailedExtension();
+					this._activatedExtensions[currentExtension.id] = new FailedExtension(ExtensionActivationTimes.NONE);
 					return;
 				}
 			} else {
@@ -182,7 +263,7 @@ export class ExtensionsActivator {
 			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
 				this._host.showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
-				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension();
+				this._activatedExtensions[extensionDescriptions[i].id] = new FailedExtension(ExtensionActivationTimes.NONE);
 			}
 			return TPromise.as(void 0);
 		}
@@ -230,7 +311,7 @@ export class ExtensionsActivator {
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the extension as being empty
-			return new FailedExtension();
+			return new FailedExtension(ExtensionActivationTimes.NONE);
 		}).then((x: ActivatedExtension) => {
 			this._activatedExtensions[extensionDescription.id] = x;
 			delete this._activatingExtensions[extensionDescription.id];

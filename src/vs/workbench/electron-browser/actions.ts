@@ -45,6 +45,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 // --- actions
 
@@ -325,7 +326,8 @@ export class ShowStartupPerformance extends Action {
 		label: string,
 		@IWindowService private windowService: IWindowService,
 		@ITimerService private timerService: ITimerService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(id, label);
 	}
@@ -367,6 +369,10 @@ export class ShowStartupPerformance extends Action {
 				}
 			}
 
+			(<any>console).groupEnd();
+
+			(<any>console).group('Extension Activation Stats');
+			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
 			(<any>console).groupEnd();
 		}, 1000);
 

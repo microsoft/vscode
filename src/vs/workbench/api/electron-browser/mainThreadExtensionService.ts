@@ -30,7 +30,8 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	$localShowMessage(severity: Severity, msg: string): void {
 		this._extensionService._logOrShowMessage(severity, msg);
 	}
-	$onExtensionActivated(extensionId: string): void {
+	$onExtensionActivated(extensionId: string, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void {
+		this._extensionService._onExtensionActivated(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime);
 	}
 	$onExtensionActivationFailed(extensionId: string): void {
 	}
