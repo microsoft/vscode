@@ -11,7 +11,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 suite('ConfigurationService - Model', () => {
 
 	test('Test scoped configs are undefined', () => {
-		const settingsConfig = new FolderSettingsModel(null, JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -21,7 +21,7 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test consolidate (settings and tasks)', () => {
-		const settingsConfig = new FolderSettingsModel(null, JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -40,7 +40,7 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test consolidate (settings and launch)', () => {
-		const settingsConfig = new FolderSettingsModel(null, JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true
 		}));
 
@@ -59,7 +59,7 @@ suite('ConfigurationService - Model', () => {
 	});
 
 	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
-		const settingsConfig = new FolderSettingsModel(null, JSON.stringify({
+		const settingsConfig = new FolderSettingsModel(JSON.stringify({
 			awesome: true,
 			launch: {
 				launchConfig: 'defined',
