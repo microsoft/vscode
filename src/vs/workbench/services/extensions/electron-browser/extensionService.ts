@@ -419,8 +419,8 @@ export class ExtensionService implements IExtensionService {
 		}
 	}
 
-	public _onExtensionActivated(extensionId: string, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void {
-		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime);
+	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void {
+		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime);
 	}
 }
 

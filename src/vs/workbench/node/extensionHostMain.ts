@@ -115,7 +115,7 @@ export class ExtensionHostMain {
 
 	// Handle "eager" activation extensions
 	private handleEagerExtensions(): TPromise<void> {
-		this._extensionService.activateByEvent('*').then(null, (err) => {
+		this._extensionService.activateByEvent('*', true).then(null, (err) => {
 			console.error(err);
 		});
 		return this.handleWorkspaceContainsEagerExtensions();
@@ -181,7 +181,7 @@ export class ExtensionHostMain {
 				.forEach(p => {
 					const activationEvent = `workspaceContains:${p}`;
 
-					this._extensionService.activateByEvent(activationEvent)
+					this._extensionService.activateByEvent(activationEvent, true)
 						.done(null, err => console.error(err));
 				});
 		});

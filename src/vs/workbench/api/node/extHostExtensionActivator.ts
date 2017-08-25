@@ -45,13 +45,15 @@ export interface IExtensionAPI {
 
 export class ExtensionActivationTimes {
 
-	public static NONE = new ExtensionActivationTimes(-1, -1, -1);
+	public static NONE = new ExtensionActivationTimes(false, -1, -1, -1);
 
+	public readonly startup: boolean;
 	public readonly codeLoadingTime: number;
 	public readonly activateCallTime: number;
 	public readonly activateResolvedTime: number;
 
-	constructor(codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+	constructor(startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+		this.startup = startup;
 		this.codeLoadingTime = codeLoadingTime;
 		this.activateCallTime = activateCallTime;
 		this.activateResolvedTime = activateResolvedTime;
@@ -60,6 +62,7 @@ export class ExtensionActivationTimes {
 
 export class ExtensionActivationTimesBuilder {
 
+	private readonly _startup: boolean;
 	private _codeLoadingStart: number;
 	private _codeLoadingStop: number;
 	private _activateCallStart: number;
@@ -67,7 +70,8 @@ export class ExtensionActivationTimesBuilder {
 	private _activateResolveStart: number;
 	private _activateResolveStop: number;
 
-	constructor() {
+	constructor(startup: boolean) {
+		this._startup = startup;
 		this._codeLoadingStart = -1;
 		this._codeLoadingStop = -1;
 		this._activateCallStart = -1;
@@ -85,6 +89,7 @@ export class ExtensionActivationTimesBuilder {
 
 	public build(): ExtensionActivationTimes {
 		return new ExtensionActivationTimes(
+			this._startup,
 			this._delta(this._codeLoadingStart, this._codeLoadingStop),
 			this._delta(this._activateCallStart, this._activateCallStop),
 			this._delta(this._activateResolveStart, this._activateResolveStop)
@@ -154,7 +159,7 @@ export class FailedExtension extends ActivatedExtension {
 export interface IExtensionsActivatorHost {
 	showMessage(severity: Severity, message: string): void;
 
-	actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension>;
+	actualActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension>;
 }
 
 export class ExtensionsActivator {
@@ -187,23 +192,23 @@ export class ExtensionsActivator {
 		return this._activatedExtensions[extensionId];
 	}
 
-	public activateByEvent(activationEvent: string): TPromise<void> {
+	public activateByEvent(activationEvent: string, startup: boolean): TPromise<void> {
 		if (this._alreadyActivatedEvents[activationEvent]) {
 			return NO_OP_VOID_PROMISE;
 		}
 		let activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions, 0).then(() => {
+		return this._activateExtensions(activateExtensions, startup, 0).then(() => {
 			this._alreadyActivatedEvents[activationEvent] = true;
 		});
 	}
 
-	public activateById(extensionId: string): TPromise<void> {
+	public activateById(extensionId: string, startup: boolean): TPromise<void> {
 		let desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
 			throw new Error('Extension `' + extensionId + '` is not known');
 		}
 
-		return this._activateExtensions([desc], 0);
+		return this._activateExtensions([desc], startup, 0);
 	}
 
 	/**
@@ -247,7 +252,7 @@ export class ExtensionsActivator {
 		}
 	}
 
-	private _activateExtensions(extensionDescriptions: IExtensionDescription[], recursionLevel: number): TPromise<void> {
+	private _activateExtensions(extensionDescriptions: IExtensionDescription[], startup: boolean, recursionLevel: number): TPromise<void> {
 		// console.log(recursionLevel, '_activateExtensions: ', extensionDescriptions.map(p => p.id));
 		if (extensionDescriptions.length === 0) {
 			return TPromise.as(void 0);
@@ -289,15 +294,15 @@ export class ExtensionsActivator {
 
 		if (red.length === 0) {
 			// Finally reached only leafs!
-			return TPromise.join(green.map((p) => this._activateExtension(p))).then(_ => void 0);
+			return TPromise.join(green.map((p) => this._activateExtension(p, startup))).then(_ => void 0);
 		}
 
-		return this._activateExtensions(green, recursionLevel + 1).then(_ => {
-			return this._activateExtensions(red, recursionLevel + 1);
+		return this._activateExtensions(green, startup, recursionLevel + 1).then(_ => {
+			return this._activateExtensions(red, startup, recursionLevel + 1);
 		});
 	}
 
-	private _activateExtension(extensionDescription: IExtensionDescription): TPromise<void> {
+	private _activateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<void> {
 		if (hasOwnProperty.call(this._activatedExtensions, extensionDescription.id)) {
 			return TPromise.as(void 0);
 		}
@@ -306,7 +311,7 @@ export class ExtensionsActivator {
 			return this._activatingExtensions[extensionDescription.id];
 		}
 
-		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription).then(null, (err) => {
+		this._activatingExtensions[extensionDescription.id] = this._host.actualActivateExtension(extensionDescription, startup).then(null, (err) => {
 			this._host.showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
 			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);

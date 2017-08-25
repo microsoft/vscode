@@ -41,11 +41,13 @@ export interface IExtensionsStatus {
 }
 
 export class ActivationTimes {
+	public readonly startup: boolean;
 	public readonly codeLoadingTime: number;
 	public readonly activateCallTime: number;
 	public readonly activateResolvedTime: number;
 
-	constructor(codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+	constructor(startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+		this.startup = startup;
 		this.codeLoadingTime = codeLoadingTime;
 		this.activateCallTime = activateCallTime;
 		this.activateResolvedTime = activateResolvedTime;
