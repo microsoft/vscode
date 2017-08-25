@@ -61,6 +61,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void;
 
 	getUntitledWorkspacesSync(): IWorkspaceIdentifier[];
+
+	getWorkspaceId(workspacePath: string): string;
 }
 
 export interface IWorkspacesService {

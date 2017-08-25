@@ -117,7 +117,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		});
 	}
 
-	private getWorkspaceId(workspaceConfigPath: string): string {
+	public getWorkspaceId(workspaceConfigPath: string): string {
 		if (!isLinux) {
 			workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
 		}

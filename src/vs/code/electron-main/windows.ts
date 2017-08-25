@@ -165,9 +165,18 @@ export class WindowsManager implements IWindowsMainService {
 		states.push(state.lastPluginDevelopmentHostWindow);
 		states.push(...state.openedWindows);
 		states.forEach(state => {
-			if (state && typeof state.workspacePath === 'string') {
+			if (!state) {
+				return;
+			}
+
+			if (typeof state.workspacePath === 'string') {
 				state.folderPath = state.workspacePath;
 				state.workspacePath = void 0;
+			}
+
+			// TODO@Ben migration to new workspace ID
+			if (state.workspace) {
+				state.workspace.id = this.workspacesService.getWorkspaceId(state.workspace.configPath);
 			}
 		});
 	}
