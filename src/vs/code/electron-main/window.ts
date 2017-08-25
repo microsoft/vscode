@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
@@ -299,20 +299,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private registerListeners(): void {
+		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		const headers = {
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': this.environmentService.machineUUID
+		};
 
-		// Set common HTTP headers
-		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
-		// a request that needs them. chances are low
-		getCommonHTTPHeaders().done(headers => {
-			if (!this._win) {
-				return;
-			}
-
-			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-
-			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
-				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
-			});
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 		});
 
 		// Prevent loading of svgs

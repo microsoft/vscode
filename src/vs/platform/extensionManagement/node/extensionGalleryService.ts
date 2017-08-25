@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -276,16 +276,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private extensionsGalleryUrl: string;
 
-	private readonly commonHTTPHeaders: TPromise<{ [key: string]: string; }>;
+	private readonly commonHTTPHeaders: { [key: string]: string; };
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.commonHTTPHeaders = getCommonHTTPHeaders();
+		this.commonHTTPHeaders = {
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': this.environmentService.machineUUID
+		};
 	}
 
 	private api(path = ''): string {
@@ -294,10 +299,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	isEnabled(): boolean {
 		return !!this.extensionsGalleryUrl;
-	}
-
-	getRequestHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.commonHTTPHeaders;
 	}
 
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
@@ -541,26 +542,23 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}): TPromise<IRequestContext> {
 		const baseOptions = { type: 'GET' };
+		const headers = assign({}, this.commonHTTPHeaders, options.headers || {});
+		options = assign({}, options, baseOptions, { headers });
 
-		return this.commonHTTPHeaders.then(headers => {
-			headers = assign({}, headers, options.headers || {});
-			options = assign({}, options, baseOptions, { headers });
+		const firstOptions = assign({}, options, { url: asset.uri });
 
-			const firstOptions = assign({}, options, { url: asset.uri });
+		return this.requestService.request(firstOptions)
+			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
+			.then(null, err => {
+				this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });
 
-			return this.requestService.request(firstOptions)
-				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
-				.then(null, err => {
-					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
-					this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });
-
-					const fallbackOptions = assign({}, options, { url: asset.fallbackUri });
-					return this.requestService.request(fallbackOptions).then(null, err => {
-						this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
-						return TPromise.wrapError<IRequestContext>(err);
-					});
+				const fallbackOptions = assign({}, options, { url: asset.fallbackUri });
+				return this.requestService.request(fallbackOptions).then(null, err => {
+					this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+					return TPromise.wrapError<IRequestContext>(err);
 				});
-		});
+			});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
