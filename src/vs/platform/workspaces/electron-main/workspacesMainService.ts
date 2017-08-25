@@ -73,8 +73,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 			// TODO@Ben migration
 			const legacyStoredWorkspace = rawWorkspace as ILegacyStoredWorkspace;
-			if (typeof legacyStoredWorkspace.id === 'string') {
-				delete legacyStoredWorkspace.id;
+			if (legacyStoredWorkspace.folders.some(folder => typeof folder === 'string')) {
 				(rawWorkspace as IStoredWorkspace).folders = legacyStoredWorkspace.folders.map(folder => ({ path: URI.parse(folder).fsPath }));
 				writeFileSync(path, JSON.stringify(rawWorkspace, null, '\t'));
 			}
