@@ -17,15 +17,33 @@ import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-// import * as watchdog from 'native-watchdog';
+import * as watchdog from 'native-watchdog';
 
-const nativeExit = process.exit.bind(process);
+// const nativeExit = process.exit.bind(process);
 process.exit = function () {
 	const err = new Error('An extension called process.exit() and this was prevented.');
 	console.warn(err.stack);
 };
 export function exit(code?: number) {
-	nativeExit(code);
+	//nativeExit(code);
+
+	// TODO@electron
+	// See https://github.com/Microsoft/vscode/issues/32990
+	// calling process.exit() does not exit the process when the process is being debugged
+	// It waits for the debugger to disconnect, but in our version, the debugger does not
+	// receive an event that the process desires to exit such that it can disconnect.
+
+	// Do exactly what node.js would have done, minus the wait for the debugger part
+
+	if (code || code === 0) {
+		process.exitCode = code;
+	}
+
+	if (!(<any>process)._exiting) {
+		(<any>process)._exiting = true;
+		process.emit('exit', process.exitCode || 0);
+	}
+	watchdog.exit(process.exitCode || 0);
 }
 
 interface ITestRunner {

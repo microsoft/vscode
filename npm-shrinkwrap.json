@@ -296,9 +296,9 @@
       "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.5.tgz"
     },
     "native-watchdog": {
-      "version": "0.2.0",
-      "from": "native-watchdog@0.2.0",
-      "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.2.0.tgz"
+      "version": "0.3.0",
+      "from": "native-watchdog@0.3.0",
+      "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.3.0.tgz"
     },
     "node-pty": {
       "version": "0.7.0",
