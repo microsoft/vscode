@@ -47,6 +47,7 @@
 	"titleBarInactiveForeground": "窗口处于非活动状态时的标题栏前景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarActiveBackground": "窗口处于活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarInactiveBackground": "窗口处于非活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
+	"titleBarBorder": "标题栏边框颜色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"notificationsForeground": "通知前景色。通知从窗口顶部滑入。",
 	"notificationsBackground": "通知背颜色。通知从窗口顶部滑入。",
 	"notificationsButtonBackground": "通知按钮背景色。通知从窗口顶部滑入。",

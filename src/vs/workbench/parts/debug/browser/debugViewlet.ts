@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ComposedViewsViewlet } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet } from 'vs/workbench/parts/views/browser/views';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
@@ -24,7 +24,7 @@ import { ViewLocation } from 'vs/workbench/parts/views/browser/viewsRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-export class DebugViewlet extends ComposedViewsViewlet {
+export class DebugViewlet extends PersistentViewsViewlet {
 
 	private actions: IAction[];
 	private startDebugActionItem: StartDebugActionItem;

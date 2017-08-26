@@ -168,6 +168,10 @@ export class TextAreaHandler extends ViewPart {
 				}
 
 				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
+			},
+
+			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+				return this._context.model.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
 			}
 		};
 
@@ -199,6 +203,10 @@ export class TextAreaHandler extends ViewPart {
 			} else {
 				this._viewController.type('keyboard', e.text);
 			}
+		}));
+
+		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
+			this._viewController.setSelection('keyboard', modelSelection);
 		}));
 
 		this._register(this._textAreaInput.onCompositionStart(() => {

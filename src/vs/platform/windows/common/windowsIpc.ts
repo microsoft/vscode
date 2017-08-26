@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IWindowsService, INativeOpenDialogOptions } from './windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
@@ -23,7 +23,8 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'openWorkspace', arg: number): TPromise<void>;
-	call(command: 'newWorkspace', arg: number): TPromise<void>;
+	call(command: 'createAndOpenWorkspace', arg: [number, string[], string]): TPromise<void>;
+	call(command: 'saveAndOpenWorkspace', arg: [number, string]): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
@@ -79,7 +80,8 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'openWorkspace': return this.service.openWorkspace(arg);
-			case 'newWorkspace': return this.service.newWorkspace(arg);
+			case 'createAndOpenWorkspace': return this.service.createAndOpenWorkspace(arg[0], arg[1], arg[2]);
+			case 'saveAndOpenWorkspace': return this.service.saveAndOpenWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
@@ -159,8 +161,12 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('openWorkspace', windowId);
 	}
 
-	newWorkspace(windowId: number): TPromise<void> {
-		return this.channel.call('newWorkspace', windowId);
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+		return this.channel.call('createAndOpenWorkspace', [windowId, folders, path]);
+	}
+
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void> {
+		return this.channel.call('saveAndOpenWorkspace', [windowId, path]);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {

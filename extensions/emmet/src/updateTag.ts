@@ -5,14 +5,14 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parse, validate } from './util';
+import { getNode, parseDocument, validate } from './util';
 
 export function updateTag(tagName: string): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!validate(false)) {
 		return;
 	}
-	let rootNode = <HtmlNode>parse(editor.document);
+	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}

@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-	ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
+	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -46,7 +46,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { ComposedViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -62,7 +62,7 @@ const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', f
 const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
 const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', false);
 
-export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensionsViewlet {
+export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
 	private extensionsViewletVisibleContextKey: IContextKey<boolean>;
@@ -208,8 +208,8 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			.then(installed => {
 				if (installed.length === 0) {
 					this.searchBox.value = '@sort:installs';
+					this.searchExtensionsContextKey.set(true);
 				}
-				this.searchExtensionsContextKey.set(true);
 				return super.create(new Builder(this.extensionsBox));
 			});
 	}
@@ -266,6 +266,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			this.secondaryActions = [
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
@@ -306,10 +307,10 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
 		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
 
-		await this.updateViews(!!value);
+		await this.updateViews([], !!value);
 	}
 
-	protected async updateViews(showAll?: boolean): TPromise<IView[]> {
+	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<IView[]> {
 		const created = await super.updateViews();
 		const toShow = showAll ? this.views : created;
 		if (toShow.length) {

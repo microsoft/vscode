@@ -13,6 +13,7 @@ import { Action } from 'vs/base/common/actions';
 export interface IMessageWithAction {
 	message: string;
 	actions: Action[];
+	source?: string;
 }
 
 export interface IConfirmation {

@@ -53,6 +53,15 @@ class SyncedBuffer {
 			}
 		}
 
+		if (this.client.apiVersion.has240Features()) {
+			const tsPluginsForDocument = this.client.plugins
+				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
+
+			if (tsPluginsForDocument.length) {
+				(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
+			}
+		}
+
 		this.client.execute('open', args, false);
 	}
 

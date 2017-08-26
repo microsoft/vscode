@@ -892,6 +892,30 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 	static LABEL = localize('installExtensions', "Install Extensions");
 }
 
+export class ShowEnabledExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showEnabledExtensions';
+	static LABEL = localize('showEnabledExtensions', 'Show Enabled Extensions');
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, 'clear-extensions', true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@enabled');
+				viewlet.focus();
+			});
+	}
+}
+
 export class ShowInstalledExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showInstalledExtensions';
@@ -1133,6 +1157,34 @@ export class ShowLanguageExtensionsAction extends Action {
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
 				viewlet.search('@sort:installs category:languages ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ShowAzureExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.showAzureExtensions';
+	static LABEL = localize('showAzureExtensions', "Show Azure Extensions");
+	static SHORT_LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@sort:installs azure ');
 				viewlet.focus();
 			});
 	}
@@ -1387,7 +1439,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 }
 
-CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtensions', function (accessor: ServicesAccessor, fileExtension: string) {
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const viewletService = accessor.get(IViewletService);
 
 	return viewletService.openViewlet(VIEWLET_ID, true)

@@ -14,8 +14,8 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { ILogService } from "vs/platform/log/common/log";
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class KeyboardLayoutMonitor {
 
@@ -108,10 +108,6 @@ export class KeybindingsResolver {
 
 	private registerListeners(): void {
 
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
-
 		// Listen to resolved keybindings from window
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
 			let keybindings: IKeybinding[] = [];
@@ -147,6 +143,10 @@ export class KeybindingsResolver {
 				this._onKeybindingsChanged.fire();
 			}
 		});
+
+		// Resolve keybindings when any first window is loaded
+		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Resolve keybindings again when keybindings.json changes
 		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());

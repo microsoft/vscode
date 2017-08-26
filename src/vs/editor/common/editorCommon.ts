@@ -5,7 +5,7 @@
 'use strict';
 
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -77,11 +77,11 @@ export interface IModelDecorationOptions {
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
-	glyphMarginHoverMessage?: MarkedString | MarkedString[];
+	glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
 	/**
-	 * Array of MarkedString to render as the decoration message.
+	 * Array of MarkdownString to render as the decoration message.
 	 */
-	hoverMessage?: MarkedString | MarkedString[];
+	hoverMessage?: IMarkdownString | IMarkdownString[];
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -684,7 +684,7 @@ export interface ITextModel {
 	getFullModelRange(): Range;
 
 	/**
-	 * Returns iff the model was disposed or not.
+	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
 
@@ -820,6 +820,20 @@ export interface ITokenizedModel extends ITextModel {
 	forceTokenization(lineNumber: number): void;
 
 	/**
+	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
+	 * This is based on a heuristic.
+	 * @internal
+	 */
+	tokenizeIfCheap(lineNumber: number): void;
+
+	/**
+	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
+	 * This is based on a heuristic.
+	 * @internal
+	 */
+	isCheapToTokenize(lineNumber: number): boolean;
+
+	/**
 	 * Get the tokens for the line `lineNumber`.
 	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
@@ -875,19 +889,21 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	findMatchingBracketUp(bracket: string, position: IPosition): Range;
 
-	// /**
-	//  * Find the first bracket in the model before `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	//  */
-	// findPrevBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 * @internal
+	 */
+	findPrevBracket(position: IPosition): IFoundBracket;
 
-	// /**
-	//  * Find the first bracket in the model after `position`.
-	//  * @param position The position at which to start the search.
-	//  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	//  */
-	// findNextBracket(position:IPosition): IFoundBracket;
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 * @internal
+	 */
+	findNextBracket(position: IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1173,7 +1189,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	onBeforeDetached(): void;
 
 	/**
-	 * Returns iff this model is attached to an editor or not.
+	 * Returns if this model is attached to an editor or not.
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
@@ -1712,7 +1728,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
  */
 export interface IDecorationOptions {
 	range: IRange;
-	hoverMessage?: MarkedString | MarkedString[];
+	hoverMessage?: IMarkdownString | IMarkdownString[];
 	renderOptions?: IDecorationInstanceRenderOptions;
 }
 

@@ -69,11 +69,6 @@ export interface IFileService {
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent>;
 
 	/**
-	 * Returns the contents of all files by the given array of file resources.
-	 */
-	resolveContents(resources: URI[]): TPromise<IContent[]>;
-
-	/**
 	 * Updates the content replacing its previous value.
 	 */
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
@@ -138,7 +133,6 @@ export interface IFileService {
 	 * Allows to stop a watcher on the provided resource or absolute fs path.
 	 */
 	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
 
 	/**
 	 * Configures the file service with the provided options.
@@ -368,7 +362,7 @@ export interface IBaseStat {
 export interface IFileStat extends IBaseStat {
 
 	/**
-	 * The resource is a directory. Iff {{true}}
+	 * The resource is a directory. if {{true}}
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;

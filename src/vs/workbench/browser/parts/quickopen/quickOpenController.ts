@@ -52,9 +52,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITree, IActionProvider } from "vs/base/parts/tree/browser/tree";
-import { BaseActionItem } from "vs/base/browser/ui/actionbar/actionbar";
-import { FileKind } from "vs/platform/files/common/files";
+import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const HELP_PREFIX = '?';
 
@@ -207,6 +207,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							});
 						}, err => {
 							// ignore
+							return null;
 						});
 					}
 				}

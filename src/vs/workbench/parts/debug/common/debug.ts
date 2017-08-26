@@ -23,7 +23,6 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
-export const CONTEXT_IS_NODE_DEBUG_TYPE = new RawContextKey<boolean>('_isNodeDebugType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', undefined);
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -87,6 +86,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface ISession {
+	root: uri;
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -120,7 +120,7 @@ export enum ProcessState {
 }
 
 export interface IProcess extends ITreeElement {
-	name: string;
+	getName(includeRoot: boolean): string;
 	configuration: IConfig;
 	session: ISession;
 	sources: Map<string, Source>;
@@ -269,19 +269,12 @@ export interface IViewModel extends ITreeElement {
 	setSelectedExpression(expression: IExpression);
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 
-	selectedConfigurationName: string;
-	setSelectedConfigurationName(name: string): void;
-
 	isMultiProcessView(): boolean;
 
 	onDidFocusProcess: Event<IProcess | undefined>;
-	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression>;
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
-	/**
-	 * Allows to register on change of selected debug configuration.
-	 */
-	onDidSelectConfiguration: Event<string>;
 }
 
 export interface IModel extends ITreeElement {
@@ -379,13 +372,70 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
+export interface IDebugConfigurationProvider {
+	type: string;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<any[]>;
+}
+
 export interface IConfigurationManager {
+	/**
+	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
+	 */
+	canSetBreakpointsIn(model: EditorIModel): boolean;
+
+	/**
+	 * Returns null for no folder workspace. Otherwise returns a launch object corresponding to the selected debug configuration.
+	 */
+	selectedLaunch: ILaunch;
+
+	selectedName: string;
+
+	mruConfigs: { name: string, launch: ILaunch }[];
+
+	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
+
+	getLaunches(): ILaunch[];
+
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidSelectConfiguration: Event<void>;
+
+	/**
+	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
+	 * If no type is specified will try to automatically pick an adapter by looking at
+	 * the active editor language and matching it against the "languages" contribution of an adapter.
+	 */
+	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
+
+	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
+	unregisterDebugConfigurationProvider(handle): void;
+	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+}
+
+export interface ILaunch {
+
+	/**
+	 * Resource pointing to the launch.json this object is wrapping.
+	 */
+	uri: uri;
+
+	workspaceUri: uri;
+
+	name: string;
 
 	/**
 	 * Returns a configuration with the specified name.
 	 * Returns null if there is no configuration with the specified name.
 	 */
 	getConfiguration(name: string): IConfig;
+
+	/**
+	 * Returns a compound with the specified name.
+	 * Returns null if there is no compound with the specified name.
+	 */
+	getCompound(name: string): ICompound;
 
 	/**
 	 * Returns the names of all configurations and compounds.
@@ -400,34 +450,18 @@ export interface IConfigurationManager {
 	resolveConfiguration(config: IConfig): TPromise<IConfig>;
 
 	/**
-	 * Returns a compound with the specified name.
-	 * Returns null if there is no compound with the specified name.
-	 */
-	getCompound(name: string): ICompound;
-
-	configFileUri: uri;
-
-	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
-
-	/**
-	 * Returns true if breakpoints can be set for a given editor model. Depends on mode.
-	 */
-	canSetBreakpointsIn(model: EditorIModel): boolean;
-
-	/**
-	 * Returns a "startSessionCommand" contribution for an adapter with the passed type.
-	 * If no type is specified will try to automatically pick an adapter by looking at
-	 * the active editor language and matching it against the "languages" contribution of an adapter.
-	 */
-	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 }
 
 // Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
+
+export interface DebugEvent extends DebugProtocol.Event {
+	sessionId?: string;
+}
 
 export interface IDebugService {
 	_serviceBrand: any;
@@ -455,7 +489,7 @@ export interface IDebugService {
 	/**
 	 * Allows to register on custom DAP events.
 	 */
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	onDidCustomEvent: Event<DebugEvent>;
 
 	/**
 	 * Gets the current configuration manager.
@@ -465,7 +499,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess): TPromise<void>;
+	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess, explicit?: boolean): TPromise<void>;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -547,12 +581,12 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.
 	 */
-	startDebugging(configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(root: uri, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Creates a new debug process. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createProcess(config: IConfig): TPromise<IProcess>;
+	createProcess(root: uri, config: IConfig): TPromise<IProcess>;
 
 	/**
 	 * Find process by ID.

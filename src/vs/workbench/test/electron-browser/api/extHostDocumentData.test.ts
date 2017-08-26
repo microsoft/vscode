@@ -13,6 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 
 suite('ExtHostDocumentData', () => {
@@ -51,7 +52,7 @@ suite('ExtHostDocumentData', () => {
 
 	test('save, when disposed', function () {
 		let saved: URI;
-		let data = new ExtHostDocumentData(new class extends MainThreadDocumentsShape {
+		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
 			$trySaveDocument(uri) {
 				assert.ok(!saved);
 				saved = uri;

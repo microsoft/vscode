@@ -236,8 +236,10 @@ SuggestRegistry.register('*', _provider);
  * @param suggestions
  */
 export function showSimpleSuggestions(editor: ICommonCodeEditor, suggestions: ISuggestion[]) {
-	_suggestions = suggestions;
-	editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);
-	_suggestions = undefined;
+	setTimeout(() => {
+		_suggestions = suggestions;
+		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);
+		_suggestions = undefined;
+	}, 0);
 }
 

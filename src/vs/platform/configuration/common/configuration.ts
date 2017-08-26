@@ -43,7 +43,7 @@ export interface IConfigurationService {
 	 * Returns the defined keys of configurations in the different scopes
 	 * the key is defined.
 	 */
-	keys(): IConfigurationKeys;
+	keys(overrides?: IConfigurationOverrides): IConfigurationKeys;
 
 	/**
 	 * Similar to #getConfiguration() but ensures that the latest configuration
@@ -91,6 +91,7 @@ export interface IConfigurationKeys {
 	default: string[];
 	user: string[];
 	workspace: string[];
+	folder: string[];
 }
 
 /**
@@ -268,11 +269,13 @@ export class Configuration<T> {
 		};
 	}
 
-	keys(): IConfigurationKeys {
+	keys(overrides: IConfigurationOverrides = {}): IConfigurationKeys {
+		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource);
 		return {
 			default: this._defaults.keys,
 			user: this._user.keys,
-			workspace: this._workspaceConfiguration.keys
+			workspace: this._workspaceConfiguration.keys,
+			folder: folderConfigurationModel ? folderConfigurationModel.keys : []
 		};
 	}
 

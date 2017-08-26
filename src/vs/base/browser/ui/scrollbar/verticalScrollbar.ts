@@ -8,7 +8,7 @@ import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base
 import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 
@@ -90,18 +90,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		return e.posx;
 	}
 
-	protected _getScrollPosition(): number {
-		const scrollState = this._scrollable.getState();
-		return scrollState.scrollTop;
-	}
-
-	protected _setScrollPosition(scrollPosition: number): void {
-		this._scrollable.updateState({
-			scrollTop: scrollPosition
-		});
-	}
-
-	public validateScrollPosition(desiredScrollPosition: number): number {
-		return this._scrollable.validateScrollTop(desiredScrollPosition);
+	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
+		target.scrollTop = scrollPosition;
 	}
 }

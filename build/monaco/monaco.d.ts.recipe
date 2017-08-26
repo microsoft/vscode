@@ -5,16 +5,7 @@
 
 declare module monaco {
 
-	interface Thenable<T> {
-		/**
-		 * Attaches callbacks for the resolution and/or rejection of the Promise.
-		 * @param onfulfilled The callback to execute when the Promise is resolved.
-		 * @param onrejected The callback to execute when the Promise is rejected.
-		 * @returns A Promise for the completion of which ever callback is executed.
-		 */
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-	}
+	type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -41,11 +32,11 @@ declare module monaco {
 		Error = 3,
 	}
 
-#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, TPromise
+#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, Promise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
 #include(vs/base/common/uri): URI
 #include(vs/editor/common/standalone/standaloneBase): KeyCode, KeyMod
-#include(vs/base/common/htmlContent): MarkedString
+#include(vs/base/common/htmlContent): IMarkdownString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
 #include(vs/editor/common/editorCommon): IScrollEvent

@@ -7,6 +7,7 @@
 import { CancellationToken, Uri, Event } from 'vscode';
 import * as Proto from './protocol';
 import API from './utils/api';
+import { TypeScriptServerPlugin } from './utils/plugins';
 
 export interface ITypescriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
@@ -33,6 +34,8 @@ export interface ITypescriptServiceClient {
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
 	apiVersion: API;
+
+	plugins: TypeScriptServerPlugin[];
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;

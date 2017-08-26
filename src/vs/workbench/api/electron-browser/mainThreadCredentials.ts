@@ -4,17 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadCredentialsShape, ExtHostCredentialsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadCredentialsShape, ExtHostCredentialsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadCredentials extends MainThreadCredentialsShape {
+@extHostNamedCustomer(MainContext.MainThreadCredentials)
+export class MainThreadCredentials implements MainThreadCredentialsShape {
 
 	private _proxy: ExtHostCredentialsShape;
 
-	constructor( @IThreadService threadService: IThreadService, @ICredentialsService private _credentialsService: ICredentialsService) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostCredentials);
+	constructor(
+		extHostContext: IExtHostContext,
+		@ICredentialsService private _credentialsService: ICredentialsService
+	) {
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostCredentials);
+	}
+
+	public dispose(): void {
 	}
 
 	$readSecret(service: string, account: string): Thenable<string | undefined> {

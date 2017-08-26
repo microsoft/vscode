@@ -42,6 +42,14 @@
 	"search.files.result": "{0} találat {1} fájlban",
 	"search.file.results": "{0} találat {1} fájlban",
 	"search.files.results": "{0} találat {1} fájlban",
+	"search.folder.file.result": "{0} találat {1} fájlban, {2} mappában",
+	"search.folder.files.result": "{0} találat {1} fájlban, {2} mappában",
+	"search.folder.file.results": "{0} találat {1} fájlban, {2} mappában",
+	"search.folder.files.results": "{0} találat {1} fájlban, {2} mappában",
+	"search.folders.file.result": "{0} találat {1} fájlban, {2} mappában",
+	"search.folders.files.result": "{0} találat {1} fájlban, {2} mappában",
+	"search.folders.file.results": "{0} találat {1} fájlban, {2} mappában",
+	"search.folders.files.results": "{0} találat {1} fájlban, {2} mappában",
 	"searchWithoutFolder": "Még nincs mappa megnyitva. Jelenleg csak a nyitott fájlokban történik keresés –",
 	"openFolder": "Mappa megnyitása"
 }

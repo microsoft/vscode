@@ -16,6 +16,7 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
 	placeholder?: string;
@@ -39,11 +40,17 @@ export class PatternInputWidget extends Widget {
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
+	private history: HistoryNavigator<string>;
+
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
+	private _onCancel = this._register(new Emitter<boolean>());
+	public onCancel: CommonEvent<boolean> = this._onCancel.event;
+
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
+		this.history = new HistoryNavigator<string>();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
@@ -109,11 +116,46 @@ export class PatternInputWidget extends Widget {
 	}
 
 	private setInputWidth(): void {
-		this.inputBox.width = this.width;
+		this.inputBox.width = this.width - this.getSubcontrolsWidth() - 2; // 2 for input box border
 	}
 
 	protected getSubcontrolsWidth(): number {
 		return 0;
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public setHistory(history: string[]) {
+		this.history = new HistoryNavigator<string>(history);
+	}
+
+	public onSearchSubmit(): void {
+		const value = this.getValue();
+		if (value) {
+			this.history.addIfNotPresent(value);
+		}
+	}
+
+	public showNextTerm() {
+		let next = this.history.next();
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousTerm() {
+		let previous;
+		if (this.getValue().length === 0) {
+			previous = this.history.current();
+		} else {
+			this.history.addIfNotPresent(this.getValue());
+			previous = this.history.previous();
+		}
+		if (previous) {
+			this.setValue(previous);
+		}
 	}
 
 	private render(): void {
@@ -148,6 +190,9 @@ export class PatternInputWidget extends Widget {
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:
 				this._onSubmit.fire();
+				return;
+			case KeyCode.Escape:
+				this._onCancel.fire();
 				return;
 			default:
 				return;

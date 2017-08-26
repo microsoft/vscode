@@ -6,7 +6,6 @@
 {
 	"errorInvalidConfiguration": "설정에 쓸 수 없습니다. 파일에서 오류/경고를 해결하고 다시 시도하세요.",
 	"defaultSettingsTitle": "기본 설정",
-	"defaultSettingsMessage": "설정을 오른쪽 파일에 넣어서 덮어씁니다.",
 	"noSettingsFound": "설정을 찾을 수 없습니다.",
 	"editTtile": "편집",
 	"replaceDefaultValue": "설정에서 바꾸기",

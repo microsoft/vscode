@@ -44,7 +44,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!process) {
-			// fallback: use focussed process
+			// fallback: use focused process
 			process = this.debugService.getViewModel().focusedProcess;
 		}
 

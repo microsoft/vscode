@@ -173,7 +173,7 @@ const editorConfiguration: IConfigurationNode = {
 	'type': 'object',
 	'title': nls.localize('editorConfigurationTitle', "Editor"),
 	'overridable': true,
-	'scope': ConfigurationScope.FOLDER,
+	'scope': ConfigurationScope.RESOURCE,
 	'properties': {
 		'editor.fontFamily': {
 			'type': 'string',
@@ -247,6 +247,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
+		},
+		'editor.smoothScrolling': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
+			'description': nls.localize('smoothScrolling', "Controls if the editor will scroll using an animation")
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
@@ -587,6 +592,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,
 			'description': nls.localize('links', "Controls whether the editor should detect links and make them clickable")
+		},
+		'editor.colorDecorators': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.colorDecorators,
+			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.")
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

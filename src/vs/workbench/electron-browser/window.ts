@@ -11,14 +11,11 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { stat } from 'vs/base/node/pfs';
 import arrays = require('vs/base/common/arrays');
 import DOM = require('vs/base/browser/dom');
 import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { extractResources } from 'vs/base/browser/dnd';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
@@ -40,12 +37,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-
+import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { extname } from "vs/base/common/paths";
-import { WORKSPACE_EXTENSION } from "vs/platform/workspaces/common/workspaces";
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -97,93 +90,11 @@ export class ElectronWindow extends Themable {
 			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
 		});
 
-		let draggedExternalResources: URI[];
-		let dropOverlay: Builder;
-
-		function cleanUp(): void {
-			draggedExternalResources = void 0;
-
-			if (dropOverlay) {
-				dropOverlay.destroy();
-				dropOverlay = void 0;
-			}
-		}
-
-		// Detect resources dropped into Code from outside
-		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
-
-			if (!draggedExternalResources) {
-				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
-
-				// Find out if folders/workspaces are dragged and show the appropiate feedback then
-				this.shouldOpenAsWorkspace(draggedExternalResources).done(openAsWorkspace => {
-					if (openAsWorkspace) {
-						const activeContrastBorderColor = this.getColor(activeContrastBorder);
-						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
-							.div({
-								id: 'monaco-workbench-drop-overlay'
-							})
-							.style({
-								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-								outlineColor: activeContrastBorderColor,
-								outlineOffset: activeContrastBorderColor ? '-2px' : null,
-								outlineStyle: activeContrastBorderColor ? 'dashed' : null,
-								outlineWidth: activeContrastBorderColor ? '2px' : null
-							})
-							.on(DOM.EventType.DROP, (e: DragEvent) => {
-								DOM.EventHelper.stop(e, true);
-
-								this.windowService.focusWindow(); // make sure this window has focus so that the open call reaches the right window!
-
-								// Ask the user when opening a potential large number of folders
-								let doOpen = true;
-								if (draggedExternalResources.length > 20) {
-									doOpen = this.messageService.confirm({
-										message: nls.localize('confirmOpen', "Are you sure you want to open {0} workspaces?", draggedExternalResources.length),
-										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
-										type: 'question'
-									});
-								}
-
-								if (doOpen) {
-									this.windowsService.openWindow(draggedExternalResources.map(r => r.fsPath), { forceReuseWindow: true });
-								}
-
-								cleanUp();
-							})
-							.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-								cleanUp();
-							}).once(DOM.EventType.MOUSE_OVER, () => {
-								// Under some circumstances we have seen reports where the drop overlay is not being
-								// cleaned up and as such the editor area remains under the overlay so that you cannot
-								// type into the editor anymore. This seems related to using VMs and DND via host and
-								// guest OS, though some users also saw it without VMs.
-								// To protect against this issue we always destroy the overlay as soon as we detect a
-								// mouse event over it. The delay is used to guarantee we are not interfering with the
-								// actual DROP event that can also trigger a mouse over event.
-								// See also: https://github.com/Microsoft/vscode/issues/10970
-								setTimeout(() => {
-									cleanUp();
-								}, 300);
-							});
-					}
-				});
-			}
-		});
-
-		// Clear our map and overlay on any finish of DND outside the overlay
-		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
-				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
-					cleanUp(); // only run cleanUp() if we are not over the overlay (because we are being called in capture phase)
-				}
-			}, true /* use capture because components within may preventDefault() when they accept the drop */);
-		});
-
 		// prevent opening a real URL inside the shell
-		window.document.body.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+			window.document.body.addEventListener(event, (e: DragEvent) => {
+				DOM.EventHelper.stop(e);
+			});
 		});
 
 		// Handle window.open() calls
@@ -341,7 +252,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return this.partService.joinCreation().then(() => {
+		return TPromise.join([this.partService.joinCreation(), this.extensionService.onReady()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -447,16 +358,5 @@ export class ElectronWindow extends Themable {
 		}
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
-	}
-
-	private shouldOpenAsWorkspace(resources: URI[]): TPromise<boolean> {
-		return TPromise.join(resources.map(resource => {
-			if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-				return TPromise.as(true); // Workspace
-			}
-
-			// Check for Folder
-			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
-		})).then(res => res.some(res => !!res));
 	}
 }

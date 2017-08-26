@@ -24,7 +24,7 @@ step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js --arch=$ARCH
 
 step "Build minified" \
-	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
+	npm run gulp -- "vscode-linux-$ARCH-min"
 
 function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)

@@ -9,7 +9,7 @@ import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export class WindowService implements IWindowService {
 
@@ -68,8 +68,12 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openWorkspace(this.windowId);
 	}
 
-	newWorkspace(): TPromise<void> {
-		return this.windowsService.newWorkspace(this.windowId);
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return this.windowsService.createAndOpenWorkspace(this.windowId, folders, path);
+	}
+
+	saveAndOpenWorkspace(path: string): TPromise<void> {
+		return this.windowsService.saveAndOpenWorkspace(this.windowId, path);
 	}
 
 	closeWindow(): TPromise<void> {

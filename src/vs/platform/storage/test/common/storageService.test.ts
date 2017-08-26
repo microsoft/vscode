@@ -28,17 +28,6 @@ suite('Workbench StorageSevice', () => {
 		});
 	});
 
-	test('Swap Data with undefined default value', () => {
-		let s = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace().id);
-
-		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo');
-		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.swap'));
-		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo');
-		assert.strictEqual('barfoo', s.get('Monaco.IDE.Core.Storage.Test.swap'));
-		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo');
-		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.swap'));
-	});
-
 	test('Remove Data', () => {
 		let s = new StorageService(new InMemoryLocalStorage(), null, contextService.getWorkspace().id);
 		s.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar');

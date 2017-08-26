@@ -7,17 +7,29 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadTask extends MainThreadTaskShape {
+@extHostNamedCustomer(MainContext.MainThreadTask)
+export class MainThreadTask implements MainThreadTaskShape {
 
 	private _proxy: ExtHostTaskShape;
+	private _activeHandles: { [handle: number]: boolean; };
 
-	constructor( @IThreadService threadService: IThreadService, @ITaskService private _taskService: ITaskService) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostTask);
+	constructor(
+		extHostContext: IExtHostContext,
+		@ITaskService private _taskService: ITaskService
+	) {
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostTask);
+		this._activeHandles = Object.create(null);
+	}
+
+	public dispose(): void {
+		Object.keys(this._activeHandles).forEach((handle) => {
+			this._taskService.unregisterTaskProvider(parseInt(handle, 10));
+		});
+		this._activeHandles = Object.create(null);
 	}
 
 	public $registerTaskProvider(handle: number): TPromise<void> {
@@ -26,11 +38,13 @@ export class MainThreadTask extends MainThreadTaskShape {
 				return this._proxy.$provideTasks(handle);
 			}
 		});
+		this._activeHandles[handle] = true;
 		return TPromise.as<void>(undefined);
 	}
 
 	public $unregisterTaskProvider(handle: number): TPromise<any> {
 		this._taskService.unregisterTaskProvider(handle);
+		delete this._activeHandles[handle];
 		return TPromise.as<void>(undefined);
 	}
 }

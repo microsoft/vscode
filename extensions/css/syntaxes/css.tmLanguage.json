@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-css/commit/23dcdee3372050eb3f07374fbe9188884bd545d1",
+	"version": "https://github.com/atom/language-css/commit/02c1eb4e0d45f021694cf1825f6e2040872f3599",
 	"scopeName": "source.css",
 	"name": "CSS",
 	"fileTypes": [
@@ -1671,7 +1671,7 @@
 									]
 								}
 							},
-							"match": "(?x)\n(-?(?!\\d)(?:[\\w-]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+)\n\\s*\n(?=[~|^\\]$*=]|/\\*)"
+							"match": "(?x)\n(-?(?!\\d)(?>[\\w-]|[^\\x00-\\x7F]|\\\\(?:[0-9a-fA-F]{1,6}|.))+)\n\\s*\n(?=[~|^\\]$*=]|/\\*)"
 						}
 					]
 				},

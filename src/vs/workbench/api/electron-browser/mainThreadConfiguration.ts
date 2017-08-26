@@ -4,41 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { MainThreadConfigurationShape, ExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadConfiguration extends MainThreadConfigurationShape {
+@extHostNamedCustomer(MainContext.MainThreadConfiguration)
+export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
-	private _configurationEditingService: IConfigurationEditingService;
-	private _toDispose: IDisposable;
+	private readonly _configurationListener: IDisposable;
 
 	constructor(
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IThreadService threadService: IThreadService
+		extHostContext: IExtHostContext,
+		@IConfigurationEditingService private readonly _configurationEditingService: IConfigurationEditingService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super();
-		this._configurationEditingService = configurationEditingService;
-		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
+		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
 
-		this._toDispose = configurationService.onDidUpdateConfiguration(() => {
+		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
 			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
 		});
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true });
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
+		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined }, { donotNotifyError: true });
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void> {
+		return this.writeConfiguration(target, key, undefined, resource);
+	}
+
+	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
+		return this._configurationEditingService.writeConfiguration(target ? target : this.deriveConfigurationTarget(key, resource), { key, value }, { donotNotifyError: true, scopes: { resource } });
+	}
+
+	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
+		if (resource && this._workspaceContextService.hasMultiFolderWorkspace()) {
+			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {
+				return ConfigurationTarget.FOLDER;
+			}
+		}
+		return ConfigurationTarget.WORKSPACE;
 	}
 }

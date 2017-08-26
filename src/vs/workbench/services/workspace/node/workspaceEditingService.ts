@@ -8,12 +8,13 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { equals, distinct } from 'vs/base/common/arrays';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspacesService, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { isLinux } from 'vs/base/common/platform';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -29,7 +30,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public addRoots(rootsToAdd: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -39,7 +40,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
-		if (!this.supported) {
+		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
@@ -49,13 +50,12 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
 	}
 
-	private supported(): boolean {
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			return false; // we need a multi folder workspace to begin with
-		}
-
+	private isSupported(): boolean {
 		// TODO@Ben multi root
-		return this.environmentService.appQuality !== 'stable'; // not yet enabled in stable
+		return (
+			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
+			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+		);
 	}
 
 	private doSetRoots(newRoots: URI[]): TPromise<void> {
@@ -70,7 +70,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Apply to config
 		if (newWorkspaceRoots.length) {
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: newWorkspaceRoots }, true);
+			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => ({ path: newWorkspaceRoot }));
+
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value }, true);
 		} else {
 			// TODO: Sandeep - Removing all roots?
 		}
@@ -84,7 +86,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Prevent duplicates
-		const validatedRoots = distinct(roots.map(root => root.toString(true /* skip encoding */)));
-		return validatedRoots;
+		return distinct(roots.map(root => root.fsPath), root => isLinux ? root : root.toLowerCase());
 	}
 }

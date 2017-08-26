@@ -13,7 +13,7 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowConfiguration } from "vs/platform/windows/common/windows";
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -161,14 +161,6 @@ export class WorkspaceStats {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 
-				tags['workspace.language.cs'] = this.searchArray(names, /^.+\.cs$/i);
-				tags['workspace.language.js'] = this.searchArray(names, /^.+\.js$/i);
-				tags['workspace.language.ts'] = this.searchArray(names, /^.+\.ts$/i);
-				tags['workspace.language.php'] = this.searchArray(names, /^.+\.php$/i);
-				tags['workspace.language.python'] = this.searchArray(names, /^.+\.py$/i);
-				tags['workspace.language.vb'] = this.searchArray(names, /^.+\.vb$/i);
-				tags['workspace.language.aspx'] = this.searchArray(names, /^.+\.aspx$/i);
-
 				tags['workspace.grunt'] = this.searchArray(names, /^gruntfile\.js$/i);
 				tags['workspace.gulp'] = this.searchArray(names, /^gulpfile\.js$/i);
 				tags['workspace.jake'] = this.searchArray(names, /^jakefile\.js$/i);
@@ -178,13 +170,12 @@ export class WorkspaceStats {
 				tags['workspace.config.xml'] = this.searchArray(names, /^config\.xml/i);
 				tags['workspace.vsc.extension'] = this.searchArray(names, /^vsc-extension-quickstart\.md/i);
 
-				tags['workspace.ASP5'] = this.searchArray(names, /^project\.json$/i) && tags['workspace.language.cs'];
+				tags['workspace.ASP5'] = this.searchArray(names, /^project\.json$/i) && this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
 				tags['workspace.unity'] = this.searchArray(names, /^Assets$/i) && this.searchArray(names, /^Library$/i) && this.searchArray(names, /^ProjectSettings/i);
 				tags['workspace.npm'] = this.searchArray(names, /^package\.json$|^node_modules$/i);
 				tags['workspace.bower'] = this.searchArray(names, /^bower\.json$|^bower_components$/i);
 
-				tags['workspace.yeoman.code'] = this.searchArray(names, /^vscodequickstart\.md$/i);
 				tags['workspace.yeoman.code.ext'] = this.searchArray(names, /^vsc-extension-quickstart\.md$/i);
 
 				let mainActivity = this.searchArray(names, /^MainActivity\.cs$/i) || this.searchArray(names, /^MainActivity\.fs$/i);

@@ -11,8 +11,8 @@ import Event from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -42,7 +42,8 @@ export interface IWindowsService {
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	openWorkspace(windowId: number): TPromise<void>;
-	newWorkspace(windowId: number): TPromise<void>;
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void>;
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addRecentlyOpened(files: string[]): TPromise<void>;
@@ -98,7 +99,8 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	openWorkspace(): TPromise<void>;
-	newWorkspace(): TPromise<void>;
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void>;
+	saveAndOpenWorkspace(path: string): TPromise<void>;
 	toggleFullScreen(): TPromise<void>;
 	setRepresentedFilename(fileName: string): TPromise<void>;
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;

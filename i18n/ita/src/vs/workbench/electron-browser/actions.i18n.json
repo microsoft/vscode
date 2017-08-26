@@ -17,6 +17,7 @@
 	"reloadWindow": "Ricarica finestra",
 	"switchWindowPlaceHolder": "Selezionare una finestra a cui passare",
 	"current": "Finestra corrente",
+	"close": "Chiudi finestra",
 	"switchWindow": "Cambia finestra...",
 	"quickSwitchWindow": "Cambio rapido finestra...",
 	"files": "file",

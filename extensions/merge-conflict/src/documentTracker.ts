@@ -57,7 +57,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		let key = this.getCacheKey(document);
 
 		if (!key) {
-			// Document doesnt have a uri, can't cache it, so return
+			// Document doesn't have a uri, can't cache it, so return
 			return Promise.resolve(this.getConflictsOrEmpty(document, [origin]));
 		}
 

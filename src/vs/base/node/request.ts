@@ -58,59 +58,61 @@ async function getNodeRequest(options: IRequestOptions): TPromise<IRawRequestFun
 export function request(options: IRequestOptions): TPromise<IRequestContext> {
 	let req: http.ClientRequest;
 
-	return new TPromise<IRequestContext>(async (c, e) => {
-		const endpoint = parseUrl(options.url);
-		const rawRequest = options.getRawRequest
-			? options.getRawRequest(options)
-			: await getNodeRequest(options);
+	const rawRequestPromise = options.getRawRequest
+		? TPromise.as(options.getRawRequest(options))
+		: getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
-			hostname: endpoint.hostname,
-			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
-			protocol: endpoint.protocol,
-			path: endpoint.path,
-			method: options.type || 'GET',
-			headers: options.headers,
-			agent: options.agent,
-			rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
-		};
+	return rawRequestPromise.then(rawRequest => {
+		return new TPromise<IRequestContext>((c, e) => {
+			const endpoint = parseUrl(options.url);
 
-		if (options.user && options.password) {
-			opts.auth = options.user + ':' + options.password;
-		}
+			const opts: https.RequestOptions = {
+				hostname: endpoint.hostname,
+				port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
+				protocol: endpoint.protocol,
+				path: endpoint.path,
+				method: options.type || 'GET',
+				headers: options.headers,
+				agent: options.agent,
+				rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
+			};
 
-		req = rawRequest(opts, (res: http.ClientResponse) => {
-			const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
-
-			if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-				request(assign({}, options, {
-					url: res.headers['location'],
-					followRedirects: followRedirects - 1
-				})).done(c, e);
-			} else {
-				let stream: Stream = res;
-
-				if (res.headers['content-encoding'] === 'gzip') {
-					stream = stream.pipe(createGunzip());
-				}
-
-				c({ res, stream });
+			if (options.user && options.password) {
+				opts.auth = options.user + ':' + options.password;
 			}
-		});
 
-		req.on('error', e);
+			req = rawRequest(opts, (res: http.ClientResponse) => {
+				const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
 
-		if (options.timeout) {
-			req.setTimeout(options.timeout);
-		}
+				if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+					request(assign({}, options, {
+						url: res.headers['location'],
+						followRedirects: followRedirects - 1
+					})).done(c, e);
+				} else {
+					let stream: Stream = res;
 
-		if (options.data) {
-			req.write(options.data);
-		}
+					if (res.headers['content-encoding'] === 'gzip') {
+						stream = stream.pipe(createGunzip());
+					}
 
-		req.end();
-	},
-		() => req && req.abort());
+					c({ res, stream });
+				}
+			});
+
+			req.on('error', e);
+
+			if (options.timeout) {
+				req.setTimeout(options.timeout);
+			}
+
+			if (options.data) {
+				req.write(options.data);
+			}
+
+			req.end();
+		}, () => req && req.abort());
+	});
 }
 
 function isSuccess(context: IRequestContext): boolean {

@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { StatusBarElement, StatusBar } from "../areas/statusbar";
+import { StatusBarElement, StatusBar } from '../areas/statusbar';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testStatusbar() {
-	context('Status Bar', () => {
+	describe('Status Bar', () => {
 		let statusBar: StatusBar;
 
 		beforeEach(async function () {

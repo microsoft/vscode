@@ -355,11 +355,11 @@
 		"c": "${",
 		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
-			"dark_plus": "punctuation.definition.template-expression.begin.ts: #569CD6",
-			"light_plus": "punctuation.definition.template-expression.begin.ts: #0000FF",
-			"dark_vs": "punctuation.definition.template-expression.begin.ts: #569CD6",
-			"light_vs": "punctuation.definition.template-expression.begin.ts: #0000FF",
-			"hc_black": "punctuation.definition.template-expression.begin.ts: #569CD6"
+			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
+			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
+			"dark_vs": "punctuation.definition.template-expression.begin: #569CD6",
+			"light_vs": "punctuation.definition.template-expression.begin: #0000FF",
+			"hc_black": "punctuation.definition.template-expression.begin: #569CD6"
 		}
 	},
 	{
@@ -368,8 +368,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression.ts: #D4D4D4",
-			"light_vs": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression: #D4D4D4",
+			"light_vs": "meta.template.expression: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -377,11 +377,11 @@
 		"c": "}",
 		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts punctuation.definition.template-expression.end.ts",
 		"r": {
-			"dark_plus": "punctuation.definition.template-expression.end.ts: #569CD6",
-			"light_plus": "punctuation.definition.template-expression.end.ts: #0000FF",
-			"dark_vs": "punctuation.definition.template-expression.end.ts: #569CD6",
-			"light_vs": "punctuation.definition.template-expression.end.ts: #0000FF",
-			"hc_black": "punctuation.definition.template-expression.end.ts: #569CD6"
+			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
+			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
+			"dark_vs": "punctuation.definition.template-expression.end: #569CD6",
+			"light_vs": "punctuation.definition.template-expression.end: #0000FF",
+			"hc_black": "punctuation.definition.template-expression.end: #569CD6"
 		}
 	},
 	{
@@ -399,11 +399,11 @@
 		"c": "${",
 		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts punctuation.definition.template-expression.begin.ts",
 		"r": {
-			"dark_plus": "punctuation.definition.template-expression.begin.ts: #569CD6",
-			"light_plus": "punctuation.definition.template-expression.begin.ts: #0000FF",
-			"dark_vs": "punctuation.definition.template-expression.begin.ts: #569CD6",
-			"light_vs": "punctuation.definition.template-expression.begin.ts: #0000FF",
-			"hc_black": "punctuation.definition.template-expression.begin.ts: #569CD6"
+			"dark_plus": "punctuation.definition.template-expression.begin: #569CD6",
+			"light_plus": "punctuation.definition.template-expression.begin: #0000FF",
+			"dark_vs": "punctuation.definition.template-expression.begin: #569CD6",
+			"light_vs": "punctuation.definition.template-expression.begin: #0000FF",
+			"hc_black": "punctuation.definition.template-expression.begin: #569CD6"
 		}
 	},
 	{
@@ -412,8 +412,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression.ts: #D4D4D4",
-			"light_vs": "meta.template.expression.ts: #000000",
+			"dark_vs": "meta.template.expression: #D4D4D4",
+			"light_vs": "meta.template.expression: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -421,11 +421,11 @@
 		"c": "}",
 		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts punctuation.definition.template-expression.end.ts",
 		"r": {
-			"dark_plus": "punctuation.definition.template-expression.end.ts: #569CD6",
-			"light_plus": "punctuation.definition.template-expression.end.ts: #0000FF",
-			"dark_vs": "punctuation.definition.template-expression.end.ts: #569CD6",
-			"light_vs": "punctuation.definition.template-expression.end.ts: #0000FF",
-			"hc_black": "punctuation.definition.template-expression.end.ts: #569CD6"
+			"dark_plus": "punctuation.definition.template-expression.end: #569CD6",
+			"light_plus": "punctuation.definition.template-expression.end: #0000FF",
+			"dark_vs": "punctuation.definition.template-expression.end: #569CD6",
+			"light_vs": "punctuation.definition.template-expression.end: #0000FF",
+			"hc_black": "punctuation.definition.template-expression.end: #569CD6"
 		}
 	},
 	{

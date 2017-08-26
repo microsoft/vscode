@@ -332,15 +332,13 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { encoding?: string; mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { mode?: number; flag?: string; }, callback: (error: Error) => void): void {
 	if (!canFlush) {
 		return fs.writeFile(path, data, options, callback);
 	}
 
 	if (!options) {
-		options = { encoding: 'utf8', mode: 0o666, flag: 'w' };
-	} else if (typeof options === 'string') {
-		options = { encoding: <string>options, mode: 0o666, flag: 'w' };
+		options = { mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -350,7 +348,7 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 		}
 
 		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
-		fs.writeFile(fd, data, options.encoding, (writeError) => {
+		fs.writeFile(fd, data, (writeError) => {
 			if (writeError) {
 				return fs.close(fd, () => callback(writeError)); // still need to close the handle on error!
 			}

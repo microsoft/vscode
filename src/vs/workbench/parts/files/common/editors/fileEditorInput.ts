@@ -33,6 +33,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	private name: string;
 	private description: string;
+	private verboseDescription: string;
 
 	private shortTitle: string;
 	private mediumTitle: string;
@@ -127,12 +128,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.decorateOrphanedFiles(this.name);
 	}
 
-	public getDescription(): string {
-		if (!this.description) {
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
+	public getDescription(verbose?: boolean): string {
+		if (verbose) {
+			if (!this.verboseDescription) {
+				this.verboseDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService);
+			}
+		} else {
+			if (!this.description) {
+				this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
+			}
 		}
 
-		return this.description;
+		return verbose ? this.verboseDescription : this.description;
 	}
 
 	public getTitle(verbosity: Verbosity): string {
@@ -221,7 +228,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return TPromise.wrapError<TextFileEditorModel>(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

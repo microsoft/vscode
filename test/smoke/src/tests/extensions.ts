@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, EXTENSIONS_DIR } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, EXTENSIONS_DIR } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { Extensions } from "../areas/extensions";
+import { Extensions } from '../areas/extensions';
 
 var dns = require('dns');
 
@@ -16,7 +16,7 @@ let common: CommonActions;
 
 export function testExtensions() {
 
-	context('Extensions', () => {
+	describe('Extensions', () => {
 		let extensions: Extensions;
 		const extensionName = 'vscode-smoketest-check';
 

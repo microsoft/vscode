@@ -54,8 +54,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -97,11 +97,11 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public hasFolderWorkspace(): boolean {
-		return this.hasWorkspace();
+		return this.workspace && !this.workspace.configuration;
 	}
 
 	public hasMultiFolderWorkspace(): boolean {
-		return false;
+		return this.workspace && !!this.workspace.configuration;
 	}
 
 	public getLegacyWorkspace(): ILegacyWorkspace {
@@ -110,10 +110,6 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
-	}
-
-	public saveWorkspace(location: URI): TPromise<void> {
-		return TPromise.as(null);
 	}
 
 	public getRoot(resource: URI): URI {
@@ -409,10 +405,6 @@ export class TestStorageService extends EventEmitter implements IStorageService 
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {
 		this.storage.store(key, value, scope);
-	}
-
-	swap(key: string, valueA: any, valueB: any, scope: StorageScope = StorageScope.GLOBAL, defaultValue?: any): void {
-		this.storage.swap(key, valueA, valueB, scope, defaultValue);
 	}
 
 	remove(key: string, scope: StorageScope = StorageScope.GLOBAL): void {
@@ -711,10 +703,6 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	resolveContents(resources: URI[]): TPromise<IContent[]> {
-		return TPromise.as(null);
-	}
-
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return TPromise.timeout(1).then(() => {
 			return {
@@ -764,9 +752,7 @@ export class TestFileService implements IFileService {
 	watchFileChanges(resource: URI): void {
 	}
 
-	unwatchFileChanges(resource: URI): void;
-	unwatchFileChanges(fsPath: string): void;
-	unwatchFileChanges(arg1: any): void {
+	unwatchFileChanges(resource: URI): void {
 	}
 
 	updateOptions(options: any): void {
@@ -882,7 +868,11 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	newWorkspace(): TPromise<void> {
+	createAndOpenWorkspace(folders?: string[], path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	saveAndOpenWorkspace(path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1018,7 +1008,11 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	newWorkspace(windowId: number): TPromise<void> {
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

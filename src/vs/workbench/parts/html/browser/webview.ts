@@ -14,7 +14,9 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
+
 
 export declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -55,6 +57,7 @@ export interface WebviewOptions {
 	svgWhiteList?: string[];
 }
 
+
 export default class Webview {
 	private static index: number = 0;
 
@@ -70,9 +73,11 @@ export default class Webview {
 	private _findStarted: boolean = false;
 
 	constructor(
-		private parent: HTMLElement,
+		private _parent: HTMLElement,
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService,
 		private _contextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
@@ -85,10 +90,10 @@ export default class Webview {
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 
-		this._webview.style.width = '100%';
-		this._webview.style.height = '100%';
+		this._webview.style.flex = '0 1';
+		this._webview.style.width = '0';
+		this._webview.style.height = '0';
 		this._webview.style.outline = '0';
-		this._webview.style.opacity = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
@@ -122,6 +127,7 @@ export default class Webview {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
 						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -133,6 +139,7 @@ export default class Webview {
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
 						if (uri && !this.isAllowedSvg(uri)) {
+							this.onDidBlockSvg();
 							return callback({ cancel: true });
 						}
 					}
@@ -161,7 +168,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-set-content') {
-					this._webview.style.opacity = '';
+					this._webview.style.flex = '';
+					this._webview.style.width = '100%';
+					this._webview.style.height = '100%';
 					this.layout();
 					return;
 				}
@@ -188,14 +197,15 @@ export default class Webview {
 			})
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this._simpleFindWidgetService, this);
+		// Register and add to disposables
+		this._disposables.push(this._simpleFindWidgetService.register(this._webviewFindWidget, [this._contextKey]));
 		this._disposables.push(this._webviewFindWidget);
 
-		if (parent) {
-			parent.appendChild(this._webviewFindWidget.getDomNode());
-			parent.appendChild(this._webview);
+		if (_parent) {
+			_parent.appendChild(this._webviewFindWidget.getDomNode());
+			_parent.appendChild(this._webview);
 		}
-
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
@@ -257,6 +267,12 @@ export default class Webview {
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
+	}
+
+	private onDidBlockSvg() {
+		this.sendMessage({
+			name: 'vscode-did-block-svg'
+		});
 	}
 
 	style(theme: ITheme): void {
@@ -349,7 +365,7 @@ export default class Webview {
 
 	public layout(): void {
 		const contents = (this._webview as any).getWebContents();
-		if (!contents) {
+		if (!contents || contents.isDestroyed()) {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();
@@ -363,8 +379,8 @@ export default class Webview {
 
 			contents.setZoomFactor(factor);
 
-			const width = this.parent.clientWidth;
-			const height = this.parent.clientHeight;
+			const width = this._parent.clientWidth;
+			const height = this._parent.clientHeight;
 			contents.setSize({
 				normal: {
 					width: Math.floor(width * factor),
@@ -432,13 +448,5 @@ export default class Webview {
 	public stopFind(keepSelection?: boolean): void {
 		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
-	}
-
-	public showFind() {
-		this._webviewFindWidget.reveal();
-	}
-
-	public hideFind() {
-		this._webviewFindWidget.hide();
 	}
 }

@@ -7,6 +7,5 @@
 	"httpsRequired": "Resimler HTTPS protokolünü kullanmalıdır.",
 	"svgsNotValid": "SVG'ler geçerli bir resim kaynağı değil.",
 	"embeddedSvgsNotValid": "Gömülü SVG'ler geçerli bir resim kaynağı değil.",
-	"dataUrlsNotValid": "Veri URL'leri geçerli bir resim kaynağı değil.",
-	"relativeUrlRequiresHttpsRepository": "Göreli resim URL'leri, package.json'da HTTPS protokollü bir depo gerektirir."
+	"dataUrlsNotValid": "Veri URL'leri geçerli bir resim kaynağı değil."
 }

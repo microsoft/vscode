@@ -26,6 +26,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 // List of regular expressions, for matching shells, functions to format a path, and booleans indicating whether the shell uses Windows-style paths
 const WIN_PATH_FORMATTERS: [RegExp, (path: string) => string, boolean][] = [
@@ -59,7 +60,8 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
@@ -75,6 +77,8 @@ export class TerminalPanel extends Panel {
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		// Register SimpleFindWidget
+		this._register(this._simpleFindWidgetService.register(this._findWidget, [this._terminalService.terminalFocusContextKey]));
 
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
@@ -173,19 +177,6 @@ export class TerminalPanel extends Panel {
 		}
 	}
 
-	public focusFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection()) {
-			this._findWidget.reveal(activeInstance.selection);
-		} else {
-			this._findWidget.reveal();
-		}
-	}
-
-	public hideFindWidget() {
-		this._findWidget.hide();
-	}
-
 	private _attachEventListeners(): void {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
@@ -258,7 +249,7 @@ export class TerminalPanel extends Panel {
 					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					uri = URI.file(e.dataTransfer.files[0].path).path;
+					uri = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
 
 				if (!uri) {

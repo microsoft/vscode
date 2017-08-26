@@ -184,6 +184,27 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'process' event type.
+		The event indicates that the debugger has begun debugging a new process. Either one that it has launched, or one that it has attached to.
+	*/
+	export interface ProcessEvent extends Event {
+		// event: 'process';
+		body: {
+			/** The logical name of the process. This is usually the full path to process's executable file. Example: /home/example/myproj/program.js. */
+			name: string;
+			/** The system process id of the debugged process. This property will be missing for non-system processes. */
+			systemProcessId?: number;
+			/** If true, the process is running on the same computer as the debug adapter. */
+			isLocalProcess?: boolean;
+			/** Describes how the debug engine started debugging this process.
+				launch: Process was launched under the debugger.
+				attach: Debugger attached to an existing process.
+				attachForSuspendedLaunch: A project launcher component has launched a new process in a suspended state and then asked the debugger to attach.
+			*/
+			startMethod?: 'launch' | 'attach' | 'attachForSuspendedLaunch';
+		};
+	}
+
 	/** runInTerminal request; value of command field is 'runInTerminal'.
 		With this request a debug adapter can run a command in a terminal.
 	*/
@@ -1098,7 +1119,7 @@ declare module DebugProtocol {
 		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified). A sourceReference is only valid for a session, so it must not be used to persist a source. */
 		sourceReference?: number;
 		/** An optional hint for how to present the source in the UI. A value of 'deemphasize' can be used to indicate that the source is not available or that it is skipped on stepping. */
-		presentationHint?: 'emphasize' | 'deemphasize';
+		presentationHint?: 'normal' | 'emphasize' | 'deemphasize';
 		/** The (optional) origin of this source: possible values 'internal module', 'inlined content from source map', etc. */
 		origin?: string;
 		/** Optional data that a debug adapter might want to loop through the client. The client should leave the data intact and persist it across sessions. The client should not interpret the data. */

@@ -4580,7 +4580,7 @@ declare namespace Electron {
 		 */
 		isDevToolsOpened(): boolean;
 		/**
-		 * Returns whether the developer tools are focussed.
+		 * Returns whether the developer tools are focused.
 		 */
 		isDevToolsFocused(): boolean;
 		/**

@@ -20,7 +20,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -75,7 +75,6 @@ export class FileService implements IFileService {
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
-	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -302,19 +301,6 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public resolveContents(resources: uri[]): TPromise<IContent[]> {
-		const limiter = new Limiter(FileService.MAX_DEGREE_OF_PARALLEL_FS_OPS);
-
-		const contentPromises = <TPromise<IContent>[]>[];
-		resources.forEach(resource => {
-			contentPromises.push(limiter.queue(() => this.resolve(resource).then(model => this.resolveFileContent(model)).then(content => content, error => TPromise.as(null /* ignore errors gracefully */))));
-		});
-
-		return TPromise.join(contentPromises).then(contents => {
-			return arrays.coalesce(contents);
-		});
-	}
-
 	public updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
@@ -348,27 +334,48 @@ export class FileService implements IFileService {
 
 				// 3.) check to add UTF BOM
 				return addBomPromise.then(addBom => {
-					let writeFilePromise: TPromise<void>;
 
-					// Write fast if we do UTF 8 without BOM
-					if (!addBom && encodingToWrite === encoding.UTF8) {
-						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
-					}
+					// 4.) set contents and resolve
+					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'w' }).then(undefined, error => {
+						if (!exists || error.code !== 'EPERM' || !isWindows) {
+							return TPromise.wrapError(error);
+						}
 
-					// Otherwise use encoding lib
-					else {
-						const encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
-						writeFilePromise = pfs.writeFile(absolutePath, encoded);
-					}
+						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+						// (see https://github.com/Microsoft/vscode/issues/931)
 
-					// 4.) set contents
-					return writeFilePromise.then(() => {
+						// 5.) truncate
+						return pfs.truncate(absolutePath, 0).then(() => {
 
-						// 5.) resolve
-						return this.resolve(resource);
+							// 6.) set contents (this time with r+ mode) and resolve again
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'r+' });
+						});
 					});
 				});
 			});
+		});
+	}
+
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+		let writeFilePromise: TPromise<void>;
+
+		// Write fast if we do UTF 8 without BOM
+		if (!addBOM && encodingToWrite === encoding.UTF8) {
+			writeFilePromise = pfs.writeFile(absolutePath, value, options);
+		}
+
+		// Otherwise use encoding lib
+		else {
+			const encoded = encoding.encode(value, encodingToWrite, { addBOM });
+			writeFilePromise = pfs.writeFile(absolutePath, encoded, options);
+		}
+
+		// set contents
+		return writeFilePromise.then(() => {
+
+			// resolve
+			return this.resolve(resource);
 		});
 	}
 
@@ -798,11 +805,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: uri): void;
-	public unwatchFileChanges(path: string): void;
-	public unwatchFileChanges(arg1: any): void {
-		const resource = (typeof arg1 === 'string') ? uri.parse(arg1) : arg1 as uri;
-
+	public unwatchFileChanges(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher) {
 			watcher.close();

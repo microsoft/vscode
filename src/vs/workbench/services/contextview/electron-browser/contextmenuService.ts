@@ -16,6 +16,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
+import { unmnemonicLabel } from 'vs/base/common/labels';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -72,13 +73,13 @@ export class ContextMenuService implements IContextMenuService {
 			} else if (e instanceof ContextSubMenu) {
 				const submenu = new remote.MenuItem({
 					submenu: this.createMenu(delegate, e.entries),
-					label: e.label
+					label: unmnemonicLabel(e.label)
 				});
 
 				menu.append(submenu);
 			} else {
 				const options: Electron.MenuItemOptions = {
-					label: e.label,
+					label: unmnemonicLabel(e.label),
 					checked: !!e.checked || !!e.radio,
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
 					enabled: !!e.enabled,

@@ -36,6 +36,7 @@
 	"navigateNext": "前进",
 	"navigatePrevious": "后退",
 	"reopenClosedEditor": "重新打开已关闭的编辑器",
+	"clearRecentFiles": "清除最近打开",
 	"showEditorsInFirstGroup": "在第一组中显示编辑器",
 	"showEditorsInSecondGroup": "在第二组中显示编辑器",
 	"showEditorsInThirdGroup": "在第三组中显示编辑器",

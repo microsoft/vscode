@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testMultiRoot() {
-	context('Multi Root', () => {
+	describe('Multi Root', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [CODE_WORKSPACE_PATH]);
@@ -27,6 +27,7 @@ export function testMultiRoot() {
 
 		it('shows results from all folders', async function () {
 			await common.openQuickOpen();
+			await app.wait();
 			await common.type('*.*');
 			await app.wait();
 			const elCount = await common.getQuickOpenElements();

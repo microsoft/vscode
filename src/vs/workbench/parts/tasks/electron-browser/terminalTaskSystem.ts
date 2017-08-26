@@ -23,6 +23,7 @@ import * as TPath from 'vs/base/common/paths';
 // import URI from 'vs/base/common/uri';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
 
@@ -117,6 +118,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private workbenchEditorService: IWorkbenchEditorService,
+		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
 		super();
 
@@ -376,6 +378,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this.emit(TaskSystemEvents.Inactive, event);
+					// See https://github.com/Microsoft/vscode/issues/31965
+					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
+						exitCode = 1;
+					}
 					resolve({ exitCode });
 				});
 			});
@@ -445,14 +451,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
-			let basename: string;
+			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
-				basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				windowsShellArgs = true;
+				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if (basename === 'bash.exe') {
+					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
@@ -472,7 +480,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
+			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation.echo) {
 				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
 			}
@@ -631,7 +639,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.configurationResolverService.resolve(value);
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
 	}
 
 	private resolveOptions(options: CommandOptions): CommandOptions {

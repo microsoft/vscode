@@ -143,6 +143,7 @@ const configurationValueWhitelist = [
 	'editor.stablePeek',
 	'editor.dragAndDrop',
 	'editor.formatOnSave',
+	'editor.colorDecorators',
 
 	'window.zoomLevel',
 	'files.autoSave',

@@ -21,6 +21,7 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface ShutdownEvent {
 	veto(value: boolean | TPromise<boolean>): void;
 	reason: ShutdownReason;
+	payload?: object;
 }
 
 export enum ShutdownReason {

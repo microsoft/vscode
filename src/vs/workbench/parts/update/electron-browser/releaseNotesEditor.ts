@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import Webview from 'vs/workbench/parts/html/browser/webview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -23,6 +23,7 @@ import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -52,9 +53,10 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private simpleFindWidgetService: ISimpleFindWidgetService
 	) {
-		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
+		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -62,9 +64,9 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.content = append(container, $('.release-notes', { 'style': 'height: 100%; position: relative; overflow: hidden;' }));
 	}
 
-	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
+	async setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
 		if (this.input && this.input.matches(input)) {
-			return TPromise.as(undefined);
+			return undefined;
 		}
 
 		const { text } = input;
@@ -95,7 +97,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			})
 			.then(renderBody)
 			.then<void>(body => {
-				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
+				this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, this.simpleFindWidgetService, this.contextKey);
 
 				if (this.input && this.input instanceof ReleaseNotesInput) {
 					const state = this.loadViewState(this.input.version);

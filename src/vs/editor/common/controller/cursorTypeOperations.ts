@@ -223,7 +223,7 @@ export class TypeOperations {
 
 				let lineText = model.getLineContent(selection.startLineNumber);
 
-				if (/^\s*$/.test(lineText)) {
+				if (/^\s*$/.test(lineText) && model.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					let possibleTypeText = config.normalizeIndentation(goodIndent);
@@ -286,6 +286,12 @@ export class TypeOperations {
 	}
 
 	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): ICommand {
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
+			let lineText = model.getLineContent(range.startLineNumber);
+			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		}
+
 		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		if (r) {
 			let enterAction = r.enterAction;
@@ -369,6 +375,20 @@ export class TypeOperations {
 		}
 	}
 
+	private static _isAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): boolean {
+		if (!config.autoIndent) {
+			return false;
+		}
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			if (!model.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITokenizedModel, range: Range, ch: string): ICommand {
 		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, range, ch, {
@@ -410,6 +430,8 @@ export class TypeOperations {
 			return false;
 		}
 
+		const isEqualPair = (ch === config.autoClosingPairsClose[ch]);
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -424,9 +446,26 @@ export class TypeOperations {
 			if (afterCharacter !== ch) {
 				return false;
 			}
+
+			if (isEqualPair) {
+				const lineTextBeforeCursor = lineText.substr(0, position.column - 1);
+				const chCntBefore = this._countNeedlesInHaystack(lineTextBeforeCursor, ch);
+				if (chCntBefore % 2 === 0) {
+					return false;
+				}
+			}
 		}
 
 		return true;
+	}
+
+	private static _countNeedlesInHaystack(haystack: string, needle: string): number {
+		let cnt = 0;
+		let lastIndex = -1;
+		while ((lastIndex = haystack.indexOf(needle, lastIndex + 1)) !== -1) {
+			cnt++;
+		}
+		return cnt;
 	}
 
 	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
@@ -486,6 +525,11 @@ export class TypeOperations {
 				if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
 					return false;
 				}
+			}
+
+			if (!model.isCheapToTokenize(position.lineNumber)) {
+				// Do not force tokenization
+				return false;
 			}
 
 			model.forceTokenization(position.lineNumber);
@@ -566,12 +610,19 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection, ch: string): EditOperationResult {
-		if (!config.electricChars.hasOwnProperty(ch) || !selections.isEmpty()) {
+	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]) {
+		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
+			return true;
+		}
+		return false;
+	}
+
+	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selection: Selection, ch: string): EditOperationResult {
+		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
 		}
 
-		let position = selections.getPosition();
+		let position = selection.getPosition();
 		model.forceTokenization(position.lineNumber);
 		let lineTokens = model.getLineTokens(position.lineNumber);
 
@@ -587,7 +638,7 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-			const command = new ReplaceCommandWithOffsetCursorState(selections, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+			const command = new ReplaceCommandWithOffsetCursorState(selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
 			return new EditOperationResult([command], {
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: true
@@ -642,7 +693,7 @@ export class TypeOperations {
 			});
 		}
 
-		if (config.autoIndent) {
+		if (this._isAutoIndentType(config, model, selections)) {
 			let indentCommand = this._runAutoIndentType(config, model, selections[0], ch);
 			if (indentCommand) {
 				return new EditOperationResult([indentCommand], {
@@ -666,7 +717,7 @@ export class TypeOperations {
 
 		// Electric characters make sense only when dealing with a single cursor,
 		// as multiple cursors typing brackets for example would interfer with bracket matching
-		if (selections.length === 1) {
+		if (this._isTypeInterceptorElectricChar(config, model, selections)) {
 			const r = this._typeInterceptorElectricChar(config, model, selections[0], ch);
 			if (r) {
 				return r;

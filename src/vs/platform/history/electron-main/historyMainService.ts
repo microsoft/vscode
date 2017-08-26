@@ -16,10 +16,10 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { isEqual } from "vs/base/common/paths";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isEqual } from 'vs/base/common/paths';
 
 export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 	folders: string[]; // TODO@Ben migration
@@ -154,6 +154,15 @@ export class HistoryMainService implements IHistoryMainService {
 			files.unshift(...currentFiles.map(f => f.filePath));
 		}
 
+		// TODO@Ben migration to new workspace ID
+		workspaces.forEach(workspaceOrFile => {
+			if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+				return;
+			}
+
+			workspaceOrFile.id = this.workspacesService.getWorkspaceId(workspaceOrFile.configPath);
+		});
+
 		// Clear those dupes
 		workspaces = arrays.distinct(workspaces, workspace => this.distinctFn(workspace));
 		files = arrays.distinct(files, file => this.distinctFn(file));
@@ -165,11 +174,11 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string): string {
-		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile) || typeof workspaceOrFile === 'string') {
+		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
 			return isLinux ? workspaceOrFile : workspaceOrFile.toLowerCase();
 		}
 
-		return workspaceOrFile.id + (isLinux ? workspaceOrFile.configPath : workspaceOrFile.configPath.toLowerCase()); // ID and configPath form a unique workspace
+		return workspaceOrFile.id;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

@@ -16,7 +16,7 @@ export function testViewModel(text: string[], options: MockCodeEditorCreationOpt
 
 	let model = Model.createFromString(text.join('\n'));
 
-	let viewModel = new ViewModel(EDITOR_ID, configuration, model);
+	let viewModel = new ViewModel(EDITOR_ID, configuration, model, null);
 
 	callback(viewModel, model);
 

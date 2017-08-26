@@ -111,13 +111,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}, 500);
 
 		const scheduler = new RunOnceScheduler(() => {
+			const counterValue = ++this._modelChangeCounter;
 			if (this._currentFindCodeLensSymbolsPromise) {
 				this._currentFindCodeLensSymbolsPromise.cancel();
 			}
 
 			this._currentFindCodeLensSymbolsPromise = getCodeLensData(model);
 
-			const counterValue = ++this._modelChangeCounter;
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					this._renderCodeLensSymbols(result);

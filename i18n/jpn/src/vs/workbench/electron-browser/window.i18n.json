@@ -10,5 +10,6 @@
 	"copy": "コピー",
 	"paste": "貼り付け",
 	"selectAll": "すべて選択",
-	"confirmOpenButton": "&&開く"
+	"confirmOpen": "{0} ワークスペースを開きますか?",
+	"confirmOpenButton": "開く(&&O)"
 }

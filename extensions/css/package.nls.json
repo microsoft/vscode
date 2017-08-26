@@ -58,5 +58,8 @@
 	"scss.validate.desc": "Enables or disables all validations",
 	"less.colorDecorators.enable.desc": "Enables or disables color decorators",
 	"scss.colorDecorators.enable.desc": "Enables or disables color decorators",
-	"css.colorDecorators.enable.desc": "Enables or disables color decorators"
+	"css.colorDecorators.enable.desc": "Enables or disables color decorators",
+	"css.colorDecorators.enable.deprecationMessage": "The setting `css.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
+	"scss.colorDecorators.enable.deprecationMessage": "The setting `scss.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
+	"less.colorDecorators.enable.deprecationMessage": "The setting `less.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`."
 }

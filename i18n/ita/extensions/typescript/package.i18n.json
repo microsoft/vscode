@@ -10,7 +10,6 @@
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Completare le funzioni con la relativa firma del parametro.",
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
 	"typescript.disableAutomaticTypeAcquisition": "Disabilita l'acquisizione automatica del tipo. Richiede TypeScript >= 2.0.6 e un riavvio dopo la modifica.",
-	"typescript.check.tscVersion": "Verifica se un compilatore TypeScript di installazione globale, ad esempio tsc, è diverso dal servizio di linguaggio TypeScript usato.",
 	"typescript.tsserver.log": "Abilita la registrazione del server TypeScript in un file. Questo registro può essere utilizzato per diagnosticare problemi del server TypeScript. Il registro può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate. ",
 	"typescript.tsserver.trace": "Abilita la traccia dei messaggi inviati al server TypeScript. Questa traccia può essere utilizzata per diagnosticare problemi del server TypeScript. La traccia può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript.",

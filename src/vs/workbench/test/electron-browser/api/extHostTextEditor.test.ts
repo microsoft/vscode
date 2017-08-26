@@ -49,6 +49,7 @@ suite('ExtHostTextEditorOptions', () => {
 	setup(() => {
 		calls = [];
 		let mockProxy: MainThreadEditorsShape = {
+			dispose: undefined,
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);

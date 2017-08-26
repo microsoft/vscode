@@ -43,19 +43,24 @@ import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from './auth';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
-import { TPromise } from "vs/base/common/winjs.base";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from "vs/code/electron-main/window";
-import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import { CodeWindow } from 'vs/code/electron-main/window';
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import URI from 'vs/base/common/uri';
-import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
-import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { dirname, join } from 'path';
+import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
+
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh';
+
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -177,6 +182,10 @@ export class CodeApplication {
 					runningTimeout = null;
 				}
 			}, 100);
+		});
+
+		app.on('new-window-for-tab', () => {
+			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
 		ipc.on('vscode:exit', (event, code: number) => {
@@ -382,6 +391,20 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// Helps application icon refresh after an update with new icon is installed (macOS)
+		// TODO@Ben remove after a couple of releases
+		if (platform.isMacintosh) {
+			if (!this.storageService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.storageService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+
+				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
+				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
+				const infoPlistPath = join(appPath, 'Contents', 'Info.plist');
+				touch(appPath).done(null, error => { /* ignore */ });
+				touch(infoPlistPath).done(null, error => { /* ignore */ });
+			}
+		}
 	}
 
 	private dispose(): void {

@@ -12,9 +12,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
-import { handleVetos } from "vs/platform/lifecycle/common/lifecycle";
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -59,9 +59,9 @@ export interface ILifecycleService {
 	onBeforeWindowUnload: Event<IWindowUnloadEvent>;
 
 	ready(): void;
-	registerWindow(codeWindow: ICodeWindow): void;
+	registerWindow(window: ICodeWindow): void;
 
-	unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+	unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */>;
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
 
@@ -148,11 +148,11 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public registerWindow(codeWindow: ICodeWindow): void {
+	public registerWindow(window: ICodeWindow): void {
 
 		// Window Before Closing: Main -> Renderer
-		codeWindow.win.on('close', e => {
-			const windowId = codeWindow.id;
+		window.win.on('close', e => {
+			const windowId = window.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -166,11 +166,11 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(codeWindow, UnloadReason.CLOSE).done(veto => {
+			this.unload(window, UnloadReason.CLOSE).done(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
-					this._onBeforeWindowClose.fire(codeWindow);
-					codeWindow.close();
+					this._onBeforeWindowClose.fire(window);
+					window.close();
 				} else {
 					this.quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
@@ -179,25 +179,25 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	public unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
-		if (codeWindow.readyState !== ReadyState.READY) {
+		if (window.readyState !== ReadyState.READY) {
 			return TPromise.as<boolean>(false);
 		}
 
-		this.logService.log('Lifecycle#unload()', codeWindow.id);
+		this.logService.log('Lifecycle#unload()', window.id);
 
 		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
 
 		// first ask the window itself if it vetos the unload
-		return this.doUnloadWindowInRenderer(codeWindow, windowUnloadReason).then(veto => {
+		return this.doUnloadWindowInRenderer(window, windowUnloadReason, payload).then(veto => {
 			if (veto) {
 				return this.handleVeto(veto);
 			}
 
 			// then check for vetos in the main side
-			return this.doUnloadWindowInMain(codeWindow, windowUnloadReason).then(veto => this.handleVeto(veto));
+			return this.doUnloadWindowInMain(window, windowUnloadReason).then(veto => this.handleVeto(veto));
 		});
 	}
 
@@ -213,7 +213,7 @@ export class LifecycleService implements ILifecycleService {
 		return veto;
 	}
 
-	private doUnloadWindowInRenderer(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	private doUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
@@ -227,7 +227,7 @@ export class LifecycleService implements ILifecycleService {
 				c(true); // veto
 			});
 
-			codeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason });
+			window.send('vscode:beforeUnload', { okChannel, cancelChannel, reason, payload });
 		});
 	}
 

@@ -56,7 +56,7 @@ export default class URI {
 	private static _empty = '';
 	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-	private static _driveLetterPath = /^\/[a-zA-z]:/;
+	private static _driveLetterPath = /^\/[a-zA-Z]:/;
 	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
 
 	/**
