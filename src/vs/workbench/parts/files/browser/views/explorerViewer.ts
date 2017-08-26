@@ -886,9 +886,9 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 				// If we are in single-folder context, ask for confirmation to create a workspace
 				const result = this.messageService.confirm({
-					message: nls.localize('dropFolders', "Do you want to add the folders to the workspace?"),
+					message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 					type: 'question',
-					primaryButton: nls.localize('create', "&&Add Folders")
+					primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
 				});
 
 				if (result) {

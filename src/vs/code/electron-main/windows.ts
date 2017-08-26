@@ -223,6 +223,14 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowUnload(e => this.onBeforeWindowUnload(e));
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win as CodeWindow));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
+		this.onWindowsCountChanged(e => {
+			if (e.newCount - e.oldCount > 0) {
+				// clear last closed window state when a new window opens. this helps on macOS where
+				// otherwise closing the last window, opening a new window and then quitting would
+				// use the state of the previously closed window when restarting.
+				this.lastClosedWindowState = void 0;
+			}
+		});
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -232,6 +240,36 @@ export class WindowsManager implements IWindowsMainService {
 	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
 	//          and then onBeforeQuit(). Using the quit action however will first issue onBeforeQuit()
 	//          and then onBeforeWindowClose().
+	//
+	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	//
+	// Legend
+	// -  quit(N): quit application with N windows opened
+	// - close(1): close one window via the window close button
+	// - closeAll: close all windows via the taskbar command
+	// - onBeforeQuit(N): number of windows reported in this event handler
+	// - onBeforeWindowClose(N, M): number of windows reported and quitRequested boolean in this event handler
+	//
+	// macOS
+	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(0): onBeforeQuit(0)
+	// 	-    close(1): onBeforeWindowClose(1, false)
+	//
+	// Windows
+	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
+	// 	-    close(1): onBeforeWindowClose(1, false), onBeforequit(0)[last window]
+	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeQuit(0)
+	//
+	// Linux
+	// 	-     quit(1): onBeforeQuit(1), onBeforeWindowClose(1, true)
+	// 	-     quit(2): onBeforeQuit(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
+	// 	-    close(1): onBeforeWindowClose(1, false), onBeforequit(0)[last window]
+	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeQuit(0)
+	//
 	private onBeforeQuit(): void {
 		const currentWindowsState: ILegacyWindowsState = {
 			openedWindows: [],
