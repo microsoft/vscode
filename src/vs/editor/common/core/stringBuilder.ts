@@ -74,7 +74,7 @@ class StringBuilder implements IStringBuilder {
 		if (this._completedStrings === null) {
 			this._completedStrings = [bufferString];
 		} else {
-			this._completedStrings.push(bufferString);
+			this._completedStrings[this._completedStrings.length] = bufferString;
 		}
 	}
 
@@ -105,7 +105,7 @@ class StringBuilder implements IStringBuilder {
 			// This string does not fit in the remaining buffer space
 
 			this._flushBuffer();
-			this._completedStrings.push(str);
+			this._completedStrings[this._completedStrings.length] = str;
 			return;
 		}
 

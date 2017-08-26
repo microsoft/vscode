@@ -178,7 +178,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
 			let overviewRuler = dec.source.options.overviewRuler;
-			zones.push(new OverviewRulerZone(
+			zones[i] = new OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
 				overviewRuler.position,
@@ -186,7 +186,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				this.resolveRulerColor(overviewRuler.color),
 				this.resolveRulerColor(overviewRuler.darkColor),
 				this.resolveRulerColor(overviewRuler.hcColor)
-			));
+			);
 		}
 
 		return zones;
@@ -206,7 +206,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 			let cursor = this._cursorPositions[i];
 
-			zones.push(new OverviewRulerZone(
+			zones[i] = new OverviewRulerZone(
 				cursor.lineNumber,
 				cursor.lineNumber,
 				editorCommon.OverviewRulerLane.Full,
@@ -214,7 +214,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				this._cursorColor,
 				this._cursorColor,
 				this._cursorColor
-			));
+			);
 		}
 
 		return zones;
