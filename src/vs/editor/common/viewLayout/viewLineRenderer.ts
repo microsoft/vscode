@@ -8,6 +8,7 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -223,19 +224,17 @@ export class RenderLineOutput {
 	_renderLineOutputBrand: void;
 
 	readonly characterMapping: CharacterMapping;
-	readonly html: string;
 	readonly containsRTL: boolean;
 	readonly containsForeignElements: boolean;
 
-	constructor(characterMapping: CharacterMapping, html: string, containsRTL: boolean, containsForeignElements: boolean) {
+	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: boolean) {
 		this.characterMapping = characterMapping;
-		this.html = html;
 		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 	}
 }
 
-export function renderViewLine(input: RenderLineInput): RenderLineOutput {
+export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
 		let containsForeignElements = false;
@@ -259,15 +258,31 @@ export function renderViewLine(input: RenderLineInput): RenderLineOutput {
 			}
 		}
 
+		sb.appendASCIIString(content);
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
-			content,
 			false,
 			containsForeignElements
 		);
 	}
 
-	return _renderLine(resolveRenderLineInput(input));
+	return _renderLine(resolveRenderLineInput(input), sb);
+}
+
+export class RenderLineOutput2 {
+	constructor(
+		public readonly characterMapping: CharacterMapping,
+		public readonly html: string,
+		public readonly containsRTL: boolean,
+		public readonly containsForeignElements: boolean
+	) {
+	}
+}
+
+export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
+	let sb = createStringBuilder(10000);
+	let out = renderViewLine(input, sb);
+	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
 }
 
 class ResolvedRenderLineInput {
@@ -564,7 +579,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
  * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
  * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
  */
-function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
+function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
 	const containsForeignElements = input.containsForeignElements;
 	const lineContent = input.lineContent;
@@ -583,7 +598,8 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	let tabsCharDelta = 0;
 	let charOffsetInPart = 0;
 
-	let out = '<span>';
+	sb.appendASCIIString('<span>');
+
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 		const part = parts[partIndex];
 		const partEndIndex = part.endIndex;
@@ -591,10 +607,42 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && (partType.indexOf('vs-whitespace') >= 0));
 		charOffsetInPart = 0;
 
+		sb.appendASCIIString('<span class="');
+		sb.appendASCIIString(partType);
+		sb.appendASCII(CharCode.DoubleQuote);
+
 		if (partRendersWhitespace) {
 
 			let partContentCnt = 0;
-			let partContent = '';
+			{
+				let _charIndex = charIndex;
+				let _tabsCharDelta = tabsCharDelta;
+				let _charOffsetInPart = charOffsetInPart;
+
+				for (; _charIndex < partEndIndex; _charIndex++) {
+					const charCode = lineContent.charCodeAt(_charIndex);
+
+					if (charCode === CharCode.Tab) {
+						let insertSpacesCount = tabSize - (_charIndex + _tabsCharDelta) % tabSize;
+						_tabsCharDelta += insertSpacesCount - 1;
+						_charOffsetInPart += insertSpacesCount - 1;
+						partContentCnt += insertSpacesCount;
+					} else {
+						partContentCnt++;
+					}
+
+					_charOffsetInPart++;
+				}
+			}
+
+			if (fontIsMonospace || containsForeignElements) {
+			} else {
+				sb.appendASCIIString(' style="width:');
+				sb.appendASCIIString(String(spaceWidth * partContentCnt));
+				sb.appendASCIIString('px"');
+			}
+			sb.appendASCII(CharCode.GreaterThan);
+
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
 				const charCode = lineContent.charCodeAt(charIndex);
@@ -604,35 +652,31 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						partContent += '&rarr;';
-						partContentCnt++;
+						sb.appendASCIIString('&rarr;');
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {
-						partContent += '&nbsp;';
-						partContentCnt++;
+						sb.appendASCIIString('&nbsp;');
 						insertSpacesCount--;
 					}
 				} else {
 					// must be CharCode.Space
-					partContent += '&middot;';
-					partContentCnt++;
+					sb.appendASCIIString('&middot;');
 				}
 
 				charOffsetInPart++;
 			}
 
 			characterMapping.setPartLength(partIndex, partContentCnt);
-			if (fontIsMonospace || containsForeignElements) {
-				out += `<span class="${partType}">${partContent}</span>`;
-			} else {
-				out += `<span class="${partType}" style="width:${spaceWidth * partContentCnt}px">${partContent}</span>`;
-			}
 
 		} else {
 
 			let partContentCnt = 0;
-			let partContent = '';
+
+			if (containsRTL) {
+				sb.appendASCIIString(' dir="ltr"');
+			}
+			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
@@ -644,55 +688,55 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 						tabsCharDelta += insertSpacesCount - 1;
 						charOffsetInPart += insertSpacesCount - 1;
 						while (insertSpacesCount > 0) {
-							partContent += '&nbsp;';
+							sb.appendASCIIString('&nbsp;');
 							partContentCnt++;
 							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
-						partContent += '&nbsp;';
+						sb.appendASCIIString('&nbsp;');
 						partContentCnt++;
 						break;
 
 					case CharCode.LessThan:
-						partContent += '&lt;';
+						sb.appendASCIIString('&lt;');
 						partContentCnt++;
 						break;
 
 					case CharCode.GreaterThan:
-						partContent += '&gt;';
+						sb.appendASCIIString('&gt;');
 						partContentCnt++;
 						break;
 
 					case CharCode.Ampersand:
-						partContent += '&amp;';
+						sb.appendASCIIString('&amp;');
 						partContentCnt++;
 						break;
 
 					case CharCode.Null:
-						partContent += '&#00;';
+						sb.appendASCIIString('&#00;');
 						partContentCnt++;
 						break;
 
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
-						partContent += '\ufffd';
+						sb.write1(0xfffd);
 						partContentCnt++;
 						break;
 
 					case CharCode.CarriageReturn:
 						// zero width space, because carriage return would introduce a line break
-						partContent += '&#8203';
+						sb.appendASCIIString('&#8203;');
 						partContentCnt++;
 						break;
 
 					default:
 						if (renderControlCharacters && charCode < 32) {
-							partContent += String.fromCharCode(9216 + charCode);
+							sb.write1(9216 + charCode);
 							partContentCnt++;
 						} else {
-							partContent += String.fromCharCode(charCode);
+							sb.write1(charCode);
 							partContentCnt++;
 						}
 				}
@@ -701,13 +745,10 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 			}
 
 			characterMapping.setPartLength(partIndex, partContentCnt);
-			if (containsRTL) {
-				out += `<span dir="ltr" class="${partType}">${partContent}</span>`;
-			} else {
-				out += `<span class="${partType}">${partContent}</span>`;
-			}
-
 		}
+
+		sb.appendASCIIString('</span>');
+
 	}
 
 	// When getting client rects for the last character, we will position the
@@ -715,10 +756,10 @@ function _renderLine(input: ResolvedRenderLineInput): RenderLineOutput {
 	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart);
 
 	if (isOverflowing) {
-		out += `<span>&hellip;</span>`;
+		sb.appendASCIIString('<span>&hellip;</span>');
 	}
 
-	out += '</span>';
+	sb.appendASCIIString('</span>');
 
-	return new RenderLineOutput(characterMapping, out, containsRTL, containsForeignElements);
+	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
 }

@@ -7,6 +7,7 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 /**
  * Represents a visible line
@@ -22,7 +23,7 @@ export interface IVisibleLine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string;
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean;
 
 	/**
 	 * Layout the line.
@@ -503,12 +504,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
+	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
 		let lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			this.domNode.innerHTML = newLinesHTML.join('');
+			this.domNode.innerHTML = newLinesHTML;
 		} else {
-			lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
+			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
 		}
 
 		let currChild = <HTMLElement>this.domNode.lastChild;
@@ -521,10 +522,10 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string[], wasInvalid: boolean[]): void {
+	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
 		let hugeDomNode = document.createElement('div');
 
-		hugeDomNode.innerHTML = invalidLinesHTML.join('');
+		hugeDomNode.innerHTML = invalidLinesHTML;
 
 		for (let i = 0; i < ctx.linesLength; i++) {
 			let line = ctx.lines[i];
@@ -537,14 +538,21 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
+	private static _sb1 = createStringBuilder(100000);
+	private static _sb2 = createStringBuilder(100000);
+
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
+
+		const sb1 = ViewLayerRenderer._sb1;
+		const sb2 = ViewLayerRenderer._sb2;
+
+		sb1.reset();
+		sb2.reset();
 
 		let hadNewLine = false;
 		let wasNew: boolean[] = [];
-		let newLinesHTML: string[] = [];
 		let hadInvalidLine = false;
 		let wasInvalid: boolean[] = [];
-		let invalidLinesHTML: string[] = [];
 
 		for (let i = 0, len = ctx.linesLength; i < len; i++) {
 			let line = ctx.lines[i];
@@ -553,19 +561,19 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			wasNew[i] = false;
 			wasInvalid[i] = false;
 
-			let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData);
+			const lineDomNode = line.getDomNode();
 
-			if (renderResult !== null) {
-				// Line needs rendering
-				let lineDomNode = line.getDomNode();
-				if (!lineDomNode) {
+			if (!lineDomNode) {
+				let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData, sb1);
+				if (renderResult) {
 					// Line is new
-					newLinesHTML.push(renderResult);
 					wasNew[i] = true;
 					hadNewLine = true;
-				} else {
+				}
+			} else {
+				let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData, sb2);
+				if (renderResult) {
 					// Line is invalid
-					invalidLinesHTML.push(renderResult);
 					wasInvalid[i] = true;
 					hadInvalidLine = true;
 				}
@@ -573,11 +581,11 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 
 		if (hadNewLine) {
-			this._finishRenderingNewLines(ctx, domNodeIsEmpty, newLinesHTML, wasNew);
+			this._finishRenderingNewLines(ctx, domNodeIsEmpty, sb1.build(), wasNew);
 		}
 
 		if (hadInvalidLine) {
-			this._finishRenderingInvalidLines(ctx, invalidLinesHTML, wasInvalid);
+			this._finishRenderingInvalidLines(ctx, sb2.build(), wasInvalid);
 		}
 	}
 }

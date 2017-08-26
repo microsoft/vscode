@@ -16,6 +16,7 @@ import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -156,10 +157,10 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
-			return null;
+			return false;
 		}
 
 		this._isMaybeInvalid = false;
@@ -204,10 +205,20 @@ export class ViewLine implements IVisibleLine {
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
-			return null;
+			return false;
 		}
 
-		const output = renderViewLine(renderLineInput);
+		sb.appendASCIIString('<div style="top:');
+		sb.appendASCIIString(String(deltaTop));
+		sb.appendASCIIString('px;height:');
+		sb.appendASCIIString(String(this._options.lineHeight));
+		sb.appendASCIIString('px;" class="');
+		sb.appendASCIIString(ViewLine.CLASS_NAME);
+		sb.appendASCIIString('">');
+
+		const output = renderViewLine(renderLineInput, sb);
+
+		sb.appendASCIIString('</div>');
 
 		let renderedViewLine: IRenderedViewLine = null;
 		if (canUseFastRenderedViewLine && options.useMonospaceOptimizations && !output.containsForeignElements) {
@@ -239,7 +250,7 @@ export class ViewLine implements IVisibleLine {
 
 		this._renderedViewLine = renderedViewLine;
 
-		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ViewLine.CLASS_NAME}">${output.html}</div>`;
+		return true;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {
