@@ -16,7 +16,7 @@ import * as nls from 'vscode-nls';
 nls.config({ locale: env.language });
 const localize = nls.loadMessageBundle();
 
-import * as path from 'path';
+import { basename } from 'path';
 
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -24,9 +24,7 @@ import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
-import { TypeScriptFormattingProvider, FormattingProviderManager } from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
-import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
 
@@ -242,6 +240,7 @@ class LanguageProvider {
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
+		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
 		const formattingProvider = new TypeScriptFormattingProvider(client);
 		formattingProvider.updateConfiguration(config);
 		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
@@ -267,7 +266,7 @@ class LanguageProvider {
 		this.registerVersionDependentProviders();
 
 		for (const modeId of this.description.modeIds) {
-			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
+			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
 
 			const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, modeId);
 			referenceCodeLensProvider.updateConfiguration();
@@ -336,11 +335,8 @@ class LanguageProvider {
 			return true;
 		}
 
-		const basename = path.basename(file);
-		if (!!basename && basename === this.description.configFile) {
-			return true;
-		}
-		return false;
+		const base = basename(file);
+		return !!base && base === this.description.configFile;
 	}
 
 	public get id(): string {
