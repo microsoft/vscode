@@ -1,11 +1,19 @@
 {
   "name": "php",
   "version": "0.1.0",
+  "lockfileVersion": 1,
+  "requires": true,
   "dependencies": {
+    "@types/node": {
+      "version": "7.0.39",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-7.0.39.tgz",
+      "integrity": "sha512-KQHAZeVsk4UIT9XaR6cn4WpHZzimK6UBD1UomQKfQQFmTlUHaNBzeuov+TM4+kigLO0IJt4I5OOsshcCyA9gSA==",
+      "dev": true
+    },
     "vscode-nls": {
       "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz",
+      "integrity": "sha1-KYwB/Oh4AsZEwKFe9SajPGLA1Y4="
     }
   }
 }

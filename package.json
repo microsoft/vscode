@@ -24,6 +24,7 @@
   "dependencies": {
     "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
+    "electron-vibrancy": "^0.1.3",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",

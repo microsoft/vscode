@@ -1,36 +1,51 @@
 {
   "name": "css",
   "version": "0.1.0",
+  "lockfileVersion": 1,
+  "requires": true,
   "dependencies": {
+    "@types/node": {
+      "version": "6.0.85",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.85.tgz",
+      "integrity": "sha512-6qLZpfQFO/g5Ns2e7RsW6brk0Q6Xzwiw7kVVU/XiQNOiJXSojhX76GP457PBYIsNMH2WfcGgcnZB4awFDHrwpA==",
+      "dev": true
+    },
     "color-convert": {
       "version": "0.5.3",
-      "from": "color-convert@>=0.5.0 <0.6.0",
-      "resolved": "https://registry.npmjs.org/color-convert/-/color-convert-0.5.3.tgz"
+      "resolved": "https://registry.npmjs.org/color-convert/-/color-convert-0.5.3.tgz",
+      "integrity": "sha1-vbbGnOZg+t/+CwAHzER+G59ygr0="
     },
     "parse-color": {
       "version": "1.0.0",
-      "from": "parse-color@latest",
-      "resolved": "https://registry.npmjs.org/parse-color/-/parse-color-1.0.0.tgz"
+      "resolved": "https://registry.npmjs.org/parse-color/-/parse-color-1.0.0.tgz",
+      "integrity": "sha1-e3SLlag/A/FqlPU15S1/PZRlhhk=",
+      "requires": {
+        "color-convert": "0.5.3"
+      }
     },
     "vscode-jsonrpc": {
       "version": "3.2.0",
-      "from": "vscode-jsonrpc@>=3.2.0 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.2.0.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-3.2.0.tgz",
+      "integrity": "sha1-ySuUasOFyLQUObhCtr0H1Re2Sn0="
     },
     "vscode-languageclient": {
       "version": "3.2.0",
-      "from": "vscode-languageclient@3.2.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.2.0.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-3.2.0.tgz",
+      "integrity": "sha1-i5m40dwYf//Z2clv1meEMFI73s4=",
+      "requires": {
+        "vscode-jsonrpc": "3.2.0",
+        "vscode-languageserver-types": "3.2.0"
+      }
     },
     "vscode-languageserver-types": {
       "version": "3.2.0",
-      "from": "vscode-languageserver-types@>=3.2.0 <4.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.2.0.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.2.0.tgz",
+      "integrity": "sha1-iHTtktv6Zt9fsOK/c/YUz5SDvo8="
     },
     "vscode-nls": {
       "version": "2.0.2",
-      "from": "vscode-nls@2.0.2",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-2.0.2.tgz",
+      "integrity": "sha1-gIUiOAhEuK0VNJmvXDsDkhrqAto="
     }
   }
 }

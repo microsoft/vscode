@@ -229,7 +229,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Part container
 		const container = this.getContainer();
-		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND, color => color.transparent(0.8));
 		container.style('background-color', background);
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);

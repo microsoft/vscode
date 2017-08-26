@@ -10,6 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import URI from "vs/base/common/uri";
+import * as electronVibrancy from 'electron-vibrancy';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -126,15 +127,17 @@ export class CodeWindow implements ICodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: this.getBackgroundColor(),
+			// backgroundColor: this.getBackgroundColor(),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
-			show: !isFullscreenOrMaximized,
+			show: false, //!isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
 				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-			}
+			},
+			transparent: true,
+			frame: false
 		};
 
 		if (isLinux) {
@@ -194,6 +197,11 @@ export class CodeWindow implements ICodeWindow {
 				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
 		}
+
+		this._win.on('ready-to-show', () => {
+			electronVibrancy.SetVibrancy(this._win, 0);
+			this._win.show();
+		});
 
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 	}

@@ -40,16 +40,18 @@
           "description": "%config.npm.autoDetect%"
         },
         "npm.runSilent": {
-					"type": "boolean",
-					"default": false,
-					"description": "%config.npm.runSilent%"
+          "type": "boolean",
+          "default": false,
+          "description": "%config.npm.runSilent%"
         }
       }
     },
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script"],
+        "required": [
+          "script"
+        ],
         "properties": {
           "script": {
             "type": "string",

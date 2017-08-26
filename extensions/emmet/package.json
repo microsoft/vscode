@@ -44,7 +44,7 @@
                     "type": "object",
                     "default": {},
                     "description": "%emmetIncludeLanguages%"
-                                },
+                },
                 "emmet.variables": {
                     "type": "object",
                     "properties": {
@@ -60,14 +60,16 @@
                     "default": {},
                     "description": "%emmetVariables%"
                 },
-                "emmet.syntaxProfiles":{
+                "emmet.syntaxProfiles": {
                     "type": "object",
                     "default": {},
                     "description": "%emmetSyntaxProfiles%"
                 },
-                "emmet.excludeLanguages":{
+                "emmet.excludeLanguages": {
                     "type": "array",
-                    "default": ["markdown"],
+                    "default": [
+                        "markdown"
+                    ],
                     "description": "%emmetExclude%"
                 },
                 "emmet.extensionsPath": {
@@ -208,7 +210,6 @@
         "vscode": "1.0.1"
     },
     "dependencies": {
-
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "^0.4.0",
         "@emmetio/math-expression": "^0.1.1",
