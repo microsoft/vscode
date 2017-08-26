@@ -7,7 +7,11 @@
   },
   "enableProposedApi": true,
   "activationEvents": [
-    "*"
+    "onCommand:azure-account.login",
+    "onCommand:azure-account.logout",
+    "onCommand:azure-account.addFilter",
+    "onCommand:azure-account.removeFilter",
+    "onCommand:azure-account.createAccount"
   ],
   "main": "./out/extension",
   "contributes": {
