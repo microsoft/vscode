@@ -26,8 +26,8 @@ suite('Workspace', () => {
 		ws = new Workspace('id', 'name', roots, config);
 
 		assert.equal(ws.roots.length, 2);
-		assert.equal(ws.roots[0].fsPath, join(dirname(config.fsPath), roots[0].fsPath));
-		assert.equal(ws.roots[1].fsPath, join(dirname(config.fsPath), roots[1].fsPath));
+		assert.equal(ws.roots[0].fsPath, URI.file(join(dirname(config.fsPath), roots[0].fsPath)).fsPath);
+		assert.equal(ws.roots[1].fsPath, URI.file(join(dirname(config.fsPath), roots[1].fsPath)).fsPath);
 
 		// Absolute (from root)
 		config = URI.file('/workspace.code-workspace');
@@ -35,7 +35,7 @@ suite('Workspace', () => {
 		ws = new Workspace('id', 'name', roots, config);
 
 		assert.equal(ws.roots.length, 2);
-		assert.equal(ws.roots[0].fsPath, join(dirname(config.fsPath), roots[0].fsPath));
-		assert.equal(ws.roots[1].fsPath, join(dirname(config.fsPath), roots[1].fsPath));
+		assert.equal(ws.roots[0].fsPath, URI.file(join(dirname(config.fsPath), roots[0].fsPath)).fsPath);
+		assert.equal(ws.roots[1].fsPath, URI.file(join(dirname(config.fsPath), roots[1].fsPath)).fsPath);
 	});
 });
