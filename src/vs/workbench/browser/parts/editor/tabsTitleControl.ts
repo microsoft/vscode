@@ -295,7 +295,16 @@ export class TabsTitleControl extends TitleControl {
 					tabContainer.setAttribute('aria-selected', 'true');
 					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-					tabContainer.style.borderBottomColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+
+					// Use boxShadow for the active tab border because if we also have a editor group header
+					// color, the two colors would collide and the tab border never shows up.
+					// see https://github.com/Microsoft/vscode/issues/33111
+					const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+					if (activeTabBorderColor) {
+						tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+					} else {
+						tabContainer.style.boxShadow = null;
+					}
 
 					this.activeTab = tabContainer;
 				} else {
@@ -303,7 +312,7 @@ export class TabsTitleControl extends TitleControl {
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
 					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
-					tabContainer.style.borderBottomColor = null;
+					tabContainer.style.boxShadow = null;
 				}
 
 				// Dirty State
