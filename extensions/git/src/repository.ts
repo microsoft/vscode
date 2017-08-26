@@ -14,7 +14,7 @@ import { AutoFetcher } from './autofetch';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
-import { StatusBarCommands } from "./statusbar";
+import { StatusBarCommands } from './statusbar';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
