@@ -538,54 +538,73 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private static _sb1 = createStringBuilder(100000);
-	private static _sb2 = createStringBuilder(100000);
+	private static _sb = createStringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 
-		const sb1 = ViewLayerRenderer._sb1;
-		const sb2 = ViewLayerRenderer._sb2;
+		const sb = ViewLayerRenderer._sb;
+		const linesLength = ctx.linesLength;
+		const lines = ctx.lines;
+		const rendLineNumberStart = ctx.rendLineNumberStart;
 
-		sb1.reset();
-		sb2.reset();
-
-		let hadNewLine = false;
 		let wasNew: boolean[] = [];
-		let hadInvalidLine = false;
-		let wasInvalid: boolean[] = [];
+		{
+			sb.reset();
+			let hadNewLine = false;
 
-		for (let i = 0, len = ctx.linesLength; i < len; i++) {
-			let line = ctx.lines[i];
-			let lineNumber = i + ctx.rendLineNumberStart;
+			for (let i = 0; i < linesLength; i++) {
+				const line = lines[i];
+				wasNew[i] = false;
 
-			wasNew[i] = false;
-			wasInvalid[i] = false;
-
-			const lineDomNode = line.getDomNode();
-
-			if (!lineDomNode) {
-				let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData, sb1);
-				if (renderResult) {
-					// Line is new
-					wasNew[i] = true;
-					hadNewLine = true;
+				const lineDomNode = line.getDomNode();
+				if (lineDomNode) {
+					// line is not new
+					continue;
 				}
-			} else {
-				let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData, sb2);
-				if (renderResult) {
-					// Line is invalid
-					wasInvalid[i] = true;
-					hadInvalidLine = true;
+
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				if (!renderResult) {
+					// line does not need rendering
+					continue;
 				}
+
+				wasNew[i] = true;
+				hadNewLine = true;
+			}
+
+			if (hadNewLine) {
+				this._finishRenderingNewLines(ctx, domNodeIsEmpty, sb.build(), wasNew);
 			}
 		}
 
-		if (hadNewLine) {
-			this._finishRenderingNewLines(ctx, domNodeIsEmpty, sb1.build(), wasNew);
-		}
+		{
+			sb.reset();
 
-		if (hadInvalidLine) {
-			this._finishRenderingInvalidLines(ctx, sb2.build(), wasInvalid);
+			let hadInvalidLine = false;
+			let wasInvalid: boolean[] = [];
+
+			for (let i = 0; i < linesLength; i++) {
+				let line = lines[i];
+				wasInvalid[i] = false;
+
+				if (wasNew[i]) {
+					// line was new
+					continue;
+				}
+
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				if (!renderResult) {
+					// line does not need rendering
+					continue;
+				}
+
+				wasInvalid[i] = true;
+				hadInvalidLine = true;
+			}
+
+			if (hadInvalidLine) {
+				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
+			}
 		}
 	}
 }
