@@ -136,7 +136,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		if (currentExtensionsPath !== extensionsPath) {
 			currentExtensionsPath = extensionsPath;
-			updateExtensionsPath(currentExtensionsPath);
+			updateExtensionsPath(currentExtensionsPath).then(null, err => vscode.window.showErrorMessage(err));
 		}
 	};
 
