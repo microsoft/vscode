@@ -376,8 +376,7 @@ export interface ITerminalInstance {
 	setTitle(title: string, eventFromProcess: boolean): void;
 
 	/**
-	 * Queries the OS and returns the innermost shell running in the terminal as well as the
-	 * program the shell is running if it exists. This is only implemented for Windows.
-	 */
+ 	 * Returns the executable of the innermost shell running in the terminal. This is only implemented for Windows.
+  	 */
 	getShellName(): string;
 }

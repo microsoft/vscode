@@ -88,7 +88,8 @@ export class WindowsShellHelper {
 	}
 
 	/**
-	 * Updates innermost shell executable and innermost shell running in the terminal
+	 * Queries the OS and retrieves the innermost shell running in the terminal as well as the
+	 * program the shell is running if it exists.
 	 */
 	public updateProgramName(): TPromise<void> {
 		return new TPromise<void>(resolve => {
