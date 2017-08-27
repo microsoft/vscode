@@ -240,7 +240,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 		let containsForeignElements = false;
 
 		// This is basically for IE's hit test to work
-		let content: string = '<span><span>&nbsp;</span></span>';
+		let content: string = '<span><span>\u00a0</span></span>';
 
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
@@ -254,7 +254,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			}
 
 			if (containsForeignElements) {
-				content = `<span><span class="${classNames.join(' ')}">&nbsp;</span></span>`;
+				content = `<span><span class="${classNames.join(' ')}">\u00a0</span></span>`;
 			}
 		}
 
@@ -652,16 +652,16 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						sb.appendASCIIString('&rarr;');
+						sb.write1(0x2192); // &rarr;
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {
-						sb.appendASCIIString('&nbsp;');
+						sb.write1(0xA0); // &nbsp;
 						insertSpacesCount--;
 					}
 				} else {
 					// must be CharCode.Space
-					sb.appendASCIIString('&middot;');
+					sb.write1(0xb7); // &middot;
 				}
 
 				charOffsetInPart++;
@@ -688,14 +688,14 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						tabsCharDelta += insertSpacesCount - 1;
 						charOffsetInPart += insertSpacesCount - 1;
 						while (insertSpacesCount > 0) {
-							sb.appendASCIIString('&nbsp;');
+							sb.write1(0xA0); // &nbsp;
 							partContentCnt++;
 							insertSpacesCount--;
 						}
 						break;
 
 					case CharCode.Space:
-						sb.appendASCIIString('&nbsp;');
+						sb.write1(0xA0); // &nbsp;
 						partContentCnt++;
 						break;
 
@@ -722,12 +722,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					case CharCode.UTF8_BOM:
 					case CharCode.LINE_SEPARATOR_2028:
 						sb.write1(0xfffd);
-						partContentCnt++;
-						break;
-
-					case CharCode.CarriageReturn:
-						// zero width space, because carriage return would introduce a line break
-						sb.appendASCIIString('&#8203;');
 						partContentCnt++;
 						break;
 
