@@ -102,14 +102,14 @@ export class WindowsShellHelper {
 	/**
 	 * Returns the innermost program executable running in the terminal
 	 */
-	public getProgramName(): string {
+	public get programName(): string {
 		return this._programName;
 	}
 
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
-	public getShellName(): string {
+	public get shellName(): string {
 		return this._shellName;
 	}
 

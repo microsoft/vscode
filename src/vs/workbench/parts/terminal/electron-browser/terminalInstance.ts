@@ -935,7 +935,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public getShellName(): string {
 		if (platform.isWindows) {
-			return this._windowsShellHelper.getShellName();
+			return this._windowsShellHelper.shellName;
 		} else {
 			return null;
 		}
