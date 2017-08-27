@@ -31,7 +31,7 @@ import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleF
 // List of regular expressions, for matching shells, functions to format a path, and booleans indicating whether the shell uses Windows-style paths
 const WIN_PATH_FORMATTERS: [RegExp, (path: string) => string, boolean][] = [
 	// WSL bash
-	[/^C:\\Windows\\(System32|sysnative)\\bash(.exe)?$/i, path => '/mnt/' + path[1] + path.substring(3), false],
+	[/^C:\\Windows\\(System32|sysnative|SysWoW64)\\bash(.exe)?$|ubuntu(.exe)?$|opensuse-42(.exe)?$|sles-12(.exe)?$/i, path => '/mnt/' + path[1] + path.substring(3), false],
 	// Git bash
 	[/bash(.exe)?$/i, path => path.substring(0, 2) + path.substring(3), false],
 	// Command prompt
