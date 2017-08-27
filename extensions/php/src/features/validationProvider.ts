@@ -154,6 +154,7 @@ export default class PHPValidationProvider {
 		}
 		if (this.documentListener) {
 			this.documentListener.dispose();
+			this.documentListener = null;
 		}
 		this.diagnosticCollection.clear();
 		if (this.validationEnabled) {
