@@ -352,17 +352,27 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-		const pathsToOpen = this.getPathsToOpen(openConfig);
+		let pathsToOpen = this.getPathsToOpen(openConfig);
+
+
+		// When run with --add, take the folders that are to be opened as
+		// folders that should be added to the currently active window.
+		let foldersToAdd = [];
+		if (openConfig.addMode && product.quality !== 'stable') { // TODO@Ben multi root
+			foldersToAdd = pathsToOpen.filter(path => !!path.folderPath).map(path => ({ filePath: path.folderPath }));
+			pathsToOpen = pathsToOpen.filter(path => !path.folderPath);
+		}
 
 		let filesToOpen = pathsToOpen.filter(path => !!path.filePath && !path.createFilePath);
 		let filesToCreate = pathsToOpen.filter(path => !!path.filePath && path.createFilePath);
-		let filesToDiff: IPath[];
+
+		// When run with --diff, take the files to open as files to diff
+		// if there are exactly two files provided.
+		let filesToDiff: IPath[] = [];
 		if (openConfig.diffMode && filesToOpen.length === 2) {
 			filesToDiff = filesToOpen;
 			filesToOpen = [];
 			filesToCreate = []; // diff ignores other files that do not exist
-		} else {
-			filesToDiff = [];
 		}
 
 		//
@@ -398,7 +408,7 @@ export class WindowsManager implements IWindowsMainService {
 		const emptyToOpen = pathsToOpen.filter(win => !win.workspace && !win.folderPath && !win.filePath && !win.backupPath).length;
 
 		// Open based on config
-		const usedWindows = this.doOpen(openConfig, workspacesToOpen, workspacesToRestore, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff);
+		const usedWindows = this.doOpen(openConfig, workspacesToOpen, workspacesToRestore, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff, foldersToAdd);
 
 		// Make sure the last active window gets focus if we opened multiple
 		if (usedWindows.length > 1 && this.windowsState.lastActiveWindow) {
@@ -445,14 +455,26 @@ export class WindowsManager implements IWindowsMainService {
 		emptyToOpen: number,
 		filesToOpen: IPath[],
 		filesToCreate: IPath[],
-		filesToDiff: IPath[]
+		filesToDiff: IPath[],
+		foldersToAdd: IPath[]
 	) {
+		const usedWindows: CodeWindow[] = [];
 
 		// Settings can decide if files/folders open in new window or not
 		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
 
+		// Handle folders to add by looking for the last active workspace (not on initial startup)
+		if (!openConfig.initialStartup && foldersToAdd.length > 0) {
+			const lastActiveWindow = this.getLastActiveWindow();
+			if (lastActiveWindow) {
+				usedWindows.push(this.doAddFoldersToExistingWidow(lastActiveWindow, foldersToAdd));
+			}
+
+			// Reset because we handled them
+			foldersToAdd = [];
+		}
+
 		// Handle files to open/diff or to create when we dont open a folder and we do not restore any folder/untitled from hot-exit
-		const usedWindows: CodeWindow[] = [];
 		const potentialWindowsCount = foldersToOpen.length + foldersToRestore.length + workspacesToOpen.length + workspacesToRestore.length + emptyToRestore.length;
 		if (potentialWindowsCount === 0 && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0)) {
 
@@ -639,6 +661,16 @@ export class WindowsManager implements IWindowsMainService {
 
 		window.ready().then(readyWindow => {
 			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff });
+		});
+
+		return window;
+	}
+
+	private doAddFoldersToExistingWidow(window: CodeWindow, foldersToAdd: IPath[]): CodeWindow {
+		window.focus(); // make sure window has focus
+
+		window.ready().then(readyWindow => {
+			readyWindow.send('vscode:addFolders', { foldersToAdd });
 		});
 
 		return window;

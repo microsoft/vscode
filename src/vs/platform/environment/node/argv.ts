@@ -9,6 +9,7 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
+import product from 'vs/platform/node/product';
 
 const options: minimist.Opts = {
 	string: [
@@ -30,6 +31,7 @@ const options: minimist.Opts = {
 		'version',
 		'wait',
 		'diff',
+		'add',
 		'goto',
 		'new-window',
 		'unity-launch',
@@ -45,6 +47,7 @@ const options: minimist.Opts = {
 		'skip-getting-started'
 	],
 	alias: {
+		add: 'a',
 		help: 'h',
 		version: 'v',
 		wait: 'w',
@@ -113,6 +116,7 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 export const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
+	'-a, --add': localize('add', "Add folder(s) to the window that was last active."),
 	'-g, --goto': localize('goto', "Open the file at path at the line and character (add :line[:character] to path)."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
@@ -133,6 +137,11 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
+
+// TODO@Ben multi root
+if (product.quality === 'stable') {
+	delete optionsHelp['-a, --add'];
+}
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {
 	let keys = Object.keys(options);
