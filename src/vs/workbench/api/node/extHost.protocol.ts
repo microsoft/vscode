@@ -46,7 +46,8 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 import { ITreeItem } from 'vs/workbench/parts/views/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { SerializedError } from 'vs/base/common/errors';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -110,6 +111,18 @@ export interface MainThreadConfigurationShape extends IDisposable {
 export interface MainThreadDiagnosticsShape extends IDisposable {
 	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any>;
 	$clear(owner: string): TPromise<any>;
+}
+
+export interface MainThreadDialogOptions {
+	uri?: URI;
+	openLabel?: string;
+	openFiles?: boolean;
+	openFolders?: boolean;
+	openMany?: boolean;
+}
+
+export interface MainThreadDiaglogsShape extends IDisposable {
+	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]>;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
@@ -189,7 +202,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedExtHostError(err: any): void;
+	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -221,8 +234,13 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): TPromise<string[]>;
 }
 
+export interface MainThreadMessageOptions {
+	extension?: IExtensionDescription;
+	modal?: boolean;
+}
+
 export interface MainThreadMessageServiceShape extends IDisposable {
-	$showMessage(severity: Severity, message: string, options: vscode.MessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number>;
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
@@ -270,7 +288,6 @@ export interface MainThreadStorageShape extends IDisposable {
 
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
-	$getTelemetryInfo(): TPromise<ITelemetryInfo>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -293,7 +310,7 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$onExtensionActivated(extensionId: string): void;
+	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void;
 	$onExtensionActivationFailed(extensionId: string): void;
 }
 
@@ -330,7 +347,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
-	$setInputBoxValue(value: string): void;
+	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
 
 export type DebugSessionUUID = string;
@@ -347,6 +364,10 @@ export interface MainThreadCredentialsShape extends IDisposable {
 	$readSecret(service: string, account: string): Thenable<string | undefined>;
 	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
 	$deleteSecret(service: string, account: string): Thenable<boolean>;
+}
+
+export interface MainThreadWindowShape extends IDisposable {
+	$getWindowVisibility(): TPromise<boolean>;
 }
 
 // -- extension host
@@ -505,9 +526,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI>;
-	$onActiveSourceControlChange(sourceControlHandle: number): TPromise<void>;
-	$onInputBoxValueChange(value: string): TPromise<void>;
-	$onInputBoxAcceptChanges(): TPromise<void>;
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 }
 
 export interface ExtHostTaskShape {
@@ -526,6 +545,10 @@ export interface ExtHostDebugServiceShape {
 export interface ExtHostCredentialsShape {
 }
 
+export interface ExtHostWindowShape {
+	$onDidChangeWindowFocus(value: boolean): void;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -533,6 +556,7 @@ export const MainContext = {
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
+	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
@@ -553,6 +577,7 @@ export const MainContext = {
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),
+	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
 export const ExtHostContext = {
@@ -576,4 +601,5 @@ export const ExtHostContext = {
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials'),
+	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

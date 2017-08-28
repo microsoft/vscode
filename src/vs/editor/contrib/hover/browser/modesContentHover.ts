@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
@@ -81,10 +81,6 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 			return [];
 		}
 
-		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
-			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
-		};
-
 		const colorDetector = ColorDetector.get(this._editor);
 		const maxColumn = this._editor.getModel().getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber);
@@ -107,11 +103,11 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 				const { color, formatters } = colorRange;
 				return new ColorHover(d.range, color, formatters);
 			} else {
-				if (!hasHoverContent(d.options.hoverMessage)) {
+				if (isEmptyMarkdownString(d.options.hoverMessage)) {
 					return null;
 				}
 
-				let contents: MarkedString[];
+				let contents: IMarkdownString[];
 
 				if (d.options.hoverMessage) {
 					if (Array.isArray(d.options.hoverMessage)) {
@@ -155,7 +151,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	private _getLoadingMessage(): HoverPart {
 		return {
 			range: this._range,
-			contents: [textToMarkedString(nls.localize('modesContentHover.loading', "Loading..."))]
+			contents: [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]
 		};
 	}
 }
@@ -314,9 +310,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
-					.filter(contents => !!contents)
+					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
-						const renderedContents = renderMarkedString(contents, {
+						const renderedContents = renderMarkdown(contents, {
 							actionCallback: (content) => {
 								this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 							},
@@ -338,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					});
 			} else {
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha * 255);
+				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
 				const color = new Color(rgba);
 
 				const formatters = [...msg.formatters];
@@ -347,7 +343,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let formatterIndex = 0;
 
 				for (let i = 0; i < formatters.length; i++) {
-					if (text === formatters[i].format(color)) {
+					if (text === formatters[i].format(msg.color)) {
 						formatterIndex = i;
 						break;
 					}
@@ -360,7 +356,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
 
 				const updateEditorModel = () => {
-					const text = model.formatter.format(model.color);
+					const text = model.formatter.format({
+						red: model.color.rgba.r / 255,
+						green: model.color.rgba.g / 255,
+						blue: model.color.rgba.b / 255,
+						alpha: model.color.rgba.a
+					});
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};

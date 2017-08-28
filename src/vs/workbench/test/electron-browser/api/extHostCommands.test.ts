@@ -11,7 +11,7 @@ import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { OneGetThreadService } from './testThreadService';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostCommands', function () {
 

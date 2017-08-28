@@ -43,7 +43,7 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -446,8 +446,8 @@ suite('ExtHostLanguageFeatures', function () {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value as Hover[];
-				assert.equal(first.contents[0], 'registered second');
-				assert.equal(second.contents[0], 'registered first');
+				assert.equal(first.contents[0].value, 'registered second');
+				assert.equal(second.contents[0].value, 'registered first');
 			});
 		});
 	});

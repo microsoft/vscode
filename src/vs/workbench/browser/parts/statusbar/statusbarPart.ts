@@ -40,7 +40,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private static PRIORITY_PROP = 'priority';
 	private static ALIGNMENT_PROP = 'alignment';
 
-	private toDispose: IDisposable[];
 	private statusItemsContainer: Builder;
 	private statusMsgDispose: IDisposable;
 
@@ -52,7 +51,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this.toDispose = [];
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -120,7 +123,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
 
-		this.toDispose.push(...descriptors.map(descriptor => {
+		this.toUnbind.push(...descriptors.map(descriptor => {
 			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
@@ -200,12 +203,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		return dispose;
 	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
-	}
 }
 
 let manageExtensionAction: ManageExtensionAction;
@@ -238,7 +235,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			$(textContainer).on('click', () => this.executeCommand(this.entry.command), toDispose);
+			$(textContainer).on('click', () => this.executeCommand(this.entry.command, this.entry.arguments), toDispose);
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -287,7 +284,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 		};
 	}
 
-	private executeCommand(id: string) {
+	private executeCommand(id: string, args?: any[]) {
+		args = args || [];
 
 		// Lookup built in commands
 		const builtInActionDescriptor = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchAction(id);
@@ -314,7 +312,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		}
 
 		// Fallback to the command service for any other case
-		this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		this.commandService.executeCommand(id, ...args).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 	}
 }
 

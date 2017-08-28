@@ -8,7 +8,7 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment }
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {

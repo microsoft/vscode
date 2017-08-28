@@ -152,7 +152,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
 
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
@@ -736,7 +736,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -775,7 +775,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -837,7 +837,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
@@ -886,7 +886,7 @@ suite('Editor Controller - Cursor', () => {
 			'var newer = require("gulp-newer");',
 		].join('\n'));
 		const config = new TestConfiguration(null);
-		const viewModel = new ViewModel(0, config, model);
+		const viewModel = new ViewModel(0, config, model, null);
 		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
@@ -3118,7 +3118,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor)
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts);
-	let viewModel = new ViewModel(0, config, model);
+	let viewModel = new ViewModel(0, config, model, null);
 	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
@@ -3471,6 +3471,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
@@ -3513,6 +3514,7 @@ suite('autoClosingPairs', () => {
 				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
 
 				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
 						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === ColumnType.Special2) {
@@ -3555,42 +3557,50 @@ suite('autoClosingPairs', () => {
 			}
 
 			// First gif
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste1 = teste\' ok');
 			assert.equal(model.getLineContent(1), 'teste1 = teste\' ok');
 
 			cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste2 = teste \'ok');
 			assert.equal(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
 			cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste3 = teste" ok');
 			assert.equal(model.getLineContent(3), 'teste3 = teste" ok');
 
 			cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste4 = teste "ok');
 			assert.equal(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
 			cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste \'');
 			assert.equal(model.getLineContent(5), 'teste \'\'');
 
 			cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste "');
 			assert.equal(model.getLineContent(6), 'teste ""');
 
 			cursor.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste\'');
 			assert.equal(model.getLineContent(7), 'teste\'');
 
 			cursor.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
 			typeCharacters(cursor, '\n');
+			model.forceTokenization(model.getLineCount());
 			typeCharacters(cursor, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
 		});

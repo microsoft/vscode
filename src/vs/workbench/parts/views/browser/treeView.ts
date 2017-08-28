@@ -31,7 +31,6 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchThemeService } from "vs/workbench/services/themes/common/workbenchThemeService";
 
 export class TreeView extends CollapsibleView {
 
@@ -40,11 +39,11 @@ export class TreeView extends CollapsibleView {
 	private activated: boolean = false;
 	private treeInputPromise: TPromise<void>;
 
-	private dataProviderRegisteredListener: IDisposable;
 	private dataProviderElementChangeListener: IDisposable;
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -52,17 +51,15 @@ export class TreeView extends CollapsibleView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
-		@IWorkbenchThemeService private workbenchThemeService: IWorkbenchThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: options.collapsed === void 0 ? true : options.collapsed }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
-		this.workbenchThemeService.onDidFileIconThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (!options.collapsed) {
 			this.activate();
 		}
@@ -138,14 +135,13 @@ export class TreeView extends CollapsibleView {
 					this.treeInputPromise = this.tree.setInput(new Root());
 				} else {
 					this.treeInputPromise = new TPromise<void>((c, e) => {
-						this.dataProviderRegisteredListener = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+						this.disposables.push(ViewsRegistry.onTreeViewDataProviderRegistered(id => {
 							if (this.id === id) {
 								if (this.listenToDataProvider()) {
 									this.tree.setInput(new Root()).then(() => c(null));
-									this.dataProviderRegisteredListener.dispose();
 								}
 							}
-						});
+						}));
 					});
 				}
 			}
@@ -161,6 +157,11 @@ export class TreeView extends CollapsibleView {
 				this.dataProviderElementChangeListener.dispose();
 			}
 			this.dataProviderElementChangeListener = dataProvider.onDidChange(element => this.refresh(element));
+			const disposable = dataProvider.onDispose(() => {
+				this.dataProviderElementChangeListener.dispose();
+				this.tree.setInput(new Root());
+				disposable.dispose();
+			});
 			return true;
 		}
 		return false;
@@ -191,9 +192,6 @@ export class TreeView extends CollapsibleView {
 	}
 
 	dispose(): void {
-		if (this.dataProviderRegisteredListener) {
-			this.dataProviderRegisteredListener.dispose();
-		}
 		dispose(this.disposables);
 		if (this.dataProviderElementChangeListener) {
 			this.dataProviderElementChangeListener.dispose();
@@ -222,6 +220,9 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {
+		if (!this.getDataProvider()) {
+			return false;
+		}
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
@@ -265,8 +266,7 @@ class TreeRenderer implements IRenderer {
 	private static ITEM_HEIGHT = 22;
 	private static TREE_TEMPLATE_ID = 'treeExplorer';
 
-	constructor( @IThemeService private themeService: IThemeService,
-		@IWorkbenchThemeService private workbenchThemeService: IWorkbenchThemeService) {
+	constructor( @IThemeService private themeService: IThemeService) {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -293,8 +293,7 @@ class TreeRenderer implements IRenderer {
 		templateData.label.text(node.label).title(node.label);
 
 		const theme = this.themeService.getTheme();
-		const fileIconTheme = this.workbenchThemeService.getFileIconTheme();
-		const icon = (fileIconTheme.hasFileIcons || fileIconTheme.hasFolderIcons) ? (theme.type === LIGHT ? node.icon : node.iconDark) : null;
+		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
 
 		if (icon) {
 			templateData.icon.getHTMLElement().style.backgroundImage = `url('${icon}')`;

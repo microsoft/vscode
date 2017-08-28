@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -160,7 +160,7 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[];
+	contents: IMarkdownString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
@@ -654,7 +654,6 @@ export interface LinkProvider {
 
 /**
  * A color in RGBA format.
- * @internal
  */
 export interface IColor {
 
@@ -681,17 +680,14 @@ export interface IColor {
 
 /**
  * A color formatter.
- * @internal
  */
-
 export interface IColorFormatter {
 	readonly supportsTransparency: boolean;
-	format(color: Color): string;
+	format(color: IColor): string;
 }
 
 /**
  * A color range is a range in a text model which represents a color.
- * @internal
  */
 export interface IColorRange {
 
@@ -713,10 +709,8 @@ export interface IColorRange {
 
 /**
  * A provider of colors for editor models.
- * @internal
  */
-export interface ColorRangeProvider {
-
+export interface DocumentColorProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
@@ -839,7 +833,7 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
 /**
  * @internal
  */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<ColorRangeProvider>();
+export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
 
 /**
  * @internal

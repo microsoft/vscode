@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {
@@ -85,7 +85,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			if (process) {
 				return <DebugSessionUUID>process.getId();
 			}
-			return TPromise.wrapError(new Error('cannot create debug session'));
+			return TPromise.wrapError<DebugSessionUUID>(new Error('cannot create debug session'));
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
 		});

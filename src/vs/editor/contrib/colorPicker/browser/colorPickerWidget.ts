@@ -47,12 +47,17 @@ export class ColorPickerHeader extends Disposable {
 
 	private onDidChangeColor(color: Color): void {
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
-		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 128 ? this.backgroundColor.isLighter() : color.isLighter());
+		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangeFormatter();
 	}
 
 	private onDidChangeFormatter(): void {
-		this.pickedColorNode.textContent = this.model.formatter.format(this.model.color);
+		this.pickedColorNode.textContent = this.model.formatter.format({
+			red: this.model.color.rgba.r / 255,
+			green: this.model.color.rgba.g / 255,
+			blue: this.model.color.rgba.b / 255,
+			alpha: this.model.color.rgba.a
+		});
 	}
 }
 
@@ -180,6 +185,7 @@ class SaturationBox extends Disposable {
 
 		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
 		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+		whiteGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
 		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
 		const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
@@ -277,7 +283,7 @@ class OpacityStrip extends Strip {
 
 	private onDidChangeColor(color: Color): void {
 		const { r, g, b } = color.rgba;
-		const opaque = new Color(new RGBA(r, g, b, 255));
+		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));
 
 		this.overlay.style.background = `linear-gradient(to bottom, ${opaque} 0%, ${transparent} 100%)`;

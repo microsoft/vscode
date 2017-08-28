@@ -25,6 +25,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -54,7 +55,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		if (!this._galleryService.isEnabled()) {
 			return;
@@ -198,15 +200,20 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
-								case 0: return recommendationsAction.run();
+								case 0:
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show' });
+									return recommendationsAction.run();
 								case 1: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
 										'extensionsAssistant/importantRecommendationsIgnore',
 										JSON.stringify(this.importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain' });
 									return this.ignoreExtensionRecommendations();
 							}
+						}, () => {
+							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled' });
 						});
 					});
 			});
@@ -249,9 +256,15 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
-						case 0: return action.run();
-						case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+						case 0:
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+							return action.run();
+						case 1:
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
+							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
 					}
+				}, () => {
+					this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 				});
 			});
 		});

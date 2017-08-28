@@ -13,6 +13,7 @@ export class ViewLocation {
 	static readonly Explorer = new ViewLocation('explorer');
 	static readonly Debug = new ViewLocation('debug');
 	static readonly Extensions = new ViewLocation('extensions');
+	static readonly SCM = new ViewLocation('scm');
 
 	constructor(private _id: string) {
 	}
@@ -63,6 +64,8 @@ export interface IViewsRegistry {
 
 	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider): void;
 
+	deregisterTreeViewDataProviders(): void;
+
 	getViews(loc: ViewLocation): IViewDescriptor[];
 
 	getTreeViewDataProvider(id: string): ITreeViewDataProvider;
@@ -98,10 +101,18 @@ export const ViewsRegistry: IViewsRegistry = new class {
 	}
 
 	deregisterViews(ids: string[], location: ViewLocation): void {
-		const viewsToDeregister = this._views.get(location).filter(view => ids.indexOf(view.id) !== -1);
-		if (viewsToDeregister.length) {
-			this._views.set(location, this._views.get(location).filter(view => ids.indexOf(view.id) === -1));
+		const views = this._views.get(location);
+
+		if (!views) {
+			return;
 		}
+
+		const viewsToDeregister = views.filter(view => ids.indexOf(view.id) !== -1);
+
+		if (viewsToDeregister.length) {
+			this._views.set(location, views.filter(view => ids.indexOf(view.id) === -1));
+		}
+
 		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
@@ -111,6 +122,10 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		}
 		this._treeViewDataPoviders.set(id, factory);
 		this._onTreeViewDataProviderRegistered.fire(id);
+	}
+
+	deregisterTreeViewDataProviders(): void {
+		this._treeViewDataPoviders.clear();
 	}
 
 	getViews(loc: ViewLocation): IViewDescriptor[] {

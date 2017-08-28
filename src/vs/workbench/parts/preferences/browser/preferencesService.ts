@@ -39,8 +39,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IJSONEditingService } from "vs/workbench/services/configuration/common/jsonEditing";
-import { ConfigurationScope } from "vs/platform/configuration/common/configurationRegistry";
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 
 interface IWorkbenchSettingsConfiguration {
@@ -103,9 +103,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	private readonly defaultWorkbenchSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	private readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/resourceSettings.json' });
-	private readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
+	readonly defaultSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
+	readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/resourceSettings.json' });
+	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
 	private readonly workspaceConfigSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'settings', path: '/workspaceSettings.json' });
 
 	get userSettingsResource(): URI {
@@ -114,6 +114,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	get workspaceSettingsResource(): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
+	}
+
+	getFolderSettingsResource(resource: URI): URI {
+		return this.getEditableSettingsURI(ConfigurationTarget.FOLDER, resource);
 	}
 
 	resolveContent(uri: URI): TPromise<string> {
@@ -131,7 +135,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return promise;
 		}
 
-		if (this.defaultWorkbenchSettingsResource.fsPath === uri.fsPath) {
+		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
 			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
 				.then(result => {
 					const mostCommonSettings = result[1];
@@ -268,7 +272,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (configurationTarget === ConfigurationTarget.FOLDER) {
 			return this.defaultResourceSettingsResource;
 		}
-		return this.defaultWorkbenchSettingsResource;
+		return this.defaultSettingsResource;
 	}
 
 	private getPreferencesEditorInputName(target: ConfigurationTarget, resource: URI): string {
@@ -340,15 +344,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
 
-	private createIfNotExists(resource: URI, contents: string): TPromise<boolean> {
+	private createIfNotExists(resource: URI, contents: string): TPromise<any> {
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
 				});
 			}
 
-			return TPromise.wrapError<boolean>(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

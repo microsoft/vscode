@@ -407,7 +407,29 @@
 		}
 	},
 	{
-		"c": "banana.size",
+		"c": "banana",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "size",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2189,8 +2211,19 @@
 		}
 	},
 	{
-		"c": " g.",
+		"c": " g",
 		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4499,7 +4532,18 @@
 		}
 	},
 	{
-		"c": ".fn ",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "fn ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4554,7 +4598,18 @@
 		}
 	},
 	{
-		"c": ".memo ",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "memo ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4829,7 +4884,18 @@
 		}
 	},
 	{
-		"c": ".memo",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "memo",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4874,7 +4940,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4973,7 +5039,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5083,7 +5149,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5159,8 +5225,19 @@
 		}
 	},
 	{
-		"c": " re.",
+		"c": " re",
 		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

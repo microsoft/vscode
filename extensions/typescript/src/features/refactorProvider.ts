@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection, Position } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -123,6 +123,18 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 		}
 
 		const edit = this.toWorkspaceEdit(response.body.edits);
-		return workspace.applyEdit(edit);
+		if (!(await workspace.applyEdit(edit))) {
+			return false;
+		}
+
+		const renameLocation = response.body.renameLocation;
+		if (renameLocation) {
+			if (window.activeTextEditor && window.activeTextEditor.document.uri.fsPath === file) {
+				const pos = new Position(renameLocation.line - 1, renameLocation.offset - 1);
+				window.activeTextEditor.selection = new Selection(pos, pos);
+				await commands.executeCommand('editor.action.rename');
+			}
+		}
+		return true;
 	}
 }

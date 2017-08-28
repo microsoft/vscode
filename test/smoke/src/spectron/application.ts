@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { SpectronClient } from './client';
-import { Screenshot } from "../helpers/screenshot";
+import { Screenshot } from '../helpers/screenshot';
 var fs = require('fs');
 var path = require('path');
 
@@ -27,8 +27,8 @@ export class SpectronApplication {
 	private screenshot: Screenshot;
 
 	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
-	private readonly pollTrials = 5;
-	private readonly pollTimeout = 3; // in secs
+	private readonly pollTrials = 50;
+	private readonly pollTimeout = 1; // in secs
 
 	constructor(electronPath: string, testName: string, private testRetry: number, args?: string[], chromeDriverArgs?: string[]) {
 		if (!args) {
@@ -54,7 +54,8 @@ export class SpectronApplication {
 			path: electronPath,
 			args: args,
 			chromeDriverArgs: chromeDriverArgs,
-			startTimeout: 10000
+			startTimeout: 10000,
+			requireName: 'nodeRequire'
 		});
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
 		this.screenshot = new Screenshot(this, testName, testRetry);
@@ -67,13 +68,9 @@ export class SpectronApplication {
 	}
 
 	public async start(): Promise<any> {
-		try {
-			await this.spectron.start();
-			await this.focusOnWindow(1); // focuses on main renderer window
-			return this.checkWindowReady();
-		} catch (err) {
-			throw err;
-		}
+		await this.spectron.start();
+		await this.focusOnWindow(1); // focuses on main renderer window
+		await this.checkWindowReady();
 	}
 
 	public async stop(): Promise<any> {
@@ -94,8 +91,8 @@ export class SpectronApplication {
 		return this.client.windowByIndex(index);
 	}
 
-	private checkWindowReady(): Promise<any> {
-		return this.waitFor(this.spectron.client.getHTML, '[id="workbench.main.container"]');
+	private async checkWindowReady(): Promise<any> {
+		await this.waitFor(this.spectron.client.getHTML, '[id="workbench.main.container"]');
 	}
 
 	private retrieveKeybindings() {
@@ -111,30 +108,27 @@ export class SpectronApplication {
 		});
 	}
 
-	private callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
+	private async callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
 		let trial = 1;
-		return new Promise(async (res, rej) => {
-			while (true) {
-				if (trial > this.pollTrials) {
-					rej(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
-					break;
-				}
 
-				let result;
-				try {
-					result = await func.call(this.client, args, false);
-				} catch (e) { }
-
-				if (result && result !== '') {
-					await this.screenshot.capture();
-					res(result);
-					break;
-				}
-
-				await this.wait();
-				trial++;
+		while (true) {
+			if (trial > this.pollTrials) {
+				throw new Error(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
 			}
-		});
+
+			let result;
+			try {
+				result = await func.call(this.client, args, false);
+			} catch (e) { }
+
+			if (result && result !== '') {
+				await this.screenshot.capture();
+				return result;
+			}
+
+			await this.wait();
+			trial++;
+		}
 	}
 
 	/**

@@ -737,7 +737,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async revertFiles(treeish: string, paths: string[]): Promise<void> {
+	async revert(treeish: string, paths: string[]): Promise<void> {
 		const result = await this.run(['branch']);
 		let args: string[];
 

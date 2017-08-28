@@ -16,7 +16,7 @@ import { OneGetThreadService } from './testThreadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 

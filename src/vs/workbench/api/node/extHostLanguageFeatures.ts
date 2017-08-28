@@ -18,10 +18,13 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
+import { containsCommandLink } from 'vs/base/common/htmlContent';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { once } from 'vs/base/common/functional';
 
 // --- adapter
 
@@ -173,12 +176,12 @@ class TypeDefinitionAdapter {
 
 class HoverAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.HoverProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.HoverProvider) {
-		this._documents = documents;
-		this._provider = provider;
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.HoverProvider,
+		private readonly _telemetryLog: (name: string, data: object) => void,
+	) {
+		//
 	}
 
 	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
@@ -187,7 +190,7 @@ class HoverAdapter {
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
-			if (!value) {
+			if (!value || isFalsyOrEmpty(value.contents)) {
 				return undefined;
 			}
 			if (!value.range) {
@@ -197,7 +200,14 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			return TypeConverters.fromHover(value);
+			const result = TypeConverters.fromHover(value);
+
+			// we wanna know which extension uses command links
+			// because that is a potential trick-attack on users
+			if (result.contents.some(h => containsCommandLink(h.value))) {
+				this._telemetryLog('usesCommandLink', { from: 'hover' });
+			}
+			return result;
 		});
 	}
 }
@@ -634,10 +644,12 @@ class SignatureHelpAdapter {
 class LinkProviderAdapter {
 
 	private _documents: ExtHostDocuments;
+	private _heapService: ExtHostHeapService;
 	private _provider: vscode.DocumentLinkProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentLinkProvider) {
+	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.DocumentLinkProvider) {
 		this._documents = documents;
+		this._heapService = heapService;
 		this._provider = provider;
 	}
 
@@ -645,23 +657,37 @@ class LinkProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (Array.isArray(links)) {
-				return links.map(TypeConverters.DocumentLink.from);
+			if (!Array.isArray(links)) {
+				return undefined;
 			}
-			return undefined;
+			const result: modes.ILink[] = [];
+			for (const link of links) {
+				let data = TypeConverters.DocumentLink.from(link);
+				let id = this._heapService.keep(link);
+				ObjectIdentifier.mixin(data, id);
+				result.push(data);
+			}
+			return result;
 		});
 	}
 
 	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
-		if (typeof this._provider.resolveDocumentLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveDocumentLink(TypeConverters.DocumentLink.to(link), token)).then(value => {
-				if (value) {
-					return TypeConverters.DocumentLink.from(value);
-				}
-				return undefined;
-			});
+		if (typeof this._provider.resolveDocumentLink !== 'function') {
+			return undefined;
 		}
-		return undefined;
+
+		const id = ObjectIdentifier.of(link);
+		const item = this._heapService.get<vscode.DocumentLink>(id);
+		if (!item) {
+			return undefined;
+		}
+
+		return asWinJsPromise(token => this._provider.resolveDocumentLink(item, token)).then(value => {
+			if (value) {
+				return TypeConverters.DocumentLink.from(value);
+			}
+			return undefined;
+		});
 	}
 }
 
@@ -728,6 +754,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadLanguageFeaturesShape;
+	private _telemetry: MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _heapService: ExtHostHeapService;
@@ -743,6 +770,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		diagnostics: ExtHostDiagnostics
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
+		this._telemetry = mainContext.get(MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;
@@ -844,9 +872,12 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- extra info
 
-	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
+	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new HoverAdapter(this._documents, provider));
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name, data) => {
+			data['extension'] = extensionId;
+			this._telemetry.$publicLog(name, data);
+		})));
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -993,7 +1024,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new LinkProviderAdapter(this._documents, provider));
+		this._adapter.set(handle, new LinkProviderAdapter(this._documents, this._heapService, provider));
 		this._proxy.$registerDocumentLinkProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

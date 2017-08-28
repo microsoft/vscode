@@ -29,7 +29,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { mnemonicLabel } from "vs/base/common/labels";
+import { mnemonicLabel } from 'vs/base/common/labels';
 
 export class TextFileService extends AbstractTextFileService {
 

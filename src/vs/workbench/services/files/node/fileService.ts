@@ -20,7 +20,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
-import { nfcall, Limiter, ThrottledDelayer } from 'vs/base/common/async';
+import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
@@ -75,7 +75,6 @@ export class FileService implements IFileService {
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
-	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -299,19 +298,6 @@ export class FileService implements IFileService {
 				// otherwise just give up
 				return TPromise.wrapError<IStreamContent>(error);
 			});
-		});
-	}
-
-	public resolveContents(resources: uri[]): TPromise<IContent[]> {
-		const limiter = new Limiter(FileService.MAX_DEGREE_OF_PARALLEL_FS_OPS);
-
-		const contentPromises = <TPromise<IContent>[]>[];
-		resources.forEach(resource => {
-			contentPromises.push(limiter.queue(() => this.resolve(resource).then(model => this.resolveFileContent(model)).then(content => content, error => TPromise.as(null /* ignore errors gracefully */))));
-		});
-
-		return TPromise.join(contentPromises).then(contents => {
-			return arrays.coalesce(contents);
 		});
 	}
 
@@ -819,11 +805,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: uri): void;
-	public unwatchFileChanges(path: string): void;
-	public unwatchFileChanges(arg1: any): void {
-		const resource = (typeof arg1 === 'string') ? uri.parse(arg1) : arg1 as uri;
-
+	public unwatchFileChanges(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
 		if (watcher) {
 			watcher.close();

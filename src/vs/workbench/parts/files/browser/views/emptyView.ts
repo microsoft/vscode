@@ -30,13 +30,14 @@ export class EmptyView extends CollapsibleView {
 	private openFolderButton: Button;
 
 	constructor(
+		initialSize: number,
 		options: IViewletViewOptions,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {

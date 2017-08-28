@@ -143,6 +143,7 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
+	telemetryData: any;
 }
 
 export interface IGalleryMetadata {
@@ -193,14 +194,19 @@ export interface IQueryOptions {
 	pageSize?: number;
 	sortBy?: SortBy;
 	sortOrder?: SortOrder;
+	source?: string;
+}
+
+export enum StatisticType {
+	Uninstall = 'uninstall'
 }
 
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
-	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryMetadata): TPromise<string>;

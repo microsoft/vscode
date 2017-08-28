@@ -11,7 +11,6 @@ import os = require('os');
 import path = require('path');
 import fs = require('fs');
 import * as json from 'vs/base/common/json';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -118,7 +117,7 @@ suite('ConfigurationEditingService', () => {
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const workspacesService = instantiationService.stub(IWorkspacesService, {});
-		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(null, URI.file(workspaceDir), environmentService, workspacesService);
+		const workspaceService = noWorkspace ? new EmptyWorkspaceServiceImpl(environmentService) : new WorkspaceServiceImpl(workspaceDir, environmentService, workspacesService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		instantiationService.stub(IConfigurationService, workspaceService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());

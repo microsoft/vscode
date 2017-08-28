@@ -21,12 +21,12 @@ import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
-import API from "./utils/api";
+import API from './utils/api';
 
 import * as nls from 'vscode-nls';
-import { TypeScriptServiceConfiguration, TsServerLogLevel } from "./utils/configuration";
-import { TypeScriptVersionProvider } from "./utils/versionProvider";
-import { TypeScriptVersionPicker } from "./utils/versionPicker";
+import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
+import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { TypeScriptVersionPicker } from './utils/versionPicker';
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -331,7 +331,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
-					args.push('--useSingleInferredProject');
+					if (this.apiVersion.has250Features()) {
+						args.push('--useInferredProjectPerProjectRoot');
+					} else {
+						args.push('--useSingleInferredProject');
+					}
+
 					if (this.configuration.disableAutomaticTypeAcquisition) {
 						args.push('--disableAutomaticTypingAcquisition');
 					}
@@ -501,12 +506,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
-			module: 'CommonJS',
-			target: 'ES6',
+			module: 'CommonJS' as Proto.ModuleKind,
+			target: 'ES6' as Proto.ScriptTarget,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
 			allowJs: true,
-			jsx: 'Preserve'
+			jsx: 'Preserve' as Proto.JsxEmit
 		};
 
 		if (this.apiVersion.has230Features()) {
@@ -614,7 +619,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
 			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.uri.fsPath)) {
+				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 					return root.uri.fsPath;
 				}
 			}

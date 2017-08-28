@@ -6,22 +6,17 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffDecorator } from './dirtydiffDecorator';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StatusUpdater } from './scmActivity';
+import { StatusUpdater, StatusBarController } from './scmActivity';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -30,43 +25,6 @@ class OpenSCMViewletAction extends ToggleViewletAction {
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, VIEWLET_ID, viewletService, editorService);
-	}
-}
-
-export class SwitchProvider extends Action {
-
-	static readonly ID = 'scm.switch';
-	static readonly LABEL = 'Switch SCM Provider';
-
-	constructor(
-		id = SwitchProvider.ID,
-		label = SwitchProvider.LABEL,
-		@ISCMService private scmService: ISCMService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super('scm.switchprovider', 'Switch SCM Provider', '', true);
-	}
-
-	run(): TPromise<any> {
-		const picks: IPickOpenEntry[] = this.scmService.providers.map(provider => ({
-			label: provider.label,
-			run: () => this.scmService.activeProvider = provider
-		}));
-		picks.push({
-			label: localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."),
-			run: () => {
-				this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true).then(viewlet => viewlet as IExtensionsViewlet)
-					.then(viewlet => {
-						viewlet.search('category:"SCM Providers" @sort:installs');
-						viewlet.focus();
-					});
-				return this.scmService.activeProvider;
-			},
-			separator: { border: true }
-		});
-
-		return this.quickOpenService.pick(picks);
 	}
 }
 
@@ -88,6 +46,9 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 Registry.as(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater);
 
+Registry.as(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(StatusBarController);
+
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
 	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
@@ -99,6 +60,3 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	'View: Show SCM',
 	localize('view', "View")
 );
-
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(SwitchProvider, SwitchProvider.ID, SwitchProvider.LABEL), 'SCM: Switch SCM Provider', 'SCM');

@@ -7,6 +7,18 @@
 
 declare module 'vscode' {
 
+	export interface OpenDialogOptions {
+		uri?: Uri;
+		openFiles?: boolean;
+		openFolders?: boolean;
+		openMany?: boolean;
+	}
+
+	export namespace window {
+
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 		// todo@joh -> added, deleted, renamed, changed
@@ -56,40 +68,6 @@ declare module 'vscode' {
 		 * @return Disposable which unregisters this command on disposal.
 		 */
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
-	}
-
-	/**
-	 * Namespace for handling credentials.
-	 */
-	export namespace credentials {
-
-		/**
-		 * Read a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise for the secret of the credential.
-		 */
-		export function readSecret(service: string, account: string): Thenable<string | undefined>;
-
-		/**
-		 * Write a secret to the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @param secret The secret of the credential to write to the credential store.
-		 * @return A promise indicating completion of the operation.
-		 */
-		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
-
-		/**
-		 * Delete a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise resolving to true if there was a secret for that service and account.
-		 */
-		export function deleteSecret(service: string, account: string): Thenable<boolean>;
 	}
 
 	/**
@@ -210,7 +188,6 @@ declare module 'vscode' {
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
-		 * @param availableFormats The other formats this color range supports the color to be formatted in.
 		 */
 		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
 	}
@@ -220,7 +197,6 @@ declare module 'vscode' {
 	 * picking and modifying colors in the editor.
 	 */
 	export interface DocumentColorProvider {
-
 		/**
 		 * Provide colors for the given document.
 		 *

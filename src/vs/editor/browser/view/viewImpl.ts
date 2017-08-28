@@ -387,11 +387,11 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getViewPartsToRender(): ViewPart[] {
-		let result: ViewPart[] = [];
+		let result: ViewPart[] = [], resultLen = 0;
 		for (let i = 0, len = this.viewParts.length; i < len; i++) {
 			let viewPart = this.viewParts[i];
 			if (viewPart.shouldRender()) {
-				result.push(viewPart);
+				result[resultLen++] = viewPart;
 			}
 		}
 		return result;

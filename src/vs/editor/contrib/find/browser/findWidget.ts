@@ -25,7 +25,7 @@ import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -105,7 +105,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _isReplaceVisible: boolean;
 
 	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocussed: IContextKey<boolean>;
+	private _findInputFocused: IContextKey<boolean>;
 	private _viewZone: FindWidgetViewZone;
 	private _viewZoneId: number;
 
@@ -192,10 +192,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
-		this._findInputFocussed = CONTEXT_FIND_INPUT_FOCUSSED.bindTo(contextKeyService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._focusTracker.addFocusListener(() => {
-			this._findInputFocussed.set(true);
+			this._findInputFocused.set(true);
 
 			if (this._toggleSelectionFind.checked) {
 				let selection = this._codeEditor.getSelection();
@@ -212,7 +212,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			}
 		});
 		this._focusTracker.addBlurListener(() => {
-			this._findInputFocussed.set(false);
+			this._findInputFocused.set(false);
 		});
 
 		this._codeEditor.addOverlayWidget(this);

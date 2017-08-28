@@ -7,7 +7,7 @@
 
 import { Disposable, Command, EventEmitter, Event } from 'vscode';
 import { RefType, Branch } from './git';
-import { Model, Operation } from './model';
+import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
 
@@ -19,30 +19,31 @@ class CheckoutStatusBar {
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
-		model.onDidChange(this._onDidChange.fire, this._onDidChange, this.disposables);
+	constructor(private repository: Repository) {
+		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
 	get command(): Command | undefined {
-		const HEAD = this.model.HEAD;
+		const HEAD = this.repository.HEAD;
 
 		if (!HEAD) {
 			return undefined;
 		}
 
-		const tag = this.model.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tag = this.repository.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
 		const tagName = tag && tag.name;
 		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
 		const title = '$(git-branch) '
 			+ head
-			+ (this.model.workingTreeGroup.resources.length > 0 ? '*' : '')
-			+ (this.model.indexGroup.resources.length > 0 ? '+' : '')
-			+ (this.model.mergeGroup.resources.length > 0 ? '!' : '');
+			+ (this.repository.workingTreeGroup.resourceStates.length > 0 ? '*' : '')
+			+ (this.repository.indexGroup.resourceStates.length > 0 ? '+' : '')
+			+ (this.repository.mergeGroup.resourceStates.length > 0 ? '!' : '');
 
 		return {
 			command: 'git.checkout',
 			tooltip: localize('checkout', 'Checkout...'),
-			title
+			title,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -76,24 +77,24 @@ class SyncStatusBar {
 		this._onDidChange.fire();
 	}
 
-	constructor(private model: Model) {
-		model.onDidChange(this.onModelChange, this, this.disposables);
-		model.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+	constructor(private repository: Repository) {
+		repository.onDidChangeStatus(this.onModelChange, this, this.disposables);
+		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 		this._onDidChange.fire();
 	}
 
 	private onOperationsChange(): void {
 		this.state = {
 			...this.state,
-			isSyncRunning: this.model.operations.isRunning(Operation.Sync)
+			isSyncRunning: this.repository.operations.isRunning(Operation.Sync)
 		};
 	}
 
 	private onModelChange(): void {
 		this.state = {
 			...this.state,
-			hasRemotes: this.model.remotes.length > 0,
-			HEAD: this.model.HEAD
+			hasRemotes: this.repository.remotes.length > 0,
+			HEAD: this.repository.HEAD
 		};
 	}
 
@@ -134,7 +135,8 @@ class SyncStatusBar {
 		return {
 			command,
 			title: [icon, text].join(' ').trim(),
-			tooltip
+			tooltip,
+			arguments: [this.repository.sourceControl]
 		};
 	}
 
@@ -149,9 +151,9 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(model: Model) {
-		this.syncStatusBar = new SyncStatusBar(model);
-		this.checkoutStatusBar = new CheckoutStatusBar(model);
+	constructor(repository: Repository) {
+		this.syncStatusBar = new SyncStatusBar(repository);
+		this.checkoutStatusBar = new CheckoutStatusBar(repository);
 	}
 
 	get onDidChange(): Event<void> {

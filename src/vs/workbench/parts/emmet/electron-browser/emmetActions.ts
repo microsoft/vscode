@@ -96,7 +96,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, grammars: IGrammarContributions) {
 		let position = editor.getSelection().getStartPosition();
-		editor.getModel().forceTokenization(position.lineNumber);
+		editor.getModel().tokenizeIfCheap(position.lineNumber);
 		let languageId = editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
 		let language = languageIdentifierResolver.getLanguageIdentifier(languageId).language;
 		let syntax = language.split('.').pop();

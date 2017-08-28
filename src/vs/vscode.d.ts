@@ -1818,11 +1818,50 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * MarkedString can be used to render human readable text. It is either a markdown string
-	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.
+	 * The MarkdownString represents human readable text that supports formatting via the
+	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
 	 */
-	export type MarkedString = string | { language: string; value: string };
+	export class MarkdownString {
+
+		/**
+		 * The markdown string.
+		 */
+		value: string;
+
+		/**
+		 * Indicates that this markdown string is from a trusted source. Only *trusted*
+		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
+		 */
+		isTrusted?: boolean;
+
+		/**
+		 * Creates a new markdown string with the given value.
+		 *
+		 * @param value Optional, initial value.
+		 */
+		constructor(value?: string);
+
+		/**
+		 * Appends and escapes the given string to this markdown string.
+		 * @param value Plain text.
+		 */
+		appendText(value: string): MarkdownString;
+
+		/**
+		 * Appends the given string 'as is' to this markdown string.
+		 * @param value Markdown string.
+		 */
+		appendMarkdown(value: string): MarkdownString;
+	}
+
+	/**
+	 * ~~MarkedString can be used to render human readable text. It is either a markdown string
+	 * or a code-block that provides a language and a code snippet. Note that
+	 * markdown strings will be sanitized - that means html will be escaped.~~
+	 *
+	 * @deprecated This type is deprecated, please use [`MarkdownString`](#MarkdownString) instead.
+	 */
+	export type MarkedString = MarkdownString | string | { language: string; value: string };
 
 	/**
 	 * A hover represents additional information for a symbol or word. Hovers are
@@ -3072,8 +3111,11 @@ declare module 'vscode' {
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param value The new value.
 		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
-		 *	If `undefined` or `null` or `false` configuration target is `ConfigurationTarget.Workspace`.
-		 *	If `true` configuration target is `ConfigurationTarget.Global`.
+		 *	- If `true` configuration target is `ConfigurationTarget.Global`.
+		 *	- If `false` configuration target is `ConfigurationTarget.Workspace`.
+		 *	- If `undefined` or `null` configuration target is
+		 *	`ConfigurationTarget.WorkspaceFolder` when configuration is resource specific
+		 *	`ConfigurationTarget.Workspace` otherwise.
 		 */
 		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean): Thenable<void>;
 
@@ -4046,6 +4088,17 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the state of a window.
+	 */
+	export interface WindowState {
+
+		/**
+		 * Whether the current window is focused.
+		 */
+		readonly focused: boolean;
+	}
+
+	/**
 	 * Namespace for dealing with the current window of the editor. That is visible
 	 * and active editors, as well as, UI elements to show messages, selections, and
 	 * asking for user input.
@@ -4096,6 +4149,19 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
+		 * Represents the current window's state.
+		 *
+		 * @readonly
+		 */
+		export let state: WindowState;
+
+		/**
+		 * An [event](#Event) which fires when the focus state of the current window
+		 * changes. The value of the event represents whether the window is focused.
+		 */
+		export const onDidChangeWindowState: Event<WindowState>;
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
@@ -5397,6 +5463,11 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
+		 * The [input box](#SourceControlInputBox) for this source control.
+		 */
+		readonly inputBox: SourceControlInputBox;
+
+		/**
 		 * The UI-visible count of [resource states](#SourceControlResourceState) of
 		 * this source control.
 		 *
@@ -5447,14 +5518,17 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * The [input box](#SourceControlInputBox) in the Source Control viewlet.
+		 * ~~The [input box](#SourceControlInputBox) for the last source control
+		 * created by the extension.~~
+		 *
+		 * @deprecated Use [SourceControl.inputBox](#SourceControl.inputBox) instead
 		 */
 		export const inputBox: SourceControlInputBox;
 
 		/**
 		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @param id A unique `id` for the source control. Something short, eg: `git`.
+		 * @param id An `id` for the source control. Something short, eg: `git`.
 		 * @param label A human-readable string for the source control. Eg: `Git`.
 		 * @return An instance of [source control](#SourceControl).
 		 */

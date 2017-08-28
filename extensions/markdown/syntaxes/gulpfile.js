@@ -68,7 +68,7 @@ const fencedCodeBlockDefinition = (name, identifiers, sourceScope) => {
 	return `<key>fenced_code_block_${name}</key>
 <dict>
 	<key>begin</key>
-	<string>(^|\\G)(\\s*)(\`{3,}|~{3,})\\s*((${identifiers.join('|')})(\\s+[^\`~]*)?$)</string>
+	<string>(^|\\G)(\\s*)(\`{3,}|~{3,})\\s*(?i:(${identifiers.join('|')})(\\s+[^\`~]*)?$)</string>
 	<key>name</key>
 	<string>markup.fenced_code.block.markdown</string>
 	<key>end</key>

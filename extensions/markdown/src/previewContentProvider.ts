@@ -10,12 +10,12 @@ import * as path from 'path';
 import { MarkdownEngine } from './markdownEngine';
 
 import * as nls from 'vscode-nls';
-import { Logger } from "./logger";
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from "./security";
+import { Logger } from './logger';
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
 const localize = nls.loadMessageBundle();
 
 const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been been disabled in this document'),
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Some content has been disabled in this document'),
 	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
 	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Content Disabled Security Warning')
 };

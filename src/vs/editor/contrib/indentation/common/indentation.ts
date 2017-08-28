@@ -224,7 +224,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 			return undefined;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
 			id: n.toString(),
 			label: n.toString(),
@@ -300,7 +300,7 @@ export class DetectIndentation extends EditorAction {
 			return;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language);
+		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
 		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
 	}
 }
@@ -423,7 +423,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 
 		const model = this.editor.getModel();
-		if (model.getFirstInvalidLineNumber() < range.getStartPosition().lineNumber) {
+		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
 		const { tabSize, insertSpaces } = model.getOptions();

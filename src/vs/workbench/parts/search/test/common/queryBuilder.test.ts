@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
+import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -216,7 +217,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				type: QueryType.Text,
-				excludePattern: patternsToIExpression(globalGlob('foo')),
+				excludePattern: patternsToIExpression(...globalGlob('foo')),
 				useRipgrep: true
 			});
 	});
@@ -302,7 +303,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				excludePattern: patternsToIExpression(globalGlob('*.js')),
+				excludePattern: patternsToIExpression(...globalGlob('*.js')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -321,7 +322,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: ROOT_1_URI
 				}],
-				includePattern: patternsToIExpression(globalGlob('*.txt')),
+				includePattern: patternsToIExpression(...globalGlob('*.txt')),
 				type: QueryType.Text,
 				useRipgrep: true
 			});
@@ -333,7 +334,7 @@ suite('QueryBuilder', () => {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					<ISearchPathsResult>{
-						pattern: patternsToIExpression(...expectedPatterns.map(globalGlob))
+						pattern: patternsToIExpression(...arrays.flatten(expectedPatterns.map(globalGlob)))
 					},
 					includePattern);
 			}
@@ -346,24 +347,6 @@ suite('QueryBuilder', () => {
 				['a,,,b', ['a', 'b']],
 				['**/a,b/**', ['**/a', 'b/**']]
 			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
-		});
-
-		test('double-star patterns are normalized', () => {
-			function testLiteralIncludes(includePattern: string, expectedPattern: string): void {
-				assert.deepEqual(
-					queryBuilder.parseSearchPaths(includePattern),
-					<ISearchPathsResult>{
-						pattern: patternsToIExpression(expectedPattern)
-					},
-					includePattern);
-			}
-
-			[
-				['**/*.*', '{**/*.*/**,**/*.*}'],
-				['foo/**', '{**/foo/**,**/foo/**}'],
-				['**/**/foo', '{**/foo/**,**/foo}'],
-				['**/**', '{**,**}']
-			].forEach(([includePattern, expectedPattern]) => testLiteralIncludes(includePattern, expectedPattern));
 		});
 
 		function testIncludes(includePattern: string, expectedResult: ISearchPathsResult): void {
@@ -389,7 +372,7 @@ suite('QueryBuilder', () => {
 					fixPath('/foo/bar') + ',' + 'a',
 					<ISearchPathsResult>{
 						searchPaths: [{ searchPath: getUri('/foo/bar') }],
-						pattern: patternsToIExpression(globalGlob('a'))
+						pattern: patternsToIExpression(...globalGlob('a'))
 					}
 				],
 				[
@@ -662,9 +645,11 @@ function cleanUndefinedQueryValues(q: any): void {
 	return q;
 }
 
-function globalGlob(str: string): string {
-	const globalGlob = `{**/${str}/**,**/${str}}`;
-	return globalGlob.replace(/\*\*([/\\]\*\*)+/g, '**');
+function globalGlob(pattern: string): string[] {
+	return [
+		`**/${pattern}/**`,
+		`**/${pattern}`
+	];
 }
 
 function patternsToIExpression(...patterns: string[]): IExpression {

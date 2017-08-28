@@ -20,6 +20,7 @@ import './mainThreadConfiguration';
 import './mainThreadCredentials';
 import './mainThreadDebugService';
 import './mainThreadDiagnostics';
+import './mainThreadDialogs';
 import './mainThreadDocumentContentProviders';
 import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
@@ -43,6 +44,7 @@ import './mainThreadTask';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
 import './mainThreadTreeViews';
+import './mainThreadWindow';
 import './mainThreadWorkspace';
 
 export class ExtensionPoints implements IWorkbenchContribution {

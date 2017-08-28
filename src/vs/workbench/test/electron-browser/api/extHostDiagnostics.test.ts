@@ -13,7 +13,7 @@ import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/ext
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { mock } from "vs/workbench/test/electron-browser/api/mock";
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDiagnostics', () => {
 

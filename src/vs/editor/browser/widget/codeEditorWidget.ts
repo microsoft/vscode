@@ -21,7 +21,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
@@ -403,6 +403,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
+	protected _scheduleAtNextAnimationFrame(callback: () => void): IDisposable {
+		return dom.scheduleAtNextAnimationFrame(callback);
+	}
+
 	protected _createView(): void {
 		this._view = new View(
 			this._commandService,
@@ -420,55 +424,23 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		const viewEventBus = this._view.getInternalEventBus();
 
-		this.listenersToRemove.push(viewEventBus.onDidGainFocus(() => {
+		viewEventBus.onDidGainFocus = () => {
 			this._onDidFocusEditorText.fire();
 			// In IE, the focus is not synchronous, so we give it a little help
 			this._onDidFocusEditor.fire();
-		}));
+		};
 
-		this.listenersToRemove.push(viewEventBus.onDidScroll((e) => {
-			this._onDidScrollChange.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onDidLoseFocus(() => {
-			this._onDidBlurEditorText.fire();
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onContextMenu((e) => {
-			this._onContextMenu.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDown((e) => {
-			this._onMouseDown.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseUp((e) => {
-			this._onMouseUp.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDrag((e) => {
-			this._onMouseDrag.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDrop((e) => {
-			this._onMouseDrop.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onKeyUp((e) => {
-			this._onKeyUp.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseMove((e) => {
-			this._onMouseMove.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseLeave((e) => {
-			this._onMouseLeave.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onKeyDown((e) => {
-			this._onKeyDown.fire(e);
-		}));
+		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
+		viewEventBus.onDidLoseFocus = () => this._onDidBlurEditorText.fire();
+		viewEventBus.onContextMenu = (e) => this._onContextMenu.fire(e);
+		viewEventBus.onMouseDown = (e) => this._onMouseDown.fire(e);
+		viewEventBus.onMouseUp = (e) => this._onMouseUp.fire(e);
+		viewEventBus.onMouseDrag = (e) => this._onMouseDrag.fire(e);
+		viewEventBus.onMouseDrop = (e) => this._onMouseDrop.fire(e);
+		viewEventBus.onKeyUp = (e) => this._onKeyUp.fire(e);
+		viewEventBus.onMouseMove = (e) => this._onMouseMove.fire(e);
+		viewEventBus.onMouseLeave = (e) => this._onMouseLeave.fire(e);
+		viewEventBus.onKeyDown = (e) => this._onKeyDown.fire(e);
 	}
 
 	protected _detachModel(): editorCommon.IModel {

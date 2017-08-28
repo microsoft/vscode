@@ -42,9 +42,10 @@ import { webFrame } from 'electron';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { FileKind } from "vs/platform/files/common/files";
-import { IInstantiationService } from "vs/platform/instantiation/common/instantiation";
+import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 // --- actions
 
@@ -325,7 +326,8 @@ export class ShowStartupPerformance extends Action {
 		label: string,
 		@IWindowService private windowService: IWindowService,
 		@ITimerService private timerService: ITimerService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(id, label);
 	}
@@ -367,6 +369,10 @@ export class ShowStartupPerformance extends Action {
 				}
 			}
 
+			(<any>console).groupEnd();
+
+			(<any>console).group('Extension Activation Stats');
+			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
 			(<any>console).groupEnd();
 		}, 1000);
 
@@ -753,11 +759,23 @@ export abstract class BaseOpenRecentAction extends Action {
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 
-		const hasWorkspace = this.contextService.hasWorkspace();
+		let isCurrentWorkspaceInList: boolean;
+		if (!this.contextService.hasWorkspace()) {
+			isCurrentWorkspaceInList = false; // we never show empty workspaces
+		} else if (this.contextService.hasFolderWorkspace()) {
+			isCurrentWorkspaceInList = true; // we always show folder workspaces
+		} else {
+			const firstWorkspace = recentWorkspaces[0];
+			if (firstWorkspace && !isSingleFolderWorkspaceIdentifier(firstWorkspace)) {
+				isCurrentWorkspaceInList = firstWorkspace.id === this.contextService.getWorkspace().id;
+			} else {
+				isCurrentWorkspaceInList = false; // this is an untitled workspace thereby
+			}
+		}
 
 		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
+			autoFocus: { autoFocusFirstEntry: !isCurrentWorkspaceInList, autoFocusSecondEntry: isCurrentWorkspaceInList },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0

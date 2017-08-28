@@ -14,6 +14,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IDebugEditorModelData {
 	model: IModel;
@@ -121,11 +122,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return result;
 		}
 
-		// only show decorations for the currently focussed thread.
+		// only show decorations for the currently focused thread.
 		const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
 		const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
 
-		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
+		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focused stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
 		const callStack = stackFrame.thread.getCallStack();
 		if (callStack && callStack.length && stackFrame === callStack[0]) {
@@ -284,7 +285,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		if (result) {
 			result = objects.clone(result);
 			if (breakpoint.message) {
-				result.glyphMarginHoverMessage = breakpoint.message;
+				result.glyphMarginHoverMessage = new MarkdownString().appendText(breakpoint.message);
 			}
 			if (breakpoint.column) {
 				result.beforeContentClassName = `debug-breakpoint-column ${result.glyphMarginClassName}-column`;
@@ -305,7 +306,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		} else {
 			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
-		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
+		const glyphMarginHoverMessage = new MarkdownString().appendCodeblock(modeId, condition);
 		const glyphMarginClassName = 'debug-breakpoint-conditional-glyph';
 		const beforeContentClassName = breakpoint.column ? `debug-breakpoint-column ${glyphMarginClassName}-column` : undefined;
 
@@ -326,25 +327,25 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static BREAKPOINT_DISABLED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-disabled-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointDisabledHover', "Disabled Breakpoint")),
 		stickiness
 	};
 
 	private static BREAKPOINT_UNVERIFIED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint")),
 		stickiness
 	};
 
 	private static BREAKPOINT_DIRTY_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
 		stickiness
 	};
 
 	private static BREAKPOINT_UNSUPPORTED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unsupported-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type")),
 		stickiness
 	};
 

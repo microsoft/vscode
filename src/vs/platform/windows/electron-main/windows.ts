@@ -11,7 +11,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface ICodeWindow {
 	id: number;
@@ -57,8 +57,9 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	newWorkspace(win?: ICodeWindow): void;
 	openWorkspace(win?: ICodeWindow): void;
+	createAndOpenWorkspace(win: ICodeWindow, folders?: string[], path?: string): void;
+	saveAndOpenWorkspace(win: ICodeWindow, path: string): void;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
@@ -88,6 +89,7 @@ export interface IOpenConfiguration {
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;
+	addMode?: boolean;
 	forceOpenWorkspaceAsFile?: boolean;
 	initialStartup?: boolean;
 }

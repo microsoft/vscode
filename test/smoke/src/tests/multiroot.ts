@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
 
 let app: SpectronApplication;

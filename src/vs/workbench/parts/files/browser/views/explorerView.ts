@@ -18,7 +18,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -73,8 +73,8 @@ export class ExplorerView extends CollapsibleView {
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
 
-	private filesExplorerFocussedContext: IContextKey<boolean>;
-	private explorerFocussedContext: IContextKey<boolean>;
+	private filesExplorerFocusedContext: IContextKey<boolean>;
+	private explorerFocusedContext: IContextKey<boolean>;
 
 	private fileEventsFilter: ResourceGlobMatcher;
 
@@ -84,6 +84,7 @@ export class ExplorerView extends CollapsibleView {
 	private settings: object;
 
 	constructor(
+		initialSize: number,
 		options: IExplorerViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -101,7 +102,7 @@ export class ExplorerView extends CollapsibleView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
@@ -114,8 +115,8 @@ export class ExplorerView extends CollapsibleView {
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 
-		this.filesExplorerFocussedContext = FilesExplorerFocussedContext.bindTo(contextKeyService);
-		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
+		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
+		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, root => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
 	}
@@ -405,7 +406,7 @@ export class ExplorerView extends CollapsibleView {
 		this.toDispose.push(attachListStyler(this.explorerViewer, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));
+		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocusedContext, this.filesExplorerFocusedContext]));
 
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
@@ -866,7 +867,7 @@ export class ExplorerView extends CollapsibleView {
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, e => this.messageService.show(Severity.Error, e));
+		}, e => { this.messageService.show(Severity.Error, e); });
 	}
 
 	private hasSelection(resource: URI): FileStat {
@@ -927,7 +928,7 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
-		// Clean up last focussed if not set
+		// Clean up last focused if not set
 		if (!this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
 			delete this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 		}

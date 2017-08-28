@@ -81,7 +81,9 @@ class InstallAction extends Action {
 						});
 					}
 				})
-				.then<void>(() => this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName)));
+				.then(() => {
+					this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
+				});
 		});
 	}
 
@@ -141,8 +143,9 @@ class UninstallAction extends Action {
 
 			return pfs.unlink(this.target)
 				.then(null, ignore('ENOENT'))
-				.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName)))
-				.then(null);
+				.then(() => {
+					this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
+				});
 		});
 	}
 }

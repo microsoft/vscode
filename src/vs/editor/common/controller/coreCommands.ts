@@ -1114,7 +1114,7 @@ export namespace CoreNavigationCommands {
 				noOfLines = args.value;
 			}
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return context.getScrollTop() + deltaLines * context.config.lineHeight;
+			return context.getCurrentScrollTop() + deltaLines * context.config.lineHeight;
 		}
 	}
 
@@ -1687,7 +1687,7 @@ namespace Config {
 				return this._runEditorHandler(focusedEditor, args);
 			}
 
-			// Ignore this action when user is focussed on an element that allows for entering text
+			// Ignore this action when user is focused on an element that allows for entering text
 			let activeElement = <HTMLElement>document.activeElement;
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 				document.execCommand(this._inputHandler);

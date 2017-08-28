@@ -40,6 +40,10 @@ export class ExtensionDescriptionRegistry {
 		}
 	}
 
+	public containsActivationEvent(activationEvent: string): boolean {
+		return hasOwnProperty.call(this._activationMap, activationEvent);
+	}
+
 	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
 		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
 			return [];

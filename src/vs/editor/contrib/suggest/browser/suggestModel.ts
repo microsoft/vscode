@@ -39,6 +39,7 @@ export class LineContext {
 			return false;
 		}
 		const pos = editor.getPosition();
+		model.tokenizeIfCheap(pos.lineNumber);
 		const word = model.getWordAtPosition(pos);
 		if (!word) {
 			return false;
@@ -293,7 +294,7 @@ export class SuggestModel implements IDisposable {
 						} else if (quickSuggestions === true) {
 							// all good
 						} else {
-							model.forceTokenization(pos.lineNumber);
+							model.tokenizeIfCheap(pos.lineNumber);
 							const { tokenType } = model
 								.getLineTokens(pos.lineNumber)
 								.findTokenAtOffset(pos.column - 1);

@@ -14,8 +14,8 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { ILogService } from "vs/platform/log/common/log";
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class KeyboardLayoutMonitor {
 

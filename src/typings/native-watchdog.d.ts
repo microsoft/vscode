@@ -7,4 +7,6 @@ declare module 'native-watchdog' {
 
 	export function start(timeout: number): void;
 
+	export function exit(exitCode: number): void;
+
 }

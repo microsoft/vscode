@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { compare } from "vs/base/common/strings";
+import { compare } from 'vs/base/common/strings';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TrieMap } from 'vs/base/common/map';

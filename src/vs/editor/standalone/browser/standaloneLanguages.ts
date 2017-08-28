@@ -383,6 +383,13 @@ export function registerCompletionItemProvider(languageId: string, provider: Com
 }
 
 /**
+ * Register a document color provider (used by Color Picker, Color Decorator).
+ */
+export function registerColorProvider(languageId: string, provider: modes.DocumentColorProvider): IDisposable {
+	return modes.ColorProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -725,6 +732,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentRangeFormattingEditProvider: registerDocumentRangeFormattingEditProvider,
 		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
 		registerLinkProvider: registerLinkProvider,
+		registerColorProvider: registerColorProvider,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,

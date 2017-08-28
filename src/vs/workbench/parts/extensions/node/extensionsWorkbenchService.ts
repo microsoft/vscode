@@ -412,6 +412,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
+		this.telemetryService.publicLog('extensionGallery:open', extension.telemetryData);
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
@@ -830,7 +831,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 						nls.localize('install', "Install"),
 						nls.localize('cancel', "Cancel")
 					];
-					return this.choiceService.choose(Severity.Info, message, options, 2, false).then<void>(value => {
+					return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
 						if (value !== 0) {
 							return TPromise.as(null);
 						}

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorFormatter } from 'vs/editor/common/modes';
-import { Color } from 'vs/base/common/color';
+import { IColorFormatter, IColor } from 'vs/editor/common/modes';
+import { Color, RGBA } from 'vs/base/common/color';
 
 function roundFloat(number: number, decimalPoints: number): number {
 	const decimal = Math.pow(10, decimalPoints);
@@ -32,7 +32,7 @@ function getPropertyValue(color: Color, variable: string): number | undefined {
 		case 'blue':
 			return color.rgba.b / 255;
 		case 'alpha':
-			return color.rgba.a / 255;
+			return color.rgba.a;
 		case 'hue':
 			return color.hsla.h / 360;
 		case 'saturation':
@@ -56,7 +56,7 @@ function createPropertyNode(variable: string, fractionDigits: number, type: stri
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;
 
-			return (normalize(value, min, max) | 0).toString();
+			return (normalize(value, min, max).toFixed(0)).toString();
 		} else if (type === 'x' || type === 'X') {
 			min = typeof min === 'number' ? min : 0;
 			max = typeof max === 'number' ? max : 255;
@@ -122,8 +122,9 @@ export class ColorFormatter implements IColorFormatter {
 		this.tree.push(createLiteralNode(format.substring(startIndex, format.length)));
 	}
 
-	format(color: Color): string {
-		return this.tree.map(node => node(color)).join('');
+	format(color: IColor): string {
+		const richColor = new Color(new RGBA(Math.round(color.red * 255), Math.round(color.green * 255), Math.round(color.blue * 255), color.alpha));
+		return this.tree.map(node => node(richColor)).join('');
 	}
 }
 
@@ -137,7 +138,7 @@ export class CombinedColorFormatter implements IColorFormatter {
 		}
 	}
 
-	format(color: Color): string {
-		return color.isOpaque() ? this.opaqueFormatter.format(color) : this.transparentFormatter.format(color);
+	format(color: IColor): string {
+		return color.alpha === 1 ? this.opaqueFormatter.format(color) : this.transparentFormatter.format(color);
 	}
 }

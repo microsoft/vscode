@@ -51,6 +51,7 @@ export class ExtensionsListView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -69,7 +70,7 @@ export class ExtensionsListView extends CollapsibleView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -296,7 +297,7 @@ export class ExtensionsListView extends CollapsibleView {
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
-
+						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 							.then(pager => new PagedModel(pager || []));
 					});
@@ -318,9 +319,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -334,9 +335,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations-workspace';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -349,7 +350,7 @@ export class ExtensionsListView extends CollapsibleView {
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-
+		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
 	}

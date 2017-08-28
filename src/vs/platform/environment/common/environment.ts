@@ -13,12 +13,10 @@ export interface ParsedArgs {
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	/**
-	 * Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	 */
-	'unity-launch'?: boolean;
+	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -60,6 +58,7 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+	machineUUID: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;

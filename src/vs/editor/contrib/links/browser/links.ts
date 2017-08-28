@@ -26,21 +26,22 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/browser/clickLinkGesture';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
-const HOVER_MESSAGE_GENERAL_META = (
+const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
 		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
 		: nls.localize('links.navigate', "Ctrl + click to follow link")
 );
 
-const HOVER_MESSAGE_COMMAND_META = (
+const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 	platform.isMacintosh
 		? nls.localize('links.command.mac', "Cmd + click to execute command")
 		: nls.localize('links.command', "Ctrl + click to execute command")
 );
 
-const HOVER_MESSAGE_GENERAL_ALT = nls.localize('links.navigate.al', "Alt + click to follow link");
-const HOVER_MESSAGE_COMMAND_ALT = nls.localize('links.command.al', "Alt + click to execute command");
+const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(nls.localize('links.navigate.al', "Alt + click to follow link"));
+const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(nls.localize('links.command.al', "Alt + click to execute command"));
 
 const decoration = {
 	meta: ModelDecorationOptions.register({

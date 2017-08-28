@@ -20,13 +20,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { realpath } from 'vs/base/node/pfs';
+import { realpath, readFile, writeFile } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
-import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -42,6 +42,7 @@ import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspace
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { CredentialsChannelClient } from 'vs/platform/credentials/node/credentialsIpc';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -111,13 +112,41 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
-		const workspaceConfigPath = configuration.workspace ? uri.file(configuration.workspace.configPath) : null;
-		const folderPath = configuration.folderPath ? uri.file(configuration.folderPath) : null;
-		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, folderPath, environmentService, workspacesService) : new EmptyWorkspaceServiceImpl(environmentService);
+	return migrateWorkspaceId(configuration).then(() => {
+		return validateWorkspacePath(configuration).then(() => {
+			let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
+			if (configuration.workspace || configuration.folderPath) {
+				workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
+			} else {
+				workspaceService = new EmptyWorkspaceServiceImpl(environmentService);
+			}
 
-		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+			return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+		});
 	});
+}
+
+// TODO@Ben migration
+function migrateWorkspaceId(configuration: IWindowConfiguration): TPromise<void> {
+	if (!configuration.workspace || !configuration.workspace.configPath) {
+		return TPromise.as(null);
+	}
+
+	return readFile(configuration.workspace.configPath).then(data => {
+		try {
+			const raw = JSON.parse(data.toString());
+			if (raw.id) {
+				const previousWorkspaceId = raw.id;
+				delete raw.id;
+
+				migrateStorageToMultiRootWorkspace(uri.from({ path: previousWorkspaceId, scheme: 'root' }).toString(), configuration.workspace, window.localStorage);
+
+				return writeFile(configuration.workspace.configPath, JSON.stringify(raw, null, '\t'));
+			}
+		} catch (error) { };
+
+		return void 0;
+	}).then(() => void 0, () => void 0);
 }
 
 function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {

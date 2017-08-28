@@ -6,7 +6,7 @@
 
 import { ExtHostContext, MainThreadCredentialsShape, ExtHostCredentialsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { extHostNamedCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadCredentials)
 export class MainThreadCredentials implements MainThreadCredentialsShape {

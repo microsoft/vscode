@@ -16,7 +16,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
-import { unmnemonicLabel } from "vs/base/common/labels";
+import { unmnemonicLabel } from 'vs/base/common/labels';
 
 export class ContextMenuService implements IContextMenuService {
 

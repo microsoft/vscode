@@ -41,6 +41,8 @@ export interface ITreeViewDataProvider {
 
 	onDidChange: Event<ITreeItem[] | undefined | null>;
 
+	onDispose: Event<void>;
+
 	getElements(): TPromise<ITreeItem[]>;
 
 	getChildren(element: ITreeItem): TPromise<ITreeItem[]>;

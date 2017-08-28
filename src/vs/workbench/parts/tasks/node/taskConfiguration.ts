@@ -793,7 +793,7 @@ namespace CommandConfiguration {
 			if (Types.isStringArray(config.args)) {
 				result.args = config.args.slice(0);
 			} else {
-				context.problemReporter.fatal(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
+				context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', config.args ? JSON.stringify(config.args, undefined, 4) : 'undefined'));
 			}
 		}
 		if (config.options !== void 0) {
@@ -1019,7 +1019,7 @@ namespace TaskIdentifier {
 const source: Tasks.TaskSource = {
 	kind: Tasks.TaskSourceKind.Workspace,
 	label: 'Workspace',
-	detail: '.settins\\tasks.json'
+	config: undefined
 };
 
 namespace GroupKind {
@@ -1125,10 +1125,15 @@ namespace ConfiguringTask {
 		let type = external.type;
 		let customize = (external as CustomizeShape).customize;
 		if (!type && !customize) {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 		let typeDeclaration = TaskDefinitionRegistry.get(type);
+		if (!typeDeclaration) {
+			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
+			context.problemReporter.error(message);
+			return undefined;
+		}
 		let identifier: TaskIdentifier;
 		if (Types.isString(customize)) {
 			if (customize.indexOf(grunt) === 0) {
@@ -1154,11 +1159,16 @@ namespace ConfiguringTask {
 			});
 		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
+		let configElement: Tasks.TaskSourceConfigElement = {
+			file: '.vscode\\tasks.json',
+			index,
+			element: external
+		};
 		let result: Tasks.ConfiguringTask = {
 			type: type,
 			configures: taskIdentifier,
 			_id: taskIdentifier._key,
-			_source: Objects.assign({}, source, { config: { index, element: external } }),
+			_source: Objects.assign({}, source, { config: configElement }),
 			_label: undefined
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
@@ -1198,19 +1208,19 @@ namespace CustomTask {
 			type = 'custom';
 		}
 		if (type !== 'custom' && type !== 'shell' && type !== 'process') {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 		let taskName = external.taskName;
 		if (!taskName) {
-			context.problemReporter.fatal(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 
 		let result: Tasks.CustomTask = {
 			type: 'custom',
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external } }),
+			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json' } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1273,10 +1283,10 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.TaskSource }): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = {
 			_id: configuredProps._id,
-			_source: configuredProps._source,
+			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
 			type: 'custom',
 			command: contributedTask.command,
@@ -1783,7 +1793,7 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.TaskSource }): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 

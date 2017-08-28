@@ -10,9 +10,9 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IExtensionPoint } from "vs/platform/extensions/common/extensionsRegistry";
-import { TPromise } from "vs/base/common/winjs.base";
-import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService } from "vs/platform/extensions/common/extensions";
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 
 // --- service instances
 
@@ -35,8 +35,16 @@ class MockExtensionService implements IExtensionService {
 		throw new Error('Not implemented');
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
 		throw new Error('Not implemented');
+	}
+
+	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
+		throw new Error('Not implemented');
+	}
+
+	public restartExtensionHost(): void {
+		throw new Error('Method not implemented.');
 	}
 }
 

@@ -1,0 +1,70 @@
+{
+  "name": "azure-account",
+  "version": "0.1.0",
+  "publisher": "vscode",
+  "engines": {
+    "vscode": "*"
+  },
+  "enableProposedApi": true,
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "azure-account.login",
+        "title": "%azure-account.commands.login%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.logout",
+        "title": "%azure-account.commands.logout%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.addFilter",
+        "title": "%azure-account.commands.addResourceFilter%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.removeFilter",
+        "title": "%azure-account.commands.removeResourceFilter%",
+        "category": "%azure-account.commands.azure%"
+      },
+      {
+        "command": "azure-account.createAccount",
+        "title": "%azure-account.commands.createAccount%",
+        "category": "%azure-account.commands.azure%"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Azure configuration",
+      "properties": {
+        "azure.resourceFilter": {
+          "type": "array",
+          "default": null,
+          "description": "The resource filter, each element is either a subscription id or a subscription id and a resource group name separated by a slash."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:azure-account",
+    "watch": "gulp watch-extension:azure-account"
+  },
+  "devDependencies": {
+    "@types/copy-paste": "^1.1.30",
+    "@types/node": "^6.0.40",
+    "@types/opn": "^3.0.28"
+  },
+  "dependencies": {
+    "adal-node": "^0.1.22",
+    "azure-arm-resource": "^2.0.0-preview",
+    "copy-paste": "^1.3.0",
+    "ms-rest-azure": "^2.2.3",
+    "vscode-nls": "^2.0.2",
+    "opn": "^5.1.0"
+  }
+}

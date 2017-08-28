@@ -232,7 +232,7 @@ export class ProcessRunnerDetector {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
+		}, (err: any) => {
 			return null;
 		});
 	}
@@ -242,7 +242,7 @@ export class ProcessRunnerDetector {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
+		}, (err: any) => {
 			return null;
 		});
 	}
@@ -258,7 +258,7 @@ export class ProcessRunnerDetector {
 		}, (err: any) => {
 			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				return run();
-			}, (err: any): TaskConfig.ExternalTaskRunnerConfiguration => {
+			}, (err: any) => {
 				return null;
 			});
 		});

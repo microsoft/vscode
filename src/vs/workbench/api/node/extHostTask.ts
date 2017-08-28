@@ -329,7 +329,7 @@ namespace Tasks {
 		let source = {
 			kind: TaskSystem.TaskSourceKind.Extension,
 			label: typeof task.source === 'string' ? task.source : extension.name,
-			detail: extension.id
+			extension: extension.id
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;

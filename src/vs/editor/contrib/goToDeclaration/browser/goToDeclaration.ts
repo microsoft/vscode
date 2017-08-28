@@ -41,10 +41,9 @@ function getDefinitions<T>(
 	const promises = provider.map((provider, idx) => {
 		return asWinJsPromise((token) => {
 			return provide(provider, model, position, token);
-		}).then(result => {
-			return result;
-		}, err => {
+		}).then(undefined, err => {
 			onUnexpectedExternalError(err);
+			return null;
 		});
 	});
 	return outputResults(promises);

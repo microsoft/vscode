@@ -231,7 +231,7 @@ export class ToggleViewletAction extends Action {
 
 	public run(): TPromise<any> {
 
-		// Pass focus to viewlet if not open or focussed
+		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
 			return this.viewletService.openViewlet(this.viewletId, true);
 		}

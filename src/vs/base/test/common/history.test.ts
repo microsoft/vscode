@@ -100,6 +100,14 @@ suite('History Navigator', () => {
 		assert.equal(null, testObject.next());
 	});
 
+	test('adding an existing item changes the order', function () {
+		let testObject = new HistoryNavigator(['1', '2', '3']);
+
+		testObject.add('1');
+
+		assert.deepEqual(['2', '3', '1'], toArray(testObject));
+	});
+
 	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
 		let result = [];
 		historyNavigator.first();

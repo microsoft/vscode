@@ -8,9 +8,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor } from './extHostTextEditor';
+import { ExtHostTextEditor, ExtHostTextEditor2 } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -29,7 +30,8 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext
+		private readonly _mainContext: IMainContext,
+		private readonly _extHostExtensions?: ExtHostExtensionService
 	) {
 	}
 
@@ -79,7 +81,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
 				const documentData = this._documents.get(data.document.toString());
-				const editor = new ExtHostTextEditor(
+				const editor = new ExtHostTextEditor2(
+					this._extHostExtensions,
+					this._mainContext.get(MainContext.MainThreadTelemetry),
 					this._mainContext.get(MainContext.MainThreadEditors),
 					data.id,
 					documentData,

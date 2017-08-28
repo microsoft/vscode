@@ -11,8 +11,8 @@ import { consumeSignals, GCSignal } from 'gc-signals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable } from "vs/base/common/lifecycle";
-import { extHostCustomer } from "vs/workbench/api/electron-browser/extHostCustomers";
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
 

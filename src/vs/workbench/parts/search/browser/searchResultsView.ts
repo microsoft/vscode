@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getPathLabel } from 'vs/base/common/labels';
-import { FileKind } from "vs/platform/files/common/files";
+import { FileKind } from 'vs/platform/files/common/files';
 
 export class SearchDataSource implements IDataSource {
 
