@@ -38,6 +38,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 
 export class MarkersPanel extends Panel {
 
@@ -200,13 +201,15 @@ export class MarkersPanel extends Panel {
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		const actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
 		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
 			sorter: new Viewer.Sorter(),
-			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
+			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
+			dnd
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
