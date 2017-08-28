@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
-import { getErrorMessage } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
@@ -546,17 +546,29 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const headers = assign({}, this.commonHTTPHeaders, options.headers || {});
 		options = assign({}, options, baseOptions, { headers });
 
-		const firstOptions = assign({}, options, { url: asset.uri });
+		const url = asset.uri;
+		const fallbackUrl = asset.fallbackUri;
+		const firstOptions = assign({}, options, { url });
 
 		return this.requestService.request(firstOptions)
 			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
 			.then(null, err => {
-				this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
-				this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });
+				if (isPromiseCanceledError(err)) {
+					return TPromise.wrapError<IRequestContext>(err);
+				}
 
-				const fallbackOptions = assign({}, options, { url: asset.fallbackUri });
+				const message = getErrorMessage(err);
+				this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
+
+				const fallbackOptions = assign({}, options, { url: fallbackUrl });
 				return this.requestService.request(fallbackOptions).then(null, err => {
-					this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+					if (isPromiseCanceledError(err)) {
+						return TPromise.wrapError<IRequestContext>(err);
+					}
+
+					const message = getErrorMessage(err);
+					this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
 					return TPromise.wrapError<IRequestContext>(err);
 				});
 			});
