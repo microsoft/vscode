@@ -5,28 +5,21 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ISimpleFindWidgetService _simpleFindWidgetService: ISimpleFindWidgetService
+		@ITerminalService private _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService, _simpleFindWidgetService);
+		super(_contextViewService);
 	}
 
 	public find(previous) {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
-			if (!this._isVisible) {
-				this.reveal(false);
-			}
 			if (previous) {
 				instance.findPrevious(val);
 			} else {
@@ -51,5 +44,4 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	protected onFocusTrackerBlur() {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
 	}
-
 }
