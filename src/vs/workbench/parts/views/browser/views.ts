@@ -421,8 +421,11 @@ export class ViewsViewlet extends Viewlet {
 
 	public focus(): void {
 		super.focus();
+
 		if (this.lastFocusedView) {
 			this.lastFocusedView.focus();
+		} else if (this.views.length > 0) {
+			this.views[0].focus();
 		}
 	}
 

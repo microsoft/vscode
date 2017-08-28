@@ -366,7 +366,7 @@ class SourceControlView extends CollapsibleView {
 		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 	}
 
-	focusBody(): void {
+	focus(): void {
 		this.inputBox.focus();
 	}
 
@@ -533,10 +533,6 @@ export class SCMViewlet extends ViewsViewlet {
 
 	getOptimalWidth(): number {
 		return 400;
-	}
-
-	focus(): void {
-		super.focus();
 	}
 
 	getTitle(): string {
