@@ -76,7 +76,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -927,7 +927,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!toExecute) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', requested), TaskErrors.TaskNotFound);
 			} else {
-				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(toExecute)) {
+				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(toExecute) && !CompositeTask.is(toExecute)) {
 					return this.attachProblemMatcher(toExecute).then((toExecute) => {
 						if (toExecute) {
 							return this.executeTask(toExecute, resolver);
@@ -954,14 +954,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (task.problemMatchers !== void 0 && task.problemMatchers.length > 0) {
 			return false;
 		}
-		if (task._source.config === void 0 && ContributedTask.is(task)) {
+		if (ContributedTask.is(task)) {
 			return !task.hasDefinedMatchers && task.problemMatchers.length === 0;
 		}
-		let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-		return configProperties.problemMatcher === void 0;
+		if (CustomTask.is(task)) {
+			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			return configProperties.problemMatcher === void 0;
+		}
+		return false;
 	}
 
-	private attachProblemMatcher(task: Task): TPromise<Task> {
+	private attachProblemMatcher(task: ContributedTask | CustomTask): TPromise<Task> {
 		interface ProblemMatcherPickEntry extends IPickOpenEntry {
 			matcher: NamedProblemMatcher;
 			never?: boolean;
@@ -1037,16 +1040,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0;
 	}
 
-	public customize(task: Task, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
+	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
 		let configuration = this.getConfiguration();
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.as<void>(undefined);
 		}
+
 		let fileConfig = configuration.config;
 		let index: number;
 		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask;
-		let taskConfig = task._source.config;
+		let taskConfig = CustomTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			index = taskConfig.index;
 			toCustomize = taskConfig.element;
@@ -1142,6 +1146,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public openConfig(task: CustomTask): TPromise<void> {
+		let resource = this.contextService.toResource(task._source.config.file);
+		return this.editorService.openEditor({
+			resource: resource,
+			options: {
+				forceOpen: true,
+				pinned: false
+			}
+		}, false).then(() => undefined);
+	}
+
 	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let idMap: IStringDictionary<Task> = Object.create(null);
 		let labelMap: IStringDictionary<Task> = Object.create(null);
@@ -1184,15 +1199,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			return { task: extensionTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
-			let task: CustomTask = {
+			let task: CompositeTask = {
 				_id: id,
-				_source: { kind: TaskSourceKind.Generic, label: 'generic' },
+				_source: { kind: TaskSourceKind.Composite, label: 'composite' },
 				_label: id,
-				type: 'custom',
+				type: 'composite',
 				name: id,
 				identifier: id,
-				dependsOn: extensionTasks.map(task => task._id),
-				command: undefined,
+				dependsOn: extensionTasks.map(task => task._id)
 			};
 			return { task, resolver };
 		}
@@ -1381,8 +1395,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<Task> {
-		let result: IStringDictionary<Task>;
+	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> {
+		let result: IStringDictionary<CustomTask>;
 		function getResult() {
 			if (result) {
 				return result;
@@ -1943,7 +1957,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!task) {
 						return;
 					}
-					this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+					if (!CompositeTask.is(task)) {
+						this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+					}
 				});
 			}));
 		} else {
@@ -1975,7 +1991,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!task) {
 						return;
 					}
-					this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+					if (!CompositeTask.is(task)) {
+						this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+					}
 				});
 			}));
 		} else {
