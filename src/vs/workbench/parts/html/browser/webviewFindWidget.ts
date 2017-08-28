@@ -54,4 +54,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this.webview.notifyFindWidgetFocusChanged(false);
 	}
 
+	protected onFindInputFocusTrackerFocus() {
+		this.webview.notifyFindWidgetInputFocusChanged(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this.webview.notifyFindWidgetInputFocusChanged(false);
+	}
 }

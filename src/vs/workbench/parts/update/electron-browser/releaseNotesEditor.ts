@@ -91,7 +91,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		};
 
 		const body = renderBody(marked(text, { renderer }));
-		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
+		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey);
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);
 			if (state) {

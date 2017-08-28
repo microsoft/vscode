@@ -51,7 +51,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
@@ -59,6 +59,10 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
 /**  A context key that is set when an extension editor webview not have focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
+/**  A context key that is set when the find widget find input in extension editor webview is focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in extension editor webview is not focused. */
+export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -168,6 +172,7 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
 	private contextKey: IContextKey<boolean>;
+	private findInputFocusContextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
@@ -199,6 +204,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
 		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
@@ -346,6 +352,18 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
+	public showNextFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showNextFindTerm();
+		}
+	}
+
+	public showPreviousFindTerm() {
+		if (this.activeWebview) {
+			this.activeWebview.showPreviousFindTerm();
+		}
+	}
+
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -366,7 +384,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, webViewOptions);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -847,3 +865,46 @@ const hideCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class ShowExtensionEditorFindTermCommand extends Command {
+	constructor(opts: ICommandOptions, private _next: boolean) {
+		super(opts);
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const extensionEditor = this.getExtensionEditor(accessor);
+		if (extensionEditor) {
+			if (this._next) {
+				extensionEditor.showNextFindTerm();
+			} else {
+				extensionEditor.showPreviousFindTerm();
+			}
+		}
+	}
+
+	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
+		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
+		if (activeEditor instanceof ExtensionEditor) {
+			return activeEditor;
+		}
+		return null;
+	}
+}
+
+const showNextFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showNextFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.DownArrow
+	}
+}, true);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+const showPreviousFindTermCommand = new ShowExtensionEditorFindTermCommand({
+	id: 'editor.action.extensioneditor.showPreviousFindTerm',
+	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
+	kbOpts: {
+		primary: KeyMod.Alt | KeyCode.UpArrow
+	}
+}, false);
+KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
