@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { ViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -255,6 +255,7 @@ class SourceControlView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private repository: ISCMRepository,
 		options: IViewletViewOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -268,7 +269,7 @@ class SourceControlView extends CollapsibleView {
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
@@ -476,7 +477,7 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
-export class SCMViewlet extends ViewsViewlet {
+export class SCMViewlet extends PersistentViewsViewlet {
 
 	private disposables: IDisposable[] = [];
 
@@ -498,7 +499,7 @@ export class SCMViewlet extends ViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.SCM, true,
+		super(VIEWLET_ID, ViewLocation.SCM, 'scm', true,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 	}
 
@@ -523,12 +524,12 @@ export class SCMViewlet extends ViewsViewlet {
 		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
+	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IView {
 		if (viewDescriptor instanceof SourceControlViewDescriptor) {
-			return this.instantiationService.createInstance(SourceControlView, viewDescriptor.repository, options);
+			return this.instantiationService.createInstance(SourceControlView, initialSize, viewDescriptor.repository, options);
 		}
 
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+		return this.instantiationService.createInstance(viewDescriptor.ctor, initialSize, options);
 	}
 
 	getOptimalWidth(): number {
