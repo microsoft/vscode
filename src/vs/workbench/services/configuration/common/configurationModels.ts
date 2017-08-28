@@ -38,7 +38,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	protected processRaw(raw: T): void {
 		this._raw = raw;
 
-		this._folders = (this._raw['folders'] as IStoredWorkspaceFolder[]).map(folder => folder.path);
+		this._folders = ((this._raw['folders'] || []) as IStoredWorkspaceFolder[]).map(folder => folder.path);
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
 		this._tasksConfiguration = this.parseConfigurationModel('tasks');
 		this._launchConfiguration = this.parseConfigurationModel('launch');
