@@ -5,11 +5,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
+import { isLinux } from 'vs/base/common/platform';
+import { distinct } from 'vs/base/common/arrays';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -42,11 +43,6 @@ export interface IWorkspaceContextService {
 	 * without workspace (empty);
 	 */
 	getWorkspace(): IWorkspace;
-
-	/**
-	 * Save the existing workspace in the given location
-	 */
-	saveWorkspace(location: URI): TPromise<void>;
 
 	/**
 	 * An event which fires on workspace name changes.
@@ -143,14 +139,19 @@ export class LegacyWorkspace implements ILegacyWorkspace {
 export class Workspace implements IWorkspace {
 
 	private _rootsMap: TrieMap<URI> = new TrieMap<URI>();
+	private _roots: URI[];
 
 	constructor(
 		public readonly id: string,
 		private _name: string,
-		private _roots: URI[],
+		roots: URI[],
 		private _configuration: URI = null
 	) {
-		this.updateRootsMap();
+		this.roots = roots;
+	}
+
+	private ensureUnique(roots: URI[]): URI[] {
+		return distinct(roots, root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
 	}
 
 	public get roots(): URI[] {
@@ -158,7 +159,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	public set roots(roots: URI[]) {
-		this._roots = roots;
+		this._roots = this.ensureUnique(roots);
 		this.updateRootsMap();
 	}
 

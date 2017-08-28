@@ -8,7 +8,9 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
+import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -139,7 +141,23 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit) : undefined; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) { }
+	readonly machineUUID: string;
+
+	constructor(private _args: ParsedArgs, private _execPath: string) {
+		const machineIdPath = path.join(this.userDataPath, 'machineid');
+
+		try {
+			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
+		} catch (err) {
+			this.machineUUID = generateUuid();
+
+			try {
+				fs.writeFileSync(machineIdPath, this.machineUUID);
+			} catch (err) {
+				console.warn('Could not store machine ID');
+			}
+		}
+	}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; debugId: string } {

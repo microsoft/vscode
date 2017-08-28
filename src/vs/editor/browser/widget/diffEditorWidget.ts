@@ -42,6 +42,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -1943,12 +1944,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		}
 
-		let html: string[] = [];
+		let sb = createStringBuilder(10000);
 		let marginHTML: string[] = [];
 		let lineDecorationsWidth = this.modifiedEditorConfiguration.layoutInfo.decorationsWidth;
 		let lineHeight = this.modifiedEditorConfiguration.lineHeight;
 		for (let lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			html = html.concat(this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations));
+			this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations, sb);
 
 			if (this.renderIndicators) {
 				let index = lineNumber - lineChange.originalStartLineNumber;
@@ -1960,7 +1961,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
-		domNode.innerHTML = html.join('');
+		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
 
 		let marginDomNode = document.createElement('div');
@@ -1977,7 +1978,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[]): string[] {
+	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
@@ -1988,7 +1989,16 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
 
-		let r = renderViewLine(new RenderLineInput(
+		sb.appendASCIIString('<div class="view-line');
+		if (decorations.length === 0) {
+			// No char changes
+			sb.appendASCIIString(' char-delete');
+		}
+		sb.appendASCIIString('" style="top:');
+		sb.appendASCIIString(String(count * config.lineHeight));
+		sb.appendASCIIString('px;width:1000000px;">');
+
+		renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
 			lineContent,
 			originalModel.mightContainRTL(),
@@ -2001,21 +2011,9 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.viewInfo.renderWhitespace,
 			config.viewInfo.renderControlCharacters,
 			config.viewInfo.fontLigatures
-		));
+		), sb);
 
-		let myResult: string[] = [];
-		myResult.push('<div class="view-line');
-		if (decorations.length === 0) {
-			// No char changes
-			myResult.push(' char-delete');
-		}
-		myResult.push('" style="top:');
-		myResult.push(String(count * config.lineHeight));
-		myResult.push('px;width:1000000px;">');
-		myResult = myResult.concat(r.html);
-		myResult.push('</div>');
-
-		return myResult;
+		sb.appendASCIIString('</div>');
 	}
 }
 

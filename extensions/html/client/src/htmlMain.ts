@@ -6,10 +6,11 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, IndentAction } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range, RequestType } from 'vscode-languageclient';
+import { languages, workspace, ExtensionContext, IndentAction, Position, TextDocument } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range as LSRange, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateColorDecorations } from './colorDecorators';
+import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
@@ -18,7 +19,11 @@ import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+	export const type: RequestType<string, LSRange[], any, any> = new RequestType('html/colorSymbols');
+}
+
+namespace TagCloseRequest {
+	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
 
 interface IPackageInfo {
@@ -28,10 +33,13 @@ interface IPackageInfo {
 }
 
 export function activate(context: ExtensionContext) {
+	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	context.subscriptions.push(telemetryReporter);
+	if (telemetryReporter) {
+		toDispose.push(telemetryReporter);
+	}
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
@@ -64,7 +72,7 @@ export function activate(context: ExtensionContext) {
 	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
-	context.subscriptions.push(disposable);
+	toDispose.push(disposable);
 	client.onReady().then(() => {
 		let colorRequestor = (uri: string) => {
 			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
@@ -73,12 +81,21 @@ export function activate(context: ExtensionContext) {
 			return workspace.getConfiguration().get<boolean>('css.colorDecorators.enable');
 		};
 		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true }, isDecoratorEnabled);
-		context.subscriptions.push(disposable);
-		client.onTelemetry(e => {
+		toDispose.push(disposable);
+
+		let tagRequestor = (document: TextDocument, position: Position) => {
+			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+			return client.sendRequest(TagCloseRequest.type, param);
+		};
+		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true, razor: true }, 'html.autoClosingTags.enable');
+		toDispose.push(disposable);
+
+		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}
 		});
+		toDispose.push(disposable);
 	});
 
 	languages.setLanguageConfiguration('html', {

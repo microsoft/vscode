@@ -6,9 +6,8 @@
 const MochaTest = require('mocha');
 
 const mochaTest = new MochaTest({
-	timeout: 360000,
-	retries: 2,
-	slow: 50000,
+	timeout: 60000,
+	slow: 10000,
 	useColors: true
 });
 mochaTest.addFile(require('path').join(process.cwd(), 'out/test.js'));

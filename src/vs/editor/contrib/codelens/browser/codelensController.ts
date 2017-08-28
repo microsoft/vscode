@@ -107,7 +107,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
-			this._onViewportChanged(model.getLanguageIdentifier().language);
+			this._onViewportChanged();
 		}, 500);
 
 		const scheduler = new RunOnceScheduler(() => {
@@ -154,7 +154,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			scheduler.schedule();
 		}));
 		this._localToDispose.push(this._editor.onDidScrollChange(e => {
-			if (e.scrollTopChanged) {
+			if (e.scrollTopChanged && this._lenses.length > 0) {
 				this._detectVisibleLenses.schedule();
 			}
 		}));
@@ -258,7 +258,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}
 	}
 
-	private _onViewportChanged(modeId: string): void {
+	private _onViewportChanged(): void {
 		if (this._currentFindOccPromise) {
 			this._currentFindOccPromise.cancel();
 			this._currentFindOccPromise = null;

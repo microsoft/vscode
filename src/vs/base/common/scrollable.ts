@@ -342,11 +342,14 @@ class SmoothScrollingOperation {
 	private readonly _startTime: number;
 	public animationFrameDisposable: IDisposable;
 
-	private constructor(from: IScrollPosition, to: IScrollPosition, startTime: number, duration: number) {
+	private constructor(from: IScrollPosition, to: IScrollPosition, duration: number) {
 		this.from = from;
 		this.to = to;
-		this.duration = duration;
-		this._startTime = startTime;
+
+		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
+		this.duration = duration + 10;
+		this._startTime = Date.now() - 10;
+
 		this.animationFrameDisposable = null;
 	}
 
@@ -379,7 +382,7 @@ class SmoothScrollingOperation {
 	}
 
 	public static start(from: IScrollPosition, to: IScrollPosition, duration: number): SmoothScrollingOperation {
-		return new SmoothScrollingOperation(from, to, Date.now(), duration);
+		return new SmoothScrollingOperation(from, to, duration);
 	}
 }
 

@@ -16,7 +16,7 @@ import * as nls from 'vscode-nls';
 nls.config({ locale: env.language });
 const localize = nls.loadMessageBundle();
 
-import * as path from 'path';
+import { basename } from 'path';
 
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -24,26 +24,9 @@ import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
-import HoverProvider from './features/hoverProvider';
-import DefinitionProvider from './features/definitionProvider';
-import ImplementationProvider from './features/implementationProvider';
-import TypeDefintionProvider from './features/typeDefinitionProvider';
-import DocumentHighlightProvider from './features/documentHighlightProvider';
-import ReferenceProvider from './features/referenceProvider';
-import DocumentSymbolProvider from './features/documentSymbolProvider';
-import SignatureHelpProvider from './features/signatureHelpProvider';
-import RenameProvider from './features/renameProvider';
-import { TypeScriptFormattingProvider, FormattingProviderManager } from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
-import CompletionItemProvider from './features/completionItemProvider';
-import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-import CodeActionProvider from './features/codeActionProvider';
-import RefactorProvider from './features/refactorProvider';
-import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
-import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
-import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -218,8 +201,8 @@ class LanguageProvider {
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
-		client.onReady().then(() => {
-			this.registerProviders(client);
+		client.onReady().then(async () => {
+			await this.registerProviders(client);
 			this.bufferSyncSupport.listen();
 		}, () => {
 			// Nothing to do here. The client did show a message;
@@ -246,17 +229,18 @@ class LanguageProvider {
 		this.bufferSyncSupport.dispose();
 	}
 
-	private registerProviders(client: TypeScriptServiceClient): void {
+	private async registerProviders(client: TypeScriptServiceClient): Promise<void> {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		const completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
+		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.typingsStatus);
 		completionItemProvider.updateConfiguration();
 		this.toUpdateOnConfigurationChanged.push(completionItemProvider);
 		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.'));
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new DirectiveCommentCompletionProvider(client), '@'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
+		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
 		const formattingProvider = new TypeScriptFormattingProvider(client);
 		formattingProvider.updateConfiguration(config);
 		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
@@ -270,26 +254,26 @@ class LanguageProvider {
 		jsDocCompletionProvider.updateConfiguration();
 		this.disposables.push(languages.registerCompletionItemProvider(selector, jsDocCompletionProvider, '*'));
 
-		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
-		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
-		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new DocumentHighlightProvider(client)));
-		this.disposables.push(languages.registerReferenceProvider(selector, new ReferenceProvider(client)));
-		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new DocumentSymbolProvider(client)));
-		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
-		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new RefactorProvider(client, this.description.id)));
+		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
+		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
+		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
+		this.disposables.push(languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
+		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
+		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
+		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/codeActionProvider')).default(client, this.description.id)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.description.id)));
 		this.registerVersionDependentProviders();
 
 		for (const modeId of this.description.modeIds) {
-			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
+			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
 
-			const referenceCodeLensProvider = new ReferenceCodeLensProvider(client, modeId);
+			const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, modeId);
 			referenceCodeLensProvider.updateConfiguration();
 			this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
 			this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
 
-			const implementationCodeLensProvider = new ImplementationCodeLensProvider(client, modeId);
+			const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, modeId);
 			implementationCodeLensProvider.updateConfiguration();
 			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
 			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
@@ -351,11 +335,8 @@ class LanguageProvider {
 			return true;
 		}
 
-		const basename = path.basename(file);
-		if (!!basename && basename === this.description.configFile) {
-			return true;
-		}
-		return false;
+		const base = basename(file);
+		return !!base && base === this.description.configFile;
 	}
 
 	public get id(): string {
@@ -388,7 +369,7 @@ class LanguageProvider {
 		this.registerVersionDependentProviders();
 	}
 
-	private registerVersionDependentProviders(): void {
+	private async registerVersionDependentProviders(): Promise<void> {
 		while (this.versionDependentDisposables.length) {
 			const obj = this.versionDependentDisposables.pop();
 			if (obj) {
@@ -403,11 +384,11 @@ class LanguageProvider {
 
 		const selector = this.description.modeIds;
 		if (this.client.apiVersion.has220Features()) {
-			this.versionDependentDisposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(this.client)));
+			this.versionDependentDisposables.push(languages.registerImplementationProvider(selector, new (await import('./features/implementationProvider')).default(this.client)));
 		}
 
 		if (this.client.apiVersion.has213Features()) {
-			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(this.client)));
+			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
 		}
 	}
 

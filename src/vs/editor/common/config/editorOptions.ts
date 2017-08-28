@@ -268,7 +268,7 @@ export interface IEditorOptions {
 	scrollBeyondLastLine?: boolean;
 	/**
 	 * Enable that the editor animates scrolling to a position.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	smoothScrolling?: boolean;
 	/**
@@ -337,6 +337,10 @@ export interface IEditorOptions {
 	 * Defaults to true.
 	 */
 	links?: boolean;
+	/**
+	 * Enable inline color decorators and color picker rendering.
+	 */
+	colorDecorators?: boolean;
 	/**
 	 * Enable custom contextmenu.
 	 * Defaults to true.
@@ -790,6 +794,7 @@ export interface EditorContribOptions {
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
+	readonly colorDecorators: boolean;
 }
 
 /**
@@ -1134,6 +1139,7 @@ export class InternalEditorOptions {
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
+			&& a.colorDecorators === b.colorDecorators
 		);
 	}
 
@@ -1661,7 +1667,8 @@ export class EditorOptionsValidator {
 			folding: _boolean(opts.folding, defaults.folding),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
-			find: find
+			find: find,
+			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 		};
 	}
 }
@@ -1758,7 +1765,8 @@ export class InternalEditorOptionsFactory {
 				folding: (accessibilityIsOn ? false : opts.contribInfo.folding), // DISABLED WHEN SCREEN READER IS ATTACHED
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
-				find: opts.contribInfo.find
+				find: opts.contribInfo.find,
+				colorDecorators: opts.contribInfo.colorDecorators
 			}
 		};
 	}
@@ -2139,7 +2147,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorStyle: TextEditorCursorStyle.Line,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
-		smoothScrolling: true,
+		smoothScrolling: false,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
 		renderControlCharacters: false,
@@ -2196,6 +2204,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false
-		}
+		},
+		colorDecorators: true
 	},
 };

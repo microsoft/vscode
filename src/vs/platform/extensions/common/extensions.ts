@@ -40,6 +40,20 @@ export interface IExtensionsStatus {
 	messages: IMessage[];
 }
 
+export class ActivationTimes {
+	public readonly startup: boolean;
+	public readonly codeLoadingTime: number;
+	public readonly activateCallTime: number;
+	public readonly activateResolvedTime: number;
+
+	constructor(startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number) {
+		this.startup = startup;
+		this.codeLoadingTime = codeLoadingTime;
+		this.activateCallTime = activateCallTime;
+		this.activateResolvedTime = activateResolvedTime;
+	}
+}
+
 export class ExtensionPointContribution<T> {
 	readonly description: IExtensionDescription;
 	readonly value: T;
@@ -77,6 +91,11 @@ export interface IExtensionService {
 	 * Get information about extensions status.
 	 */
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
+
+	/**
+	 * Get information about extension activation times.
+	 */
+	getExtensionsActivationTimes(): { [id: string]: ActivationTimes; };
 
 	/**
 	 * Restarts the extension host.

@@ -24,9 +24,9 @@ import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/br
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -36,7 +36,6 @@ import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/brow
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import WebView from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -51,9 +50,8 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { default as WebView } from 'vs/workbench/parts/html/browser/webview';
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -189,6 +187,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private simpleFindWidgetService: ISimpleFindWidgetService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
@@ -334,18 +333,6 @@ export class ExtensionEditor extends BaseEditor {
 		super.changePosition(position);
 	}
 
-	showFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.showFind();
-		}
-	}
-
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
-		}
-	}
-
 	private onNavbarChange(extension: IExtension, id: string): void {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
@@ -366,7 +353,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, webViewOptions);
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKeyService, this.simpleFindWidgetService, this.contextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -798,52 +785,3 @@ export class ExtensionEditor extends BaseEditor {
 	}
 }
 
-class ShowExtensionEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
-		}
-	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
-const showCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.showfind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class HideExtensionEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.hideFind();
-		}
-	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

@@ -118,7 +118,8 @@
           "type": "boolean",
           "scope": "window",
           "default": true,
-          "description": "%json.colorDecorators.enable.desc%"
+          "description": "%json.colorDecorators.enable.desc%",
+          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
         }
       }
     },

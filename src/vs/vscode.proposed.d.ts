@@ -185,7 +185,6 @@ declare module 'vscode' {
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
-		 * @param availableFormats The other formats this color range supports the color to be formatted in.
 		 */
 		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
 	}
@@ -195,7 +194,6 @@ declare module 'vscode' {
 	 * picking and modifying colors in the editor.
 	 */
 	export interface DocumentColorProvider {
-
 		/**
 		 * Provide colors for the given document.
 		 *

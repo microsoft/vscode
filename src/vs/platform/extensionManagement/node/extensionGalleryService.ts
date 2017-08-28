@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
-import { getErrorMessage } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
@@ -21,7 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -233,7 +233,7 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query): IGalleryExtension {
+function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 	const assets = {
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -265,7 +265,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		},
 		telemetryData: {
 			index: ((query.pageNumber - 1) * query.pageSize) + index,
-			searchText: query.searchText
+			searchText: query.searchText,
+			querySource
 		}
 	};
 }
@@ -276,16 +277,21 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private extensionsGalleryUrl: string;
 
-	private readonly commonHTTPHeaders: TPromise<{ [key: string]: string; }>;
+	private readonly commonHTTPHeaders: { [key: string]: string; };
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.commonHTTPHeaders = getCommonHTTPHeaders();
+		this.commonHTTPHeaders = {
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': this.environmentService.machineUUID
+		};
 	}
 
 	private api(path = ''): string {
@@ -294,10 +300,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	isEnabled(): boolean {
 		return !!this.extensionsGalleryUrl;
-	}
-
-	getRequestHeaders(): TPromise<{ [key: string]: string; }> {
-		return this.commonHTTPHeaders;
 	}
 
 	query(options: IQueryOptions = {}): TPromise<IPager<IGalleryExtension>> {
@@ -355,12 +357,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
-			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query));
+			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = pageIndex => {
 				const nextPageQuery = query.withPage(pageIndex + 1);
 				return this.queryGallery(nextPageQuery)
-					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery)));
+					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
 			};
 
 			return { firstPage: extensions, total, pageSize, getPage };
@@ -541,26 +543,35 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}): TPromise<IRequestContext> {
 		const baseOptions = { type: 'GET' };
+		const headers = assign({}, this.commonHTTPHeaders, options.headers || {});
+		options = assign({}, options, baseOptions, { headers });
 
-		return this.commonHTTPHeaders.then(headers => {
-			headers = assign({}, headers, options.headers || {});
-			options = assign({}, options, baseOptions, { headers });
+		const url = asset.uri;
+		const fallbackUrl = asset.fallbackUri;
+		const firstOptions = assign({}, options, { url });
 
-			const firstOptions = assign({}, options, { url: asset.uri });
+		return this.requestService.request(firstOptions)
+			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
+			.then(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return TPromise.wrapError<IRequestContext>(err);
+				}
 
-			return this.requestService.request(firstOptions)
-				.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
-				.then(null, err => {
-					this.telemetryService.publicLog('galleryService:requestError', { cdn: true, message: getErrorMessage(err) });
-					this.telemetryService.publicLog('galleryService:cdnFallback', { url: asset.uri });
+				const message = getErrorMessage(err);
+				this.telemetryService.publicLog('galleryService:requestError', { url, cdn: true, message });
+				this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
 
-					const fallbackOptions = assign({}, options, { url: asset.fallbackUri });
-					return this.requestService.request(fallbackOptions).then(null, err => {
-						this.telemetryService.publicLog('galleryService:requestError', { cdn: false, message: getErrorMessage(err) });
+				const fallbackOptions = assign({}, options, { url: fallbackUrl });
+				return this.requestService.request(fallbackOptions).then(null, err => {
+					if (isPromiseCanceledError(err)) {
 						return TPromise.wrapError<IRequestContext>(err);
-					});
+					}
+
+					const message = getErrorMessage(err);
+					this.telemetryService.publicLog('galleryService:requestError', { url: fallbackUrl, cdn: false, message });
+					return TPromise.wrapError<IRequestContext>(err);
 				});
-		});
+			});
 	}
 
 	private getLastValidExtensionVersion(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {

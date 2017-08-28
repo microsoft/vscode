@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -35,28 +35,6 @@ export class BackupMainService implements IBackupMainService {
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
 
 		this.loadSync();
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
-	}
-
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// A workspace was saved to a new configuration location. Make sure to update
-		// our backup state with this new location.
-		let needsUpdate = false;
-		this.backups.rootWorkspaces.forEach(workspace => {
-			if (workspace.id === e.workspace.id && workspace.configPath !== e.workspace.configPath) {
-				workspace.configPath = e.workspace.configPath;
-				needsUpdate = true;
-			}
-		});
-
-		if (needsUpdate) {
-			this.saveSync();
-		}
 	}
 
 	public getWorkspaceBackups(): IWorkspaceIdentifier[] {
@@ -171,7 +149,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private sanitizeId(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
-		if (typeof workspaceIdentifier === 'string') {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
 			return this.sanitizePath(workspaceIdentifier);
 		}
 
@@ -242,10 +220,26 @@ export class BackupMainService implements IBackupMainService {
 		// Validate Workspace and Folder Backups
 		workspaceAndFolders.forEach(workspaceOrFolder => {
 			const workspaceId = workspaceOrFolder.workspaceIdentifier;
-			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
-			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
+			const workspacePath = isSingleFolderWorkspaceIdentifier(workspaceId) ? workspaceId : workspaceId.configPath;
+			const backupPath = path.join(this.backupHome, isSingleFolderWorkspaceIdentifier(workspaceId) ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
 			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+
+			// TODO@Ben migration from old workspace ID to new
+			if (hasBackups && !missingWorkspace && !isSingleFolderWorkspaceIdentifier(workspaceId) && workspaceId.id !== this.workspacesService.getWorkspaceId(workspacePath)) {
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceId, backupPath, target: workspaceOrFolder.target });
+
+				const identifier = { id: this.workspacesService.getWorkspaceId(workspacePath), configPath: workspacePath } as IWorkspaceIdentifier;
+				this.pushBackupPathsSync(identifier, this.backups.rootWorkspaces);
+				const newWorkspaceBackupPath = path.join(this.backupHome, identifier.id);
+				try {
+					fs.renameSync(backupPath, newWorkspaceBackupPath);
+				} catch (ex) {
+					this.logService.error(`Backup: Could not rename backup folder for legacy workspace: ${ex.toString()}`);
+
+					this.removeBackupPathSync(identifier, this.backups.rootWorkspaces);
+				}
+			}
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
@@ -255,7 +249,7 @@ export class BackupMainService implements IBackupMainService {
 				if (missingWorkspace) {
 					const identifier = this.getRandomEmptyWindowId();
 					this.pushBackupPathsSync(identifier, this.backups.emptyWorkspaces);
-					const newEmptyWindowBackupPath = path.join(path.dirname(backupPath), identifier);
+					const newEmptyWindowBackupPath = path.join(this.backupHome, identifier);
 					try {
 						fs.renameSync(backupPath, newEmptyWindowBackupPath);
 					} catch (ex) {

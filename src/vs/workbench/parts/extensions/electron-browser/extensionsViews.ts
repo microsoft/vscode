@@ -296,7 +296,7 @@ export class ExtensionsListView extends CollapsibleView {
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
-
+						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 							.then(pager => new PagedModel(pager || []));
 					});
@@ -318,9 +318,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -334,9 +334,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations-workspace';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -349,7 +349,7 @@ export class ExtensionsListView extends CollapsibleView {
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-
+		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
 	}

@@ -154,6 +154,15 @@ export class HistoryMainService implements IHistoryMainService {
 			files.unshift(...currentFiles.map(f => f.filePath));
 		}
 
+		// TODO@Ben migration to new workspace ID
+		workspaces.forEach(workspaceOrFile => {
+			if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+				return;
+			}
+
+			workspaceOrFile.id = this.workspacesService.getWorkspaceId(workspaceOrFile.configPath);
+		});
+
 		// Clear those dupes
 		workspaces = arrays.distinct(workspaces, workspace => this.distinctFn(workspace));
 		files = arrays.distinct(files, file => this.distinctFn(file));
@@ -165,11 +174,11 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string): string {
-		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile) || typeof workspaceOrFile === 'string') {
+		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
 			return isLinux ? workspaceOrFile : workspaceOrFile.toLowerCase();
 		}
 
-		return workspaceOrFile.id + (isLinux ? workspaceOrFile.configPath : workspaceOrFile.configPath.toLowerCase()); // ID and configPath form a unique workspace
+		return workspaceOrFile.id;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

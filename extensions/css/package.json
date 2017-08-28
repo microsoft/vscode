@@ -70,7 +70,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-                  "description": "%css.colorDecorators.enable.desc%"
+				  "description": "%css.colorDecorators.enable.desc%",
+				  "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
                 },
                 "css.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -303,7 +304,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-                  "description": "%scss.colorDecorators.enable.desc%"
+				  "description": "%scss.colorDecorators.enable.desc%",
+				  "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
                 },
                 "scss.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -526,7 +528,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-                  "description": "%less.colorDecorators.enable.desc%"
+                  "description": "%less.colorDecorators.enable.desc%",
+                  "deprecationMessage": "%less.colorDecorators.enable.deprecationMessage%"
                 },
                 "less.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -735,7 +738,7 @@
   },
   "dependencies": {
     "parse-color": "^1.0.0",
-    "vscode-languageclient": "3.4.0-next.10",
+    "vscode-languageclient": "3.4.0-next.17",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {

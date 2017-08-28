@@ -52,7 +52,12 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangeFormatter(): void {
-		this.pickedColorNode.textContent = this.model.formatter.format(this.model.color);
+		this.pickedColorNode.textContent = this.model.formatter.format({
+			red: this.model.color.rgba.r / 255,
+			green: this.model.color.rgba.g / 255,
+			blue: this.model.color.rgba.b / 255,
+			alpha: this.model.color.rgba.a
+		});
 	}
 }
 

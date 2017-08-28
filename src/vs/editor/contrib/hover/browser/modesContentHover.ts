@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
@@ -103,7 +103,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 				const { color, formatters } = colorRange;
 				return new ColorHover(d.range, color, formatters);
 			} else {
-				if (MarkdownString.isEmpty(d.options.hoverMessage)) {
+				if (isEmptyMarkdownString(d.options.hoverMessage)) {
 					return null;
 				}
 
@@ -310,7 +310,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 			if (!(msg instanceof ColorHover)) {
 				msg.contents
-					.filter(contents => !!contents)
+					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
 						const renderedContents = renderMarkdown(contents, {
 							actionCallback: (content) => {
@@ -343,7 +343,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let formatterIndex = 0;
 
 				for (let i = 0; i < formatters.length; i++) {
-					if (text === formatters[i].format(color)) {
+					if (text === formatters[i].format(msg.color)) {
 						formatterIndex = i;
 						break;
 					}
@@ -356,7 +356,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
 
 				const updateEditorModel = () => {
-					const text = model.formatter.format(model.color);
+					const text = model.formatter.format({
+						red: model.color.rgba.r / 255,
+						green: model.color.rgba.g / 255,
+						blue: model.color.rgba.b / 255,
+						alpha: model.color.rgba.a
+					});
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};

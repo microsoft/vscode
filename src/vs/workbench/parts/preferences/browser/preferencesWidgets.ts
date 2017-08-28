@@ -316,8 +316,10 @@ export class SettingsTargetsWidget extends Widget {
 
 	private showContextMenu(event: IMouseEvent): void {
 		const actions = this.getSettingsTargetsActions();
+		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
+		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.settingsTargetsContainer,
+			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
 		event.stopPropagation();
@@ -347,12 +349,13 @@ export class SettingsTargetsWidget extends Widget {
 		}
 
 		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+			const currentRoot = this.uri instanceof URI ? this.workspaceContextService.getRoot(this.uri) : null;
 			actions.push(new Separator());
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
-					checked: this.uri instanceof URI && this.uri.fsPath === root.fsPath,
+					checked: currentRoot && currentRoot.fsPath === root.fsPath,
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};

@@ -100,14 +100,15 @@ export class QueryBuilder {
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 
-		const exprSegments = (groups.exprSegments || [])
+		const expandedExprSegments = (groups.exprSegments || [])
 			.map(p => {
 				if (p[0] === '.') {
 					p = '*' + p; // convert ".js" to "*.js"
 				}
 
-				return toGlobalGlob(p);
+				return expandGlobalGlob(p);
 			});
+		const exprSegments = arrays.flatten(expandedExprSegments);
 
 		const result: ISearchPathsResult = {};
 		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths);
@@ -299,9 +300,11 @@ function splitGlobPattern(pattern: string): string[] {
 }
 
 /**
- * Avoid double ** pattern, see https://github.com/Microsoft/vscode/issues/32325
+ * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/Microsoft/vscode/issues/32761
  */
-function toGlobalGlob(pattern: string): string {
-	const globalGlob = strings.format('{**/{0}/**,**/{0}}', pattern); // convert foo to {**/foo/**,**/foo} to cover files and folders
-	return globalGlob.replace(/\*\*([/\\]\*\*)+/g, '**');
+function expandGlobalGlob(pattern: string): string[] {
+	return [
+		`**/${pattern}/**`,
+		`**/${pattern}`
+	];
 }

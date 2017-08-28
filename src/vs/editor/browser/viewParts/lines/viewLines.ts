@@ -102,7 +102,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// --- width & height
 		this._maxLineWidth = 0;
 		this._asyncUpdateLineWidths = new RunOnceScheduler(() => {
-			this._updateLineWidths();
+			this._updateLineWidthsSlow();
 		}, 200);
 
 		this._lastRenderedData = new LastRenderedData();
@@ -358,7 +358,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			return null;
 		}
 
-		let visibleRanges: LineVisibleRanges[] = [];
+		let visibleRanges: LineVisibleRanges[] = [], visibleRangesLen = 0;
 		let domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
 
 		let nextLineModelLineNumber: number;
@@ -391,10 +391,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				}
 			}
 
-			visibleRanges.push(new LineVisibleRanges(lineNumber, visibleRangesForLine));
+			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(lineNumber, visibleRangesForLine);
 		}
 
-		if (visibleRanges.length === 0) {
+		if (visibleRangesLen === 0) {
 			return null;
 		}
 
@@ -445,14 +445,35 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	// --- implementation
 
-	private _updateLineWidths(): void {
-		let rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		let rendEndLineNumber = this._visibleLines.getEndLineNumber();
+	/**
+	 * Updates the max line width if it is fast to compute.
+	 * Returns true if all lines were taken into account.
+	 * Returns false if some lines need to be reevaluated (in a slow fashion).
+	 */
+	private _updateLineWidthsFast(): boolean {
+		return this._updateLineWidths(true);
+	}
+
+	private _updateLineWidthsSlow(): void {
+		this._updateLineWidths(false);
+	}
+
+	private _updateLineWidths(fast: boolean): boolean {
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 
 		let localMaxLineWidth = 1;
+		let result = true;
 		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-			let widthInPx = this._visibleLines.getVisibleLine(lineNumber).getWidth();
-			localMaxLineWidth = Math.max(localMaxLineWidth, widthInPx);
+			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+
+			if (fast && !visibleLine.getWidthIsFast()) {
+				// Cannot compute width in a fast way for this line
+				result = false;
+				continue;
+			}
+
+			localMaxLineWidth = Math.max(localMaxLineWidth, visibleLine.getWidth());
 		}
 
 		if (rendStartLineNumber === 1 && rendEndLineNumber === this._context.model.getLineCount()) {
@@ -461,6 +482,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		this._ensureMaxLineWidth(localMaxLineWidth);
+
+		return result;
 	}
 
 	public prepareRender(): void {
@@ -518,7 +541,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
-		this._asyncUpdateLineWidths.schedule();
+		if (!this._updateLineWidthsFast()) {
+			// Computing the width of some lines would be slow => delay it
+			this._asyncUpdateLineWidths.schedule();
+		}
 	}
 
 	// --- width

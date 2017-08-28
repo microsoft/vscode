@@ -355,7 +355,7 @@ declare module monaco {
 	}
 	export interface IMarkdownString {
 		value: string;
-		enableCommands?: true;
+		isTrusted?: boolean;
 	}
 
 	export interface IKeyboardEvent {
@@ -2821,7 +2821,7 @@ declare module monaco.editor {
 		scrollBeyondLastLine?: boolean;
 		/**
 		 * Enable that the editor animates scrolling to a position.
-		 * Defaults to true.
+		 * Defaults to false.
 		 */
 		smoothScrolling?: boolean;
 		/**
@@ -2889,6 +2889,10 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		links?: boolean;
+		/**
+		 * Enable inline color decorators and color picker rendering.
+		 */
+		colorDecorators?: boolean;
 		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
@@ -3286,6 +3290,7 @@ declare module monaco.editor {
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
+		readonly colorDecorators: boolean;
 	}
 
 	/**
@@ -4035,6 +4040,11 @@ declare module monaco.languages {
 	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
 
 	/**
+	 * Register a document color provider (used by Color Picker, Color Decorator).
+	 */
+	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -4767,6 +4777,64 @@ declare module monaco.languages {
 	export interface LinkProvider {
 		provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
+	}
+
+	/**
+	 * A color in RGBA format.
+	 */
+	export interface IColor {
+		/**
+		 * The red component in the range [0-1].
+		 */
+		readonly red: number;
+		/**
+		 * The green component in the range [0-1].
+		 */
+		readonly green: number;
+		/**
+		 * The blue component in the range [0-1].
+		 */
+		readonly blue: number;
+		/**
+		 * The alpha component in the range [0-1].
+		 */
+		readonly alpha: number;
+	}
+
+	/**
+	 * A color formatter.
+	 */
+	export interface IColorFormatter {
+		readonly supportsTransparency: boolean;
+		format(color: IColor): string;
+	}
+
+	/**
+	 * A color range is a range in a text model which represents a color.
+	 */
+	export interface IColorRange {
+		/**
+		 * The range within the model.
+		 */
+		range: IRange;
+		/**
+		 * The color represented in this range.
+		 */
+		color: IColor;
+		/**
+		 * The available formats for this specific color.
+		 */
+		formatters: IColorFormatter[];
+	}
+
+	/**
+	 * A provider of colors for editor models.
+	 */
+	export interface DocumentColorProvider {
+		/**
+		 * Provides the color ranges for a specific model.
+		 */
+		provideColorRanges(model: editor.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
 	}
 
 	export interface IResourceEdit {

@@ -25,7 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
-
+import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
@@ -52,9 +52,10 @@ export class HtmlPreviewPart extends WebviewEditor {
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ISimpleFindWidgetService private simpleFindWidgetService: ISimpleFindWidgetService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
+		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, _contextKeyService);
 	}
 
 	dispose(): void {
@@ -84,7 +85,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, webviewOptions);
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this._contextKeyService, this.simpleFindWidgetService, this.contextKey, webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;

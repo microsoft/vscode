@@ -12,7 +12,7 @@ import pkg from 'vs/platform/node/package';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -65,6 +65,7 @@ export class ExtensionService implements IExtensionService {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
+	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
 	private _extensionHostProcessWorker: ExtensionHostProcessWorker;
 	private _extensionHostProcessThreadService: MainThreadService;
 	private _extensionHostProcessCustomers: IDisposable[];
@@ -89,6 +90,7 @@ export class ExtensionService implements IExtensionService {
 		this._allRequestedActivateEvents = Object.create(null);
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostProcessWorker = null;
 		this._extensionHostProcessThreadService = null;
 		this._extensionHostProcessCustomers = [];
@@ -105,6 +107,7 @@ export class ExtensionService implements IExtensionService {
 
 	private _stopExtensionHostProcess(): void {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
+		this._extensionHostProcessActivationTimes = Object.create(null);
 		if (this._extensionHostProcessWorker) {
 			this._extensionHostProcessWorker.dispose();
 			this._extensionHostProcessWorker = null;
@@ -263,8 +266,12 @@ export class ExtensionService implements IExtensionService {
 		});
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
 		return this._extensionsStatus;
+	}
+
+	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
+		return this._extensionHostProcessActivationTimes;
 	}
 
 	// ---- end IExtensionService
@@ -410,6 +417,10 @@ export class ExtensionService implements IExtensionService {
 		} else {
 			this._logMessageInConsole(severity, msg);
 		}
+	}
+
+	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void {
+		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime);
 	}
 }
 

@@ -112,4 +112,27 @@ suite('Snippet Variables Resolver', function () {
 		snippet.resolveVariables(resolver);
 		assert.equal(snippet.toString(), '"this"');
 	});
+
+	test('More useful environment variables for snippets, #32737', function () {
+
+		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'text');
+
+		resolver = new EditorSnippetVariableResolver(
+			Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi')),
+			new Selection(1, 1, 1, 1)
+		);
+		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
+
+		resolver = new EditorSnippetVariableResolver(
+			Model.createFromString('', undefined, undefined, URI.parse('mem:.git')),
+			new Selection(1, 1, 1, 1)
+		);
+		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
+
+		resolver = new EditorSnippetVariableResolver(
+			Model.createFromString('', undefined, undefined, URI.parse('mem:foo.')),
+			new Selection(1, 1, 1, 1)
+		);
+		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
+	});
 });

@@ -68,7 +68,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private filterResult: IFilterResult;
 
-	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, public readonly associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
+	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel, private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -78,7 +78,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	) {
 		super();
 		this._register(preferencesModel);
-		this._register(associatedPreferencesModel);
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
@@ -86,6 +85,15 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
 		this.createHeader();
+	}
+
+	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
+		return this._associatedPreferencesModel;
+	}
+
+	public set associatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>) {
+		this._associatedPreferencesModel = associatedPreferencesModel;
+		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
 	}
 
 	protected createHeader(): void {

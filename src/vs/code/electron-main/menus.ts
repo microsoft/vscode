@@ -73,7 +73,7 @@ export class CodeMenu {
 
 	private closeFolder: Electron.MenuItem;
 	private closeWorkspace: Electron.MenuItem;
-	private saveWorkspace: Electron.MenuItem;
+	private saveWorkspaceAs: Electron.MenuItem;
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -227,7 +227,7 @@ export class CodeMenu {
 		this.closeWorkspace.visible = isInWorkspaceContext;
 		this.closeFolder.visible = !isInWorkspaceContext;
 		this.closeFolder.enabled = isInFolderContext;
-		this.saveWorkspace.enabled = isInFolderContext || isInWorkspaceContext;
+		this.saveWorkspaceAs.enabled = isInFolderContext || isInWorkspaceContext;
 	}
 
 	private install(): void {
@@ -379,7 +379,7 @@ export class CodeMenu {
 
 		const isMultiRootEnabled = (product.quality !== 'stable'); // TODO@Ben multi root
 
-		this.saveWorkspace = this.createMenuItem(nls.localize({ key: 'miSaveWorkspaceAs', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace As..."), 'workbench.action.saveWorkspaceAs');
+		this.saveWorkspaceAs = this.createMenuItem(nls.localize({ key: 'miSaveWorkspaceAs', comment: ['&& denotes a mnemonic'] }, "&&Save Workspace As..."), 'workbench.action.saveWorkspaceAs');
 		const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Add Folder to Workspace..."), 'workbench.action.addRootFolder');
 
 		const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save');
@@ -415,7 +415,7 @@ export class CodeMenu {
 			openRecent,
 			isMultiRootEnabled ? __separator__() : null,
 			isMultiRootEnabled ? addFolder : null,
-			isMultiRootEnabled ? this.saveWorkspace : null,
+			isMultiRootEnabled ? this.saveWorkspaceAs : null,
 			__separator__(),
 			saveFile,
 			saveFileAs,
@@ -697,6 +697,7 @@ export class CodeMenu {
 		const toggleActivtyBar = this.createMenuItem(activityBarLabel, 'workbench.action.toggleActivityBarVisibility');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+		const toggleMinimap = this.createMenuItem(nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap"), 'editor.action.toggleMinimap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 		const toggleRenderControlCharacters = this.createMenuItem(nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"), 'editor.action.toggleRenderControlCharacter');
 
@@ -732,6 +733,7 @@ export class CodeMenu {
 			toggleActivtyBar,
 			__separator__(),
 			toggleWordWrap,
+			toggleMinimap,
 			toggleRenderWhitespace,
 			toggleRenderControlCharacters,
 			__separator__(),

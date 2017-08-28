@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
-import { GetConfigurationRequest } from 'vscode-languageserver/lib/protocol.proposed';
+import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -22,8 +22,13 @@ import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+	export const type: RequestType<string, Range[], any, any> = new RequestType('html/colorSymbols');
 }
+
+namespace TagCloseRequest {
+	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+}
+
 
 // Create a connection for the server
 let connection: IConnection = createConnection();
@@ -96,7 +101,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
+			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
 			hoverProvider: true,
 			documentHighlightProvider: true,
 			documentRangeFormattingProvider: false,
@@ -320,6 +325,18 @@ connection.onRequest(ColorSymbolRequest.type, uri => {
 	}
 	return ranges;
 });
+
+connection.onRequest(TagCloseRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let mode = languageModes.getModeAtPosition(document, params.position);
+		if (mode && mode.doAutoClose) {
+			return mode.doAutoClose(document, params.position);
+		}
+	}
+	return null;
+});
+
 
 // Listen on the connection
 connection.listen();

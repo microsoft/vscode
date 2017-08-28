@@ -21,6 +21,10 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		},
 		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings) {
 			let options = settings && settings.html && settings.html.suggest;
+			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags.enable;
+			if (doAutoComplete) {
+				options.hideAutoCompleteProposals = true;
+			}
 			return htmlLanguageService.doComplete(document, position, htmlDocuments.get(document), options);
 		},
 		doHover(document: TextDocument, position: Position) {
@@ -43,6 +47,14 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 				formatSettings = merge(formatParams, merge(formatSettings, {}));
 			}
 			return htmlLanguageService.format(document, range, formatSettings);
+		},
+		doAutoClose(document: TextDocument, position: Position) {
+			let offset = document.offsetAt(position);
+			let text = document.getText();
+			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
+				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+			}
+			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);
