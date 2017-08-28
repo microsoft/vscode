@@ -12,7 +12,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
@@ -29,7 +28,6 @@ export abstract class SimpleFindWidget extends Widget {
 	protected _isVisible: boolean;
 	protected _focusTracker: dom.IFocusTracker;
 	protected _findInputFocusTracker: dom.IFocusTracker;
-	protected _findInputFocused: IContextKey<boolean>;
 	protected _findHistory: HistoryNavigator<string>;
 	protected _updateHistoryDelayer: Delayer<void>;
 
@@ -113,8 +111,8 @@ export abstract class SimpleFindWidget extends Widget {
 		this._register(this._focusTracker.addBlurListener(this.onFocusTrackerBlur.bind(this)));
 
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.addFocusListener(this._onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.addBlurListener(this._onFindInputFocusTrackerBlur.bind(this)));
+		this._register(this._findInputFocusTracker.addFocusListener(this.onFindInputFocusTrackerFocus.bind(this)));
+		this._register(this._findInputFocusTracker.addBlurListener(this.onFindInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._domNode, 'click', (event) => {
 			event.stopPropagation();
@@ -125,6 +123,8 @@ export abstract class SimpleFindWidget extends Widget {
 	protected abstract find(previous: boolean);
 	protected abstract onFocusTrackerFocus();
 	protected abstract onFocusTrackerBlur();
+	protected abstract onFindInputFocusTrackerFocus();
+	protected abstract onFindInputFocusTrackerBlur();
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -206,14 +206,6 @@ export abstract class SimpleFindWidget extends Widget {
 		if (previous) {
 			this._findInput.setValue(previous);
 		}
-	}
-
-	private _onFindInputFocusTrackerFocus() {
-		this._findInputFocused.set(true);
-	}
-
-	private _onFindInputFocusTrackerBlur() {
-		this._findInputFocused.set(false);
 	}
 }
 

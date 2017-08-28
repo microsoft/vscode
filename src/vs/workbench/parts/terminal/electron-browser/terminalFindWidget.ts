@@ -6,9 +6,10 @@
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
-import { IContextKeyService, } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
+	protected _findInputFocused: IContextKey<boolean>;
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
@@ -46,5 +47,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onFocusTrackerBlur() {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
+	}
+
+	protected onFindInputFocusTrackerFocus() {
+		this._findInputFocused.set(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this._findInputFocused.reset();
 	}
 }
