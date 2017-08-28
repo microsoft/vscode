@@ -208,6 +208,8 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+	public abstract showNextFindTermFindWidget(): void;
+	public abstract showPreviousFindTermFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

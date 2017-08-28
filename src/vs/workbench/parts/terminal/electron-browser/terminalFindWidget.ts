@@ -5,15 +5,18 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { IContextKeyService, } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(_contextViewService);
+		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
 	public find(previous) {
