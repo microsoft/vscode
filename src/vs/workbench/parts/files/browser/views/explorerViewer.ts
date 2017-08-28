@@ -54,6 +54,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { getPathLabel } from 'vs/base/common/labels';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -749,7 +750,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				originalEvent.dataTransfer.setData('DownloadURL', [MIME_BINARY, source.name, source.resource.toString()].join(':'));
 			}
 
-			originalEvent.dataTransfer.setData('text/plain', source.resource.fsPath);
+			originalEvent.dataTransfer.setData('text/plain', getPathLabel(source.resource));
 		}
 	}
 
