@@ -39,6 +39,8 @@ export interface TelemetryEvent {
 
 	runner: 'terminal' | 'output';
 
+	taskKind: string;
+
 	// The command triggered
 	command: string;
 

@@ -106,7 +106,8 @@ abstract class OpenTaskConfigurationAction extends Action {
 		private messageService: IMessageService, private quickOpenService: IQuickOpenService,
 		private environmentService: IEnvironmentService,
 		private configurationResolverService: IConfigurationResolverService,
-		private extensionService: IExtensionService) {
+		private extensionService: IExtensionService,
+		private telemetryService: ITelemetryService) {
 
 		super(id, label);
 	}
@@ -169,7 +170,13 @@ abstract class OpenTaskConfigurationAction extends Action {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((result) => {
+						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
+							templateId: selection.id,
+							autoDetect: selection.autoDetect
+						});
+						return result;
+					}); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				});
 				/* 2.0 version
 				let content = selection.content;
@@ -210,10 +217,11 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService) {
+		@IExtensionService extensionService,
+		@ITelemetryService telemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService);
+			extensionService, telemetryService);
 	}
 }
 
@@ -228,10 +236,11 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService) {
+		@IExtensionService extensionService,
+		@ITelemetryService telemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService);
+			extensionService, telemetryService);
 	}
 }
 
@@ -625,6 +634,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
+	public static TemplateTelemetryEventName: string = 'taskService.template';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -1589,14 +1599,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService);
+			this.extensionService, this.telemetryService);
 	}
 
 	private configureBuildTask(): Action {
 		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService);
+			this.extensionService, this.telemetryService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {

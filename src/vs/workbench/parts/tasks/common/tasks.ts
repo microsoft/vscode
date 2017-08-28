@@ -231,6 +231,7 @@ export interface WorkspaceTaskSource {
 	kind: 'workspace';
 	label: string;
 	config: TaskSourceConfigElement;
+	customizes?: TaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
@@ -407,6 +408,22 @@ export namespace Task {
 			return task.identifier;
 		} else {
 			return task.defines._key;
+		}
+	}
+
+	export function getTelemetryKind(task: Task): string {
+		if (ContributedTask.is(task)) {
+			return 'extension';
+		} else if (CustomTask.is(task)) {
+			if (task._source.customizes) {
+				return 'workspace>extension';
+			} else {
+				return 'workspace';
+			}
+		} else if (CompositeTask.is(task)) {
+			return 'composite';
+		} else {
+			return 'unknown';
 		}
 	}
 }

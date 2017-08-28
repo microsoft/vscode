@@ -1286,7 +1286,7 @@ namespace CustomTask {
 	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = {
 			_id: configuredProps._id,
-			_source: configuredProps._source,
+			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
 			type: 'custom',
 			command: contributedTask.command,
