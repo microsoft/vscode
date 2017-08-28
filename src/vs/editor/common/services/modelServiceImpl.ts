@@ -380,7 +380,7 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		// Otherwise find a diff between the values and update model
-		// TODO: update BOM, EOL
+		model.setEOL(textSource.EOL === '\r\n' ? editorCommon.EndOfLineSequence.CRLF : editorCommon.EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[new Selection(1, 1, 1, 1)],
 			ModelServiceImpl._computeEdits(model, textSource),
