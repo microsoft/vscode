@@ -44,6 +44,7 @@ import './mainThreadTask';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
 import './mainThreadTreeViews';
+import './mainThreadWindow';
 import './mainThreadWorkspace';
 
 export class ExtensionPoints implements IWorkbenchContribution {
