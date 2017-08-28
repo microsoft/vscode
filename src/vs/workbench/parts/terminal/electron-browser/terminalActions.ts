@@ -699,7 +699,7 @@ export class HideTerminalFindWidgetAction extends Action {
 export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
-	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Search Term");
+	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
 
 	constructor(
 		id: string, label: string,
@@ -716,7 +716,7 @@ export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 
 	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
-	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Search Term");
+	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
 
 	constructor(
 		id: string, label: string,
