@@ -48,6 +48,8 @@ export class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private render(): void {
+		this.badgeDisposable.dispose();
+
 		const count = this.scmService.repositories.reduce((r, repository) => {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
