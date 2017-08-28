@@ -62,6 +62,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 
 export class SearchViewlet extends Viewlet {
 
@@ -469,13 +470,15 @@ export class SearchViewlet extends Viewlet {
 
 			let dataSource = new SearchDataSource(this.contextService.hasMultiFolderWorkspace());
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
+			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = new Tree(div.getHTMLElement(), {
 				dataSource: dataSource,
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
+				dnd
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
 					keyboardSupport: false
