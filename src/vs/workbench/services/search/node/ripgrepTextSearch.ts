@@ -57,12 +57,11 @@ export class RipgrepEngine {
 		}
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
-		process.nextTick(() => {
+		process.nextTick(() => { // Allow caller to register progress callback
 			const escapedArgs = rgArgs.globArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
-			// Allow caller to register progress callback
 			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
 			onMessage({ message: rgCmd });
 			if (rgArgs.siblingClauses) {
@@ -457,6 +456,9 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	});
 
 	let siblingClauses: glob.IExpression;
+
+	// Find excludes that are exactly the same in all folderQueries - e.g. from user settings, and that start with `**`.
+	// To make the command shorter, don't resolve these against every folderQuery path - see #33189.
 	const universalExcludes = findUniversalExcludes(config.folderQueries);
 	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern, universalExcludes);
 	rgGlobs.globArgs
