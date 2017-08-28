@@ -11,7 +11,7 @@ import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery } from 'vs/platform/search/common/search';
+import { IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService, pathIncludedInQuery, ISearchResultProvider } from 'vs/platform/search/common/search';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -20,11 +20,13 @@ import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearch
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
+	private readonly searchProvider: ISearchResultProvider[] = [];
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -34,6 +36,19 @@ export class SearchService implements ISearchService {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
+		this.registerSearchResultProvider(this.diskSearch);
+	}
+
+	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
+		this.searchProvider.push(provider);
+		return {
+			dispose: () => {
+				const idx = this.searchProvider.indexOf(provider);
+				if (idx >= 0) {
+					this.searchProvider.splice(idx, 1);
+				}
+			}
+		};
 	}
 
 	public extendQuery(query: ISearchQuery): void {
@@ -59,10 +74,10 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		let rawSearchQuery: PPromise<void, ISearchProgressItem>;
-		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
-			const searchP = this.diskSearch.search(query);
+		let combinedPromise: TPromise<void>;
+
+		return new PPromise<ISearchComplete, ISearchProgressItem>((onComplete, onError, onProgress) => {
 
 			// Get local results from dirty/untitled
 			const localResults = this.getLocalResults(query);
@@ -70,38 +85,55 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			rawSearchQuery = searchP.then(
-
-				// on Complete
-				(complete) => {
-					onComplete({
-						limitHit: complete.limitHit,
-						results: complete.results.filter((match) => !localResults.has(match.resource)), // dont override local results
-						stats: complete.stats
-					});
+			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
+				err => {
+					// TODO@joh
+					// single provider fail. fail all?
+					onError(err);
 				},
-
-				// on Error
-				(error) => {
-					onError(error);
-				},
-
-				// on Progress
-				(progress) => {
-
-					// Match
+				progress => {
 					if (progress.resource) {
+						// Match
 						if (!localResults.has(progress.resource)) { // don't override local results
 							onProgress(progress);
 						}
-					}
-
-					// Progress
-					else {
+					} else {
+						// Progress
 						onProgress(<IProgress>progress);
 					}
-				});
-		}, () => rawSearchQuery && rawSearchQuery.cancel());
+				}
+			));
+
+			combinedPromise = TPromise.join(providerPromises).then(values => {
+
+				const result: ISearchComplete = {
+					limitHit: false,
+					results: [],
+					stats: undefined
+				};
+
+				// TODO@joh
+				// sorting, disjunct results
+				for (const value of values) {
+					if (!value) {
+						continue;
+					}
+					// TODO@joh individual stats/limit
+					result.stats = value.stats || result.stats;
+					result.limitHit = value.limitHit || result.limitHit;
+
+					for (const match of value.results) {
+						if (!localResults.has(match.resource)) {
+							result.results.push(match);
+						}
+					}
+				}
+
+				return result;
+
+			}).then(onComplete, onError);
+
+		}, () => combinedPromise && combinedPromise.cancel());
 	}
 
 	private getLocalResults(query: ISearchQuery): ResourceMap<IFileMatch> {
@@ -176,7 +208,7 @@ export class SearchService implements ISearchService {
 	}
 }
 
-export class DiskSearch {
+export class DiskSearch implements ISearchResultProvider {
 
 	private raw: IRawSearchService;
 

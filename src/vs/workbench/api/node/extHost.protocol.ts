@@ -295,8 +295,12 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean>;
+
 	$registerFileSystemProvider(handle: number, authority: string): void;
+	$unregisterFileSystemProvider(handle): void;
 	$onFileSystemChange(handle: number, resource: URI): void;
+	$updateSearchSession(session: number, data): void;
+	$finishSearchSession(session: number, err?: any): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -439,8 +443,11 @@ export interface ExtHostTreeViewsShape {
 
 export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+
 	$resolveFile(handle: number, resource: URI): TPromise<string>;
 	$storeFile(handle: number, resource: URI, content: string): TPromise<any>;
+	$startSearch(handle: number, session: number, query: string): void;
+	$cancelSearch(handle: number, session: number): void;
 }
 
 export interface ExtHostExtensionServiceShape {
