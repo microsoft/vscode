@@ -586,7 +586,7 @@ export class SnippetParser {
 				placeholder.children.forEach(parent.appendChild, parent);
 				return true;
 			}
-		} else if (this._accept(TokenType.Pipe)) {
+		} else if (placeholder.index > 0 && this._accept(TokenType.Pipe)) {
 			// ${1|one,two,three|}
 			const choice = new Choice();
 
