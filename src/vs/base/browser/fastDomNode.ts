@@ -181,16 +181,6 @@ export class FastDomNode<T extends HTMLElement> {
 		this._className = this.domNode.className;
 	}
 
-	public addClassName(className: string): void {
-		dom.addClass(this.domNode, className);
-		this._className = this.domNode.className;
-	}
-
-	public removeClassName(className: string): void {
-		dom.removeClass(this.domNode, className);
-		this._className = this.domNode.className;
-	}
-
 	public setDisplay(display: string): void {
 		if (this._display === display) {
 			return;
