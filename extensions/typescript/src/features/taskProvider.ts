@@ -14,9 +14,9 @@ import TypeScriptServiceClient from '../typescriptServiceClient';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
-
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
+
 
 const exists = (file: string): Promise<boolean> =>
 	new Promise<boolean>((resolve, _reject) => {
@@ -94,7 +94,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		try {
 			const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
 				'projectInfo',
-				{ file, needFileNameList: false } as protocol.ProjectInfoRequestArgs,
+				{ file, needFileNameList: false },
 				token);
 
 			if (!res || !res.body) {
@@ -163,9 +163,16 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		let label: string = project.path;
 		if (project.workspaceFolder) {
+			const projectFolder = project.workspaceFolder;
+			const workspaceFolders = vscode.workspace.workspaceFolders;
 			const relativePath = path.relative(project.workspaceFolder.uri.fsPath, project.path);
-			if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 1) {
-				label = path.join(project.workspaceFolder.name, relativePath);
+			if (workspaceFolders && workspaceFolders.length > 1) {
+				// Use absolute path when we have multiple folders with the same name
+				if (workspaceFolders.filter(x => x.name === projectFolder.name).length > 1) {
+					label = path.join(project.workspaceFolder.uri.fsPath, relativePath);
+				} else {
+					label = path.join(project.workspaceFolder.name, relativePath);
+				}
 			} else {
 				label = relativePath;
 			}
