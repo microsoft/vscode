@@ -4088,6 +4088,17 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the state of a window.
+	 */
+	export interface WindowState {
+
+		/**
+		 * Whether the current window is focused.
+		 */
+		readonly focused: boolean;
+	}
+
+	/**
 	 * Namespace for dealing with the current window of the editor. That is visible
 	 * and active editors, as well as, UI elements to show messages, selections, and
 	 * asking for user input.
@@ -4138,6 +4149,19 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
+		 * Represents the current window's state.
+		 *
+		 * @readonly
+		 */
+		export let state: WindowState;
+
+		/**
+		 * An [event](#Event) which fires when the focus state of the current window
+		 * changes. The value of the event represents whether the window is focused.
+		 */
+		export const onDidChangeWindowState: Event<WindowState>;
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided

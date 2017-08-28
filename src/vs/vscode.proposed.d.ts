@@ -249,31 +249,4 @@ declare module 'vscode' {
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
 	}
-
-	/**
-	 * Represents the state of a window.
-	 */
-	export interface WindowState {
-
-		/**
-		 * Whether the current window is focused.
-		 */
-		readonly focused: boolean;
-	}
-
-	export namespace window {
-
-		/**
-		 * Represents the current window's state.
-		 *
-		 * @readonly
-		 */
-		export let state: WindowState;
-
-		/**
-		 * An [event](#Event) which fires when the focus state of the current window
-		 * changes. The value of the event represents whether the window is focused.
-		 */
-		export const onDidChangeWindowState: Event<WindowState>;
-	}
 }
