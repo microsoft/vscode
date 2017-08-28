@@ -119,31 +119,27 @@ export class CharacterMapping {
 		return (partData & CharacterMappingConstants.CHAR_INDEX_MASK) >>> CharacterMappingConstants.CHAR_INDEX_OFFSET;
 	}
 
-	private readonly _data: Uint32Array;
 	public readonly length: number;
-
-	private readonly _partLengths: Uint16Array;
+	private readonly _data: Uint32Array;
+	private readonly _absoluteOffsets: Uint32Array;
 
 	constructor(length: number, partCount: number) {
 		this.length = length;
 		this._data = new Uint32Array(this.length);
-		this._partLengths = new Uint16Array(partCount);
+		this._absoluteOffsets = new Uint32Array(this.length);
 	}
 
-	public setPartData(charOffset: number, partIndex: number, charIndex: number): void {
+	public setPartData(charOffset: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
 		let partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
 		this._data[charOffset] = partData;
+		this._absoluteOffsets[charOffset] = partAbsoluteOffset + charIndex;
 	}
 
-	public setPartLength(partIndex: number, length: number): void {
-		this._partLengths[partIndex] = length;
-	}
-
-	public getPartLengths(): Uint16Array {
-		return this._partLengths;
+	public getAbsoluteOffsets(): Uint32Array {
+		return this._absoluteOffsets;
 	}
 
 	public charOffsetToPartData(charOffset: number): number {
@@ -598,9 +594,14 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	let tabsCharDelta = 0;
 	let charOffsetInPart = 0;
 
+	let prevPartContentCnt = 0;
+	let partAbsoluteOffset = 0;
+
 	sb.appendASCIIString('<span>');
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
+		partAbsoluteOffset += prevPartContentCnt;
+
 		const part = parts[partIndex];
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
@@ -635,8 +636,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				}
 			}
 
-			if (fontIsMonospace || containsForeignElements) {
-			} else {
+			if (!fontIsMonospace && !containsForeignElements) {
 				sb.appendASCIIString(' style="width:');
 				sb.appendASCIIString(String(spaceWidth * partContentCnt));
 				sb.appendASCIIString('px"');
@@ -644,7 +644,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
+				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
 				const charCode = lineContent.charCodeAt(charIndex);
 
 				if (charCode === CharCode.Tab) {
@@ -667,7 +667,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				charOffsetInPart++;
 			}
 
-			characterMapping.setPartLength(partIndex, partContentCnt);
+			prevPartContentCnt = partContentCnt;
 
 		} else {
 
@@ -679,7 +679,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart);
+				characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
 				const charCode = lineContent.charCodeAt(charIndex);
 
 				switch (charCode) {
@@ -738,7 +738,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 				charOffsetInPart++;
 			}
 
-			characterMapping.setPartLength(partIndex, partContentCnt);
+			prevPartContentCnt = partContentCnt;
 		}
 
 		sb.appendASCIIString('</span>');
@@ -747,7 +747,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span
-	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart);
+	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
 
 	if (isOverflowing) {
 		sb.appendASCIIString('<span>&hellip;</span>');
