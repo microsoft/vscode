@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
-import { mkdirp, writeFile } from 'vs/base/node/pfs';
+import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
 import { copy, delSync, readdirSync } from 'vs/base/node/extfs';
@@ -55,14 +55,29 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this._onUntitledWorkspaceDeleted.event;
 	}
 
+	public resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
+		if (!this.isWorkspacePath(path)) {
+			return TPromise.as(null); // does not look like a valid workspace config file
+		}
+
+		return readFile(path).then(contents => this.doResolveWorkspace(path, contents.toString()));
+	}
+
 	public resolveWorkspaceSync(path: string): IResolvedWorkspace {
-		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
-		if (!isWorkspace) {
+		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file
 		}
 
+		return this.doResolveWorkspace(path, readFileSync(path, 'utf8'));
+	}
+
+	private isWorkspacePath(path: string): boolean {
+		return this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
+	}
+
+	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace {
 		try {
-			const rawWorkspace = JSON.parse(readFileSync(path, 'utf8'));
+			const rawWorkspace = JSON.parse(contents);
 
 			const workspace = rawWorkspace as IStoredWorkspace;
 			if (!Array.isArray(workspace.folders) || workspace.folders.length === 0) {
