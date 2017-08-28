@@ -113,12 +113,15 @@ export class SearchService implements ISearchService {
 				};
 
 				// TODO@joh
-				// sorting, disjunct results, individual stats/limit?
+				// sorting, disjunct results
 				for (const value of values) {
 					if (!value) {
 						continue;
 					}
+					// TODO@joh individual stats/limit
+					result.stats = value.stats || result.stats;
 					result.limitHit = value.limitHit || result.limitHit;
+
 					for (const match of value.results) {
 						if (!localResults.has(match.resource)) {
 							result.results.push(match);
