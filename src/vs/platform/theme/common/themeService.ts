@@ -17,6 +17,10 @@ export interface ThemeColor {
 	id: string;
 }
 
+export function themeColorFromId(id: ColorIdentifier) {
+	return { id };
+}
+
 // base themes
 export const DARK: ThemeType = 'dark';
 export const LIGHT: ThemeType = 'light';

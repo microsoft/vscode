@@ -16,7 +16,7 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegi
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
@@ -294,8 +294,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(editorWordHighlightStrong),
+			darkColor: themeColorFromId(editorWordHighlightStrong),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -304,8 +304,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(editorSelectionHighlight),
+			darkColor: themeColorFromId(editorSelectionHighlight),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -314,8 +314,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(editorWordHighlight),
+			darkColor: themeColorFromId(editorWordHighlight),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});

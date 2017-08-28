@@ -24,6 +24,8 @@ import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen
 import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { editorRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -529,8 +531,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					range: startRange,
 					options: {
 						overviewRuler: {
-							color: 'rgba(0, 122, 204, 0.6)',
-							darkColor: 'rgba(0, 122, 204, 0.6)',
+							color: themeColorFromId(editorRangeHighlight),
+							darkColor: themeColorFromId(editorRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}

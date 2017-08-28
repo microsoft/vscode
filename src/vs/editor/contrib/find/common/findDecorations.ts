@@ -9,6 +9,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export class FindDecorations implements IDisposable {
 
@@ -160,8 +162,8 @@ export class FindDecorations implements IDisposable {
 		className: 'currentFindMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: 'rgba(246, 185, 77, 0.7)',
-			darkColor: 'rgba(246, 185, 77, 0.7)',
+			color: themeColorFromId(editorFindMatch),
+			darkColor: themeColorFromId(editorFindMatch),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -171,8 +173,8 @@ export class FindDecorations implements IDisposable {
 		className: 'findMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
-			color: 'rgba(246, 185, 77, 0.7)',
-			darkColor: 'rgba(246, 185, 77, 0.7)',
+			color: themeColorFromId(editorFindMatchHighlight),
+			darkColor: themeColorFromId(editorFindMatchHighlight),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});

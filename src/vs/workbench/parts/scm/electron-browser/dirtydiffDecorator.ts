@@ -23,10 +23,29 @@ import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
+
+export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
+	dark: Color.fromHex('#00bcf2').transparent(0.6),
+	light: Color.fromHex('#007acc').transparent(0.6),
+	hc: Color.fromHex('#007acc').transparent(0.6)
+}, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
+
+export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
+	dark: Color.fromHex('#7fba00').transparent(0.6),
+	light: Color.fromHex('#2d883e').transparent(0.6),
+	hc: Color.fromHex('#2d883e').transparent(0.6)
+}, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
+
+export const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
+	dark: Color.fromHex('#b9131a').transparent(0.76),
+	light: Color.fromHex('#b9131a').transparent(0.76),
+	hc: Color.fromHex('#b9131a').transparent(0.76)
+}, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+
 
 class DirtyDiffModelDecorator {
 
@@ -34,8 +53,8 @@ class DirtyDiffModelDecorator {
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: 'rgba(0, 122, 204, 0.6)',
-			darkColor: 'rgba(0, 122, 204, 0.6)',
+			color: themeColorFromId(editorGutterModifiedBackground),
+			darkColor: themeColorFromId(editorGutterModifiedBackground),
 			position: common.OverviewRulerLane.Left
 		}
 	});
@@ -44,8 +63,8 @@ class DirtyDiffModelDecorator {
 		linesDecorationsClassName: 'dirty-diff-added-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: 'rgba(0, 122, 204, 0.6)',
-			darkColor: 'rgba(0, 122, 204, 0.6)',
+			color: themeColorFromId(editorGutterAddedBackground),
+			darkColor: themeColorFromId(editorGutterAddedBackground),
 			position: common.OverviewRulerLane.Left
 		}
 	});
@@ -54,8 +73,8 @@ class DirtyDiffModelDecorator {
 		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: 'rgba(0, 122, 204, 0.6)',
-			darkColor: 'rgba(0, 122, 204, 0.6)',
+			color: themeColorFromId(editorGutterDeletedBackground),
+			darkColor: themeColorFromId(editorGutterDeletedBackground),
 			position: common.OverviewRulerLane.Left
 		}
 	});
@@ -281,24 +300,6 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 	}
 }
 
-export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
-	dark: Color.fromHex('#00bcf2').transparent(0.6),
-	light: Color.fromHex('#007acc').transparent(0.6),
-	hc: Color.fromHex('#007acc').transparent(0.6)
-}, localize('editorGutterModifiedBackground', "Editor gutter background color for lines that are modified."));
-
-export const editorGutterAddedBackground = registerColor('editorGutter.addedBackground', {
-	dark: Color.fromHex('#7fba00').transparent(0.6),
-	light: Color.fromHex('#2d883e').transparent(0.6),
-	hc: Color.fromHex('#2d883e').transparent(0.6)
-}, localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
-
-export const editorGutteDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: Color.fromHex('#b9131a').transparent(0.76),
-	light: Color.fromHex('#b9131a').transparent(0.76),
-	hc: Color.fromHex('#b9131a').transparent(0.76)
-}, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
-
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
 	if (editorGutterModifiedBackgroundColor) {
@@ -310,7 +311,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-editor .dirty-diff-added-glyph { border-left: 3px solid ${editorGutterAddedBackgroundColor}; }`);
 	}
 
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutteDeletedBackground);
+	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
 	if (editorGutteDeletedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted-glyph:after {
