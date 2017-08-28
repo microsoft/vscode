@@ -695,10 +695,12 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let windowsToOpen: IPathToOpen[];
+		let convertFoldersToWorkspace = false;
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			windowsToOpen = this.doExtractPathsFromAPI(openConfig);
+			convertFoldersToWorkspace = true;
 		}
 
 		// Check for force empty
@@ -709,11 +711,25 @@ export class WindowsManager implements IWindowsMainService {
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length > 0) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
+			convertFoldersToWorkspace = true;
 		}
 
 		// Extract windows: from previous session
 		else {
 			windowsToOpen = this.doGetWindowsFromLastSession();
+		}
+
+		// Convert multiple folders into workspace (if opened via API or CLI)
+		// This will ensure to open these folders in one window instead of multiple
+		if (convertFoldersToWorkspace && product.quality !== 'stable') { // TODO@Ben multi root
+			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
+			if (foldersToOpen.length > 1) {
+				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
+
+				// Add workspace and remove folders thereby
+				windowsToOpen.push({ workspace });
+				windowsToOpen = windowsToOpen.filter(path => !path.folderPath);
+			}
 		}
 
 		return windowsToOpen;

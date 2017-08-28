@@ -54,6 +54,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
+	createWorkspaceSync(folders?: string[]): IWorkspaceIdentifier;
 
 	resolveWorkspaceSync(path: string): IResolvedWorkspace;
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean;

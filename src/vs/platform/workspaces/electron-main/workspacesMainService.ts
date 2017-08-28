@@ -11,7 +11,7 @@ import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
 import { copy, delSync, readdirSync } from 'vs/base/node/extfs';
 import { nfcall } from 'vs/base/common/async';
@@ -106,26 +106,46 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier> {
-		if (!folders.length) {
-			return TPromise.wrapError(new Error('Creating a workspace requires at least one folder.'));
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+
+		return mkdirp(configParent).then(() => {
+			return writeFile(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
+		});
+	}
+
+	public createWorkspaceSync(folders: string[]): IWorkspaceIdentifier {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+
+		if (!existsSync(this.workspacesHome)) {
+			mkdirSync(this.workspacesHome);
 		}
 
+		mkdirSync(configParent);
+
+		writeFileSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
+
+		return workspace;
+	}
+
+	private createUntitledWorkspace(folders: string[]): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = join(this.workspacesHome, randomId);
 		const untitledWorkspaceConfigPath = join(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
-		return mkdirp(untitledWorkspaceConfigFolder).then(() => {
-			const storedWorkspace: IStoredWorkspace = {
-				folders: folders.map(folder => ({
-					path: folder
-				}))
-			};
+		const storedWorkspace: IStoredWorkspace = {
+			folders: folders.map(folder => ({
+				path: folder
+			}))
+		};
 
-			return writeFile(untitledWorkspaceConfigPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => ({
+		return {
+			workspace: {
 				id: this.getWorkspaceId(untitledWorkspaceConfigPath),
 				configPath: untitledWorkspaceConfigPath
-			}));
-		});
+			},
+			configParent: untitledWorkspaceConfigFolder,
+			storedWorkspace
+		};
 	}
 
 	public getWorkspaceId(workspaceConfigPath: string): string {

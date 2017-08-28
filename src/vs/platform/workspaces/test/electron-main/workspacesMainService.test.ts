@@ -58,14 +58,6 @@ suite('WorkspacesMainService', () => {
 		extfs.del(workspacesHome, os.tmpdir(), done);
 	});
 
-	test('createWorkspace (no folders)', done => {
-		return service.createWorkspace([]).then(null, error => {
-			assert.ok(error);
-
-			done();
-		});
-	});
-
 	test('createWorkspace (folders)', done => {
 		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			assert.ok(workspace);
@@ -79,6 +71,18 @@ suite('WorkspacesMainService', () => {
 
 			done();
 		});
+	});
+
+	test('createWorkspaceSync (folders)', () => {
+		const workspace = service.createWorkspaceSync([process.cwd(), os.tmpdir()]);
+		assert.ok(workspace);
+		assert.ok(fs.existsSync(workspace.configPath));
+		assert.ok(service.isUntitledWorkspace(workspace));
+
+		const ws = JSON.parse(fs.readFileSync(workspace.configPath).toString()) as IStoredWorkspace;
+		assert.equal(ws.folders.length, 2); //
+		assert.equal(ws.folders[0].path, process.cwd());
+		assert.equal(ws.folders[1].path, os.tmpdir());
 	});
 
 	test('resolveWorkspace', done => {
