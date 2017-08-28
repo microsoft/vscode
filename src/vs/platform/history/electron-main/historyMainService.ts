@@ -16,9 +16,10 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
-import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceSavedEvent } from 'vs/platform/workspaces/common/workspaces';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isEqual } from 'vs/base/common/paths';
 
 export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 	folders: string[]; // TODO@Ben migration
@@ -77,7 +78,7 @@ export class HistoryMainService implements IHistoryMainService {
 			// Files
 			files.forEach((path) => {
 				mru.files.unshift(path);
-				mru.files = arrays.distinct(mru.files, f => isLinux ? f : f.toLowerCase());
+				mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
 				// Add to recent documents (Windows/macOS only)
 				if (isMacintosh || isWindows) {
@@ -101,14 +102,14 @@ export class HistoryMainService implements IHistoryMainService {
 		pathsToRemove.forEach((pathToRemove => {
 
 			// Remove workspace
-			let index = arrays.firstIndex(mru.workspaces, workspace => isSingleFolderWorkspaceIdentifier(workspace) ? workspace === pathToRemove : workspace.configPath === pathToRemove);
+			let index = arrays.firstIndex(mru.workspaces, workspace => isEqual(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath, pathToRemove, !isLinux /* ignorecase */));
 			if (index >= 0) {
 				mru.workspaces.splice(index, 1);
 				update = true;
 			}
 
 			// Remove file
-			index = mru.files.indexOf(pathToRemove);
+			index = arrays.firstIndex(mru.files, file => isEqual(file, pathToRemove, !isLinux /* ignorecase */));
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
@@ -153,9 +154,18 @@ export class HistoryMainService implements IHistoryMainService {
 			files.unshift(...currentFiles.map(f => f.filePath));
 		}
 
+		// TODO@Ben migration to new workspace ID
+		workspaces.forEach(workspaceOrFile => {
+			if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+				return;
+			}
+
+			workspaceOrFile.id = this.workspacesService.getWorkspaceId(workspaceOrFile.configPath);
+		});
+
 		// Clear those dupes
 		workspaces = arrays.distinct(workspaces, workspace => this.distinctFn(workspace));
-		files = arrays.distinct(files);
+		files = arrays.distinct(files, file => this.distinctFn(file));
 
 		// Hide untitled workspaces
 		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesService.isUntitledWorkspace(workspace));
@@ -163,12 +173,12 @@ export class HistoryMainService implements IHistoryMainService {
 		return { workspaces, files };
 	}
 
-	private distinctFn(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			return isLinux ? workspace : workspace.toLowerCase();
+	private distinctFn(workspaceOrFile: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string): string {
+		if (isSingleFolderWorkspaceIdentifier(workspaceOrFile)) {
+			return isLinux ? workspaceOrFile : workspaceOrFile.toLowerCase();
 		}
 
-		return workspace.id + (isLinux ? workspace.configPath : workspace.configPath.toLowerCase()); // ID and configPath form a unique workspace
+		return workspaceOrFile.id;
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {

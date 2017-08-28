@@ -30,6 +30,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IMode } from 'vs/editor/common/modes';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -67,14 +68,24 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
-		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
+		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
-			if (!codeEditorModel) {
-				codeEditorModel = this.modelService.createModel(content.value, this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.fsPath), resource);
-			} else {
+			if (codeEditorModel) {
 				this.modelService.updateModel(codeEditorModel, content.value);
+			} else {
+				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
+
+				let mode: TPromise<IMode>;
+				if (fileOnDiskModel) {
+					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+				} else {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+				}
+
+				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
 			}
 
 			return codeEditorModel;

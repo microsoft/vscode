@@ -61,7 +61,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@ITextResourceConfigurationService private _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
+		@ITextFileService private _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
@@ -75,6 +75,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	protected get configurationService(): ITextResourceConfigurationService {
 		return this._configurationService;
+	}
+
+	protected get textFileService(): ITextFileService {
+		return this._textFileService;
 	}
 
 	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
@@ -169,7 +173,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
 			if (this.textFileService.isDirty()) {
-				this.textFileService.saveAll(void 0, reason).done(null, errors.onUnexpectedError);
+				this.textFileService.saveAll(void 0, { reason }).done(null, errors.onUnexpectedError);
 			}
 		}
 	}

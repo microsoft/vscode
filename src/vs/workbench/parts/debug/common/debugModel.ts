@@ -5,13 +5,13 @@
 
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
@@ -395,14 +395,12 @@ export class StackFrame implements IStackFrame {
 }
 
 export class Thread implements IThread {
-	private fetchPromise: TPromise<void>;
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
 	constructor(public process: IProcess, public name: string, public threadId: number) {
-		this.fetchPromise = null;
 		this.stoppedDetails = null;
 		this.callStack = [];
 		this.staleCallStack = [];
@@ -414,7 +412,6 @@ export class Thread implements IThread {
 	}
 
 	public clearCallStack(): void {
-		this.fetchPromise = null;
 		if (this.callStack.length) {
 			this.staleCallStack = this.callStack;
 		}
@@ -441,7 +438,12 @@ export class Thread implements IThread {
 			return TPromise.as(null);
 		}
 
-		return this.getCallStackImpl(this.callStack.length, levels).then(callStack => {
+		const start = this.callStack.length;
+		return this.getCallStackImpl(start, levels).then(callStack => {
+			if (start < this.callStack.length) {
+				// Set the stack frames for exact position we requested. To make sure no concurrent requests create duplicate stack frames #30660
+				this.callStack.splice(start, this.callStack.length - start);
+			}
 			this.callStack = this.callStack.concat(callStack || []);
 		});
 	}
@@ -555,8 +557,8 @@ export class Process implements IProcess {
 		return this._session;
 	}
 
-	public get name(): string {
-		return this.configuration.name;
+	public getName(includeRoot: boolean): string {
+		return includeRoot ? `${this.configuration.name} (${paths.basename(this.session.root.fsPath)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {
@@ -596,10 +598,7 @@ export class Process implements IProcess {
 			// whether the thread is stopped or not
 			if (data.allThreadsStopped) {
 				this.threads.forEach(thread => {
-					// Only update the details if all the threads are stopped
-					// because we don't want to overwrite the details of other
-					// threads that have stopped for a different reason
-					thread.stoppedDetails = clone(data.stoppedDetails);
+					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
 					thread.stopped = true;
 					thread.clearCallStack();
 				});

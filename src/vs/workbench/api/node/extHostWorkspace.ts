@@ -10,13 +10,14 @@ import { normalize } from 'vs/base/common/paths';
 import { delta } from 'vs/base/common/arrays';
 import { relative, basename } from 'path';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
-import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
+import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TrieMap } from 'vs/base/common/map';
 
 class Workspace2 extends Workspace {
@@ -64,7 +65,7 @@ class Workspace2 extends Workspace {
 	}
 }
 
-export class ExtHostWorkspace extends ExtHostWorkspaceShape {
+export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	private static _requestIdPool = 0;
 
@@ -74,9 +75,8 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
-	constructor(threadService: IThreadService, data: IWorkspaceData) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadWorkspace);
+	constructor(mainContext: IMainContext, data: IWorkspaceData) {
+		this._proxy = mainContext.get(MainContext.MainThreadWorkspace);
 		this._workspace = Workspace2.fromData(data);
 	}
 
@@ -115,7 +115,7 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		return roots[0].fsPath;
 	}
 
-	getRelativePath(pathOrUri: string | vscode.Uri): string {
+	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
 
 		let path: string;
 		if (typeof pathOrUri === 'string') {
@@ -137,8 +137,12 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 			return normalize(path);
 		}
 
+		if (typeof includeWorkspace === 'undefined') {
+			includeWorkspace = this.workspace.roots.length > 1;
+		}
+
 		let result = relative(folder.uri.fsPath, path);
-		if (this.workspace.roots.length > 1) {
+		if (includeWorkspace) {
 			result = `${folder.name}/${result}`;
 		}
 		return normalize(result);
@@ -199,5 +203,31 @@ export class ExtHostWorkspace extends ExtHostWorkspaceShape {
 		}
 
 		return this._proxy.$applyWorkspaceEdit(resourceEdits);
+	}
+
+	// --- EXPERIMENT: workspace resolver
+
+	private readonly _provider = new Map<number, vscode.FileSystemProvider>();
+
+	public registerFileSystemProvider(authority: string, provider: vscode.FileSystemProvider): vscode.Disposable {
+
+		const handle = this._provider.size;
+		this._provider.set(handle, provider);
+		const reg = provider.onDidChange(e => this._proxy.$onFileSystemChange(handle, <URI>e));
+		this._proxy.$registerFileSystemProvider(handle, authority);
+		return new Disposable(() => {
+			this._provider.delete(handle);
+			reg.dispose();
+		});
+	}
+
+	$resolveFile(handle: number, resource: URI): TPromise<string> {
+		const provider = this._provider.get(handle);
+		return asWinJsPromise(token => provider.resolveContents(resource));
+	}
+
+	$storeFile(handle: number, resource: URI, content: string): TPromise<any> {
+		const provider = this._provider.get(handle);
+		return asWinJsPromise(token => provider.writeContents(resource, content));
 	}
 }

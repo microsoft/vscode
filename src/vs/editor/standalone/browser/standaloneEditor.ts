@@ -19,7 +19,7 @@ import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/edito
 import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { IMarkerData, IMarker } from 'vs/platform/markers/common/markers';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -36,7 +36,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 
 /**
  * @internal
@@ -195,6 +195,15 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
 }
 
 /**
+ * Get markers for owner and/or resource
+ * @returns {IMarker[]} list of markers
+ * @param filter
+ */
+export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
+	return StaticServices.markerService.get().read(filter);
+}
+
+/**
  * Get the model that has `uri` if it exists.
  */
 export function getModel(uri: URI): editorCommon.IModel {
@@ -331,6 +340,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		createModel: createModel,
 		setModelLanguage: setModelLanguage,
 		setModelMarkers: setModelMarkers,
+		getModelMarkers: getModelMarkers,
 		getModels: getModels,
 		getModel: getModel,
 		onDidCreateModel: onDidCreateModel,

@@ -9,7 +9,7 @@ import 'vs/css!./goToDeclarationMouse';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
@@ -112,7 +112,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 			// Multiple results
 			if (results.length > 1) {
-				this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
+				this.addDecoration(
+					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
+				);
 			}
 
 			// Single result
@@ -154,17 +157,17 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
 					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
 
-					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), {
-						language: this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath),
-						value
-					});
+					this.addDecoration(
+						new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), value)
+					);
 					ref.dispose();
 				});
 			}
 		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: Range, hoverMessage: MarkedString): void {
+	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
 
 		const newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,

@@ -23,8 +23,8 @@ import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
-	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
-	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction
+	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
+	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -121,11 +121,17 @@ actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'P
 const languageExtensionsActionDescriptor = new SyncActionDescriptor(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.SHORT_LABEL);
 actionRegistry.registerWorkbenchAction(languageExtensionsActionDescriptor, 'Preferences: Language Extensions', PreferencesLabel);
 
+const azureExtensionsActionDescriptor = new SyncActionDescriptor(ShowAzureExtensionsAction, ShowAzureExtensionsAction.ID, ShowAzureExtensionsAction.SHORT_LABEL);
+actionRegistry.registerWorkbenchAction(azureExtensionsActionDescriptor, 'Preferences: Azure Extensions', PreferencesLabel);
+
 const workspaceRecommendationsActionDescriptor = new SyncActionDescriptor(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(workspaceRecommendationsActionDescriptor, 'Extensions: Show Workspace Recommended Extensions', ExtensionsLabel);
 
 const popularActionDescriptor = new SyncActionDescriptor(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);
+
+const enabledActionDescriptor = new SyncActionDescriptor(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(enabledActionDescriptor, 'Extensions: Show Enabled Extensions', ExtensionsLabel);
 
 const installedActionDescriptor = new SyncActionDescriptor(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(installedActionDescriptor, 'Extensions: Show Installed Extensions', ExtensionsLabel);

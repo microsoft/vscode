@@ -5,7 +5,7 @@
 'use strict';
 
 /*
- * This module only exports 'compile' which compiles a JSON langauge definition
+ * This module only exports 'compile' which compiles a JSON language definition
  * into a typed and checked ILexer definition.
  */
 

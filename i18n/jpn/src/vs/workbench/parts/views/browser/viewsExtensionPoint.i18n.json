@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "このビューを表示するために満たす必要がある条件",
 	"vscode.extension.contributes.views": "ビューをエディターに提供します",
 	"views.explorer": "エクスプローラー ビュー",
+	"views.debug": "デバッグ ビュー",
 	"locationId.invalid": "`{0}` は有効なビューの場所ではありません"
 }

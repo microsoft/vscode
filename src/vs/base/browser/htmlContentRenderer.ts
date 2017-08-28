@@ -5,11 +5,11 @@
 
 'use strict';
 
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MarkedString, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -27,20 +27,6 @@ function createElement(options: RenderOptions): HTMLElement {
 		element.className = options.className;
 	}
 	return element;
-}
-
-
-export function renderMarkedString(markedString: MarkedString, options: RenderOptions = {}): Node {
-	// this is sort of legacy given that we have full
-	// support for markdown. Turn this into markdown
-	// and continue
-	let markdown: string;
-	if (typeof markedString === 'string') {
-		markdown = markedString;
-	} else {
-		markdown = '```' + markedString.language + '\n' + markedString.value + '\n```';
-	}
-	return renderMarkdown(markdown, options);
 }
 
 export function renderText(text: string, options: RenderOptions = {}): Node {
@@ -61,7 +47,7 @@ export function renderFormattedText(formattedText: string, options: RenderOption
  * @param content a html element description
  * @param actionCallback a callback function for any action links in the string. Argument is the zero-based index of the clicked action.
  */
-export function renderMarkdown(markdown: string, options: RenderOptions = {}): Node {
+export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): Node {
 	const element = createElement(options);
 
 	const { codeBlockRenderer, actionCallback } = options;
@@ -115,10 +101,17 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
-		if (!href || href.match(/^data:|javascript:/i)) {
+		if (
+			!href
+			|| href.match(/^data:|javascript:/i)
+			|| (href.match(/^command:/i) && !markdown.isTrusted)
+		) {
+			// drop the link
 			return text;
+
+		} else {
+			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 		}
-		return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 	};
 	renderer.paragraph = (text): string => {
 		return `<p>${text}</p>`;
@@ -153,16 +146,22 @@ export function renderMarkdown(markdown: string, options: RenderOptions = {}): N
 
 	if (options.actionCallback) {
 		DOM.addStandardDisposableListener(element, 'click', event => {
-			if (event.target.tagName === 'A') {
-				const href = event.target.dataset['href'];
-				if (href) {
-					options.actionCallback(href, event);
+			let target = event.target;
+			if (target.tagName !== 'A') {
+				target = target.parentElement;
+				if (!target || target.tagName !== 'A') {
+					return;
 				}
+			}
+
+			const href = target.dataset['href'];
+			if (href) {
+				options.actionCallback(href, event);
 			}
 		});
 	}
 
-	element.innerHTML = marked(markdown, {
+	element.innerHTML = marked(markdown.value, {
 		sanitize: true,
 		renderer
 	});

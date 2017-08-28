@@ -9,7 +9,7 @@ import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { open as openZip, Entry, ZipFile } from 'yauzl';
 
 export interface IExtractOptions {
@@ -34,12 +34,12 @@ function modeFromEntry(entry: Entry) {
 		.reduce((a, b) => a + b, attr & 61440 /* S_IFMT */);
 }
 
-function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): Promise {
+function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): TPromise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
 	const targetFileName = path.join(targetPath, fileName);
 
-	return mkdirp(targetDirName).then(() => new Promise((c, e) => {
+	return mkdirp(targetDirName).then(() => new TPromise((c, e) => {
 		let istream = createWriteStream(targetFileName, { mode });
 		istream.once('finish', () => c(null));
 		istream.once('error', e);
@@ -48,8 +48,8 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Promise {
-	return new Promise((c, e) => {
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): TPromise<void> {
+	return new TPromise((c, e) => {
 		const throttler = new SimpleThrottler();
 		let last = TPromise.as<any>(null);
 
@@ -77,7 +77,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): Promise {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = nfcall<ZipFile>(openZip, zipPath);

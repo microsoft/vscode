@@ -355,7 +355,7 @@
 					"**/vs/base/**",
 					"**/vs/platform/**",
 					"**/vs/editor/**",
-					"**/vs/workbench/{common,browser,node,electron-browser}/**",
+					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/**",
 					"*" // node modules
 				]

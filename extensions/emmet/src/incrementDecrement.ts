@@ -13,18 +13,18 @@ const reNumber = /[0-9]/;
  * Incerement number under caret of given editor
  * @param  {Number}     delta
  */
-export function incrementDecrement(delta: number) {
+export function incrementDecrement(delta: number): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		editor.selections.forEach(selection => {
-			let rangeToReplace: vscode.Range = selection;
-			if (selection.isEmpty) {
-				rangeToReplace = locate(editor.document, selection.isReversed ? selection.anchor : selection.active);
+			let rangeToReplace = locate(editor.document, selection.isReversed ? selection.anchor : selection.active);
+			if (!rangeToReplace) {
+				return;
 			}
 
 			const text = editor.document.getText(rangeToReplace);
@@ -67,7 +67,7 @@ export function update(numString, delta): string {
  * @param  {Point}      pos
  * @return {Range}      Range of number or `undefined` if not found
  */
-export function locate(document: vscode.TextDocument, pos: vscode.Position) {
+export function locate(document: vscode.TextDocument, pos: vscode.Position): vscode.Range {
 
 	const line = document.lineAt(pos.line).text;
 	let start = pos.character;

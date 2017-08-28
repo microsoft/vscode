@@ -9,12 +9,14 @@
   "activationEvents": [
     "onLanguage:json"
   ],
+  "enableProposedApi": true,
   "main": "./client/out/jsonMain",
   "scripts": {
     "compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
     "postinstall": "cd server && npm install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
+    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
+    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -45,7 +47,7 @@
       {
         "language": "json",
         "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage"
+        "path": "./syntaxes/JSON.tmLanguage.json"
       }
     ],
     "jsonValidation": [
@@ -62,6 +64,7 @@
       "properties": {
         "json.schemas": {
           "type": "array",
+          "scope": "resource",
           "description": "%json.schemas.desc%",
           "items": {
             "type": "object",
@@ -96,11 +99,13 @@
         },
         "json.format.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
           "description": "%json.format.enable.desc%"
         },
         "json.trace.server": {
           "type": "string",
+          "scope": "window",
           "enum": [
             "off",
             "messages",
@@ -111,8 +116,10 @@
         },
         "json.colorDecorators.enable": {
           "type": "boolean",
+          "scope": "window",
           "default": true,
-          "description": "%json.colorDecorators.enable.desc%"
+          "description": "%json.colorDecorators.enable.desc%",
+          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
         }
       }
     },
@@ -126,7 +133,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "3.1.0-alpha.1",
+    "vscode-languageclient": "^3.4.0-next.13",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {

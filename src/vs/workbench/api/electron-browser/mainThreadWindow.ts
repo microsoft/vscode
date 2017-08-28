@@ -6,21 +6,21 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext } from '../node/extHost.protocol';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadWindow extends MainThreadWindowShape {
+@extHostNamedCustomer(MainContext.MainThreadWindow)
+export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IWindowService private windowService: IWindowService
 	) {
-		super();
-		this.proxy = threadService.get(ExtHostContext.ExtHostWindow);
+		this.proxy = extHostContext.get(ExtHostContext.ExtHostWindow);
 
 		windowService.onDidChangeFocus(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}

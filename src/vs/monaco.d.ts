@@ -5,16 +5,7 @@
 
 declare module monaco {
 
-	interface Thenable<T> {
-		/**
-		 * Attaches callbacks for the resolution and/or rejection of the Promise.
-		 * @param onfulfilled The callback to execute when the Promise is resolved.
-		 * @param onrejected The callback to execute when the Promise is rejected.
-		 * @returns A Promise for the completion of which ever callback is executed.
-		 */
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-	}
+	type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -43,59 +34,49 @@ declare module monaco {
 
 
 
-	/**
-	 * The value callback to complete a promise
-	 */
-	export interface TValueCallback<T> {
-		(value: T | Thenable<T>): void;
-	}
+	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
+
+	export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
 
 
-	export interface ProgressCallback {
-		(progress: any): any;
-	}
+	export class Promise<T = any, TProgress = any> {
+		constructor(
+			executor: (
+				resolve: (value: T | PromiseLike<T>) => void,
+				reject: (reason: any) => void,
+				progress: (progress: TProgress) => void) => void,
+			oncancel?: () => void);
 
+		public then<TResult1 = T, TResult2 = never>(
+			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+			onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
 
-	/**
-	 * A Promise implementation that supports progress and cancelation.
-	 */
-	export class Promise<V> {
+		public done(
+			onfulfilled?: (value: T) => void,
+			onrejected?: (reason: any) => void,
+			onprogress?: (progress: TProgress) => void): void;
 
-		constructor(init: (complete: TValueCallback<V>, error: (err: any) => void, progress: ProgressCallback) => void, oncancel?: any);
-
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U>, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => Promise<U> | U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U>, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => Promise<U> | U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => U, progress?: ProgressCallback): Promise<U>;
-		public then<U>(success?: (value: V) => U, error?: (err: any) => void, progress?: ProgressCallback): Promise<U>;
-
-		public done(success?: (value: V) => void, error?: (err: any) => any, progress?: ProgressCallback): void;
 		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
-		public static as<ValueType>(value: Promise<ValueType>): Promise<ValueType>;
-		public static as<ValueType>(value: Thenable<ValueType>): Thenable<ValueType>;
-		public static as<ValueType>(value: ValueType): Promise<ValueType>;
+		public static as<T, TPromise extends PromiseLike<T>>(value: TPromise): TPromise;
+		public static as<T>(value: T): Promise<T>;
 
-		public static is(value: any): value is Thenable<any>;
+		public static is(value: any): value is PromiseLike<any>;
+
 		public static timeout(delay: number): Promise<void>;
-		public static join<ValueType>(promises: Promise<ValueType>[]): Promise<ValueType[]>;
-		public static join<ValueType>(promises: Thenable<ValueType>[]): Thenable<ValueType[]>;
-		public static join<ValueType>(promises: { [n: string]: Promise<ValueType> }): Promise<{ [n: string]: ValueType }>;
-		public static any<ValueType>(promises: Promise<ValueType>[]): Promise<{ key: string; value: Promise<ValueType>; }>;
 
-		public static wrap<ValueType>(value: Thenable<ValueType>): Promise<ValueType>;
-		public static wrap<ValueType>(value: ValueType): Promise<ValueType>;
+		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
+		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
+		public static join<T>(promises: { [n: string]: T | PromiseLike<T> }): Promise<{ [n: string]: T }>;
 
-		public static wrapError<ValueType>(error: Error): Promise<ValueType>;
+		public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
+
+		public static wrap<T>(value: T | PromiseLike<T>): Promise<T>;
+
+		public static wrapError<T = never>(error: Error): Promise<T>;
 	}
 
 	export class CancellationTokenSource {
@@ -372,15 +353,10 @@ declare module monaco {
 		static readonly WinCtrl: number;
 		static chord(firstPart: number, secondPart: number): number;
 	}
-	/**
-	 * MarkedString can be used to render human readable text. It is either a markdown string
-	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.
-	 */
-	export type MarkedString = string | {
-		readonly language: string;
-		readonly value: string;
-	};
+	export interface IMarkdownString {
+		value: string;
+		isTrusted?: boolean;
+	}
 
 	export interface IKeyboardEvent {
 		readonly browserEvent: KeyboardEvent;
@@ -834,6 +810,17 @@ declare module monaco.editor {
 	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
+	 * Get markers for owner and/or resource
+	 * @returns {IMarker[]} list of markers
+	 * @param filter
+	 */
+	export function getModelMarkers(filter: {
+		owner?: string;
+		resource?: Uri;
+		take?: number;
+	}): IMarker[];
+
+	/**
 	 * Get the model that has `uri` if it exists.
 	 */
 	export function getModel(uri: Uri): IModel;
@@ -1029,6 +1016,19 @@ declare module monaco.editor {
 		[index: string]: any;
 	}
 
+	export interface IMarker {
+		owner: string;
+		resource: Uri;
+		severity: Severity;
+		code?: string;
+		message: string;
+		source?: string;
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+	}
+
 	/**
 	 * A structure defining a problem/warning/etc.
 	 */
@@ -1113,11 +1113,11 @@ declare module monaco.editor {
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
-		glyphMarginHoverMessage?: MarkedString | MarkedString[];
+		glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
-		 * Array of MarkedString to render as the decoration message.
+		 * Array of MarkdownString to render as the decoration message.
 		 */
-		hoverMessage?: MarkedString | MarkedString[];
+		hoverMessage?: IMarkdownString | IMarkdownString[];
 		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
@@ -1535,7 +1535,7 @@ declare module monaco.editor {
 		 */
 		getFullModelRange(): Range;
 		/**
-		 * Returns iff the model was disposed or not.
+		 * Returns if the model was disposed or not.
 		 */
 		isDisposed(): boolean;
 		/**
@@ -2820,6 +2820,11 @@ declare module monaco.editor {
 		 */
 		scrollBeyondLastLine?: boolean;
 		/**
+		 * Enable that the editor animates scrolling to a position.
+		 * Defaults to false.
+		 */
+		smoothScrolling?: boolean;
+		/**
 		 * Enable that the editor will install an interval to check if its container dom node size has changed.
 		 * Enabling this might have a severe performance impact.
 		 * Defaults to false.
@@ -2884,6 +2889,10 @@ declare module monaco.editor {
 		 * Defaults to true.
 		 */
 		links?: boolean;
+		/**
+		 * Enable inline color decorators and color picker rendering.
+		 */
+		colorDecorators?: boolean;
 		/**
 		 * Enable custom contextmenu.
 		 * Defaults to true.
@@ -3240,6 +3249,7 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
+		readonly smoothScrolling: boolean;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
@@ -3280,6 +3290,7 @@ declare module monaco.editor {
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
+		readonly colorDecorators: boolean;
 	}
 
 	/**
@@ -4029,6 +4040,11 @@ declare module monaco.languages {
 	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
 
 	/**
+	 * Register a document color provider (used by Color Picker, Color Decorator).
+	 */
+	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -4402,7 +4418,7 @@ declare module monaco.languages {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: MarkedString[];
+		contents: IMarkdownString[];
 		/**
 		 * The range to which this hover applies. When missing, the
 		 * editor will use the range at the current position or the
@@ -4761,6 +4777,64 @@ declare module monaco.languages {
 	export interface LinkProvider {
 		provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
+	}
+
+	/**
+	 * A color in RGBA format.
+	 */
+	export interface IColor {
+		/**
+		 * The red component in the range [0-1].
+		 */
+		readonly red: number;
+		/**
+		 * The green component in the range [0-1].
+		 */
+		readonly green: number;
+		/**
+		 * The blue component in the range [0-1].
+		 */
+		readonly blue: number;
+		/**
+		 * The alpha component in the range [0-1].
+		 */
+		readonly alpha: number;
+	}
+
+	/**
+	 * A color formatter.
+	 */
+	export interface IColorFormatter {
+		readonly supportsTransparency: boolean;
+		format(color: IColor): string;
+	}
+
+	/**
+	 * A color range is a range in a text model which represents a color.
+	 */
+	export interface IColorRange {
+		/**
+		 * The range within the model.
+		 */
+		range: IRange;
+		/**
+		 * The color represented in this range.
+		 */
+		color: IColor;
+		/**
+		 * The available formats for this specific color.
+		 */
+		formatters: IColorFormatter[];
+	}
+
+	/**
+	 * A provider of colors for editor models.
+	 */
+	export interface DocumentColorProvider {
+		/**
+		 * Provides the color ranges for a specific model.
+		 */
+		provideColorRanges(model: editor.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
 	}
 
 	export interface IResourceEdit {

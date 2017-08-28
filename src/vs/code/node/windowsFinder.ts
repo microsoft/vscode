@@ -10,8 +10,7 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspace } from "vs/platform/workspaces/common/workspaces";
-import URI from "vs/base/common/uri";
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
 
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
@@ -29,7 +28,7 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	filePath?: string;
 	userHome?: string;
 	codeSettingsFolder?: string;
-	workspaceResolver: (workspace: IWorkspaceIdentifier) => IStoredWorkspace;
+	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace;
 }
 
 export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, filePath, userHome, codeSettingsFolder, workspaceResolver }: IBestWindowOrFolderOptions<W>): W | string {
@@ -56,14 +55,14 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
-function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: string, workspaceResolver: (workspace: IWorkspaceIdentifier) => IStoredWorkspace): W {
+function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], filePath: string, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace): W {
 
 	// First check for windows with workspaces that have a parent folder of the provided path opened
 	const workspaceWindows = windows.filter(window => !!window.openedWorkspace);
 	for (let i = 0; i < workspaceWindows.length; i++) {
 		const window = workspaceWindows[i];
 		const resolvedWorkspace = workspaceResolver(window.openedWorkspace);
-		if (resolvedWorkspace && resolvedWorkspace.folders.some(folderUri => paths.isEqualOrParent(filePath, URI.parse(folderUri).fsPath, !platform.isLinux /* ignorecase */))) {
+		if (resolvedWorkspace && resolvedWorkspace.folders.some(folder => paths.isEqualOrParent(filePath, folder.path, !platform.isLinux /* ignorecase */))) {
 			return window;
 		}
 	}
@@ -112,43 +111,57 @@ function hasCodeSettings(folder: string, normalizedUserHome?: string, codeSettin
 }
 
 export function getLastActiveWindow<W extends ISimpleWindow>(windows: W[]): W {
-	if (windows.length) {
-		const lastFocussedDate = Math.max.apply(Math, windows.map(w => w.lastFocusTime));
-		const res = windows.filter(w => w.lastFocusTime === lastFocussedDate);
-		if (res && res.length) {
-			return res[0];
-		}
-	}
+	const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-	return null;
+	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
 }
 
 export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W {
-	if (windows.length) {
-		const res = windows.filter(w => {
+	return windows.filter(window => {
 
-			// match on folder
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				if (typeof w.openedFolderPath === 'string' && (paths.isEqual(w.openedFolderPath, workspace, !platform.isLinux /* ignorecase */))) {
-					return true;
-				}
+		// match on folder
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			if (typeof window.openedFolderPath === 'string' && (paths.isEqual(window.openedFolderPath, workspace, !platform.isLinux /* ignorecase */))) {
+				return true;
 			}
-
-			// match on workspace
-			else {
-				if (w.openedWorkspace && w.openedWorkspace.id === workspace.id) {
-					return true;
-				}
-			}
-
-
-			return false;
-		});
-
-		if (res && res.length) {
-			return res[0];
 		}
-	}
 
-	return null;
+		// match on workspace
+		else {
+			if (window.openedWorkspace && window.openedWorkspace.id === workspace.id) {
+				return true;
+			}
+		}
+
+		return false;
+	})[0];
+}
+
+export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W {
+	return windows.filter(window => {
+
+		// match on extension development path
+		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
+			return true;
+		}
+
+		return false;
+	})[0];
+}
+
+export function findWindowOnWorkspaceOrFolderPath<W extends ISimpleWindow>(windows: W[], path: string): W {
+	return windows.filter(window => {
+
+		// check for workspace config path
+		if (window.openedWorkspace && paths.isEqual(window.openedWorkspace.configPath, path, !platform.isLinux /* ignorecase */)) {
+			return true;
+		}
+
+		// check for folder path
+		if (window.openedFolderPath && paths.isEqual(window.openedFolderPath, path, !platform.isLinux /* ignorecase */)) {
+			return true;
+		}
+
+		return false;
+	})[0];
 }

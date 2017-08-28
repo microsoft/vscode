@@ -7,10 +7,14 @@
 	"vscode.extension.contributes.configuration": "Yapılandırma ayarlarına ekleme yapar.",
 	"vscode.extension.contributes.configuration.title": "Ayarların bir özeti. Bu etiket ayar dosyasında ayırıcı yorum olarak kullanılacaktır.",
 	"vscode.extension.contributes.configuration.properties": "Yapılandırma özelliklerinin açıklaması.",
+	"scope.window.description": "Kullanıcı veya çalışma alanında yapılandırılabilen Windows'a özel yapılandırma.",
+	"scope.resource.description": "Kullanıcı veya çalışma alanında yapılandırılabilen kaynağa özel yapılandırma.",
+	"scope.description": "Yapılandırmanın uygulanabilir olduğu kapsam. Mevcut kapsamlar 'window' ve 'resource'tır.",
 	"invalid.type": "eğer ayarlanırsa, 'configuration.type' ögesi 'object' olarak ayarlanmalıdır",
 	"invalid.title": "'configuration.title' bir dize olmalıdır",
 	"vscode.extension.contributes.defaultConfiguration": "Varsayılan düzenleyici yapılandırma ayarlarına dil bazında ekleme yapar.",
 	"invalid.properties": "'configuration.properties' bir nesne olmalıdır",
-	"workspaceConfig.id": "Benzersiz çalışma alanı kimliği",
-	"workspaceSettings.description": "Çalışma alanı ayarlarını yapılandır"
+	"workspaceConfig.id.description": "Çalışma Alanı Tanımlayıcısı. Değiştirilirken kaybolabilecek dahili çalışma alanı durumunu depolamak için kullanılır.",
+	"workspaceConfig.folders.description": "Çalışma alanında yüklenecek klasörler listesi. Bir dosya yolu olmalıdır. ör. `file:///root/folderA`",
+	"workspaceConfig.settings.description": "Çalışma alanı ayarları"
 }

@@ -46,6 +46,8 @@ import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -88,6 +90,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
@@ -283,6 +287,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		this.activeCount = 0;
 		this.icons = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
@@ -662,7 +672,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IWindowService private _windowServive: IWindowService
 	) {
 
 		super();
@@ -700,7 +711,19 @@ class TaskService extends EventEmitter implements ITaskService {
 					? ExecutionEngine.Process
 					: ExecutionEngine._default;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
-				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine requires to reload the Window'
+						),
+						actions: [
+							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
+							new CloseMessageAction()
+						]
+					}
+				);
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
@@ -1206,7 +1229,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (active.background) {
 							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1257,13 +1280,13 @@ class TaskService extends EventEmitter implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.workbenchEditorService,
+				this.workbenchEditorService, this.contextService,
 				TaskService.OutputChannelId
 			);
 		} else {
 			let system = new ProcessTaskSystem(
 				this.markerService, this.modelService, this.telemetryService, this.outputService,
-				this.configurationResolverService, TaskService.OutputChannelId,
+				this.configurationResolverService, this.contextService, TaskService.OutputChannelId,
 			);
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
@@ -1732,12 +1755,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (Types.isString(arg)) {
-			this.tasks().then(tasks => {
-				for (let task of tasks) {
-					if (task.identifier === arg) {
-						this.run(task);
-					}
+			this.getTask(arg).then((task) => {
+				if (task) {
+					this.run(task);
+				} else {
+					this.quickOpenService.show('task ');
 				}
+			}, () => {
+				this.quickOpenService.show('task ');
 			});
 		} else {
 			this.quickOpenService.show('task ');
@@ -1748,7 +1773,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.build();
 			return;
 		}
@@ -1791,7 +1816,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.runTest();
 			return;
 		}
@@ -1897,7 +1922,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureBuildTask().run();
@@ -1930,7 +1955,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureAction().run();

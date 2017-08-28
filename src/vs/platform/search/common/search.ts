@@ -6,9 +6,9 @@
 
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import * as objects from 'vs/base/common/objects';
-import { IExpression } from 'vs/base/common/glob';
+import * as paths from 'vs/base/common/paths';
+import * as glob from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -28,8 +28,8 @@ export interface ISearchService {
 
 export interface IFolderQuery {
 	folder: uri;
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	excludePattern?: glob.IExpression;
+	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 }
 
@@ -53,10 +53,11 @@ export interface IQueryOptions extends ICommonQueryOptions {
 export interface ISearchQuery extends ICommonQueryOptions {
 	type: QueryType;
 
-	excludePattern?: IExpression;
-	includePattern?: IExpression;
+	excludePattern?: glob.IExpression;
+	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
 	folderQueries?: IFolderQuery[];
+	usingSearchPaths?: boolean;
 }
 
 export enum QueryType {
@@ -148,7 +149,7 @@ export class LineMatch implements ILineMatch {
 
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
-		exclude: IExpression;
+		exclude: glob.IExpression;
 		useRipgrep: boolean;
 		useIgnoreFilesByDefault: boolean;
 	};
@@ -157,7 +158,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	};
 }
 
-export function getExcludes(configuration: ISearchConfiguration): IExpression {
+export function getExcludes(configuration: ISearchConfiguration): glob.IExpression {
 	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
 	const searchExcludes = configuration && configuration.search && configuration.search.exclude;
 
@@ -169,31 +170,33 @@ export function getExcludes(configuration: ISearchConfiguration): IExpression {
 		return fileExcludes || searchExcludes;
 	}
 
-	let allExcludes: IExpression = Object.create(null);
+	let allExcludes: glob.IExpression = Object.create(null);
 	allExcludes = objects.mixin(allExcludes, fileExcludes);
 	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
 
 	return allExcludes;
 }
 
-export function getMergedExcludes(query: ISearchQuery, absolutePaths?: boolean): IExpression {
-	const globalExcludePattern: IExpression = query.excludePattern || {};
+export function pathIncludedInQuery(query: ISearchQuery, fsPath: string): boolean {
+	if (query.excludePattern && glob.match(query.excludePattern, fsPath)) {
+		return false;
+	}
 
-	return query.folderQueries
-		.map(folderQuery => {
-			const mergedFolderExclude = objects.assign({}, globalExcludePattern, folderQuery.excludePattern || {});
-			return absolutePaths ?
-				makeExcludesAbsolute(mergedFolderExclude, folderQuery.folder) :
-				mergedFolderExclude;
+	if (query.includePattern && !glob.match(query.includePattern, fsPath)) {
+		return false;
+	}
+
+	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+	if (query.usingSearchPaths) {
+		return query.folderQueries.every(fq => {
+			const searchPath = fq.folder.fsPath;
+			if (paths.isEqualOrParent(fsPath, searchPath)) {
+				return !fq.includePattern || !!glob.match(fq.includePattern, fsPath);
+			} else {
+				return false;
+			}
 		});
-}
+	}
 
-function makeExcludesAbsolute(excludePattern: IExpression, rootFolder: uri) {
-	return Object.keys(excludePattern)
-		.reduce((absolutePattern: IExpression, key: string) => {
-			const value = excludePattern[key];
-			key = paths.join(rootFolder.fsPath, key);
-			absolutePattern[key] = value;
-			return absolutePattern;
-		}, {});
+	return true;
 }

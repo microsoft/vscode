@@ -13,10 +13,11 @@ import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/ext
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDiagnostics', () => {
 
-	class DiagnosticsShape extends MainThreadDiagnosticsShape {
+	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
 		$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
 			return TPromise.as(null);
 		}

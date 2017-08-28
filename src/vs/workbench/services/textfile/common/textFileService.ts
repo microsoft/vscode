@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -270,6 +270,11 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Don't Save
 		else if (confirm === ConfirmResult.DONT_SAVE) {
+
+			// Make sure to revert untitled so that they do not restore
+			// see https://github.com/Microsoft/vscode/issues/29572
+			this.untitledEditorService.revertAll();
+
 			return this.noVeto({ cleanUpBackups: true });
 		}
 
@@ -383,12 +388,12 @@ export abstract class TextFileService implements ITextFileService {
 			}
 		}
 
-		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
+		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	public saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	public saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	public saveAll(arg1?: any, reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	public saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	public saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	public saveAll(arg1?: any, options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -409,13 +414,13 @@ export abstract class TextFileService implements ITextFileService {
 			}
 		});
 
-		return this.doSaveAll(filesToSave, untitledToSave, reason);
+		return this.doSaveAll(filesToSave, untitledToSave, options);
 	}
 
-	private doSaveAll(fileResources: URI[], untitledResources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
-		return this.doSaveAllFiles(fileResources, reason).then(result => {
+		return this.doSaveAllFiles(fileResources, options).then(result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
@@ -467,10 +472,10 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveAllFiles(resources?: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
-				if (model.hasState(ModelState.CONFLICT) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
+				if (model.hasState(ModelState.CONFLICT) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
 					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all
 				}
 
@@ -485,7 +490,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 
 		return TPromise.join(dirtyFileModels.map(model => {
-			return model.save({ reason }).then(() => {
+			return model.save(options).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
 				}
@@ -556,7 +561,7 @@ export abstract class TextFileService implements ITextFileService {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
 
-		return modelPromise.then(model => {
+		return modelPromise.then<any>(model => {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {

@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
-import { Tasks } from "../areas/tasks";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
+import { Tasks } from '../areas/tasks';
 
 let app: SpectronApplication;
 
 export function testTasks() {
-	context('Tasks', () => {
+	describe('Tasks', () => {
 		let tasks: Tasks;
 
 		beforeEach(async function () {

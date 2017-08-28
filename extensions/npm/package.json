@@ -49,7 +49,7 @@
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script", "path"],
+        "required": ["script"],
         "properties": {
           "script": {
             "type": "string",
@@ -57,7 +57,7 @@
           },
           "path": {
             "type": "string",
-            "description": "The path to the package.json file that provides the script."
+            "description": "The path to the folder of the package.json file that provides the script. Can be ommitted."
           }
         }
       }

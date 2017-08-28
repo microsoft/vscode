@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
-import URI from "vs/base/common/uri";
+import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -18,13 +18,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
+import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
-import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent } from "vs/platform/workspaces/common/workspaces";
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { IBackupMainService } from 'vs/platform/backup/common/backup';
 
 export interface IWindowState {
 	width?: number;
@@ -72,15 +73,12 @@ export class CodeWindow implements ICodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
-	private options: IWindowCreationOptions;
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
-	private _extensionDevelopmentPath: string;
-	private _isExtensionTestHost: boolean;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility;
 	private toDispose: IDisposable[];
@@ -97,13 +95,11 @@ export class CodeWindow implements ICodeWindow {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IStorageService private storageService: IStorageService,
-		@IWorkspacesMainService private workspaceService: IWorkspacesMainService
+		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
+		@IBackupMainService private backupService: IBackupMainService
 	) {
-		this.options = config;
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
-		this._isExtensionTestHost = config.isExtensionTestHost;
 		this.whenReadyCallbacks = [];
 		this.toDispose = [];
 
@@ -207,15 +203,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public get isExtensionDevelopmentHost(): boolean {
-		return !!this._extensionDevelopmentPath;
+		return !!this.config.extensionDevelopmentPath;
 	}
 
 	public get isExtensionTestHost(): boolean {
-		return this._isExtensionTestHost;
+		return !!this.config.extensionTestsPath;
 	}
 
 	public get extensionDevelopmentPath(): string {
-		return this._extensionDevelopmentPath;
+		return this.config.extensionDevelopmentPath;
 	}
 
 	public get config(): IWindowConfiguration {
@@ -303,20 +299,15 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private registerListeners(): void {
+		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
+		const headers = {
+			'X-Market-Client-Id': `VSCode ${pkg.version}`,
+			'User-Agent': `VSCode ${pkg.version}`,
+			'X-Market-User-Id': this.environmentService.machineUUID
+		};
 
-		// Set common HTTP headers
-		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
-		// a request that needs them. chances are low
-		getCommonHTTPHeaders().done(headers => {
-			if (!this._win) {
-				return;
-			}
-
-			const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-
-			this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
-				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
-			});
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 		});
 
 		// Prevent loading of svgs
@@ -406,24 +397,14 @@ export class CodeWindow implements ICodeWindow {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
-		this.toDispose.push(this.workspaceService.onWorkspaceSaved(e => this.onWorkspaceSaved(e)));
-		this.toDispose.push(this.workspaceService.onWorkspaceDeleted(e => this.onWorkspaceDeleted(e)));
+		this.toDispose.push(this.workspaceService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
 	}
 
-	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
-
-		// Make sure to update our workspace config if we detect that it
-		// was saved to a new config location
-		if (this.openedWorkspace && this.openedWorkspace.id === e.workspace.id && this.openedWorkspace.configPath !== e.workspace.configPath) {
-			this.currentConfig.workspace.configPath = e.workspace.configPath;
-		}
-	}
-
-	private onWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
+	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.openedWorkspace.configPath === workspace.configPath) {
+		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id) {
 			this.currentConfig.workspace = void 0;
 		}
 	}
@@ -460,7 +441,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration): void {
+	public load(config: IWindowConfiguration, isReload?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -477,9 +458,20 @@ export class CodeWindow implements ICodeWindow {
 			this._readyState = ReadyState.NAVIGATING;
 		}
 
-		// Make sure to clear any previous edited state
+		// Clear Document Edited if needed
 		if (isMacintosh && this._win.isDocumentEdited()) {
-			this._win.setDocumentEdited(false);
+			if (!isReload || !this.backupService.isHotExitEnabled()) {
+				this._win.setDocumentEdited(false);
+			}
+		}
+
+		// Clear Title and Filename if needed
+		if (!isReload) {
+			if (this.getRepresentedFilename()) {
+				this.setRepresentedFilename('');
+			}
+
+			this._win.setTitle(product.nameLong);
 		}
 
 		// Load URL
@@ -504,10 +496,14 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public reload(cli?: ParsedArgs): void {
+	public reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
 
-		// Inherit current properties but overwrite some
-		const configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
+		// If config is not provided, copy our current one
+		if (!configuration) {
+			configuration = objects.mixin({}, this.currentConfig);
+		}
+
+		// Delete some properties we do not want during reload
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
@@ -525,7 +521,7 @@ export class CodeWindow implements ICodeWindow {
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration);
+		this.load(configuration, true);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {

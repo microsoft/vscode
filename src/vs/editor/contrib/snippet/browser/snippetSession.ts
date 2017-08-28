@@ -9,13 +9,13 @@ import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
 import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextmateSnippet, Placeholder, SnippetParser } from './snippetParser';
+import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorSnippetVariableResolver } from "./snippetVariables";
+import { EditorSnippetVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export class OneSnippet {
@@ -155,6 +155,10 @@ export class OneSnippet {
 		return ret;
 	}
 
+	get choice(): Choice {
+		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+	}
+
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
@@ -173,9 +177,9 @@ export class OneSnippet {
 				// Massage placeholder-indicies of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
-				for (const nestedPlaceholder of nested._snippet.placeholders) {
+				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + (nested._snippet.placeholders.length / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + ((nested._snippet.placeholderInfo.last.index + 1) / this._nestingLevel);
 					} else {
 						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
 					}
@@ -205,25 +209,6 @@ export class OneSnippet {
 			// Last, re-create the placeholder groups by sorting placeholders by their index.
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
-	}
-}
-
-class WhitespaceAwareSnippetResolver extends EditorSnippetVariableResolver {
-
-	constructor(
-		model: IModel,
-		selection: Selection,
-		private _snippetStart: IPosition
-	) {
-		super(model, selection);
-	}
-
-	resolve(name: string): string {
-		let ret = super.resolve(name);
-		if (ret) {
-			ret = SnippetSession.adjustWhitespace(this._model, this._snippetStart, ret);
-		}
-		return ret;
 	}
 }
 
@@ -311,15 +296,15 @@ export class SnippetSession {
 
 			const snippet = new SnippetParser()
 				.parse(adjustedTemplate, true, enforceFinalTabstop)
-				.resolveVariables(new WhitespaceAwareSnippetResolver(model, selection, start));
+				.resolveVariables(new EditorSnippetVariableResolver(model, selection));
 
 			const offset = model.getOffsetAt(start) + delta;
-			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
+			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
 
 			// store snippets with the index of their originating selection.
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
-			edits[idx] = EditOperation.replace(snippetSelection, snippet.text);
+			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
 			snippets[idx] = new OneSnippet(editor, snippet, offset);
 		}
 
@@ -407,6 +392,10 @@ export class SnippetSession {
 
 	get hasPlaceholder() {
 		return this._snippets[0].hasPlaceholder;
+	}
+
+	get choice(): Choice {
+		return this._snippets[0].choice;
 	}
 
 	isSelectionWithinPlaceholders(): boolean {

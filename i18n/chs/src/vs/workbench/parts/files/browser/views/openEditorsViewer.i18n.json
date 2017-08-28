@@ -9,6 +9,7 @@
 	"saveAll": "全部保存",
 	"closeAllUnmodified": "关闭未更改的",
 	"closeAll": "全部关闭",
+	"compareWithSaved": "与已保存文件比较",
 	"close": "关闭",
 	"closeOthers": "关闭其他"
 }

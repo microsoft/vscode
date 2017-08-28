@@ -35,8 +35,10 @@
 	"JsonSchema.tasks.customize.deprecated": "customize 属性已被弃用。请参阅 1.14 发行说明了解如何迁移到新的任务自定义方法",
 	"JsonSchema.tasks.showOputput.deprecated": "showOutput 属性已被弃用。请改为使用 presentation 属性内的 reveal 属性。另请参阅 1.14 发行说明。",
 	"JsonSchema.tasks.echoCommand.deprecated": "isBuildCommand 属性已被弃用。请改为使用 presentation 属性内的 echo 属性。另请参阅 1.14 发行说明。",
+	"JsonSchema.tasks.suppressTaskName.deprecated": "suppressTaskName 属性已被弃用。请改为在任务中内嵌命令及其参数。另请参阅 1.14 发行说明。",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "isBuildCommand 属性已被弃用。请改为使用 group 属性。另请参阅 1.14 发行说明。",
 	"JsonSchema.tasks.isTestCommand.deprecated": "isTestCommand 属性已被弃用。请改为使用 group 属性。另请参阅 1.14 发行说明。",
+	"JsonSchema.tasks.taskSelector.deprecated": "taskSelector 属性已被弃用。请改为在任务中内嵌命令及其参数。另请参阅 1.14 发行说明。",
 	"JsonSchema.windows": "Windows 特定的命令配置",
 	"JsonSchema.mac": "Mac 特定的命令配置",
 	"JsonSchema.linux": "Linux 特定的命令配置"

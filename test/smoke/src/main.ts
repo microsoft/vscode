@@ -9,11 +9,15 @@ const program = require('commander');
 const git = require('simple-git')();
 const child_process = require('child_process');
 const path = require('path');
+const mkdirp = require('mkdirp');
 
-const tempFolder = 'test_data';
+const testDataPath = path.join(process.cwd(), 'test_data');
+const codeWorkspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
-const testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
+const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
 const keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
+
+mkdirp.sync(testDataPath);
 
 program
 	.option('-l, --latest <file path>', 'path to the latest VS Code to test')
@@ -47,9 +51,10 @@ if (program.stable) {
 	process.env.VSCODE_STABLE_PATH = program.stable;
 }
 process.env.SMOKETEST_REPO = testRepoLocalDir;
-if (program.stable && program.stable.toLowerCase().startsWith('insiders')) {
+if (program.latest && (program.latest.indexOf('Code - Insiders') /* macOS/Windows */ || program.latest.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
 }
+process.env.VSCODE_WORKSPACE_PATH = codeWorkspacePath;
 
 // Setting up 'vscode-smoketest-express' project
 let os = process.platform.toString();
@@ -60,21 +65,37 @@ else if (os === 'win32') {
 	os = 'win';
 }
 
-var promises: Promise<any>[] = [];
+main().catch(err => console.error(err));
 
-promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
-promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
+async function main(): Promise<void> {
+	await getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, path.join(testDataPath, 'keybindings.json'));
 
-Promise.all(promises)
-	.then(() => execute('npm install', testRepoLocalDir))
-	.then(() => runTests())
-	.catch(reason => {
-		throw new Error('Error caught running the smoke test: ' + reason);
-	});
+	const workspace = {
+		id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
+		folders: [
+			toUri(path.join(testRepoLocalDir, 'public')),
+			toUri(path.join(testRepoLocalDir, 'routes')),
+			toUri(path.join(testRepoLocalDir, 'views'))
+		]
+	};
+
+	await createWorkspaceFile(codeWorkspacePath, workspace);
+	await cleanOrClone(testRepoUrl, testRepoLocalDir);
+	await execute('npm install', testRepoLocalDir);
+	await runTests();
+}
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
+}
+
+function toUri(path: string): string {
+	if (os === 'win') {
+		return `file:///${path.replace(/\\/g, '/')}`;
+	}
+
+	return `file://${path}`;
 }
 
 function runTests(): void {
@@ -87,7 +108,7 @@ function runTests(): void {
 	});
 	proc.stderr.on('data', data => {
 		var date = new Date().toLocaleString();
-		fs.appendFile(`${tempFolder}/errors.log`, `${date}: ${data.toString()}`, (err) => {
+		fs.appendFile(path.join(testDataPath, 'errors.log'), `${date}: ${data.toString()}`, (err) => {
 			if (err) {
 				throw new Error(`Could not write stderr to errors.log with the following error: ${err}`);
 			};
@@ -98,24 +119,16 @@ function runTests(): void {
 	});
 }
 
-function cleanOrClone(repo: string, dir: string): Promise<any> {
+async function cleanOrClone(repo: string, dir: string): Promise<any> {
 	console.log('Cleaning or cloning test project repository...');
 
-	return new Promise(async (res, rej) => {
-		if (!folderExists(dir)) {
-			await gitClone(repo, dir);
-			res();
-		} else {
-			git.cwd(dir);
-			git.fetch(async err => {
-				if (err) {
-					rej(err);
-				}
-				await gitResetAndClean();
-				res();
-			});
-		}
-	});
+	if (!folderExists(dir)) {
+		await gitClone(repo, dir);
+	} else {
+		git.cwd(dir);
+		await new Promise((c, e) => git.fetch(err => err ? e(err) : c()));
+		await gitResetAndClean();
+	}
 }
 
 function gitClone(repo: string, dir: string): Promise<any> {
@@ -127,22 +140,10 @@ function gitClone(repo: string, dir: string): Promise<any> {
 	});
 }
 
-function gitResetAndClean(): Promise<any> {
-	return new Promise((res, rej) => {
-		git.reset(['FETCH_HEAD', '--hard'], err => {
-			if (err) {
-				rej(err);
-			}
-
-			git.clean('f', ['-d'], err => {
-				if (err) {
-					rej(err);
-				}
-				console.log('Test project was successfully reset to initial state.');
-				res();
-			});
-		});
-	});
+async function gitResetAndClean(): Promise<any> {
+	await new Promise((c, e) => git.reset(['FETCH_HEAD', '--hard'], err => err ? e(err) : c()));
+	await new Promise((c, e) => git.clean('f', ['-d'], err => err ? e(err) : c()));
+	console.log('Test project was successfully reset to initial state.');
 }
 
 function execute(cmd: string, dir: string): Promise<any> {
@@ -179,6 +180,25 @@ function getKeybindings(url: string, location: string): Promise<any> {
 			});
 		}).on('error', (e) => {
 			reject(`Failed to obtain key bindings with an error: ${e}`);
+		});
+	});
+}
+
+function createWorkspaceFile(path: string, workspace: any): Promise<any> {
+	console.log(`Creating workspace file at ${path}...`);
+	return new Promise((resolve, reject) => {
+		fs.exists(path, exists => {
+			if (exists) {
+				return resolve();
+			}
+
+			fs.writeFile(path, JSON.stringify(workspace, null, '\t'), error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
 		});
 	});
 }

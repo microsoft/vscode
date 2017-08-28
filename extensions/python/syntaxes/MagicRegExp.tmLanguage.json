@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/df5bb18c64252f2e7b1aa87e2ed124666d314f1d",
+	"version": "https://github.com/MagicStack/MagicPython/commit/361a4964a559481330764a447e7bab88d4f1b01b",
 	"name": "MagicRegExp",
 	"scopeName": "source.regexp.python",
 	"fileTypes": [
@@ -40,6 +40,29 @@
 				},
 				{
 					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"fstring-formatting-braces": {
+			"patterns": [
+				{
+					"comment": "empty braces are illegal",
+					"match": "({)(\\s*?)(})",
+					"captures": {
+						"1": {
+							"name": "constant.character.format.placeholder.other.python"
+						},
+						"2": {
+							"name": "invalid.illegal.brace.python"
+						},
+						"3": {
+							"name": "constant.character.format.placeholder.other.python"
+						}
+					}
+				},
+				{
+					"name": "constant.character.escape.python",
+					"match": "({{|}})"
 				}
 			]
 		},
@@ -164,6 +187,14 @@
 					"include": "#regexp-escape-catchall"
 				}
 			]
+		},
+		"codetags": {
+			"match": "(?:\\b(NOTE|XXX|HACK|FIXME|BUG|TODO)\\b)",
+			"captures": {
+				"1": {
+					"name": "keyword.codetag.notation.python"
+				}
+			}
 		},
 		"regexp-expression": {
 			"patterns": [

@@ -4,10 +4,10 @@
 . ./build/tfs/common/common.sh
 
 step "Build Debian package" \
-	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
+	npm run gulp -- "vscode-linux-$ARCH-build-deb"
 
 step "Build RPM package" \
-	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
+	npm run gulp -- "vscode-linux-$ARCH-build-rpm"
 
 (cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
 	step "Install build dependencies" \

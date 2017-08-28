@@ -38,5 +38,11 @@
 	"openEditorsVisible": "在“打开的编辑器”窗格中显示的编辑器数量。将其设置为 0 可隐藏窗格。",
 	"dynamicHeight": "控制打开的编辑器部分的高度是否应动态适应元素数量。",
 	"autoReveal": "控制资源管理器是否应在打开文件时自动显示并选择它们。",
-	"enableDragAndDrop": "控制资源管理器是否应该允许通过拖放移动文件和文件夹。"
+	"enableDragAndDrop": "控制资源管理器是否应该允许通过拖放移动文件和文件夹。",
+	"sortOrder.default": "按名称的字母顺序排列文件和目录。目录显示在文件前。",
+	"sortOrder.mixed": "按名称的字母顺序排列文件和目录。两者穿插显示。",
+	"sortOrder.filesFirst": "按名称的字母顺序排列文件和目录。文件显示在目录前。",
+	"sortOrder.type": "按扩展名的字母顺序排列文件和目录。目录显示在文件前。",
+	"sortOrder.modified": "按最后修改日期降序排列文件和目录。目录显示在文件前。",
+	"sortOrder": "控制文件和目录在资源管理器中的排列方式。"
 }

@@ -8,9 +8,9 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
@@ -33,7 +33,7 @@ export class ExtHostSCMInputBox {
 	}
 
 	set value(value: string) {
-		this._proxy.$setInputBoxValue(value);
+		this._proxy.$setInputBoxValue(this._sourceControlHandle, value);
 		this.updateValue(value);
 	}
 
@@ -43,22 +43,12 @@ export class ExtHostSCMInputBox {
 		return this._onDidChange.event;
 	}
 
-	private _onDidAccept = new Emitter<string>();
-
-	get onDidAccept(): Event<string> {
-		return this._onDidAccept.event;
-	}
-
-	constructor(private _proxy: MainThreadSCMShape) {
+	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
 
 	$onInputBoxValueChange(value: string): void {
 		this.updateValue(value);
-	}
-
-	$onInputBoxAcceptChanges(): void {
-		this._onDidAccept.fire(this._value);
 	}
 
 	private updateValue(value: string): void {
@@ -71,7 +61,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private static _handlePool: number = 0;
 	private _resourceHandlePool: number = 0;
-	private _resourceStates: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+	private _resourceStates: vscode.SourceControlResourceState[] = [];
+	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 
 	get id(): string {
 		return this._id;
@@ -97,12 +88,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { hideWhenEmpty });
 	}
 
+	get resourceStates(): vscode.SourceControlResourceState[] {
+		return [...this._resourceStates];
+	}
+
 	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourceStates.clear();
+		this._resourceStatesMap.clear();
+		this._resourceStates = [...resources];
 
 		const rawResources = resources.map(r => {
 			const handle = this._resourceHandlePool++;
-			this._resourceStates.set(handle, r);
+			this._resourceStatesMap.set(handle, r);
 
 			const sourceUri = r.resourceUri.toString();
 			const command = this._commands.toInternal(r.command);
@@ -119,10 +115,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				icons.push(darkIconPath);
 			}
 
+			const tooltip = (r.decorations && r.decorations.tooltip) || '';
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
+			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
@@ -144,7 +141,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
-		return this._resourceStates.get(handle);
+		return this._resourceStatesMap.get(handle);
 	}
 
 	dispose(): void {
@@ -164,6 +161,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	get label(): string {
 		return this._label;
 	}
+
+	private _inputBox: ExtHostSCMInputBox;
+	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
 	private _count: number | undefined = undefined;
 
@@ -232,6 +232,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _id: string,
 		private _label: string,
 	) {
+		this._inputBox = new ExtHostSCMInputBox(this._proxy, this._handle);
 		this._proxy.$registerSourceControl(this._handle, _id, _label);
 	}
 
@@ -260,22 +261,16 @@ export class ExtHostSCM {
 
 	private _proxy: MainThreadSCMShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
+	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
 
-	private _activeProvider: vscode.SourceControl | undefined;
-	get activeProvider(): vscode.SourceControl | undefined { return this._activeProvider; }
-
-	private _inputBox: ExtHostSCMInputBox;
-	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
-
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		private _commands: ExtHostCommands
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadSCM);
-		this._inputBox = new ExtHostSCMInputBox(this._proxy);
+		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -301,6 +296,14 @@ export class ExtHostSCM {
 					}
 
 					return sourceControl.getResourceGroup(arg.groupHandle);
+				} else if (arg && arg.$mid === 5) {
+					const sourceControl = this._sourceControls.get(arg.handle);
+
+					if (!sourceControl) {
+						return arg;
+					}
+
+					return sourceControl;
 				}
 
 				return arg;
@@ -308,12 +311,25 @@ export class ExtHostSCM {
 		});
 	}
 
-	createSourceControl(id: string, label: string): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands.converter, id, label);
 		this._sourceControls.set(handle, sourceControl);
 
+		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
+		sourceControls.push(sourceControl);
+		this._sourceControlsByExtension.set(extension.id, sourceControls);
+
 		return sourceControl;
+	}
+
+	// Deprecated
+	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
+		const sourceControls = this._sourceControlsByExtension.get(extension.id);
+		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
+		const inputBox = sourceControl && sourceControl.inputBox;
+
+		return inputBox;
 	}
 
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
@@ -329,18 +345,14 @@ export class ExtHostSCM {
 		});
 	}
 
-	$onActiveSourceControlChange(handle: number): TPromise<void> {
-		this._activeProvider = this._sourceControls.get(handle);
-		return TPromise.as(null);
-	}
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
-	$onInputBoxValueChange(value: string): TPromise<void> {
-		this._inputBox.$onInputBoxValueChange(value);
-		return TPromise.as(null);
-	}
+		if (!sourceControl || !sourceControl.quickDiffProvider) {
+			return TPromise.as(null);
+		}
 
-	$onInputBoxAcceptChanges(): TPromise<void> {
-		this._inputBox.$onInputBoxAcceptChanges();
+		sourceControl.inputBox.$onInputBoxValueChange(value);
 		return TPromise.as(null);
 	}
 }

@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "Yürürlüğe girmesi için yeniden başlatma gerektiren bir ayar değişti.",
 	"relaunchSettingDetail": "{0} uygulamasını yeniden başlatmak ve bu ayarı etkinleştirmek için lütfen yeniden başlat butonuna basın.",
 	"restart": "Yeniden Başlat",
+	"relaunchWorkspaceMessage": "Bu çalışma alanı değişikliği eklenti sistemimizi yeniden başlatmayı gerektirir.",
 	"reload": "Yeniden Yükle"
 }

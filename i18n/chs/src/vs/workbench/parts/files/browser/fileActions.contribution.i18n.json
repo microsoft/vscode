@@ -6,6 +6,6 @@
 {
 	"filesCategory": "文件",
 	"revealInSideBar": "在侧边栏中显示",
-	"acceptLocalChanges": "使用本地更改并覆盖磁盘内容",
-	"revertLocalChanges": "放弃本地更改，还原为磁盘上的内容"
+	"acceptLocalChanges": "使用你的更改并覆盖磁盘上的内容。",
+	"revertLocalChanges": "放弃你的更改并还原为磁盘上的内容"
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -197,6 +197,8 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('$123', '', Placeholder);
 		assertTextAndMarker('$farboo', '', Variable);
 		assertTextAndMarker('$far12boo', '', Variable);
+		assertTextAndMarker('000_${far}_000', '000__000', Text, Variable, Text);
+		assertTextAndMarker('FFF_${TM_SELECTED_TEXT}_FFF$0', 'FFF__FFF', Text, Variable, Text, Placeholder);
 	});
 
 	test('Parser, variables/placeholder with defaults', () => {
@@ -207,6 +209,96 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${name:value', '${name:value', Text);
 		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
+
+	test('Parser, placeholder with choice', () => {
+
+		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one|}', 'one', Placeholder);
+		assertTextAndMarker('${1|one1,two2|}', 'one1', Placeholder);
+		assertTextAndMarker('${1|one1\\,two2|}', 'one1,two2', Placeholder);
+		assertTextAndMarker('${1|one1\\|two2|}', 'one1|two2', Placeholder);
+		assertTextAndMarker('${1|one1\\atwo2|}', 'one1\\atwo2', Placeholder);
+		assertTextAndMarker('${1|one,two,three,|}', '${1|one,two,three,|}', Text);
+		assertTextAndMarker('${1|one,', '${1|one,', Text);
+
+		const p = new SnippetParser();
+		const snippet = p.parse('${1|one,two,three|}');
+		assertMarker(snippet, Placeholder);
+		const expected = [Placeholder, Text, Text, Text];
+		snippet.walk(marker => {
+			assert.equal(marker, expected.shift());
+			return true;
+		});
+	});
+
+	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
+		assertTextAndMarker('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(not, not);', Text, Placeholder, Text);
+	});
+
+	test('Marker, toTextmateString()', function () {
+
+		function assertTextsnippetString(input: string, expected: string): void {
+			const snippet = new SnippetParser().parse(input);
+			const actual = snippet.toTextmateString();
+			assert.equal(actual, expected);
+		}
+
+		assertTextsnippetString('$1', '$1');
+		assertTextsnippetString('\\$1', '\\$1');
+		assertTextsnippetString('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(${1|not\\, not, five, 5, 1   23|});');
+		assertTextsnippetString('console.log(${1|not\\, not, \\| five, 5, 1   23|});', 'console.log(${1|not\\, not, \\| five, 5, 1   23|});');
+		assertTextsnippetString('this is text', 'this is text');
+		assertTextsnippetString('this ${1:is ${2:nested with $var}}', 'this ${1:is ${2:nested with ${var}}}');
+		assertTextsnippetString('this ${1:is ${2:nested with $var}}}', 'this ${1:is ${2:nested with ${var}}}\\}');
+	});
+
+	test('Marker, toTextmateString() <-> identity', function () {
+
+		function assertIdent(input: string): void {
+			// full loop: (1) parse input, (2) generate textmate string, (3) parse, (4) ensure both trees are equal
+			const snippet = new SnippetParser().parse(input);
+			const input2 = snippet.toTextmateString();
+			const snippet2 = new SnippetParser().parse(input2);
+
+			function checkCheckChildren(marker1: Marker, marker2: Marker) {
+				assert.ok(marker1 instanceof Object.getPrototypeOf(marker2).constructor);
+				assert.ok(marker2 instanceof Object.getPrototypeOf(marker1).constructor);
+
+				assert.equal(marker1.children.length, marker2.children.length);
+				assert.equal(marker1.toString(), marker2.toString());
+
+				for (let i = 0; i < marker1.children.length; i++) {
+					checkCheckChildren(marker1.children[i], marker2.children[i]);
+				}
+			}
+
+			checkCheckChildren(snippet, snippet2);
+		}
+
+		assertIdent('$1');
+		assertIdent('\\$1');
+		assertIdent('console.log(${1|not\\, not, five, 5, 1   23|});');
+		assertIdent('console.log(${1|not\\, not, \\| five, 5, 1   23|});');
+		assertIdent('this is text');
+		assertIdent('this ${1:is ${2:nested with $var}}');
+		assertIdent('this ${1:is ${2:nested with $var}}}');
+		assertIdent('this ${1:is ${2:nested with $var}} and repeating $1');
+	});
+
+	test('Parser, choise marker', () => {
+		const { placeholders } = new SnippetParser().parse('${1|one,two,three|}');
+
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+		assert.ok(placeholders[0].children[0] instanceof Choice);
+		assert.equal((<Choice>placeholders[0].children[0]).options.length, 3);
+
+		assertText('${1|one,two,three|}', 'one');
+		assertText('\\${1|one,two,three|}', '${1|one,two,three|}');
+		assertText('${1\\|one,two,three|}', '${1\\|one,two,three|}');
+		assertText('${1||}', '${1||}');
+	});
+
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
@@ -279,6 +371,10 @@ suite('SnippetParser', () => {
 
 		actual = new SnippetParser().text('${1:foo:bar}');
 		assert.equal(actual, 'foo:bar');
+	});
+
+	test('incomplete placeholder', () => {
+		assertTextAndMarker('${1:}', '', Placeholder);
 	});
 
 	test('marker#len', () => {
@@ -376,7 +472,7 @@ suite('SnippetParser', () => {
 		let nested = new SnippetParser().parse('ddd$1eee$0', true);
 		snippet.replace(second, nested.children);
 
-		assert.equal(snippet.text, 'aaabbbdddeee');
+		assert.equal(snippet.toString(), 'aaabbbdddeee');
 		assert.equal(snippet.placeholders.length, 4);
 		assert.equal(snippet.placeholders[0].index, '1');
 		assert.equal(snippet.placeholders[1].index, '1');
@@ -399,7 +495,7 @@ suite('SnippetParser', () => {
 		let nested = new SnippetParser().parse('dddeee$0', true);
 		snippet.replace(second, nested.children);
 
-		assert.equal(snippet.text, 'aaabbbdddeee');
+		assert.equal(snippet.toString(), 'aaabbbdddeee');
 		assert.equal(snippet.placeholders.length, 3);
 	});
 

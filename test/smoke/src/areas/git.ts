@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../spectron/application';
-import { CommonActions } from "./common";
+import { CommonActions } from './common';
 
 var htmlparser = require('htmlparser2');
 
@@ -131,36 +131,37 @@ export class Git {
 	}
 
 	private getFirstChangeIndex(changeClass: string, selector: string): Promise<number> {
-		return new Promise(async (res, rej) => {
-			const html = await this.spectron.waitFor(this.spectron.client.getHTML, selector);
-			let lineIndex: number = 0;
-			let changeFound: boolean;
-			let tags: string[] = [];
-			let parser = new htmlparser.Parser({
-				onopentag: function (name: string, attribs: any) {
-					tags.push(name);
-					if (name === 'div' && !attribs.class) {
-						lineIndex++;
-					} else if (name === 'div' && attribs.class === changeClass) {
-						changeFound = true;
-						parser.end();
+		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+			return new Promise<number>((res, rej) => {
+				let lineIndex: number = 0;
+				let changeFound: boolean;
+				let tags: string[] = [];
+				let parser = new htmlparser.Parser({
+					onopentag: function (name: string, attribs: any) {
+						tags.push(name);
+						if (name === 'div' && !attribs.class) {
+							lineIndex++;
+						} else if (name === 'div' && attribs.class === changeClass) {
+							changeFound = true;
+							parser.end();
+						}
+					},
+					onclosetag: function (name) {
+						// Terminate once last tag is closed
+						tags.pop();
+						if (!changeFound && tags.length === 0) {
+							parser.end();
+						}
+					},
+					onend: function () {
+						if (!changeFound) {
+							return rej(`No changes in the diff found.`);
+						}
+						return res(lineIndex);
 					}
-				},
-				onclosetag: function (name) {
-					// Terminate once last tag is closed
-					tags.pop();
-					if (!changeFound && tags.length === 0) {
-						parser.end();
-					}
-				},
-				onend: function () {
-					if (!changeFound) {
-						return rej(`No changes in the diff found.`);
-					}
-					return res(lineIndex);
-				}
+				});
+				parser.write(html);
 			});
-			parser.write(html);
 		});
 	}
 }

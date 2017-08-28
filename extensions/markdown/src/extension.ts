@@ -16,7 +16,7 @@ import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
-import { Logger } from "./logger";
+import { Logger } from './logger';
 
 interface IPackageInfo {
 	name: string;
@@ -98,8 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new DocumentLinkProvider()));
 
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', showPreview));
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(uri, true)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', (uri) => showPreview(cspArbiter, uri, false)));
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
@@ -136,10 +136,10 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args: OpenDocumentLinkArgs) => {
-		const tryRevealLine = (editor: vscode.TextEditor) => {
+		const tryRevealLine = async (editor: vscode.TextEditor) => {
 			if (editor && args.fragment) {
 				const toc = new TableOfContentsProvider(engine, editor.document);
-				const line = toc.lookup(args.fragment);
+				const line = await toc.lookup(args.fragment);
 				if (!isNaN(line)) {
 					return editor.revealRange(
 						new vscode.Range(line, 0, line, 0),
@@ -151,7 +151,7 @@ export function activate(context: vscode.ExtensionContext) {
 			return tryRevealLine(vscode.window.activeTextEditor);
 		} else {
 			const resource = vscode.Uri.file(args.path);
-			vscode.workspace.openTextDocument(resource)
+			return vscode.workspace.openTextDocument(resource)
 				.then(vscode.window.showTextDocument)
 				.then(tryRevealLine, _ => vscode.commands.executeCommand('vscode.open', resource));
 		}
@@ -164,6 +164,22 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
 				previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
+			}
+		}
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('markdown.refreshPreview', (resource: string | undefined) => {
+		if (resource) {
+			const source = vscode.Uri.parse(resource);
+			contentProvider.update(source);
+		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+		} else if (!vscode.window.activeTextEditor) {
+			// update all generated md documents
+			for (const document of vscode.workspace.textDocuments) {
+				if (document.uri.scheme === 'markdown') {
+					contentProvider.update(document.uri);
+				}
 			}
 		}
 	}));
@@ -206,7 +222,7 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 
-function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
+function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vscode.Uri, sideBySide: boolean = false) {
 	let resource = uri;
 	if (!(resource instanceof vscode.Uri)) {
 		if (vscode.window.activeTextEditor) {
@@ -228,7 +244,10 @@ function showPreview(uri?: vscode.Uri, sideBySide: boolean = false) {
 		getMarkdownUri(resource),
 		getViewColumn(sideBySide),
 		`Preview '${path.basename(resource.fsPath)}'`,
-		{ allowScripts: true, allowSvgs: true });
+		{
+			allowScripts: true,
+			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
+		});
 
 	if (telemetryReporter) {
 		telemetryReporter.sendTelemetryEvent('openPreview', {

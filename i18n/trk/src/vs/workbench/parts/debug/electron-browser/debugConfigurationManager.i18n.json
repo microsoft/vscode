@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Bileşiğin adı. Başlatma yapılandırması açılır kutu menüsünde görünür.",
 	"app.launch.json.compounds.configurations": "Bu bileşiğin parçası olarak başlatılacak yapılandırmaların adları.",
 	"debugNoType": "Hata ayıklama bağdaştırıcısının 'type' ögesi atlanabilir veya 'dize' türünde olmalıdır.",
-	"DebugConfig.failed": " '.vscode' klasörü içinde 'launch.json' dosyası oluşturulamıyor ({0}).",
-	"selectDebug": "Ortam Seçin"
+	"selectDebug": "Ortam Seçin",
+	"DebugConfig.failed": " '.vscode' klasörü içinde 'launch.json' dosyası oluşturulamıyor ({0})."
 }

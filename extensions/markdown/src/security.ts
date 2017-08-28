@@ -22,6 +22,8 @@ export interface ContentSecurityPolicyArbiter {
 	getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel;
 
 	setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void>;
+
+	shouldAllowSvgsForResource(resource: vscode.Uri): void;
 }
 
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
@@ -50,6 +52,11 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 		return this.globalState.update(this.security_level_key + this.getRoot(resource), level);
 	}
 
+	public shouldAllowSvgsForResource(resource: vscode.Uri) {
+		const securityLevel = this.getSecurityLevelForResource(resource);
+		return securityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent || securityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
+	}
+
 	private getRoot(resource: vscode.Uri): vscode.Uri {
 		if (vscode.workspace.workspaceFolders) {
 			const folderForResource = vscode.workspace.getWorkspaceFolder(resource);
@@ -66,11 +73,6 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 	}
 }
 
-
-interface PreviewSecurityPickItem extends vscode.QuickPickItem {
-	level: MarkdownPreviewSecurityLevel;
-}
-
 export class PreviewSecuritySelector {
 
 	public constructor(
@@ -79,37 +81,34 @@ export class PreviewSecuritySelector {
 	) { }
 
 	public async showSecutitySelectorForResource(resource: vscode.Uri): Promise<void> {
+		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
+			type: 'moreinfo' | MarkdownPreviewSecurityLevel;
+		}
+
+		function markActiveWhen(when: boolean): string {
+			return when ? '• ' : '';
+		}
+
 		const currentSecurityLevel = this.cspArbiter.getSecurityLevelForResource(resource);
 		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
 			[
 				{
-					level: MarkdownPreviewSecurityLevel.Strict,
-					label: localize(
-						'preview.showPreviewSecuritySelector.strictTitle',
-						'Strict. Only load secure content.'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
+					type: MarkdownPreviewSecurityLevel.Strict,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.Strict) + localize('strict.title', 'Strict'),
+					description: localize('strict.description', 'Only load secure content'),
 				}, {
-					level: MarkdownPreviewSecurityLevel.AllowInsecureContent,
-					label: localize(
-						'preview.showPreviewSecuritySelector.insecureContentTitle',
-						'Allow loading content over http.'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
+					type: MarkdownPreviewSecurityLevel.AllowInsecureContent,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowInsecureContent) + localize('insecureContent.title', 'Allow insecure content'),
+					description: localize('insecureContent.description', 'Enable loading content over http'),
 				}, {
-					level: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
-					label: localize(
-						'preview.showPreviewSecuritySelector.scriptsAndAllContent',
-						'Allow all content and script execution. Not recommend.'),
-					description: '',
-					detail: currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
-				},
+					type: MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent,
+					label: markActiveWhen(currentSecurityLevel === MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent) + localize('disable.title', 'Disable'),
+					description: localize('disable.description', 'Allow all content and script execution. Not recommended'),
+				}, {
+					type: 'moreinfo',
+					label: localize('moreInfo.title', 'More Information'),
+					description: ''
+				}
 			], {
 				placeHolder: localize(
 					'preview.showPreviewSecuritySelector.title',
@@ -120,9 +119,22 @@ export class PreviewSecuritySelector {
 			return;
 		}
 
-		await this.cspArbiter.setSecurityLevelForResource(resource, selection.level);
+		if (selection.type === 'moreinfo') {
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=854414'));
+			return;
+		}
+
+		await this.cspArbiter.setSecurityLevelForResource(resource, selection.type);
 
 		const sourceUri = getMarkdownUri(resource);
+
+		await vscode.commands.executeCommand('_workbench.htmlPreview.updateOptions',
+			sourceUri,
+			{
+				allowScripts: true,
+				allowSvgs: this.cspArbiter.shouldAllowSvgsForResource(resource)
+			});
+
 		this.contentProvider.update(sourceUri);
 	}
 }

@@ -83,7 +83,7 @@ export class Lock {
 		if (lock) {
 			var unbindListener: IDisposable;
 
-			return new WinJS.Promise((c, e) => {
+			return new WinJS.TPromise((c, e) => {
 				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
@@ -92,7 +92,7 @@ export class Lock {
 
 		var result: WinJS.Promise;
 
-		return new WinJS.Promise((c, e) => {
+		return new WinJS.TPromise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));
@@ -894,8 +894,8 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
-	public toggleExpansion(element: any): WinJS.Promise {
-		return this.isExpanded(element) ? this.collapse(element) : this.expand(element);
+	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
 	public toggleExpansionAll(elements: any[]): WinJS.Promise {

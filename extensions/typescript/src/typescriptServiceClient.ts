@@ -21,12 +21,12 @@ import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
-import API from "./utils/api";
+import API from './utils/api';
 
 import * as nls from 'vscode-nls';
-import { TypeScriptServiceConfiguration, TsServerLogLevel } from "./utils/configuration";
-import { TypeScriptVersionProvider } from "./utils/versionProvider";
-import { TypeScriptVersionPicker } from "./utils/versionPicker";
+import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
+import { TypeScriptVersionProvider } from './utils/versionProvider';
+import { TypeScriptVersionPicker } from './utils/versionPicker';
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -159,7 +159,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		private readonly host: ITypescriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
-		private readonly plugins: TypeScriptServerPlugin[]
+		public readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -180,10 +180,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.versionProvider = new TypeScriptVersionProvider(this.configuration);
 		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
 
-		this._apiVersion = new API('1.0.0');
+		this._apiVersion = API.defaultVersion;
 		this.tracer = new Tracer(this.logger);
 
-		this.disposables.push(workspace.onDidChangeConfiguration(() => {
+		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this.configuration;
 			this.configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
@@ -199,7 +199,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.restartTsServer();
 				}
 			}
-		}));
+		}, this, this.disposables);
 		this.telemetryReporter = new TelemetryReporter();
 		this.disposables.push(this.telemetryReporter);
 		this.startService();
@@ -303,14 +303,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			this.info(`Using tsserver from: ${currentVersion.path}`);
-			if (!fs.existsSync(currentVersion.path)) {
-				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path ? path.dirname(currentVersion.path) : ''));
+			if (!fs.existsSync(currentVersion.tsServerPath)) {
+				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
 
 				this.versionPicker.useBundledVersion();
 				currentVersion = this.versionPicker.currentVersion;
 			}
 
-			this._apiVersion = this.versionPicker.currentVersion.version;
+			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
 
 			const label = this._apiVersion.versionString;
 			const tooltip = currentVersion.path;
@@ -331,8 +331,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 				const args: string[] = [];
 				if (this.apiVersion.has206Features()) {
-					args.push('--useSingleInferredProject');
-					if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
+					if (this.apiVersion.has250Features()) {
+						args.push('--useInferredProjectPerProjectRoot');
+					} else {
+						args.push('--useSingleInferredProject');
+					}
+
+					if (this.configuration.disableAutomaticTypeAcquisition) {
 						args.push('--disableAutomaticTypingAcquisition');
 					}
 				}
@@ -376,7 +381,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 
-				electron.fork(currentVersion.path, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
+				electron.fork(currentVersion.tsServerPath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 					if (err) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
@@ -501,12 +506,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
-			module: 'CommonJS',
-			target: 'ES6',
+			module: 'CommonJS' as Proto.ModuleKind,
+			target: 'ES6' as Proto.ScriptTarget,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
 			allowJs: true,
-			jsx: 'Preserve'
+			jsx: 'Preserve' as Proto.JsxEmit
 		};
 
 		if (this.apiVersion.has230Features()) {
@@ -599,10 +604,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private get mainWorkspaceRootPath(): string | undefined {
-		if (workspace.rootPath) {
-			return workspace.rootPath;
-		}
-
 		if (workspace.workspaceFolders && workspace.workspaceFolders.length) {
 			return workspace.workspaceFolders[0].uri.fsPath;
 		}
@@ -618,7 +619,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
 			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.uri.fsPath)) {
+				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 					return root.uri.fsPath;
 				}
 			}

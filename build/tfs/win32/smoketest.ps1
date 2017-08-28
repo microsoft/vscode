@@ -34,7 +34,7 @@ step "Install distro dependencies" {
 }
 
 step "Build minified" {
-	exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
+	exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }
 
 step "Run smoke test" {

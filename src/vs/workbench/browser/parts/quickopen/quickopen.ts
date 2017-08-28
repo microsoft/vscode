@@ -12,7 +12,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from "vs/platform/instantiation/common/instantiation";
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const inQuickOpenContext = ContextKeyExpr.has('inQuickOpen');
 export const defaultQuickOpenContextKey = 'inFilesPicker';

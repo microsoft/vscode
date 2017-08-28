@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.15.0",
-  "electronVersion": "1.6.6",
-  "distro": "4bec0ed99ee450bfbefa4baf2433c6a032e88bd4",
+  "version": "1.16.0",
+  "electronVersion": "1.7.3",
+  "distro": "35d378d476d512db1fb93969c69b0dc8f88df8cc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,6 @@
   "dependencies": {
     "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
-    "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
@@ -33,18 +32,20 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
+    "keytar": "^4.0.3",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.4",
-    "node-pty": "0.6.9",
+    "native-keymap": "1.2.5",
+    "native-watchdog": "0.3.0",
+    "node-pty": "0.7.0",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.21.0",
-    "vscode-ripgrep": "joaomoreno/vscode-ripgrep#64a2f0530fd9099de2cb1026a61e0a31b05e983d",
+    "vscode-debugprotocol": "1.22.0",
+    "vscode-ripgrep": "0.0.25",
     "vscode-textmate": "^3.1.5",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.15",
-    "yauzl": "2.3.1"
+    "xterm": "Tyriar/xterm.js#vscode-release/1.16",
+    "yauzl": "2.8.0"
   },
   "devDependencies": {
     "7zip": "0.0.6",
@@ -60,7 +61,7 @@
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
-    "electron-mksnapshot": "1.6.0",
+    "electron-mksnapshot": "~1.7.0",
     "eslint": "^3.4.0",
     "event-stream": "^3.1.7",
     "express": "^4.13.1",
@@ -125,7 +126,7 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "keytar": "^4.0.3",
+    "windows-process-tree": "0.1.3",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
     "fsevents": "0.3.8"
