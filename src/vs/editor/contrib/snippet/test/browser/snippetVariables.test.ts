@@ -135,4 +135,13 @@ suite('Snippet Variables Resolver', function () {
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
+
+	test('Variable Snippet Transform', function () {
+
+		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
+		// assert.equal(snippet.toString(), 'name=text.txt');
+		snippet.resolveVariables(resolver);
+
+		assert.equal(snippet.toString(), 'name=text');
+	});
 });

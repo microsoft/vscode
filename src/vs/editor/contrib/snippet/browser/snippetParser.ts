@@ -186,6 +186,11 @@ export abstract class Marker {
 }
 
 export class Text extends Marker {
+
+	static escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
 	constructor(public value: string) {
 		super();
 	}
@@ -193,7 +198,7 @@ export class Text extends Marker {
 		return this.value;
 	}
 	toTextmateString(): string {
-		return this.value.replace(/\$|}|\\/g, '\\$&');
+		return Text.escape(this.value);
 	}
 	len(): number {
 		return this.value.length;
@@ -287,19 +292,17 @@ export class Choice extends Marker {
 
 export class Transform extends Marker {
 
-	regexp: Text;
-	format: Text;
-	options: Text;
+	regexp: RegExp;
+	format: string;
 
 	toTextmateString(): string {
-		return `/${this.regexp.toTextmateString()}/${this.format.toTextmateString()}/${this.options.toTextmateString()}`;
+		return `/${Text.escape(this.regexp.source)}/${Text.escape(this.format)}/${this.regexp.ignoreCase ? 'i' : ''}`;
 	}
 
 	clone(): Transform {
 		let ret = new Transform();
-		ret.regexp = this.regexp.clone();
-		ret.format = this.format.clone();
-		ret.options = this.options.clone();
+		ret.regexp = new RegExp(this.regexp.source, this.regexp.ignoreCase ? 'i' : '');
+		ret.format = this.format;
 		return ret;
 	}
 
@@ -312,7 +315,11 @@ export class Variable extends Marker {
 	}
 
 	resolve(resolver: VariableResolver): boolean {
-		const value = resolver.resolve(this);
+		let value = resolver.resolve(this);
+		let [firstChild] = this._children;
+		if (firstChild instanceof Transform && this._children.length === 1) {
+			value = (value || '').replace(firstChild.regexp, firstChild.format);
+		}
 		if (value !== undefined) {
 			this._children = [new Text(value)];
 			return true;
@@ -745,9 +752,15 @@ export class SnippetParser {
 		}
 
 		if (this._accept(TokenType.CurlyClose) && parts.length === 3) {
-			marker.regexp = new Text(parts[0]);
-			marker.format = new Text(parts[1]);
-			marker.options = new Text(parts[2]);
+
+			try {
+				marker.regexp = new RegExp(parts[2], parts[0]);
+			} catch (e) {
+				// invalid regexp
+				return false;
+			}
+
+			marker.format = parts[1];
 			parent.appendChild(marker);
 			return true;
 		}

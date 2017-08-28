@@ -211,8 +211,16 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, variable transforms', function () {
-		assertTextAndMarker('${foo/regex/format/options}', '', Variable);
 		assertTextAndMarker('${foo///}', '', Variable);
+		assertTextAndMarker('${foo/regex/format/gmi}', '', Variable);
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/}', '', Variable);
+
+		// invalid regex
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/GMI}', '${foo/([A-Z][a-z])/format/GMI}', Text);
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/funky}', '${foo/([A-Z][a-z])/format/funky}', Text);
+		assertTextAndMarker('${foo/([A-Z][a-z]/format/}', '${foo/([A-Z][a-z]/format/}', Text);
+
+		// incomplete
 		assertTextAndMarker('${foo///', '${foo///', Text);
 		assertTextAndMarker('${foo/regex/format/options', '${foo/regex/format/options', Text);
 
