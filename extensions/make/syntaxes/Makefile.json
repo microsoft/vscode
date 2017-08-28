@@ -101,7 +101,7 @@
 					]
 				},
 				{
-					"begin": "^(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
+					"begin": "^\\s*(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.override.makefile"
@@ -116,7 +116,7 @@
 							"name": "punctuation.separator.key-value.makefile"
 						}
 					},
-					"end": "^(endef)\\b",
+					"end": "^\\s*(endef)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -193,7 +193,7 @@
 					]
 				},
 				{
-					"begin": "^(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
+					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -205,7 +205,7 @@
 							"name": "punctuation.separator.key-value.makefile"
 						}
 					},
-					"end": "^(endif)\\b",
+					"end": "^\\s*(endif)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -223,13 +223,13 @@
 					]
 				},
 				{
-					"begin": "^(ifeq|ifneq)(?=\\s)",
+					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
 						}
 					},
-					"end": "^(endif)\\b",
+					"end": "^\\s*(endif)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -246,7 +246,7 @@
 							]
 						},
 						{
-							"begin": "^else(?=\\s)",
+							"begin": "^\\s*else(?=\\s)",
 							"beginCaptures": {
 								"0": {
 									"name": "keyword.control.else.makefile"

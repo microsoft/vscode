@@ -36,6 +36,16 @@ endif
 
 -include $(TOP_DIR)3rdparty.mk
 
+  define spaces_before_define
+    "Dummy"
+  endef
+
+  ifdef spaces_before_define
+    $(info space_before_define is defined)
+  endif
+
 ifeq ($(strip $(call defined,CODIT_DIR)),0)
-  $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+  ifeq (1,1)
+    $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+  endif
 endif
