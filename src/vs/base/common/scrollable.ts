@@ -285,6 +285,9 @@ export class Scrollable extends Disposable {
 
 		// Begin smooth scrolling animation
 		this._smoothScrolling.animationFrameDisposable = this._scheduleAtNextAnimationFrame(() => {
+			if (!this._smoothScrolling) {
+				return;
+			}
 			this._smoothScrolling.animationFrameDisposable = null;
 			this._performSmoothScrolling();
 		});
@@ -304,6 +307,9 @@ export class Scrollable extends Disposable {
 
 		// Continue smooth scrolling animation
 		this._smoothScrolling.animationFrameDisposable = this._scheduleAtNextAnimationFrame(() => {
+			if (!this._smoothScrolling) {
+				return;
+			}
 			this._smoothScrolling.animationFrameDisposable = null;
 			this._performSmoothScrolling();
 		});
