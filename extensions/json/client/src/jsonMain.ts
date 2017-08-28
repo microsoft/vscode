@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, Range, TextDocument, ColorRange, Color } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
@@ -19,10 +19,6 @@ let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
-}
-
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('json/colorSymbols');
 }
 
 export interface ISchemaAssociations {
@@ -83,10 +79,12 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['json'];
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
-		documentSelector: ['json'],
+		documentSelector,
 		synchronize: {
 			// Synchronize the setting section 'json' to the server
 			configurationSection: ['json', 'http'],
@@ -123,7 +121,8 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		context.subscriptions.push(languages.registerColorProvider('json', {
+		// register color provider
+		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
 			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
 				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
 				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
