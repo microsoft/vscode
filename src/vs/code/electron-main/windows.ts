@@ -84,7 +84,7 @@ interface IOpenBrowserWindowOptions {
 	emptyWindowBackupFolder?: string;
 }
 
-interface IWindowToOpen extends IPath {
+interface IPathToOpen extends IPath {
 
 	// the workspace for a Code instance to open
 	workspace?: IWorkspaceIdentifier;
@@ -352,10 +352,10 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-		const windowsToOpen = this.getWindowsToOpen(openConfig);
+		const pathsToOpen = this.getPathsToOpen(openConfig);
 
-		let filesToOpen = windowsToOpen.filter(path => !!path.filePath && !path.createFilePath);
-		let filesToCreate = windowsToOpen.filter(path => !!path.filePath && path.createFilePath);
+		let filesToOpen = pathsToOpen.filter(path => !!path.filePath && !path.createFilePath);
+		let filesToCreate = pathsToOpen.filter(path => !!path.filePath && path.createFilePath);
 		let filesToDiff: IPath[];
 		if (openConfig.diffMode && filesToOpen.length === 2) {
 			filesToDiff = filesToOpen;
@@ -368,12 +368,12 @@ export class WindowsManager implements IWindowsMainService {
 		//
 		// These are windows to open to show workspaces
 		//
-		const workspacesToOpen = arrays.distinct(windowsToOpen.filter(win => !!win.workspace).map(win => win.workspace), workspace => workspace.id); // prevent duplicates
+		const workspacesToOpen = arrays.distinct(pathsToOpen.filter(win => !!win.workspace).map(win => win.workspace), workspace => workspace.id); // prevent duplicates
 
 		//
 		// These are windows to open to show either folders or files (including diffing files or creating them)
 		//
-		const foldersToOpen = arrays.distinct(windowsToOpen.filter(win => win.folderPath && !win.filePath).map(win => win.folderPath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		const foldersToOpen = arrays.distinct(pathsToOpen.filter(win => win.folderPath && !win.filePath).map(win => win.folderPath), folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
@@ -388,14 +388,14 @@ export class WindowsManager implements IWindowsMainService {
 			workspacesToRestore.push(...this.workspacesService.getUntitledWorkspacesSync());	// collect from previous window session
 
 			emptyToRestore = this.backupService.getEmptyWindowBackupPaths();
-			emptyToRestore.push(...windowsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
+			emptyToRestore.push(...pathsToOpen.filter(w => !w.workspace && !w.folderPath && w.backupPath).map(w => path.basename(w.backupPath))); // add empty windows with backupPath
 			emptyToRestore = arrays.distinct(emptyToRestore); // prevent duplicates
 		}
 
 		//
 		// These are empty windows to open
 		//
-		const emptyToOpen = windowsToOpen.filter(win => !win.workspace && !win.folderPath && !win.filePath && !win.backupPath).length;
+		const emptyToOpen = pathsToOpen.filter(win => !win.workspace && !win.folderPath && !win.filePath && !win.backupPath).length;
 
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, workspacesToOpen, workspacesToRestore, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff);
@@ -414,7 +414,7 @@ export class WindowsManager implements IWindowsMainService {
 			const recentlyOpenedWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[] = [];
 			const recentlyOpenedFiles: string[] = [];
 
-			windowsToOpen.forEach(win => {
+			pathsToOpen.forEach(win => {
 				if (win.workspace || win.folderPath) {
 					recentlyOpenedWorkspaces.push(win.workspace || win.folderPath);
 				} else if (win.filePath) {
@@ -644,7 +644,7 @@ export class WindowsManager implements IWindowsMainService {
 		return window;
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWindowToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], windowToUse?: CodeWindow): CodeWindow {
+	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], windowToUse?: CodeWindow): CodeWindow {
 		const browserWindow = this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
@@ -661,8 +661,8 @@ export class WindowsManager implements IWindowsMainService {
 		return browserWindow;
 	}
 
-	private getWindowsToOpen(openConfig: IOpenConfiguration): IWindowToOpen[] {
-		let windowsToOpen: IWindowToOpen[];
+	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
+		let windowsToOpen: IPathToOpen[];
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
@@ -729,7 +729,7 @@ export class WindowsManager implements IWindowsMainService {
 		return [Object.create(null)];
 	}
 
-	private doGetWindowsFromLastSession(): IWindowToOpen[] {
+	private doGetWindowsFromLastSession(): IPathToOpen[] {
 		const restoreWindows = this.getRestoreWindowsSetting();
 		const lastActiveWindow = this.windowsState.lastActiveWindow;
 
@@ -771,7 +771,7 @@ export class WindowsManager implements IWindowsMainService {
 			// folders: restore last opened folders only
 			case 'all':
 			case 'folders':
-				const windowsToOpen: IWindowToOpen[] = [];
+				const windowsToOpen: IPathToOpen[] = [];
 
 				// Workspaces
 				const workspaceCandidates = this.windowsState.openedWindows.filter(w => !!w.workspace).map(w => w.workspace);
@@ -829,7 +829,7 @@ export class WindowsManager implements IWindowsMainService {
 		return restoreWindows;
 	}
 
-	private parsePath(anyPath: string, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IWindowToOpen {
+	private parsePath(anyPath: string, options?: { ignoreFileNotFound?: boolean, gotoLineMode?: boolean, forceOpenWorkspaceAsFile?: boolean; }): IPathToOpen {
 		if (!anyPath) {
 			return null;
 		}
