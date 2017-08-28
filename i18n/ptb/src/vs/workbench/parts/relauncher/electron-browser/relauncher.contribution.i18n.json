@@ -7,7 +7,6 @@
 	"relaunchSettingMessage": "Uma configuração que requer uma reinicialização foi alterada.",
 	"relaunchSettingDetail": "Pressione o botão de reinicialização para reiniciar {0} e habilitar a configuração.",
 	"restart": "Reiniciar",
-	"relaunchWorkspaceMessage": "Uma pasta do espaço de trabalho foi adicionada ou removida e isso exige que seja recarregada para fazer efeito.",
-	"relaunchWorkspaceDetail": "Pressione o botão de reinicialização para recarregar a janela e habilitar as alterações no espaço de trabalho.",
+	"relaunchWorkspaceMessage": "Esta mudança de espaço de trabalho exige o recarregamento do nosso sistema de extensão.",
 	"reload": "Recarregar"
 }

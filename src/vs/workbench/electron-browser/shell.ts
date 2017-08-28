@@ -23,7 +23,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { loadExperiments } from 'vs/platform/telemetry/common/experiments';
+import { IExperimentService, ExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
@@ -40,7 +40,6 @@ import { RequestService } from 'vs/platform/request/electron-browser/requestServ
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -50,8 +49,7 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
-import { IOptions } from 'vs/workbench/common/options';
+import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -63,7 +61,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -79,7 +76,6 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { ExtensionHostProcessWorker } from 'vs/workbench/electron-browser/extensionHost';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { remote, ipcRenderer as ipc } from 'electron';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -94,7 +90,7 @@ import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platf
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { IBroadcastService, BroadcastService } from "vs/platform/broadcast/electron-browser/broadcastService";
+import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 
 /**
  * Services that we require for the Shell
@@ -118,16 +114,15 @@ export class WorkbenchShell {
 	private messageService: MessageService;
 	private environmentService: IEnvironmentService;
 	private contextViewService: ContextViewService;
-	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: MainProcessExtensionService;
+	private experimentService: IExperimentService;
+	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
-
 	private mainProcessServices: ServiceCollection;
 
 	private container: HTMLElement;
@@ -138,20 +133,18 @@ export class WorkbenchShell {
 	private contentsContainer: Builder;
 
 	private configuration: IWindowConfiguration;
-	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, services: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration, options: IOptions) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
-		this.options = options;
 
-		this.contextService = services.contextService;
-		this.configurationService = services.configurationService;
-		this.environmentService = services.environmentService;
-		this.timerService = services.timerService;
-		this.storageService = services.storageService;
+		this.contextService = coreServices.contextService;
+		this.configurationService = coreServices.configurationService;
+		this.environmentService = coreServices.environmentService;
+		this.timerService = coreServices.timerService;
+		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -171,7 +164,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, this.options, serviceCollection);
+		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection);
 		this.workbench.startup({
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
@@ -205,18 +198,18 @@ export class WorkbenchShell {
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
 
 		// Telemetry: workspace info
-		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
+		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
 			emptyWorkbench: !this.contextService.hasWorkspace(),
-			'workbench.filesToOpen': filesToOpen && filesToOpen.length || undefined,
-			'workbench.filesToCreate': filesToCreate && filesToCreate.length || undefined,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || undefined,
+			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
+			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
+			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: loadExperiments(),
+			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditors.length,
@@ -233,7 +226,7 @@ export class WorkbenchShell {
 
 		// Telemetry: workspace tags
 		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.options);
+		workspaceStats.reportWorkspaceTags(this.configuration);
 		workspaceStats.reportCloudStats();
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
@@ -270,6 +263,10 @@ export class WorkbenchShell {
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
 		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
+
+		// Experiments
+		this.experimentService = instantiationService.createInstance(ExperimentService);
+		serviceCollection.set(IExperimentService, this.experimentService);
 
 		// Telemetry
 		this.sendMachineIdToMain(this.storageService);
@@ -328,15 +325,10 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 		disposables.push(extensionEnablementService);
 
-		const extensionHostProcessWorker = instantiationService.createInstance(ExtensionHostProcessWorker);
-		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
-		serviceCollection.set(IThreadService, this.threadService);
+		this.extensionService = instantiationService.createInstance(ExtensionService);
+		serviceCollection.set(IExtensionService, this.extensionService);
 
 		this.timerService.beforeExtensionLoad = Date.now();
-
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
-		serviceCollection.set(IExtensionService, this.extensionService);
-		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
 			this.timerService.afterExtensionLoad = Date.now();
 		});

@@ -44,9 +44,31 @@ suite('ExtHostWorkspace', function () {
 
 	test('asRelativePath, multiple folders', function () {
 		const ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two')], name: 'Test' });
-		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'file.txt');
-		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'files/out.txt');
+		assert.equal(ws.getRelativePath('/Coding/One/file.txt'), 'One/file.txt');
+		assert.equal(ws.getRelativePath('/Coding/Two/files/out.txt'), 'Two/files/out.txt');
 		assert.equal(ws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
+	});
+
+	test('slightly inconsistent behaviour of asRelativePath and getWorkspaceFolder, #31553', function () {
+		const mrws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One'), URI.file('/Coding/Two')], name: 'Test' });
+
+		assert.equal(mrws.getRelativePath('/Coding/One/file.txt'), 'One/file.txt');
+		assert.equal(mrws.getRelativePath('/Coding/One/file.txt', true), 'One/file.txt');
+		assert.equal(mrws.getRelativePath('/Coding/One/file.txt', false), 'file.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two/files/out.txt'), 'Two/files/out.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two/files/out.txt', true), 'Two/files/out.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two/files/out.txt', false), 'files/out.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two2/files/out.txt', true), '/Coding/Two2/files/out.txt');
+		assert.equal(mrws.getRelativePath('/Coding/Two2/files/out.txt', false), '/Coding/Two2/files/out.txt');
+
+		const srws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', roots: [URI.file('/Coding/One')], name: 'Test' });
+		assert.equal(srws.getRelativePath('/Coding/One/file.txt'), 'file.txt');
+		assert.equal(srws.getRelativePath('/Coding/One/file.txt', false), 'file.txt');
+		assert.equal(srws.getRelativePath('/Coding/One/file.txt', true), 'One/file.txt');
+		assert.equal(srws.getRelativePath('/Coding/Two2/files/out.txt'), '/Coding/Two2/files/out.txt');
+		assert.equal(srws.getRelativePath('/Coding/Two2/files/out.txt', true), '/Coding/Two2/files/out.txt');
+		assert.equal(srws.getRelativePath('/Coding/Two2/files/out.txt', false), '/Coding/Two2/files/out.txt');
 	});
 
 	test('getPath, legacy', function () {
@@ -59,8 +81,8 @@ suite('ExtHostWorkspace', function () {
 		ws = new ExtHostWorkspace(new TestThreadService(), undefined);
 		assert.equal(ws.getPath(), undefined);
 
-		// ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
-		// assert.equal(ws.getPath(), undefined);
+		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('Folder'), URI.file('Another/Folder')] });
+		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');
 
 		ws = new ExtHostWorkspace(new TestThreadService(), { id: 'foo', name: 'Test', roots: [URI.file('/Folder')] });
 		assert.equal(ws.getPath().replace(/\\/g, '/'), '/Folder');

@@ -23,9 +23,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
-import { TerminalPanel } from "vs/workbench/parts/terminal/electron-browser/terminalPanel";
-import { IWindowService } from "vs/platform/windows/common/windows";
+import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;

@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "Die Befehlszeilenargumente, die für das Linux-Terminal verwendet werden sollen.",
 	"terminal.integrated.shell.osx": "Der Pfad der Shell, den das Terminal unter OS X verwendet.",
 	"terminal.integrated.shellArgs.osx": "Die Befehlszeilenargumente, die für das OS X-Terminal verwendet werden sollen.",
-	"terminal.integrated.shell.windows": "Der Pfad der Shell, den das Terminal unter Windows verwendet. Wenn Shells aus dem Lieferumfang von Windows (cmd, PowerShell oder Bash für Ubuntu) verwendet werden, sollten Sie \"C:\\Windows\\sysnative\" dem Pfad \"C:\\Windows\\System32\" vorziehen, um die 64-Bit-Versionen zu verwenden.",
 	"terminal.integrated.shellArgs.windows": "Die Befehlszeilenargumente, die im Windows-Terminal verwendet werden sollen.",
 	"terminal.integrated.rightClickCopyPaste": "Wenn dies festgelegt ist, erscheint das Kontextmenü bei einem Rechtsklick im Terminal nicht mehr. Stattdessen erfolgen die Vorgänge Kopieren, wenn eine Auswahl vorgenommen wurde, sowie Einfügen, wenn keine Auswahl vorgenommen wurde.",
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",

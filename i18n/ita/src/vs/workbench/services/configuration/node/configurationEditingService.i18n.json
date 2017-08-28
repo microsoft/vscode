@@ -7,11 +7,10 @@
 	"open": "Apri impostazioni",
 	"close": "Chiudi",
 	"saveAndRetry": "Salva le impostazioni e riprova",
-	"errorUnknownKey": "Non è possibile scrivere nel file di configurazione. La chiave è sconosciuta",
-	"errorInvalidTarget": "Non è possibile scrivere nel file di configurazione (destinazione non valida)",
-	"errorNoWorkspaceOpened": "Impossibile scrivere nelle impostazioni perché nessuna cartella è aperta. Si prega di aprire una cartella e riprovare.",
 	"errorInvalidConfiguration": "Impossibile scrivere nelle impostazioni. Si prega di aprire  **Impostazioni utente** per correggere eventuali errori o avvisi nel file e riprovare.",
 	"errorInvalidConfigurationWorkspace": "Impossibile scrivere in impostazioni. Si prega di aprire **Impostazioni area di lavoro** per correggere eventuali errori o avvisi nel file e riprovare.",
 	"errorConfigurationFileDirty": "Impossibile scrivere nelle impostazioni perché il file è stato modificato ma non salvato. Si prega di salvare il file **impostazioni utente** e riprovare.",
-	"errorConfigurationFileDirtyWorkspace": "Non è possibile scrivere in impostazioni perché il file è stato modificato ma non salvato. Salvare il file delle **Impostazioni area di lavoro** e riprovare."
+	"errorConfigurationFileDirtyWorkspace": "Non è possibile scrivere in impostazioni perché il file è stato modificato ma non salvato. Salvare il file delle **Impostazioni area di lavoro** e riprovare.",
+	"userTarget": "Impostazioni utente",
+	"workspaceTarget": "Impostazioni area di lavoro"
 }

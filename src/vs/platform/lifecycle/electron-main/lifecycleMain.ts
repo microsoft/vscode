@@ -12,8 +12,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from "vs/platform/windows/electron-main/windows";
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -22,6 +23,12 @@ export enum UnloadReason {
 	QUIT = 2,
 	RELOAD = 3,
 	LOAD = 4
+}
+
+export interface IWindowUnloadEvent {
+	window: ICodeWindow;
+	reason: UnloadReason;
+	veto(value: boolean | TPromise<boolean>): void;
 }
 
 export interface ILifecycleService {
@@ -46,10 +53,15 @@ export interface ILifecycleService {
 	 */
 	onBeforeWindowClose: Event<ICodeWindow>;
 
-	ready(): void;
-	registerWindow(codeWindow: ICodeWindow): void;
+	/**
+	 * An even that can be vetoed to prevent a window from being unloaded.
+	 */
+	onBeforeWindowUnload: Event<IWindowUnloadEvent>;
 
-	unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+	ready(): void;
+	registerWindow(window: ICodeWindow): void;
+
+	unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */>;
 
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
 
@@ -77,6 +89,9 @@ export class LifecycleService implements ILifecycleService {
 
 	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
 	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+
+	private _onBeforeWindowUnload = new Emitter<IWindowUnloadEvent>();
+	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -133,11 +148,11 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public registerWindow(codeWindow: ICodeWindow): void {
+	public registerWindow(window: ICodeWindow): void {
 
 		// Window Before Closing: Main -> Renderer
-		codeWindow.win.on('close', e => {
-			const windowId = codeWindow.id;
+		window.win.on('close', e => {
+			const windowId = window.id;
 			this.logService.log('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
@@ -151,11 +166,11 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(codeWindow, UnloadReason.CLOSE).done(veto => {
+			this.unload(window, UnloadReason.CLOSE).done(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
-					this._onBeforeWindowClose.fire(codeWindow);
-					codeWindow.close();
+					this._onBeforeWindowClose.fire(window);
+					window.close();
 				} else {
 					this.quitRequested = false;
 					delete this.windowToCloseRequest[windowId];
@@ -164,15 +179,41 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(codeWindow: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	public unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
-		if (codeWindow.readyState !== ReadyState.READY) {
+		if (window.readyState !== ReadyState.READY) {
 			return TPromise.as<boolean>(false);
 		}
 
-		this.logService.log('Lifecycle#unload()', codeWindow.id);
+		this.logService.log('Lifecycle#unload()', window.id);
 
+		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
+
+		// first ask the window itself if it vetos the unload
+		return this.doUnloadWindowInRenderer(window, windowUnloadReason, payload).then(veto => {
+			if (veto) {
+				return this.handleVeto(veto);
+			}
+
+			// then check for vetos in the main side
+			return this.doUnloadWindowInMain(window, windowUnloadReason).then(veto => this.handleVeto(veto));
+		});
+	}
+
+	private handleVeto(veto: boolean): boolean {
+
+		// Any cancellation also cancels a pending quit if present
+		if (veto && this.pendingQuitPromiseComplete) {
+			this.pendingQuitPromiseComplete(true /* veto */);
+			this.pendingQuitPromiseComplete = null;
+			this.pendingQuitPromise = null;
+		}
+
+		return veto;
+	}
+
+	private doUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */> {
 		return new TPromise<boolean>((c) => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
@@ -183,19 +224,25 @@ export class LifecycleService implements ILifecycleService {
 			});
 
 			ipc.once(cancelChannel, () => {
-
-				// Any cancellation also cancels a pending quit if present
-				if (this.pendingQuitPromiseComplete) {
-					this.pendingQuitPromiseComplete(true /* veto */);
-					this.pendingQuitPromiseComplete = null;
-					this.pendingQuitPromise = null;
-				}
-
 				c(true); // veto
 			});
 
-			codeWindow.send('vscode:beforeUnload', { okChannel, cancelChannel, reason: this.quitRequested ? UnloadReason.QUIT : reason });
+			window.send('vscode:beforeUnload', { okChannel, cancelChannel, reason, payload });
 		});
+	}
+
+	private doUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+		const vetos: (boolean | TPromise<boolean>)[] = [];
+
+		this._onBeforeWindowUnload.fire({
+			reason,
+			window,
+			veto(value) {
+				vetos.push(value);
+			}
+		});
+
+		return handleVetos(vetos, err => this.logService.error(err));
 	}
 
 	/**
@@ -249,16 +296,16 @@ export class LifecycleService implements ILifecycleService {
 			}
 		}
 
-		let vetod = false;
+		let vetoed = false;
 		app.once('quit', () => {
-			if (!vetod) {
+			if (!vetoed) {
 				this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 				app.relaunch({ args });
 			}
 		});
 
 		this.quit().then(veto => {
-			vetod = veto;
+			vetoed = veto;
 		});
 	}
 

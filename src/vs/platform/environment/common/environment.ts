@@ -13,12 +13,10 @@ export interface ParsedArgs {
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	/**
-	 * Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	 */
-	'unity-launch'?: boolean;
+	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -31,6 +29,7 @@ export interface ParsedArgs {
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugBrkPluginHost?: string;
+	debugId?: string;
 	debugPluginHost?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
@@ -59,6 +58,7 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
+	machineUUID: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
@@ -71,7 +71,8 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; };
+	debugExtensionHost: { port: number; break: boolean; debugId: string };
+
 
 	logExtensionHostCommunication: boolean;
 

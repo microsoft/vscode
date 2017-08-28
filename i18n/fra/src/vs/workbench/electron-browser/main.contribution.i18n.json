@@ -15,6 +15,8 @@
 	"enablePreviewFromQuickOpen": "Contrôle si les éditeurs de Quick Open s'affichent en mode aperçu. Les éditeurs en mode aperçu sont réutilisés jusqu'à ce qu'ils soient conservés (par exemple, après un double-clic ou une modification).",
 	"editorOpenPositioning": "Contrôle l'emplacement de l'ouverture des éditeurs. Sélectionnez 'left' ou 'right' pour ouvrir les éditeurs à gauche ou à droite de l'éditeur actuellement actif. Sélectionnez 'first' ou 'last' pour ouvrir les éditeurs indépendamment de l'éditeur actuellement actif.",
 	"revealIfOpen": "Contrôle si un éditeur est affiché dans l'un des groupes visibles, s'il est ouvert. Si cette option est désactivée, l'éditeur s'ouvre de préférence dans le groupe d'éditeurs actif. Si cette option est activée, tout éditeur déjà ouvert est affiché au lieu d'être rouvert dans le groupe d'éditeurs actif. Notez que dans certains cas, ce paramètre est ignoré, par exemple quand vous forcez un éditeur à s'ouvrir dans un groupe spécifique ou à côté du groupe actif.",
+	"commandHistory": "Contrôle le nombre de commandes récemment utilisées à conserver dans l'historique de la palette de commandes. Définissez cette valeur sur 0 pour désactiver l'historique de commandes.",
+	"preserveInput": "Contrôle si la dernière entrée tapée dans la palette de commandes doit être restaurée à la prochaine ouverture.",
 	"closeOnFocusLost": "Contrôle si Quick Open doit se fermer automatiquement, une fois qu'il a perdu le focus.",
 	"openDefaultSettings": "Contrôle si l'ouverture des paramètres entraîne également l'ouverture d'un éditeur qui affiche tous les paramètres par défaut.",
 	"sideBarLocation": "Contrôle l'emplacement de la barre latérale. Elle peut s'afficher à gauche ou à droite du banc d'essai.",
@@ -31,8 +33,12 @@
 	"window.openFoldersInNewWindow.off": "Les dossiers remplacent la dernière fenêtre active",
 	"window.openFoldersInNewWindow.default": "Les dossiers s'ouvrent dans une nouvelle fenêtre, sauf si un dossier est sélectionné depuis l'application (par exemple, via le menu Fichier)",
 	"openFoldersInNewWindow": "Contrôle si les dossiers doivent s'ouvrir dans une nouvelle fenêtre ou remplacer la dernière fenêtre active.\n- default : les dossiers s'ouvrent dans une nouvelle fenêtre, sauf si un dossier est sélectionné depuis l'application (par exemple, via le menu Fichier)\n- on : les dossiers s'ouvrent dans une nouvelle fenêtre\n- off : les dossiers remplacent la dernière fenêtre active\nNotez que dans certains cas, ce paramètre est ignoré (par exemple, quand vous utilisez l'option de ligne de commande -new-window ou -reuse-window).",
+	"window.reopenFolders.all": "Rouvre toutes les fenêtres.",
+	"window.reopenFolders.one": "Rouvre la dernière fenêtre active.",
+	"window.reopenFolders.none": "Ne jamais rouvrir de fenêtre. Toujours démarrer avec une fenêtre vide.",
 	"restoreFullscreen": "Contrôle si une fenêtre doit être restaurée en mode plein écran si elle a été fermée dans ce mode.",
 	"zoomLevel": "Modifiez le niveau de zoom de la fenêtre. La taille d'origine est 0. Chaque incrément supérieur (exemple : 1) ou inférieur (exemple : -1) représente un zoom 20 % plus gros ou plus petit. Vous pouvez également entrer des décimales pour changer le niveau de zoom avec une granularité plus fine.",
+	"title": "Contrôle le titre de la fenêtre en fonction de l'éditeur actif. Les variables sont remplacées selon le contexte :\n${activeEditorShort} : par ex., myFile.txt\n${activeEditorMedium} : par ex., myFolder/myFile.txt\n${activeEditorLong} : par ex., /Users/Development/myProject/myFolder/myFile.txt\n${folderName} : par ex., myFolder\n${folderPath} : par ex., /Users/Development/myFolder\n${rootName} : par ex., myFolder1, myFolder2, myFolder3\n${rootPath} : par ex., /Users/Development/myWorkspace\n${appName} : par ex., VS Code\n${dirty} : indicateur d'intégrité si l'intégrité de l'éditeur actif est compromise\n${separator} : séparateur conditionnel (\" - \") qui s'affiche uniquement quand il est entouré de variables avec des valeurs",
 	"window.newWindowDimensions.default": "Permet d'ouvrir les nouvelles fenêtres au centre de l'écran.",
 	"window.newWindowDimensions.inherit": "Permet d'ouvrir les nouvelles fenêtres avec la même dimension que la dernière fenêtre active.",
 	"window.newWindowDimensions.maximized": "Permet d'ouvrir les nouvelles fenêtres de manière agrandie.",
@@ -53,7 +59,5 @@
 	"zenMode.hideTabs": "Contrôle si l'activation du mode Zen masque également les onglets du banc d'essai.",
 	"zenMode.hideStatusBar": "Contrôle si l'activation du mode Zen masque également la barre d'état au bas du banc d'essai.",
 	"zenMode.hideActivityBar": "Contrôle si l'activation du mode Zen masque également la barre d'activités à gauche du banc d'essai.",
-	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen.",
-	"workspaceConfigurationTitle": "Espace de travail",
-	"files.exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle."
+	"zenMode.restore": "Contrôle si une fenêtre doit être restaurée en mode zen, si elle a été fermée en mode zen."
 }

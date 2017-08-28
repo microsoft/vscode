@@ -147,6 +147,7 @@ export interface ITerminalService {
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
@@ -201,6 +202,12 @@ export interface ITerminalInstance {
 	 * @readonly
 	 */
 	hadFocusOnExit: boolean;
+
+	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -361,5 +368,5 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

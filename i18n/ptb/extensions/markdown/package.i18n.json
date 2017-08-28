@@ -18,6 +18,5 @@
 	"markdown.showSource.title": "Exibir Código-Fonte",
 	"markdown.styles.dec": "Uma lista de URLs ou caminhos locais para folhas de estilo CSS para usar na pré-visualização do markdown. Caminhos relativos são interpretados em relação à pasta aberta no explorer. Se não houver nenhuma pasta aberta, eles são interpretados em relação ao local do arquivo markdown. Todos os ' \\' precisam ser escritos como ' \\ \\ '.",
 	"markdown.showPreviewSecuritySelector.title": "Alterar as configurações de segurança de pré-visualização do Markdown",
-	"markdown.preview.enableExperimentalExtensionApi.desc": "[Experimental] Permitir extensões para ampliar a pré-visualização do markdown.",
 	"markdown.trace.desc": "Habilitar log de depuração para a extensão do markdown."
 }

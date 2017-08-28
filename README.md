@@ -9,7 +9,7 @@
 a code editor with what developers need for their core edit-build-debug cycle. Code
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
-VS Code is updated monthly with new features and bug fixes. You can download it for Windows, Mac and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
+VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
@@ -31,7 +31,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Feedback
 

@@ -105,7 +105,7 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
 		}
 	}
 

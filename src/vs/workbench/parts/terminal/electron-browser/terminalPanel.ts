@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
@@ -161,7 +163,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection()) {
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -244,7 +246,7 @@ export class TerminalPanel extends Panel {
 					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					uri = URI.file(e.dataTransfer.files[0].path).path;
+					uri = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
 
 				if (!uri) {

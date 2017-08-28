@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "A kurzor pozícióján található sor keretszíne.",
 	"rangeHighlight": "A kiemelt területek háttérszíne, pl. a gyors megnyitás és keresés funkcióknál.",
 	"caret": "A szerkesztőablak kurzorának színe.",
+	"editorCursorBackground": "A szerkesztőablak kurzorának háttérszíne. Lehetővé teszik az olyan karakterek színének módosítását, amelyek fölött egy blokk-típusú kurzor áll.",
 	"editorWhitespaces": "A szerkesztőablakban található szóköz karakterek színe.",
 	"editorIndentGuides": "A szerkesztőablak segédvonalainak színe.",
 	"editorLineNumbers": "A szerkesztőablak sorszámainak színe.",

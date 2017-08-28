@@ -16,11 +16,12 @@ import { OneGetThreadService } from './testThreadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
 	let resource = URI.parse('foo:bar');
-	let workspace = new class extends MainThreadWorkspaceShape { };
+	let workspace = new class extends mock<MainThreadWorkspaceShape>() { };
 	let documents: ExtHostDocuments;
 
 	setup(() => {
@@ -253,7 +254,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, pushEdits sync', () => {
 
 		let edits: IResourceEdit[];
-		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
+		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends mock<MainThreadWorkspaceShape>() {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
 				return TPromise.as(true);
@@ -275,7 +276,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, concurrent change', () => {
 
 		let edits: IResourceEdit[];
-		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
+		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends mock<MainThreadWorkspaceShape>() {
 			$applyWorkspaceEdit(_edits) {
 				edits = _edits;
 				return TPromise.as(true);
@@ -309,7 +310,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, two listeners -> two document states', () => {
 
-		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends MainThreadWorkspaceShape {
+		const participant = new ExtHostDocumentSaveParticipant(documents, new class extends mock<MainThreadWorkspaceShape>() {
 			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
 
 				for (const { resource, newText, range } of _edits) {

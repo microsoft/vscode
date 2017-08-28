@@ -18,7 +18,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
@@ -73,8 +73,8 @@ export class ExplorerView extends CollapsibleView {
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
 
-	private filesExplorerFocussedContext: IContextKey<boolean>;
-	private explorerFocussedContext: IContextKey<boolean>;
+	private filesExplorerFocusedContext: IContextKey<boolean>;
+	private explorerFocusedContext: IContextKey<boolean>;
 
 	private fileEventsFilter: ResourceGlobMatcher;
 
@@ -84,6 +84,7 @@ export class ExplorerView extends CollapsibleView {
 	private settings: object;
 
 	constructor(
+		initialSize: number,
 		options: IExplorerViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -101,7 +102,7 @@ export class ExplorerView extends CollapsibleView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
@@ -114,8 +115,8 @@ export class ExplorerView extends CollapsibleView {
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 
-		this.filesExplorerFocussedContext = FilesExplorerFocussedContext.bindTo(contextKeyService);
-		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
+		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
+		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, root => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
 	}
@@ -135,15 +136,14 @@ export class ExplorerView extends CollapsibleView {
 			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => setHeader()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
 		setHeader();
 
 		super.renderHeader(container);
 	}
 
 	public get name(): string {
-		const workspace = this.contextService.getWorkspace();
-		return workspace.roots.length === 1 ? workspace.name : nls.localize('folders', "Folders");
+		return this.contextService.getWorkspace().name;
 	}
 
 	public set name(value) {
@@ -406,7 +406,7 @@ export class ExplorerView extends CollapsibleView {
 		this.toDispose.push(attachListStyler(this.explorerViewer, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));
+		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocusedContext, this.filesExplorerFocusedContext]));
 
 		// Update Viewer based on File Change Events
 		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
@@ -727,6 +727,8 @@ export class ExplorerView extends CollapsibleView {
 		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		} else if (this.contextService.hasFolderWorkspace() || (this.contextService.hasMultiFolderWorkspace() && this.model.roots.length === 1)) {
+			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace and multi folder workspace with only 1 root
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -776,7 +778,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.model.roots.length === 1 ? this.model.roots[0] : this.model;
+			const input = this.contextService.hasFolderWorkspace() ? this.model.roots[0] : this.model;
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
@@ -787,7 +789,7 @@ export class ExplorerView extends CollapsibleView {
 			const statsToExpand = expanded.length ? [this.model.roots[0]].concat(expanded) :
 				targetsToExpand.map(expand => this.model.findClosest(expand));
 
-			// Display roots only when there is more than 1 root
+			// Display roots only when multi folder workspace
 			// Make sure to expand all folders that where expanded in the previous session
 			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
 		}, e => TPromise.wrapError(e));
@@ -865,7 +867,7 @@ export class ExplorerView extends CollapsibleView {
 			// Select and Reveal
 			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
 
-		}, e => this.messageService.show(Severity.Error, e));
+		}, e => { this.messageService.show(Severity.Error, e); });
 	}
 
 	private hasSelection(resource: URI): FileStat {
@@ -926,7 +928,7 @@ export class ExplorerView extends CollapsibleView {
 			}
 		}
 
-		// Clean up last focussed if not set
+		// Clean up last focused if not set
 		if (!this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
 			delete this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
 		}

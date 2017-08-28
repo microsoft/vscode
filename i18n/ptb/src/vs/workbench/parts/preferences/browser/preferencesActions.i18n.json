@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Abrir Atalhos de Teclado",
 	"openGlobalKeybindingsFile": "Abrir Arquivo de Atalhos de Teclado",
 	"openWorkspaceSettings": "Abrir as configurações do espaço de trabalho",
+	"openFolderSettings": "Abrir configurações da pasta",
+	"pickFolder": "Selecionar a Pasta",
 	"configureLanguageBasedSettings": "Definir Configurações Específicas de Linguagem...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "Selecionar Linguagem"

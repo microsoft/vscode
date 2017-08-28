@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/output';
 import nls = require('vs/nls');
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder } from 'vs/base/browser/builder';
@@ -27,7 +26,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class OutputPanel extends TextResourceEditor {
-	private toDispose: IDisposable[];
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
 
@@ -46,7 +44,6 @@ export class OutputPanel extends TextResourceEditor {
 		super(telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, modeService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
-		this.toDispose = [];
 	}
 
 	public getId(): string {
@@ -62,7 +59,7 @@ export class OutputPanel extends TextResourceEditor {
 			];
 
 			this.actions.forEach(a => {
-				this.toDispose.push(a);
+				this.toUnbind.push(a);
 			});
 		}
 
@@ -111,7 +108,7 @@ export class OutputPanel extends TextResourceEditor {
 
 		// First create the scoped instantation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
-		this.toDispose.push(scopedContextKeyService);
+		this.toUnbind.push(scopedContextKeyService);
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);
 
@@ -121,11 +118,5 @@ export class OutputPanel extends TextResourceEditor {
 
 	public get instantiationService(): IInstantiationService {
 		return this.scopedInstantiationService;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
 	}
 }

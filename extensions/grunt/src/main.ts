@@ -20,7 +20,7 @@ export function activate(_context: vscode.ExtensionContext): void {
 	if (!workspaceRoot) {
 		return;
 	}
-	let pattern = path.join(workspaceRoot, 'Gruntfile.js');
+	let pattern = path.join(workspaceRoot, '[Gg]runtfile.js');
 	let detectorPromise: Thenable<vscode.Task[]> | undefined = undefined;
 	let fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 	fileWatcher.onDidChange(() => detectorPromise = undefined);
@@ -115,8 +115,7 @@ async function getGruntTasks(): Promise<vscode.Task[]> {
 	if (!workspaceRoot) {
 		return emptyTasks;
 	}
-	let gruntfile = path.join(workspaceRoot, 'Gruntfile.js');
-	if (!await exists(gruntfile)) {
+	if (!await exists(path.join(workspaceRoot, 'gruntfile.js')) && !await exists(path.join(workspaceRoot, 'Gruntfile.js'))) {
 		return emptyTasks;
 	}
 

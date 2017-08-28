@@ -78,6 +78,19 @@ function _throttle<T>(fn: Function, key: string): Function {
 
 export const throttle = decorate(_throttle);
 
+function _sequentialize<T>(fn: Function, key: string): Function {
+	const currentKey = `__$sequence$${key}`;
+
+	return function (...args: any[]) {
+		const currentPromise = this[currentKey] as Promise<any> || Promise.resolve(null);
+		const run = async () => await fn.apply(this, args);
+		this[currentKey] = currentPromise.then(run, run);
+		return this[currentKey];
+	};
+}
+
+export const sequentialize = decorate(_sequentialize);
+
 export function debounce(delay: number): Function {
 	return decorate((fn, key) => {
 		const timerKey = `$debounce$${key}`;

@@ -17,11 +17,11 @@ export interface IBaselineResourceProvider {
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
-export const DefaultSCMProviderIdStorageKey = 'settings.workspace.scm.defaultProviderId';
 
 export interface ISCMResourceDecorations {
 	icon?: URI;
 	iconDark?: URI;
+	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
 }
@@ -43,6 +43,7 @@ export interface ISCMResourceGroup {
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly id: string;
+	readonly contextValue: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<void>;
 	readonly count?: number;
@@ -59,13 +60,21 @@ export interface ISCMInput {
 	readonly onDidChange: Event<string>;
 }
 
+export interface ISCMRepository extends IDisposable {
+	readonly onDidFocus: Event<void>;
+	readonly provider: ISCMProvider;
+	readonly input: ISCMInput;
+	focus(): void;
+}
+
 export interface ISCMService {
 
 	readonly _serviceBrand: any;
-	readonly onDidChangeProvider: Event<ISCMProvider>;
-	readonly providers: ISCMProvider[];
-	readonly input: ISCMInput;
-	activeProvider: ISCMProvider | undefined;
+	readonly onDidAddRepository: Event<ISCMRepository>;
+	readonly onDidRemoveRepository: Event<ISCMRepository>;
+	readonly onDidChangeRepository: Event<ISCMRepository>;
 
-	registerSCMProvider(provider: ISCMProvider): IDisposable;
+	readonly repositories: ISCMRepository[];
+
+	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 }

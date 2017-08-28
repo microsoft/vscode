@@ -24,13 +24,14 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers,
 	TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, CommandOptions, RevealKind, CommandConfiguration, RuntimeType } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -43,20 +44,22 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	private outputService: IOutputService;
 	private telemetryService: ITelemetryService;
 	private configurationResolverService: IConfigurationResolverService;
+	private contextService: IWorkspaceContextService;
 
 	private outputChannel: IOutputChannel;
 
 	private errorsShown: boolean;
 	private childProcess: LineProcess;
-	private activeTask: Task;
+	private activeTask: CustomTask;
 	private activeTaskPromise: TPromise<ITaskSummary>;
 
 	constructor(markerService: IMarkerService, modelService: IModelService, telemetryService: ITelemetryService,
-		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, outputChannelId: string) {
+		outputService: IOutputService, configurationResolverService: IConfigurationResolverService, contextService: IWorkspaceContextService, outputChannelId: string) {
 		super();
 		this.markerService = markerService;
 		this.modelService = modelService;
 		this.outputService = outputService;
+		this.contextService = contextService;
 		this.telemetryService = telemetryService;
 		this.configurationResolverService = configurationResolverService;
 
@@ -130,9 +133,13 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private executeTask(task: Task, trigger: string = Triggers.command): ITaskExecuteResult {
+		if (!CustomTask.is(task)) {
+			throw new Error('The process task system can only execute custom tasks.');
+		}
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
 			runner: 'output',
+			taskKind: Task.getTelemetryKind(task),
 			command: 'other',
 			success: true
 		};
@@ -163,7 +170,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
-	private doExecuteTask(task: Task, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
+	private doExecuteTask(task: CustomTask, telemetryEvent: TelemetryEvent): ITaskExecuteResult {
 		let taskSummary: ITaskSummary = {};
 		let commandConfig: CommandConfiguration = task.command;
 		if (!this.errorsShown) {
@@ -285,7 +292,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.activeTaskPromise = null;
 	}
 
-	private handleError(task: Task, errorData: ErrorData): Promise {
+	private handleError(task: CustomTask, errorData: ErrorData): Promise {
 		let makeVisible = false;
 		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
@@ -311,7 +318,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		error.stderr = errorData.stderr;
 		error.stdout = errorData.stdout;
 		error.terminated = errorData.terminated;
-		return Promise.wrapError(error);
+		return TPromise.wrapError(error);
 	}
 
 	private checkTerminated(task: Task, data: SuccessData | ErrorData): boolean {
@@ -374,7 +381,8 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.configurationResolverService.resolve(value);
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
 	}
 
 	public log(value: string): void {

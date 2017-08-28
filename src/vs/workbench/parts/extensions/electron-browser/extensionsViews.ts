@@ -51,6 +51,7 @@ export class ExtensionsListView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -69,7 +70,7 @@ export class ExtensionsListView extends CollapsibleView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -159,7 +160,7 @@ export class ExtensionsListView extends CollapsibleView {
 
 		switch (query.sortBy) {
 			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
@@ -174,6 +175,7 @@ export class ExtensionsListView extends CollapsibleView {
 					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
 					break;
 				case SortBy.AverageRating:
+				case SortBy.WeightedRating:
 					result = result.sort((e1, e2) => e2.rating - e1.rating);
 					break;
 				default:
@@ -211,6 +213,21 @@ export class ExtensionsListView extends CollapsibleView {
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
+		}
+
+		if (/@enabled/i.test(value)) {
+			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => e.type === LocalExtensionType.User &&
+					!(e.disabledForWorkspace || e.disabledGlobally) &&
+					e.name.toLowerCase().indexOf(value) > -1
+				);
 
 			return new PagedModel(result);
 		}
@@ -280,7 +297,7 @@ export class ExtensionsListView extends CollapsibleView {
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
-
+						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 							.then(pager => new PagedModel(pager || []));
 					});
@@ -302,9 +319,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -318,9 +335,9 @@ export class ExtensionsListView extends CollapsibleView {
 				if (!names.length) {
 					return TPromise.as(new PagedModel([]));
 				}
-
+				options.source = 'recommendations-workspace';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => new PagedModel(pager));
+					.then(pager => new PagedModel(pager || []));
 			});
 	}
 
@@ -333,7 +350,7 @@ export class ExtensionsListView extends CollapsibleView {
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
 		}
-
+		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
 			.then(result => new PagedModel(result));
 	}
@@ -405,6 +422,10 @@ export class ExtensionsListView extends CollapsibleView {
 		return /@disabled/i.test(query);
 	}
 
+	static isEnabledExtensionsQuery(query: string): boolean {
+		return /@enabled/i.test(query);
+	}
+
 	static isRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended/i.test(query);
 	}
@@ -423,7 +444,8 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	public static isInsalledExtensionsQuery(query: string): boolean {
 		return ExtensionsListView.isInstalledExtensionsQuery(query)
 			|| ExtensionsListView.isOutdatedExtensionsQuery(query)
-			|| ExtensionsListView.isDisabledExtensionsQuery(query);
+			|| ExtensionsListView.isDisabledExtensionsQuery(query)
+			|| ExtensionsListView.isEnabledExtensionsQuery(query);
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {

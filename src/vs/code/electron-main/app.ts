@@ -35,24 +35,32 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CredentialsService } from 'vs/platform/credentials/node/credentialsService';
+import { CredentialsChannel } from 'vs/platform/credentials/node/credentialsIpc';
 import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from './auth';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
-import { TPromise } from "vs/base/common/winjs.base";
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService } from "vs/platform/history/common/history";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from "vs/code/electron-main/window";
-import { KeyboardLayoutMonitor } from "vs/code/electron-main/keyboard";
+import { CodeWindow } from 'vs/code/electron-main/window';
+import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import URI from 'vs/base/common/uri';
-import { WorkspacesChannel } from "vs/platform/workspaces/common/workspacesIpc";
-import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { dirname, join } from 'path';
+import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
+
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh';
+
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
 
@@ -176,6 +184,10 @@ export class CodeApplication {
 			}, 100);
 		});
 
+		app.on('new-window-for-tab', () => {
+			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
+		});
+
 		ipc.on('vscode:exit', (event, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
@@ -276,6 +288,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
@@ -303,8 +316,8 @@ export class CodeApplication {
 		this.windowsMainService = accessor.get(IWindowsMainService);
 
 		// TODO@Joao: so ugly...
-		this.windowsMainService.onWindowClose(() => {
-			if (!platform.isMacintosh && this.windowsMainService.getWindowCount() === 0) {
+		this.windowsMainService.onWindowsCountChanged(e => {
+			if (!platform.isMacintosh && e.newCount === 0) {
 				this.sharedProcess.dispose();
 			}
 		});
@@ -331,6 +344,10 @@ export class CodeApplication {
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+
+		const credentialsService = accessor.get(ICredentialsService);
+		const credentialsChannel = new CredentialsChannel(credentialsService);
+		this.electronIpcServer.registerChannel('credentials', credentialsChannel);
 
 		// Lifecycle
 		this.lifecycleService.ready();
@@ -374,6 +391,20 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// Helps application icon refresh after an update with new icon is installed (macOS)
+		// TODO@Ben remove after a couple of releases
+		if (platform.isMacintosh) {
+			if (!this.storageService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.storageService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+
+				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
+				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
+				const infoPlistPath = join(appPath, 'Contents', 'Info.plist');
+				touch(appPath).done(null, error => { /* ignore */ });
+				touch(infoPlistPath).done(null, error => { /* ignore */ });
+			}
+		}
 	}
 
 	private dispose(): void {

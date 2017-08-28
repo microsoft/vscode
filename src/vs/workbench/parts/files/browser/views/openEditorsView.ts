@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
@@ -54,10 +54,12 @@ export class OpenEditorsView extends CollapsibleView {
 	private groupToRefresh: IEditorGroup;
 	private fullRefreshNeeded: boolean;
 
-	private openEditorsFocussedContext: IContextKey<boolean>;
-	private explorerFocussedContext: IContextKey<boolean>;
+	private openEditorsFocusedContext: IContextKey<boolean>;
+	private explorerFocusedContext: IContextKey<boolean>;
 
-	constructor(options: IViewletViewOptions,
+	constructor(
+		initialSize: number,
+		options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -70,7 +72,7 @@ export class OpenEditorsView extends CollapsibleView {
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({
+		super(initialSize, {
 			...(options as IViewOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 			sizing: ViewSizing.Fixed,
@@ -79,8 +81,8 @@ export class OpenEditorsView extends CollapsibleView {
 
 		this.model = editorGroupService.getStacksModel();
 
-		this.openEditorsFocussedContext = OpenEditorsFocussedContext.bindTo(contextKeyService);
-		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
+		this.openEditorsFocusedContext = OpenEditorsFocusedContext.bindTo(contextKeyService);
+		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
@@ -149,7 +151,7 @@ export class OpenEditorsView extends CollapsibleView {
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));
+		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
 
 		// Open when selecting via keyboard
 		this.toDispose.push(this.tree.addListener('selection', event => {

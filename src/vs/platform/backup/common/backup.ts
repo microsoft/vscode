@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IBackupWorkspacesFormat {
 	rootWorkspaces: IWorkspaceIdentifier[];
@@ -17,11 +17,13 @@ export const IBackupMainService = createDecorator<IBackupMainService>('backupMai
 export interface IBackupMainService {
 	_serviceBrand: any;
 
+	isHotExitEnabled(): boolean;
+
 	getWorkspaceBackups(): IWorkspaceIdentifier[];
 	getFolderBackupPaths(): string[];
 	getEmptyWindowBackupPaths(): string[];
 
-	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier): string;
+	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
 	registerFolderBackupSync(folderPath: string): string;
 	registerEmptyWindowBackupSync(backupFolder?: string): string;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../spectron/application';
-import { CommonActions } from "./common";
+import { CommonActions } from './common';
 
 var htmlparser = require('htmlparser2');
 
@@ -70,42 +70,43 @@ export class Extensions {
 	}
 
 	private getExtensionIndex(name: string, extensionListSelector: string): Promise<number> {
-		return new Promise(async (res, rej) => {
-			const html = await this.spectron.waitFor(this.spectron.client.getHTML, extensionListSelector);
-			let extensionIndex: number = 0;
-			let extension: boolean;
-			let tags: string[] = [];
-			let parser = new htmlparser.Parser({
-				onopentag: function (name, attribs) {
-					if (name === 'div' && attribs.class === 'extension') {
-						extensionIndex++;
-						extension = true;
+		return this.spectron.waitFor(this.spectron.client.getHTML, extensionListSelector).then(html => {
+			return new Promise<number>((res, rej) => {
+				let extensionIndex: number = 0;
+				let extension: boolean;
+				let tags: string[] = [];
+				let parser = new htmlparser.Parser({
+					onopentag: function (name, attribs) {
+						if (name === 'div' && attribs.class === 'extension') {
+							extensionIndex++;
+							extension = true;
+						}
+						if (extension) {
+							tags.push(name);
+						}
+					},
+					ontext: function (text) {
+						if (extension && text === name) {
+							parser.end();
+						}
+					},
+					onclosetag: function (name) {
+						if (extension) {
+							tags.pop();
+						}
+						if (extension && tags.length === 0) {
+							extension = false;
+						}
+					},
+					onend: function () {
+						if (extensionIndex === 0) {
+							return rej(`${name} extension was not found.`);
+						}
+						return res(extensionIndex);
 					}
-					if (extension) {
-						tags.push(name);
-					}
-				},
-				ontext: function (text) {
-					if (extension && text === name) {
-						parser.end();
-					}
-				},
-				onclosetag: function (name) {
-					if (extension) {
-						tags.pop();
-					}
-					if (extension && tags.length === 0) {
-						extension = false;
-					}
-				},
-				onend: function () {
-					if (extensionIndex === 0) {
-						return rej(`${name} extension was not found.`);
-					}
-					return res(extensionIndex);
-				}
+				});
+				parser.write(html);
 			});
-			parser.write(html);
 		});
 	}
 }

@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testExplorer() {
-	context('Explorer', () => {
+	describe('Explorer', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);

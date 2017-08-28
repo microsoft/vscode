@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from "../spectron/application";
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
 import { CommonActions } from '../areas/common';
-import { Git } from "../areas/git";
+import { Git } from '../areas/git';
 
 let app: SpectronApplication;
 let common: CommonActions;
 
 export function testGit() {
-	context('Git', () => {
+	describe('Git', () => {
 		let git: Git;
 
 		beforeEach(async function () {

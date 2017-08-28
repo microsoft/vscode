@@ -23,6 +23,7 @@ import * as TPath from 'vs/base/common/paths';
 // import URI from 'vs/base/common/uri';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/platform/markers/common/problemMatcher';
 
@@ -33,7 +34,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
@@ -117,6 +118,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private workbenchEditorService: IWorkbenchEditorService,
+		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
 		super();
 
@@ -138,8 +140,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
-			let reveal = task.command.presentation.reveal;
-			let focus = task.command.presentation.focus;
+			let reveal = RevealKind.Always;
+			let focus = false;
+			if (CustomTask.is(task) || ContributedTask.is(task)) {
+				reveal = task.command.presentation.reveal;
+				focus = task.command.presentation.focus;
+			}
 			if (reveal === RevealKind.Always || focus) {
 				this.terminalService.setActiveInstance(terminalData.terminal);
 				this.terminalService.showPanel(focus);
@@ -169,7 +175,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			return false;
 		}
 		this.terminalService.setActiveInstance(terminalData.terminal);
-		this.terminalService.showPanel(task.command.presentation.focus);
+		if (CustomTask.is(task) || ContributedTask.is(task)) {
+			this.terminalService.showPanel(task.command.presentation.focus);
+		}
 		return true;
 	}
 
@@ -251,7 +259,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 
-		if (task.command) {
+		if (ContributedTask.is(task) || CustomTask.is(task)) {
 			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
@@ -272,7 +280,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
-	private executeCommand(task: Task, trigger: string): TPromise<ITaskSummary> {
+	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
 		let terminal: ITerminalInstance = undefined;
 		let executedCommand: string = undefined;
 		let promise: TPromise<ITaskSummary> = undefined;
@@ -376,6 +384,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					startStopProblemMatcher.dispose();
 					registeredLinkMatchers.forEach(handle => terminal.deregisterLinkMatcher(handle));
 					this.emit(TaskSystemEvents.Inactive, event);
+					// See https://github.com/Microsoft/vscode/issues/31965
+					if (exitCode === 0 && startStopProblemMatcher.numberOfMatches > 0) {
+						exitCode = 1;
+					}
 					resolve({ exitCode });
 				});
 			});
@@ -391,6 +403,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: true,
 					exitCode: summary.exitCode
@@ -404,6 +417,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};
@@ -414,7 +428,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: Task): [ITerminalInstance, string] {
+	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
@@ -445,14 +459,16 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = args && args.length > 0 ? `${command} ${args.join(' ')}` : `${command}`;
-			let basename: string;
+			let windowsShellArgs: boolean = false;
 			if (Platform.isWindows) {
-				basename = path.basename(shellLaunchConfig.executable).toLowerCase();
+				windowsShellArgs = true;
+				let basename = path.basename(shellLaunchConfig.executable).toLowerCase();
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
 					}
 				} else if (basename === 'bash.exe') {
+					windowsShellArgs = false;
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
@@ -472,7 +488,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				}
 			});
 			shellArgs.push(commandLine);
-			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
+			shellLaunchConfig.args = windowsShellArgs ? shellArgs.join(' ') : shellArgs;
 			if (task.command.presentation.echo) {
 				shellLaunchConfig.initialText = `\x1b[1m> Executing task: ${commandLine} <\x1b[0m\n`;
 			}
@@ -548,7 +564,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return [result, command];
 	}
 
-	private resolveCommandAndArgs(task: Task): { command: string, args: string[] } {
+	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: string, args: string[] } {
 		// First we need to use the command args:
 		let args: string[] = task.command.args ? task.command.args.slice() : [];
 		args = this.resolveVariables(args);
@@ -631,7 +647,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private resolveVariable(value: string): string {
-		return this.configurationResolverService.resolve(value);
+		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		return this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, value);
 	}
 
 	private resolveOptions(options: CommandOptions): CommandOptions {

@@ -14,7 +14,7 @@ suite('ExtHostMessageService', function () {
 
 	test('propagte handle on select', function () {
 
-		let service = new MainThreadMessageService(<any>{
+		let service = new MainThreadMessageService(null, null, <any>{
 			show(sev: number, m: { message; actions: Action[] }) {
 				assert.equal(m.actions.length, 1);
 				setImmediate(() => m.actions[0].run());
@@ -34,7 +34,7 @@ suite('ExtHostMessageService', function () {
 	test('isCloseAffordance', function () {
 
 		let actions: Action[];
-		let service = new MainThreadMessageService(<any>{
+		let service = new MainThreadMessageService(null, null, <any>{
 			show(sev: number, m: { message; actions: Action[] }) {
 				actions = m.actions;
 			}
@@ -62,7 +62,7 @@ suite('ExtHostMessageService', function () {
 
 		let actions: Action[];
 		let c: number;
-		let service = new MainThreadMessageService(<any>{
+		let service = new MainThreadMessageService(null, null, <any>{
 			show(sev: number, m: { message; actions: Action[] }) {
 				c = 0;
 				actions = m.actions;
@@ -85,7 +85,7 @@ suite('ExtHostMessageService', function () {
 
 	suite('modal', () => {
 		test('calls choice service', () => {
-			const service = new MainThreadMessageService(<any>{
+			const service = new MainThreadMessageService(null, null, <any>{
 				show(sev: number, m: { message; actions: Action[] }) {
 					throw new Error('not implemented');
 				}
@@ -105,7 +105,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('returns undefined when cancelled', () => {
-			const service = new MainThreadMessageService(<any>{
+			const service = new MainThreadMessageService(null, null, <any>{
 				show(sev: number, m: { message; actions: Action[] }) {
 					throw new Error('not implemented');
 				}
@@ -121,7 +121,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('hides Cancel button when not needed', () => {
-			const service = new MainThreadMessageService(<any>{
+			const service = new MainThreadMessageService(null, null, <any>{
 				show(sev: number, m: { message; actions: Action[] }) {
 					throw new Error('not implemented');
 				}

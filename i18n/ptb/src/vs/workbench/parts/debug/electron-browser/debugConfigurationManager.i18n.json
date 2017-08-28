@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Nome do composto. Aparece no menu drop-down da configuração de execução.",
 	"app.launch.json.compounds.configurations": "Nomes das configurações que serão iniciadas como parte deste composto.",
 	"debugNoType": "'type' do adaptador de depuração não pode ser omitido e deve ser do tipo 'string'.",
-	"DebugConfig.failed": "Não é possível criar o arquivo 'launch.json' dentro da pasta '.vscode' ({0}).",
-	"selectDebug": "Selecione o ambiente"
+	"selectDebug": "Selecione o ambiente",
+	"DebugConfig.failed": "Não é possível criar o arquivo 'launch.json' dentro da pasta '.vscode' ({0})."
 }

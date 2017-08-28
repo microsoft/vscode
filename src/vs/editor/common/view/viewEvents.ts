@@ -72,15 +72,10 @@ export class ViewCursorStateChangedEvent {
 	 * Is the primary cursor in the editable range?
 	 */
 	public readonly isInEditableRange: boolean;
-	/**
-	 * A message that can be presented to screen readers.
-	 */
-	public readonly screenReaderMessage: string;
 
-	constructor(selections: Selection[], isInEditableRange: boolean, screenReaderMessage: string) {
+	constructor(selections: Selection[], isInEditableRange: boolean) {
 		this.selections = selections;
 		this.isInEditableRange = isInEditableRange;
-		this.screenReaderMessage = screenReaderMessage;
 	}
 }
 

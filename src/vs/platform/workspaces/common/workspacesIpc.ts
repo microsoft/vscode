@@ -11,7 +11,6 @@ import { IWorkspacesService, IWorkspaceIdentifier } from 'vs/platform/workspaces
 
 export interface IWorkspacesChannel extends IChannel {
 	call(command: 'createWorkspace', arg: [string[]]): TPromise<string>;
-	call(command: 'saveWorkspace', arg: [IWorkspaceIdentifier, string]): TPromise<IWorkspaceIdentifier>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -22,7 +21,6 @@ export class WorkspacesChannel implements IWorkspacesChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'createWorkspace': return this.service.createWorkspace(arg);
-			case 'saveWorkspace': return this.service.saveWorkspace(arg[0], arg[1]);
 		}
 
 		return void 0;
@@ -37,9 +35,5 @@ export class WorkspacesChannelClient implements IWorkspacesService {
 
 	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier> {
 		return this.channel.call('createWorkspace', folders);
-	}
-
-	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
-		return this.channel.call('saveWorkspace', [workspace, target]);
 	}
 }

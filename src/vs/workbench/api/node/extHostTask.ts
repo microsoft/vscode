@@ -12,8 +12,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
@@ -330,7 +329,7 @@ namespace Tasks {
 		let source = {
 			kind: TaskSystem.TaskSourceKind.Extension,
 			label: typeof task.source === 'string' ? task.source : extension.name,
-			detail: extension.id
+			extension: extension.id
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;
@@ -396,15 +395,14 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-export class ExtHostTask extends ExtHostTaskShape {
+export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadTask);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadTask);
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 	};

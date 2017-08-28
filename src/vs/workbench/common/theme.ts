@@ -29,6 +29,18 @@ export const TAB_BORDER = registerColor('tab.border', {
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabActiveBorder', "Border to highlight active tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
+	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
+	light: transparent(TAB_ACTIVE_BORDER, 0.7),
+	hc: null
+}, nls.localize('tabActiveUnfocusedBorder', "Border to highlight active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
 	light: '#333333',
@@ -45,13 +57,13 @@ export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiv
 	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
 	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
 	hc: Color.white
-}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
 	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
 	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
 	hc: Color.white
-}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 
 // < --- Editors --- >
@@ -134,19 +146,19 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 	dark: '#FFFFFF',
 	light: '#FFFFFF',
 	hc: '#FFFFFF'
-}, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarForeground', "Status bar foreground color when a workspace is opened. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: null
-}, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
-
-export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, nls.localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarBackground', "Status bar background color when a workspace is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
@@ -154,23 +166,17 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_MULTI_FOLDER_BACKGROUND = registerColor('statusBar.multiFolderBackground', {
-	dark: '#2c4681',
-	light: '#2c4681',
-	hc: null
-}, nls.localize('statusBarMultiFolderBackground', "Status bar background color when a workspace with multiple folders is opened. The status bar is shown in the bottom of the window."));
+export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_MULTI_FOLDER_FOREGROUND = registerColor('statusBar.multiFolderForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, nls.localize('statusBarMultiFolderForeground', "Status bar foreground color when a workspace with multiple folders is opened. The status bar is shown in the bottom of the window."));
-
-export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+export const STATUS_BAR_NO_FOLDER_BORDER = registerColor('statusBar.noFolderBorder', {
+	dark: STATUS_BAR_BORDER,
+	light: STATUS_BAR_BORDER,
+	hc: STATUS_BAR_BORDER
+}, nls.localize('statusBarNoFolderBorder', "Status bar border color separating to the sidebar and editor when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
 	dark: Color.white.transparent(0.18),

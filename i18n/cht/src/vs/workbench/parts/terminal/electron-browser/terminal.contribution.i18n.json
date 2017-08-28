@@ -9,7 +9,6 @@
 	"terminal.integrated.shellArgs.linux": "在 Linux 終端機要使用的命令列引數。",
 	"terminal.integrated.shell.osx": "終端機在 OS X 上使用的殼層路徑。",
 	"terminal.integrated.shellArgs.osx": "在 OS X 終端機要使用的命令列引數。",
-	"terminal.integrated.shell.windows": "終端機在 Windows 上使用的殼層路徑。使用隨附於 Windows 的殼層 (cmd、PowerShell 或 Bash on Ubuntu) 時，建議選擇 C:\\Windows\\sysnative 而非 C:\\Windows\\System32，以使用 64 位元版本。",
 	"terminal.integrated.shellArgs.windows": "在 Windows 終端機上時要使用的命令列引數。",
 	"terminal.integrated.rightClickCopyPaste": "如有設定，這會防止在終端機內按滑鼠右鍵時顯示操作功能表，而是在有選取項目時複製、沒有選取項目時貼上。",
 	"terminal.integrated.fontFamily": "控制終端機的字型家族，預設為 editor.fontFamily 的值。",

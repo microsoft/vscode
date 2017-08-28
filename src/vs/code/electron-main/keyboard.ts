@@ -14,7 +14,8 @@ import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ipcMain as ipc } from 'electron';
-import { IWindowsMainService } from "vs/platform/windows/electron-main/windows";
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class KeyboardLayoutMonitor {
 
@@ -95,20 +96,17 @@ export class KeybindingsResolver {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private windowsService: IWindowsMainService,
+		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
 		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
-		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100 });
+		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-
-		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
-		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Listen to resolved keybindings from window
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings: string) => {
@@ -145,6 +143,10 @@ export class KeybindingsResolver {
 				this._onKeybindingsChanged.fire();
 			}
 		});
+
+		// Resolve keybindings when any first window is loaded
+		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Resolve keybindings again when keybindings.json changes
 		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());

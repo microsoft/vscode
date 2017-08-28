@@ -50,6 +50,7 @@ export class VariablesView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
+		initialSize: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -60,7 +61,7 @@ export class VariablesView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible, ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), sizing: ViewSizing.Flexible, ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
@@ -118,7 +119,7 @@ export class VariablesView extends CollapsibleView {
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
-			if (!this.tree.getContentHeight()) {
+			if (!this.tree.getContentHeight() || sf.explicit) {
 				this.onFocusStackFrameScheduler.schedule(0);
 			} else {
 				this.onFocusStackFrameScheduler.schedule();
@@ -159,6 +160,7 @@ export class WatchExpressionsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
+		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -168,7 +170,7 @@ export class WatchExpressionsView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(size, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
@@ -258,6 +260,7 @@ export class CallStackView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
+		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -267,7 +270,7 @@ export class CallStackView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(size, { ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section"), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -360,8 +363,9 @@ export class CallStackView extends CollapsibleView {
 		}
 
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		const thread = this.debugService.getViewModel().focusedThread;
 		const process = this.debugService.getViewModel().focusedProcess;
-		if (!stackFrame) {
+		if (!thread) {
 			if (!process) {
 				this.tree.clearSelection();
 				return TPromise.as(null);
@@ -371,8 +375,11 @@ export class CallStackView extends CollapsibleView {
 			return this.tree.reveal(process);
 		}
 
-		const thread = stackFrame.thread;
 		return this.tree.expandAll([thread.process, thread]).then(() => {
+			if (!stackFrame) {
+				return TPromise.as(null);
+			}
+
 			this.tree.setSelection([stackFrame]);
 			return this.tree.reveal(stackFrame);
 		});
@@ -392,6 +399,7 @@ export class BreakpointsView extends CollapsibleView {
 	private settings: any;
 
 	constructor(
+		size: number,
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
@@ -401,11 +409,11 @@ export class BreakpointsView extends CollapsibleView {
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({
+		super(size, {
 			...(options as IViewOptions),
 			ariaHeaderLabel: nls.localize('breakpointsSection', "Breakpoints Section"),
-			sizing: ViewSizing.Fixed, initialBodySize: BreakpointsView.getExpandedBodySize(
-				debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length)
+			sizing: ViewSizing.Fixed,
+			initialBodySize: BreakpointsView.getExpandedBodySize(debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length)
 		}, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;

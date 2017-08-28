@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
+import { IMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -305,7 +305,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		const filterEndLineNumber = filterRange.endLineNumber;
 		const filterEndColumn = filterRange.endColumn;
 
-		let result: InternalDecoration[] = [];
+		let result: InternalDecoration[] = [], resultLen = 0;
 
 		for (let decorationId in this._multiLineDecorationsMap) {
 			// No `hasOwnProperty` call due to using Object.create(null)
@@ -334,7 +334,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				continue;
 			}
 
-			result.push(decoration);
+			result[resultLen++] = decoration;
 		}
 
 		return result;
@@ -347,9 +347,10 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		const filterEndColumn = filterRange.endColumn;
 
 		let result = this._getMultiLineDecorations(filterRange, filterOwnerId, filterOutValidation);
+		let resultLen = result.length;
 		let resultMap: { [decorationId: string]: boolean; } = {};
 
-		for (let i = 0, len = result.length; i < len; i++) {
+		for (let i = 0, len = resultLen; i < len; i++) {
 			resultMap[result[i].id] = true;
 		}
 
@@ -397,7 +398,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 					continue;
 				}
 
-				result.push(decoration);
+				result[resultLen++] = decoration;
 				resultMap[decoration.id] = true;
 			}
 		}
@@ -419,7 +420,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
-		let result: InternalDecoration[] = [];
+		let result: InternalDecoration[] = [], resultLen = 0;
 
 		for (let decorationId in this._decorations) {
 			// No `hasOwnProperty` call due to using Object.create(null)
@@ -433,7 +434,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 				continue;
 			}
 
-			result.push(decoration);
+			result[resultLen++] = decoration;
 		}
 
 		return result;
@@ -894,8 +895,8 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	readonly staticId: number;
 	readonly stickiness: editorCommon.TrackedRangeStickiness;
 	readonly className: string;
-	readonly hoverMessage: MarkedString | MarkedString[];
-	readonly glyphMarginHoverMessage: MarkedString | MarkedString[];
+	readonly hoverMessage: IMarkdownString | IMarkdownString[];
+	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
 	readonly isWholeLine: boolean;
 	readonly showIfCollapsed: boolean;
 	readonly overviewRuler: ModelDecorationOverviewRulerOptions;
@@ -911,7 +912,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.overviewRuler = new ModelDecorationOverviewRulerOptions(options.overviewRuler);

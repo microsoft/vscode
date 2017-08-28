@@ -48,20 +48,6 @@ suite('FileService', () => {
 		extfs.del(parentDir, os.tmpdir(), () => { }, done);
 	});
 
-	test('resolveContents', function (done: () => void) {
-		service.resolveContents([
-			uri.file(path.join(testDir, 'index.html')),
-			uri.file(path.join(testDir, '404.html')),
-			uri.file(path.join(testDir, 'deep', 'company.js')),
-		]).done(r => {
-			assert.equal(r.length, 2);
-			assert.equal(r.some(c => c.name === 'index.html'), true);
-			assert.equal(r.some(c => c.name === 'company.js'), true);
-
-			done();
-		});
-	});
-
 	test('createFile', function (done: () => void) {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {

@@ -8,8 +8,6 @@
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
 import * as sinon from 'sinon';
@@ -28,26 +26,10 @@ class TestXterm {
 	public setHypertextValidationCallback() { }
 }
 
-class TestURI extends URI {
-	constructor(private _fakePath: string) {
-		super();
-	};
-
-	get fsPath(): string {
-		return this._fakePath;
-	}
-}
-
 interface LinkFormatInfo {
 	urlFormat: string;
 	line?: string;
 	column?: string;
-}
-
-class TestWorkspace extends Workspace {
-	constructor(private basePath: string) {
-		super(basePath, basePath, [new TestURI(basePath)]);
-	}
 }
 
 suite('Workbench - TerminalLinkHandler', () => {

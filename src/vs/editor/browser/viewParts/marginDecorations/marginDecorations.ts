@@ -60,12 +60,12 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		let decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [];
+		let r: DecorationToRender[] = [], rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
 			let marginClassName = d.source.options.marginClassName;
 			if (marginClassName) {
-				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName));
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName);
 			}
 		}
 		return r;

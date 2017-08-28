@@ -13,8 +13,8 @@ import { IBackupWorkspacesFormat, IBackupMainService } from 'vs/platform/backup/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ILogService } from "vs/platform/log/common/log";
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -28,7 +28,8 @@ export class BackupMainService implements IBackupMainService {
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
@@ -42,6 +43,7 @@ export class BackupMainService implements IBackupMainService {
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
 		return this.backups.rootWorkspaces.slice(0); // return a copy
 	}
 
@@ -51,23 +53,50 @@ export class BackupMainService implements IBackupMainService {
 			// hot exit is configured as onExitAndWindowClose.
 			return [];
 		}
+
 		return this.backups.folderWorkspaces.slice(0); // return a copy
 	}
 
+	public isHotExitEnabled(): boolean {
+		return this.getHotExitConfig() !== HotExitConfiguration.OFF;
+	}
+
 	private isHotExitOnExitAndWindowClose(): boolean {
+		return this.getHotExitConfig() === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE;
+	}
+
+	private getHotExitConfig(): string {
 		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
 
-		return config && config.files && config.files.hotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE;
+		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}
 
 	public getEmptyWindowBackupPaths(): string[] {
 		return this.backups.emptyWorkspaces.slice(0); // return a copy
 	}
 
-	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier): string {
+	public registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string {
 		this.pushBackupPathsSync(workspace, this.backups.rootWorkspaces);
 
-		return path.join(this.backupHome, workspace.id);
+		const backupPath = path.join(this.backupHome, workspace.id);
+
+		if (migrateFrom) {
+			this.moveBackupFolderSync(backupPath, migrateFrom);
+		}
+
+		return backupPath;
+	}
+
+	private moveBackupFolderSync(backupPath: string, moveFromPath: string): void {
+		if (!fs.existsSync(moveFromPath)) {
+			return;
+		}
+
+		try {
+			fs.renameSync(moveFromPath, backupPath);
+		} catch (ex) {
+			this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
+		}
 	}
 
 	public registerFolderBackupSync(folderPath: string): string {
@@ -99,10 +128,12 @@ export class BackupMainService implements IBackupMainService {
 		if (!target) {
 			return;
 		}
+
 		const index = this.indexOf(workspaceIdentifier, target);
 		if (index === -1) {
 			return;
 		}
+
 		target.splice(index, 1);
 		this.saveSync();
 	}
@@ -118,7 +149,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private sanitizeId(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
-		if (typeof workspaceIdentifier === 'string') {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
 			return this.sanitizePath(workspaceIdentifier);
 		}
 
@@ -189,10 +220,26 @@ export class BackupMainService implements IBackupMainService {
 		// Validate Workspace and Folder Backups
 		workspaceAndFolders.forEach(workspaceOrFolder => {
 			const workspaceId = workspaceOrFolder.workspaceIdentifier;
-			const workspacePath = typeof workspaceId === 'string' ? workspaceId : workspaceId.configPath;
-			const backupPath = path.join(this.backupHome, typeof workspaceId === 'string' ? this.getFolderHash(workspaceId) : workspaceId.id);
+			const workspacePath = isSingleFolderWorkspaceIdentifier(workspaceId) ? workspaceId : workspaceId.configPath;
+			const backupPath = path.join(this.backupHome, isSingleFolderWorkspaceIdentifier(workspaceId) ? this.getFolderHash(workspaceId) : workspaceId.id);
 			const hasBackups = this.hasBackupsSync(backupPath);
 			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
+
+			// TODO@Ben migration from old workspace ID to new
+			if (hasBackups && !missingWorkspace && !isSingleFolderWorkspaceIdentifier(workspaceId) && workspaceId.id !== this.workspacesService.getWorkspaceId(workspacePath)) {
+				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceId, backupPath, target: workspaceOrFolder.target });
+
+				const identifier = { id: this.workspacesService.getWorkspaceId(workspacePath), configPath: workspacePath } as IWorkspaceIdentifier;
+				this.pushBackupPathsSync(identifier, this.backups.rootWorkspaces);
+				const newWorkspaceBackupPath = path.join(this.backupHome, identifier.id);
+				try {
+					fs.renameSync(backupPath, newWorkspaceBackupPath);
+				} catch (ex) {
+					this.logService.error(`Backup: Could not rename backup folder for legacy workspace: ${ex.toString()}`);
+
+					this.removeBackupPathSync(identifier, this.backups.rootWorkspaces);
+				}
+			}
 
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
@@ -202,7 +249,7 @@ export class BackupMainService implements IBackupMainService {
 				if (missingWorkspace) {
 					const identifier = this.getRandomEmptyWindowId();
 					this.pushBackupPathsSync(identifier, this.backups.emptyWorkspaces);
-					const newEmptyWindowBackupPath = path.join(path.dirname(backupPath), identifier);
+					const newEmptyWindowBackupPath = path.join(this.backupHome, identifier);
 					try {
 						fs.renameSync(backupPath, newEmptyWindowBackupPath);
 					} catch (ex) {
@@ -261,6 +308,7 @@ export class BackupMainService implements IBackupMainService {
 			if (!fs.existsSync(this.backupHome)) {
 				fs.mkdirSync(this.backupHome);
 			}
+
 			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);

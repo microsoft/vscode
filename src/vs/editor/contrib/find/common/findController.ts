@@ -16,6 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -38,7 +39,8 @@ export interface IFindStartOptions {
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
-export const CONTEXT_FIND_INPUT_FOCUSSED = new RawContextKey<boolean>('findInputFocussed', false);
+// Keep ContextKey use of 'Focussed' to not break when clauses
+export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -205,23 +207,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		// overwritten in subclass
 	}
 
-	public getSelectionSearchString(): string {
-		let selection = this._editor.getSelection();
-
-		if (selection.startLineNumber === selection.endLineNumber) {
-			if (selection.isEmpty()) {
-				let wordAtPosition = this._editor.getModel().getWordAtPosition(selection.getStartPosition());
-				if (wordAtPosition) {
-					return wordAtPosition.word;
-				}
-			} else {
-				return this._editor.getModel().getValueInRange(selection);
-			}
-		}
-
-		return null;
-	}
-
 	protected _start(opts: IFindStartOptions): void {
 		this.disposeModel();
 
@@ -236,7 +221,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 		// Consider editor selection and overwrite the state with it
 		if (opts.seedSearchStringFromSelection && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection) {
-			let selectionSearchString = this.getSelectionSearchString();
+			let selectionSearchString = getSelectionSearchString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
 					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
@@ -423,7 +408,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		let selectionSearchString = controller.getSelectionSearchString();
+		let selectionSearchString = getSelectionSearchString(editor);
 		if (selectionSearchString) {
 			controller.setSearchString(selectionSearchString);
 		}
@@ -1136,6 +1121,56 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 }
 
+@editorAction
+export class ShowNextFindTermAction extends MatchFindAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowNextFindTermAction,
+			label: nls.localize('showNextFindTermAction', "Show Next Find Term"),
+			alias: 'Show Next Find Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
+				primary: ShowNextFindTermKeybinding.primary,
+				mac: ShowNextFindTermKeybinding.mac,
+				win: ShowNextFindTermKeybinding.win,
+				linux: ShowNextFindTermKeybinding.linux
+			}
+		});
+	}
+
+	protected _run(controller: CommonFindController): boolean {
+		return controller.showNextFindTerm();
+	}
+}
+
+@editorAction
+export class ShpwPreviousFindTermAction extends MatchFindAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowPreviousFindTermAction,
+			label: nls.localize('showPreviousFindTermAction', "Show Previous Find Term"),
+			alias: 'Find Show Previous Find Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: CommonEditorRegistry.commandWeight(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
+				primary: ShowPreviousFindTermKeybinding.primary,
+				mac: ShowPreviousFindTermKeybinding.mac,
+				win: ShowPreviousFindTermKeybinding.win,
+				linux: ShowPreviousFindTermKeybinding.linux
+			}
+		});
+	}
+
+	protected _run(controller: CommonFindController): boolean {
+		return controller.showPreviousFindTerm();
+	}
+}
+
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 
 CommonEditorRegistry.registerEditorCommand(new FindCommand({
@@ -1236,33 +1271,5 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 		weight: CommonEditorRegistry.commandWeight(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
-	}
-}));
-
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ShowPreviousFindTermAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.showPreviousFindTerm(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
-		primary: ShowPreviousFindTermKeybinding.primary,
-		mac: ShowPreviousFindTermKeybinding.mac,
-		win: ShowPreviousFindTermKeybinding.win,
-		linux: ShowPreviousFindTermKeybinding.linux
-	}
-}));
-
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
-	id: FIND_IDS.ShowNextFindTermAction,
-	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-	handler: x => x.showNextFindTerm(),
-	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
-		primary: ShowNextFindTermKeybinding.primary,
-		mac: ShowNextFindTermKeybinding.mac,
-		win: ShowNextFindTermKeybinding.win,
-		linux: ShowNextFindTermKeybinding.linux
 	}
 }));

@@ -10,6 +10,5 @@
 	"copy": "Copier",
 	"paste": "Coller",
 	"selectAll": "Tout Sélectionner",
-	"confirmOpen": "Voulez-vous vraiment ouvrir {0} dossiers ?",
 	"confirmOpenButton": "&&Ouvrir..."
 }

@@ -6,13 +6,12 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface ICodeWindow {
 	id: number;
@@ -40,24 +39,33 @@ export interface ICodeWindow {
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
+export interface IWindowsCountChangedEvent {
+	oldCount: number;
+	newCount: number;
+}
+
 export interface IWindowsMainService {
 	_serviceBrand: any;
 
 	// events
 	onWindowReady: Event<ICodeWindow>;
+	onActiveWindowChanged: Event<ICodeWindow>;
+	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 	onWindowClose: Event<number>;
 	onWindowReload: Event<number>;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	openWorkspace(win?: ICodeWindow): void;
+	createAndOpenWorkspace(win: ICodeWindow, folders?: string[], path?: string): void;
+	saveAndOpenWorkspace(win: ICodeWindow, path: string): void;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	pickFileFolderAndOpen(forceNewWindow?: boolean, data?: ITelemetryData): void;
-	pickFileAndOpen(forceNewWindow?: boolean, path?: string, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolderAndOpen(forceNewWindow?: boolean, window?: ICodeWindow, data?: ITelemetryData): void;
-	pickFolder(window?: ICodeWindow, options?: { buttonLabel: string; title: string; }): TPromise<string[]>;
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
+	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
+	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowClose(windowId: number): TPromise<void>;
@@ -81,6 +89,8 @@ export interface IOpenConfiguration {
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;
+	addMode?: boolean;
+	forceOpenWorkspaceAsFile?: boolean;
 	initialStartup?: boolean;
 }
 

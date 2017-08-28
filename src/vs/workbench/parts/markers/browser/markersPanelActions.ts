@@ -40,7 +40,7 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 
 	public run(): TPromise<any> {
 		let promise = super.run();
-		if (this.isPanelFocussed()) {
+		if (this.isPanelFocused()) {
 			this.telemetryService.publicLog('problems.used');
 		}
 		return promise;
@@ -62,7 +62,7 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
 	public run(): TPromise<any> {
 		let promise = super.run();
-		if (this.isPanelFocussed()) {
+		if (this.isPanelFocused()) {
 			this.telemetryService.publicLog('problems.used');
 		}
 		return promise;

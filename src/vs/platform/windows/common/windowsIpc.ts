@@ -8,21 +8,23 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService } from './windows';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { IRecentlyOpened } from "vs/platform/history/common/history";
+import { IWindowsService, INativeOpenDialogOptions } from './windows';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
 
 export interface IWindowsChannel extends IChannel {
 	call(command: 'event:onWindowOpen'): TPromise<number>;
 	call(command: 'event:onWindowFocus'): TPromise<number>;
-	call(command: 'pickFileFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
-	call(command: 'pickFileAndOpen', arg: [number, boolean, string, ITelemetryData]): TPromise<void>;
-	call(command: 'pickFolderAndOpen', arg: [number, boolean, ITelemetryData]): TPromise<void>;
-	call(command: 'pickFolder', arg: [number, { buttonLabel: string; title: string; }]): TPromise<string[]>;
+	call(command: 'event:onWindowBlur'): TPromise<number>;
+	call(command: 'pickFileFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
+	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
+	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
+	call(command: 'openWorkspace', arg: number): TPromise<void>;
+	call(command: 'createAndOpenWorkspace', arg: [number, string[], string]): TPromise<void>;
+	call(command: 'saveAndOpenWorkspace', arg: [number, string]): TPromise<void>;
 	call(command: 'toggleFullScreen', arg: number): TPromise<void>;
 	call(command: 'setRepresentedFilename', arg: [number, string]): TPromise<void>;
 	call(command: 'addRecentlyOpened', arg: string[]): TPromise<void>;
@@ -38,7 +40,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
-	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean }]): TPromise<void>;
+	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
@@ -47,7 +49,6 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'whenSharedProcessReady'): TPromise<void>;
 	call(command: 'toggleSharedProcess'): TPromise<void>;
 	call(command: 'log', arg: [string, string[]]): TPromise<void>;
-	call(command: 'closeExtensionHostWindow', arg: string[]): TPromise<void>;
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: Electron.CrashReporterStartOptions): TPromise<void>;
@@ -58,24 +59,29 @@ export class WindowsChannel implements IWindowsChannel {
 
 	private onWindowOpen: Event<number>;
 	private onWindowFocus: Event<number>;
+	private onWindowBlur: Event<number>;
 
 	constructor(private service: IWindowsService) {
 		this.onWindowOpen = buffer(service.onWindowOpen, true);
 		this.onWindowFocus = buffer(service.onWindowFocus, true);
+		this.onWindowBlur = buffer(service.onWindowBlur, true);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
-			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg[0], arg[1], arg[2]);
-			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg[0], arg[1], arg[2], arg[3]);
-			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg[0], arg[1], arg[2]);
-			case 'pickFolder': return this.service.pickFolder(arg[0], arg[1]);
+			case 'event:onWindowBlur': return eventToCall(this.onWindowBlur);
+			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
+			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
+			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
+			case 'openWorkspace': return this.service.openWorkspace(arg);
+			case 'createAndOpenWorkspace': return this.service.createAndOpenWorkspace(arg[0], arg[1], arg[2]);
+			case 'saveAndOpenWorkspace': return this.service.saveAndOpenWorkspace(arg[0], arg[1]);
 			case 'toggleFullScreen': return this.service.toggleFullScreen(arg);
 			case 'setRepresentedFilename': return this.service.setRepresentedFilename(arg[0], arg[1]);
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
@@ -100,7 +106,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'toggleSharedProcess': return this.service.toggleSharedProcess();
 			case 'quit': return this.service.quit();
 			case 'log': return this.service.log(arg[0], arg[1]);
-			case 'closeExtensionHostWindow': return this.service.closeExtensionHostWindow(arg);
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
@@ -121,20 +126,19 @@ export class WindowsChannelClient implements IWindowsService {
 	private _onWindowFocus: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowFocus');
 	get onWindowFocus(): Event<number> { return this._onWindowFocus; }
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('pickFileFolderAndOpen', [windowId, forceNewWindow, data]);
+	private _onWindowBlur: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowBlur');
+	get onWindowBlur(): Event<number> { return this._onWindowBlur; }
+
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return this.channel.call('pickFileFolderAndOpen', options);
 	}
 
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('pickFileAndOpen', [windowId, forceNewWindow, path, data]);
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return this.channel.call('pickFileAndOpen', options);
 	}
 
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		return this.channel.call('pickFolderAndOpen', [windowId, forceNewWindow, data]);
-	}
-
-	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
-		return this.channel.call('pickFolder', [windowId, options]);
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		return this.channel.call('pickFolderAndOpen', options);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -151,6 +155,18 @@ export class WindowsChannelClient implements IWindowsService {
 
 	closeWorkspace(windowId: number): TPromise<void> {
 		return this.channel.call('closeWorkspace', windowId);
+	}
+
+	openWorkspace(windowId: number): TPromise<void> {
+		return this.channel.call('openWorkspace', windowId);
+	}
+
+	createAndOpenWorkspace(windowId: number, folders?: string[], path?: string): TPromise<void> {
+		return this.channel.call('createAndOpenWorkspace', [windowId, folders, path]);
+	}
+
+	saveAndOpenWorkspace(windowId: number, path: string): TPromise<void> {
+		return this.channel.call('saveAndOpenWorkspace', [windowId, path]);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
@@ -225,7 +241,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return this.channel.call('openWindow', [paths, options]);
 	}
 
@@ -247,10 +263,6 @@ export class WindowsChannelClient implements IWindowsService {
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		return this.channel.call('log', [severity, messages]);
-	}
-
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
-		return this.channel.call('closeExtensionHostWindow', extensionDevelopmentPaths);
 	}
 
 	showItemInFolder(path: string): TPromise<void> {

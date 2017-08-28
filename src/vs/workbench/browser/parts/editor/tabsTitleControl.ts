@@ -12,7 +12,7 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { shorten } from 'vs/base/common/labels';
+import { shorten, getPathLabel } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -30,7 +30,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -40,11 +40,12 @@ import { getOrSet } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 interface IEditorInputLabel {
-	editor: IEditorInput;
 	name: string;
 	hasAmbiguousName?: boolean;
 	description?: string;
@@ -73,7 +74,9 @@ export class TabsTitleControl extends TitleControl {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService private fileService: IFileService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -128,7 +131,7 @@ export class TabsTitleControl extends TitleControl {
 		// Forward scrolling inside the container to our custom scrollbar
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.SCROLL, e => {
 			if (DOM.hasClass(this.tabsContainer, 'scroll')) {
-				this.scrollbar.updateState({
+				this.scrollbar.setScrollPosition({
 					scrollLeft: this.tabsContainer.scrollLeft // during DND the  container gets scrolled so we need to update the custom scrollbar
 				});
 			}
@@ -293,12 +296,23 @@ export class TabsTitleControl extends TitleControl {
 					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 
+					// Use boxShadow for the active tab border because if we also have a editor group header
+					// color, the two colors would collide and the tab border never shows up.
+					// see https://github.com/Microsoft/vscode/issues/33111
+					const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+					if (activeTabBorderColor) {
+						tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+					} else {
+						tabContainer.style.boxShadow = null;
+					}
+
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
 					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
+					tabContainer.style.boxShadow = null;
 				}
 
 				// Dirty State
@@ -325,10 +339,14 @@ export class TabsTitleControl extends TitleControl {
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
+			const name = editor.getName();
 			let description = editor.getDescription();
+			if (mapLabelAndDescriptionToDuplicates.has(`${name}${description}`)) {
+				description = editor.getDescription(true); // try verbose description if name+description already exists
+			}
+
 			const item: IEditorInputLabel = {
-				editor,
-				name: editor.getName(),
+				name,
 				description,
 				title: editor.getTitle(Verbosity.LONG)
 			};
@@ -351,7 +369,7 @@ export class TabsTitleControl extends TitleControl {
 				});
 
 				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.editor.getDescription()));
+					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
 					duplicates.forEach((duplicate, i) => {
 						duplicate.description = shortenedDescriptions[i];
 						duplicate.hasAmbiguousName = true;
@@ -455,7 +473,7 @@ export class TabsTitleControl extends TitleControl {
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
 		// Update scrollbar
-		this.scrollbar.updateState({
+		this.scrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
 			scrollWidth: totalContainerWidth
 		});
@@ -475,14 +493,14 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
 		// Note: only try to do this if we actually have enough width to give to show the tab fully!
 		if (activeTabFits && containerScrollPosX + visibleContainerWidth < activeTabPosX + activeTabWidth) {
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: containerScrollPosX + ((activeTabPosX + activeTabWidth) /* right corner of tab */ - (containerScrollPosX + visibleContainerWidth) /* right corner of view port */)
 			});
 		}
 
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: this.activeTab.offsetLeft
 			});
 		}
@@ -562,7 +580,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// moving in the tabs container can have an impact on scrolling position, so we need to update the custom scrollbar
-			this.scrollbar.updateState({
+			this.scrollbar.setScrollPosition({
 				scrollLeft: this.tabsContainer.scrollLeft
 			});
 		}));
@@ -597,6 +615,7 @@ export class TabsTitleControl extends TitleControl {
 				const resource = fileResource.toString();
 				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
 				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
+				e.dataTransfer.setData('text/plain', getPathLabel(resource)); // enables dropping tab resource path into text controls
 			}
 		}));
 
@@ -682,28 +701,32 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const resources = extractResources(e).filter(d => d.resource.scheme === 'file' || d.resource.scheme === 'untitled');
-
-		// Handle resources
-		if (resources.length) {
+		const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
+		if (droppedResources.length) {
 			DOM.EventHelper.stop(e, true);
 
-			// Add external ones to recently open list
-			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-			if (externalResources.length) {
-				this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-			}
+			handleWorkspaceExternalDrop(droppedResources, this.fileService, this.messageService, this.windowsService, this.windowService, this.workspacesService).then(handled => {
+				if (handled) {
+					return;
+				}
 
-			// Open in Editor
-			this.editorService.openEditors(resources.map(d => {
-				return {
-					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
-					position: targetPosition
-				};
-			})).then(() => {
-				this.editorGroupService.focusGroup(targetPosition);
-				return this.windowService.focusWindow();
-			}).done(null, errors.onUnexpectedError);
+				// Add external ones to recently open list
+				const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+				if (externalResources.length) {
+					this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+				}
+
+				// Open in Editor
+				this.windowService.focusWindow()
+					.then(() => this.editorService.openEditors(droppedResources.map(d => {
+						return {
+							input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
+							position: targetPosition
+						};
+					}))).then(() => {
+						this.editorGroupService.focusGroup(targetPosition);
+					}).done(null, errors.onUnexpectedError);
+			});
 		}
 	}
 

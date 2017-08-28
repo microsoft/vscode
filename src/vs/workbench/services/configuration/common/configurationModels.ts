@@ -5,19 +5,17 @@
 'use strict';
 
 import { clone } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { distinct } from 'vs/base/common/arrays';
 import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
 import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 	private _raw: T;
-	private _folders: URI[];
+	private _folders: string[];
 	private _worksapaceSettings: ConfigurationModel<T>;
 	private _tasksConfiguration: ConfigurationModel<T>;
 	private _launchConfiguration: ConfigurationModel<T>;
@@ -29,11 +27,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		this._workspaceConfiguration = this.consolidate();
 	}
 
-	get id(): string {
-		return this._raw['id'];
-	}
-
-	get folders(): URI[] {
+	get folders(): string[] {
 		return this._folders;
 	}
 
@@ -44,18 +38,12 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	protected processRaw(raw: T): void {
 		this._raw = raw;
 
-		this._folders = this.parseFolders();
+		this._folders = ((this._raw['folders'] || []) as IStoredWorkspaceFolder[]).map(folder => folder.path);
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
 		this._tasksConfiguration = this.parseConfigurationModel('tasks');
 		this._launchConfiguration = this.parseConfigurationModel('launch');
 
 		super.processRaw(raw);
-	}
-
-	private parseFolders(): URI[] {
-		const folders: string[] = this._raw['folders'] || [];
-		return distinct(folders.map(folder => URI.parse(folder))
-			.filter(r => r.scheme === Schemas.file)); // only support files for now	;
 	}
 
 	private parseConfigurationModel(section: string): ConfigurationModel<T> {
@@ -69,10 +57,12 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
 		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
 
-		return new ConfigurationModel<T>(<T>{}, keys)
+		const mergedContents = new ConfigurationModel<T>(<T>{}, keys)
 			.merge(this._worksapaceSettings)
 			.merge(this._tasksConfiguration)
 			.merge(this._launchConfiguration);
+
+		return new ConfigurationModel<T>(mergedContents.contents, keys, mergedContents.overrides);
 	}
 }
 
@@ -129,11 +119,11 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 	}
 
 	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.WORKSPACE);
+		return this.createScopedConfigurationModel(ConfigurationScope.WINDOW);
 	}
 
 	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
-		return this.createScopedConfigurationModel(ConfigurationScope.FOLDER);
+		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
 	}
 
 	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
@@ -151,7 +141,7 @@ export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
 		const propertySchema = configurationProperties[key];
-		return propertySchema ? propertySchema.scope : ConfigurationScope.WORKSPACE;
+		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
 	}
 }
 
@@ -166,7 +156,7 @@ export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 		this._contents = <T>{};
 		this._overrides = [];
 
-		this.doMerge(this, ConfigurationScope.WORKSPACE === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
+		this.doMerge(this, ConfigurationScope.WINDOW === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
 		for (const configModel of this.scopedConfigs) {
 			this.doMerge(this, configModel);
 		}

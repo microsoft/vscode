@@ -46,6 +46,8 @@ import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/platform/markers
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -74,7 +76,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -89,6 +91,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -102,7 +106,8 @@ abstract class OpenTaskConfigurationAction extends Action {
 		private messageService: IMessageService, private quickOpenService: IQuickOpenService,
 		private environmentService: IEnvironmentService,
 		private configurationResolverService: IConfigurationResolverService,
-		private extensionService: IExtensionService) {
+		private extensionService: IExtensionService,
+		private telemetryService: ITelemetryService) {
 
 		super(id, label);
 	}
@@ -165,7 +170,13 @@ abstract class OpenTaskConfigurationAction extends Action {
 						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((result) => {
+						this.telemetryService.publicLog(TaskService.TemplateTelemetryEventName, {
+							templateId: selection.id,
+							autoDetect: selection.autoDetect
+						});
+						return result;
+					}); // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
 				});
 				/* 2.0 version
 				let content = selection.content;
@@ -206,10 +217,11 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService) {
+		@IExtensionService extensionService,
+		@ITelemetryService telemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService);
+			extensionService, telemetryService);
 	}
 }
 
@@ -224,10 +236,11 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService) {
+		@IExtensionService extensionService,
+		@ITelemetryService telemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
-			extensionService);
+			extensionService, telemetryService);
 	}
 }
 
@@ -283,6 +296,12 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 
 		this.activeCount = 0;
 		this.icons = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
@@ -615,6 +634,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private static RanTaskBefore_Key = 'workbench.tasks.ranTaskBefore';
 
 	private static CustomizationTelemetryEventName: string = 'taskService.customize';
+	public static TemplateTelemetryEventName: string = 'taskService.template';
 
 	public _serviceBrand: any;
 	public static SERVICE_ID: string = 'taskService';
@@ -662,7 +682,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService,
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IWindowService private _windowServive: IWindowService
 	) {
 
 		super();
@@ -700,7 +721,19 @@ class TaskService extends EventEmitter implements ITaskService {
 					? ExecutionEngine.Process
 					: ExecutionEngine._default;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
-				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
+				this.messageService.show(
+					Severity.Info,
+					{
+						message: nls.localize(
+							'TaskSystem.noHotSwap',
+							'Changing the task execution engine requires to reload the Window'
+						),
+						actions: [
+							new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
+							new CloseMessageAction()
+						]
+					}
+				);
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
@@ -904,7 +937,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (!toExecute) {
 				throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Requested task {0} to execute not found.', requested), TaskErrors.TaskNotFound);
 			} else {
-				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(toExecute)) {
+				if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(toExecute) && !CompositeTask.is(toExecute)) {
 					return this.attachProblemMatcher(toExecute).then((toExecute) => {
 						if (toExecute) {
 							return this.executeTask(toExecute, resolver);
@@ -931,14 +964,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (task.problemMatchers !== void 0 && task.problemMatchers.length > 0) {
 			return false;
 		}
-		if (task._source.config === void 0 && ContributedTask.is(task)) {
+		if (ContributedTask.is(task)) {
 			return !task.hasDefinedMatchers && task.problemMatchers.length === 0;
 		}
-		let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-		return configProperties.problemMatcher === void 0;
+		if (CustomTask.is(task)) {
+			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
+			return configProperties.problemMatcher === void 0;
+		}
+		return false;
 	}
 
-	private attachProblemMatcher(task: Task): TPromise<Task> {
+	private attachProblemMatcher(task: ContributedTask | CustomTask): TPromise<Task> {
 		interface ProblemMatcherPickEntry extends IPickOpenEntry {
 			matcher: NamedProblemMatcher;
 			never?: boolean;
@@ -1014,16 +1050,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0;
 	}
 
-	public customize(task: Task, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
+	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): TPromise<void> {
 		let configuration = this.getConfiguration();
 		if (configuration.hasParseErrors) {
 			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.as<void>(undefined);
 		}
+
 		let fileConfig = configuration.config;
 		let index: number;
 		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask;
-		let taskConfig = task._source.config;
+		let taskConfig = CustomTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			index = taskConfig.index;
 			toCustomize = taskConfig.element;
@@ -1119,6 +1156,17 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public openConfig(task: CustomTask): TPromise<void> {
+		let resource = this.contextService.toResource(task._source.config.file);
+		return this.editorService.openEditor({
+			resource: resource,
+			options: {
+				forceOpen: true,
+				pinned: false
+			}
+		}, false).then(() => undefined);
+	}
+
 	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let idMap: IStringDictionary<Task> = Object.create(null);
 		let labelMap: IStringDictionary<Task> = Object.create(null);
@@ -1161,15 +1209,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			return { task: extensionTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
-			let task: CustomTask = {
+			let task: CompositeTask = {
 				_id: id,
-				_source: { kind: TaskSourceKind.Generic, label: 'generic' },
+				_source: { kind: TaskSourceKind.Composite, label: 'composite' },
 				_label: id,
-				type: 'custom',
+				type: 'composite',
 				name: id,
 				identifier: id,
-				dependsOn: extensionTasks.map(task => task._id),
-				command: undefined,
+				dependsOn: extensionTasks.map(task => task._id)
 			};
 			return { task, resolver };
 		}
@@ -1206,7 +1253,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (active.background) {
 							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.'));
+							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', task._label));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1257,13 +1304,13 @@ class TaskService extends EventEmitter implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.workbenchEditorService,
+				this.workbenchEditorService, this.contextService,
 				TaskService.OutputChannelId
 			);
 		} else {
 			let system = new ProcessTaskSystem(
 				this.markerService, this.modelService, this.telemetryService, this.outputService,
-				this.configurationResolverService, TaskService.OutputChannelId,
+				this.configurationResolverService, this.contextService, TaskService.OutputChannelId,
 			);
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
@@ -1358,8 +1405,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<Task> {
-		let result: IStringDictionary<Task>;
+	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> {
+		let result: IStringDictionary<CustomTask>;
 		function getResult() {
 			if (result) {
 				return result;
@@ -1552,14 +1599,14 @@ class TaskService extends EventEmitter implements ITaskService {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService);
+			this.extensionService, this.telemetryService);
 	}
 
 	private configureBuildTask(): Action {
 		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
 			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
-			this.extensionService);
+			this.extensionService, this.telemetryService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
@@ -1732,12 +1779,14 @@ class TaskService extends EventEmitter implements ITaskService {
 			return;
 		}
 		if (Types.isString(arg)) {
-			this.tasks().then(tasks => {
-				for (let task of tasks) {
-					if (task.identifier === arg) {
-						this.run(task);
-					}
+			this.getTask(arg).then((task) => {
+				if (task) {
+					this.run(task);
+				} else {
+					this.quickOpenService.show('task ');
 				}
+			}, () => {
+				this.quickOpenService.show('task ');
 			});
 		} else {
 			this.quickOpenService.show('task ');
@@ -1748,7 +1797,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.build();
 			return;
 		}
@@ -1791,7 +1840,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (!this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V0_1_0) {
 			this.runTest();
 			return;
 		}
@@ -1897,7 +1946,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureBuildTask().run();
@@ -1918,7 +1967,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!task) {
 						return;
 					}
-					this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+					if (!CompositeTask.is(task)) {
+						this.customize(task, { group: { kind: 'build', isDefault: true } }, true);
+					}
 				});
 			}));
 		} else {
@@ -1930,7 +1981,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
+		if (this.getJsonSchemaVersion() === JsonSchemaVersion.V2_0_0) {
 			this.tasks().then((tasks => {
 				if (tasks.length === 0) {
 					this.configureAction().run();
@@ -1950,7 +2001,9 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!task) {
 						return;
 					}
-					this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+					if (!CompositeTask.is(task)) {
+						this.customize(task, { group: { kind: 'test', isDefault: true } }, true);
+					}
 				});
 			}));
 		} else {

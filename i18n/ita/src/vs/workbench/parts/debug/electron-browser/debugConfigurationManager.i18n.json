@@ -33,6 +33,6 @@
 	"app.launch.json.compound.name": "Nome dell'elemento compounds. Viene visualizzato nel menu a discesa della configurazione di avvio.",
 	"app.launch.json.compounds.configurations": "Nomi delle configurazioni che verranno avviate per questo elemento compounds.",
 	"debugNoType": "L'adattatore di debug 'type' non può essere omesso e deve essere di tipo 'string'.",
-	"DebugConfig.failed": "Non è possibile creare il file 'launch.json' all'interno della cartella '.vscode' ({0}).",
-	"selectDebug": "Seleziona ambiente"
+	"selectDebug": "Seleziona ambiente",
+	"DebugConfig.failed": "Non è possibile creare il file 'launch.json' all'interno della cartella '.vscode' ({0})."
 }

@@ -143,11 +143,11 @@ const configurationValueWhitelist = [
 	'editor.stablePeek',
 	'editor.dragAndDrop',
 	'editor.formatOnSave',
+	'editor.colorDecorators',
 
 	'window.zoomLevel',
 	'files.autoSave',
 	'files.hotExit',
-	'typescript.check.tscVersion',
 	'files.associations',
 	'workbench.statusBar.visible',
 	'files.trimTrailingWhitespace',

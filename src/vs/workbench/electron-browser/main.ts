@@ -8,7 +8,6 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
-import { IOptions } from 'vs/workbench/common/options';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
@@ -17,19 +16,18 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { realpath } from 'vs/base/node/pfs';
+import { realpath, readFile, writeFile } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
-import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
-import { IWindowConfiguration, IPath, IWindowsService } from 'vs/platform/windows/common/windows';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -42,9 +40,14 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { CredentialsChannelClient } from 'vs/platform/credentials/node/credentialsIpc';
+import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
+
+const currentWindowId = remote.getCurrentWindow().id;
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
@@ -64,50 +67,13 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
-	// Shell Options
-	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
-	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
-	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
-	const shellOptions: IOptions = {
-		filesToOpen,
-		filesToCreate,
-		filesToDiff
-	};
-
 	// Open workbench
-	return openWorkbench(configuration, shellOptions);
+	return openWorkbench(configuration);
 }
 
-function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
-	return paths.map(p => {
-		const input = <IResourceInput>{};
-
-		if (isUntitledFile) {
-			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
-		} else {
-			input.resource = uri.file(p.filePath);
-		}
-
-		input.options = {
-			pinned: true // opening on startup is always pinned and not preview
-		};
-
-		if (p.lineNumber) {
-			input.options.selection = {
-				startLineNumber: p.lineNumber,
-				startColumn: p.columnNumber
-			};
-		}
-
-		return input;
-	});
-}
-
-function openWorkbench(configuration: IWindowConfiguration, options: IOptions): TPromise<void> {
-
-	const currentWindow = remote.getCurrentWindow();
-	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindow.id}`));
-	const mainServices = createMainProcessServices(mainProcessClient, currentWindow);
+function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
+	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
+	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -130,7 +96,7 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 				environmentService,
 				timerService,
 				storageService
-			}, mainServices, configuration, options);
+			}, mainServices, configuration);
 			shell.open();
 
 			// Inform user about loading issues from the loader
@@ -146,13 +112,41 @@ function openWorkbench(configuration: IWindowConfiguration, options: IOptions): 
 }
 
 function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
-		const workspaceConfigPath = configuration.workspace ? uri.file(configuration.workspace.configPath) : null;
-		const folderPath = configuration.folderPath ? uri.file(configuration.folderPath) : null;
-		const workspaceService = (workspaceConfigPath || configuration.folderPath) ? new WorkspaceServiceImpl(workspaceConfigPath, folderPath, environmentService, workspacesService) : new EmptyWorkspaceServiceImpl(environmentService);
+	return migrateWorkspaceId(configuration).then(() => {
+		return validateWorkspacePath(configuration).then(() => {
+			let workspaceService: WorkspaceServiceImpl | EmptyWorkspaceServiceImpl;
+			if (configuration.workspace || configuration.folderPath) {
+				workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
+			} else {
+				workspaceService = new EmptyWorkspaceServiceImpl(environmentService);
+			}
 
-		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+			return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+		});
 	});
+}
+
+// TODO@Ben migration
+function migrateWorkspaceId(configuration: IWindowConfiguration): TPromise<void> {
+	if (!configuration.workspace || !configuration.workspace.configPath) {
+		return TPromise.as(null);
+	}
+
+	return readFile(configuration.workspace.configPath).then(data => {
+		try {
+			const raw = JSON.parse(data.toString());
+			if (raw.id) {
+				const previousWorkspaceId = raw.id;
+				delete raw.id;
+
+				migrateStorageToMultiRootWorkspace(uri.from({ path: previousWorkspaceId, scheme: 'root' }).toString(), configuration.workspace, window.localStorage);
+
+				return writeFile(configuration.workspace.configPath, JSON.stringify(raw, null, '\t'));
+			}
+		} catch (error) { };
+
+		return void 0;
+	}).then(() => void 0, () => void 0);
 }
 
 function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
@@ -214,7 +208,7 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient, currentWindow: Electron.BrowserWindow): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
@@ -224,10 +218,13 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, current
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindow.id));
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindowId));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
+
+	const credentialsChannel = mainProcessClient.getChannel('credentials');
+	serviceCollection.set(ICredentialsService, new CredentialsChannelClient(credentialsChannel));
 
 	return serviceCollection;
 }
