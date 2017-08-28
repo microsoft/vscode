@@ -413,7 +413,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.blockModelContentChange = true;
 		try {
 			this.updateTextEditorModel(value);
-			this.setDirty(false);
 		} finally {
 			this.blockModelContentChange = false;
 		}
