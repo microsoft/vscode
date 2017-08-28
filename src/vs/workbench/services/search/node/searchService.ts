@@ -20,13 +20,13 @@ import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearch
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
-import { IDisposable } from "vs/base/common/lifecycle";
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
-	private readonly resultProvider: ISearchResultProvider[] = [];
+	private readonly searchProvider: ISearchResultProvider[] = [];
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -37,34 +37,15 @@ export class SearchService implements ISearchService {
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
 		this.registerSearchResultProvider(this.diskSearch);
-
-		// this.registerSearchResultProvider({
-		// 	search(query): PPromise<ISearchComplete, ISearchProgressItem> {
-		// 		return new PPromise(resolve => {
-		// 			resolve({
-		// 				limitHit: false,
-		// 				stats: undefined,
-		// 				results: [{
-		// 					resource: uri.parse('foo://auth/path/name.abc'),
-		// 					lineMatches: [{
-		// 						lineNumber: 1,
-		// 						preview: 'foo',
-		// 						offsetAndLengths: [[0, 3]]
-		// 					}]
-		// 				}]
-		// 			});
-		// 		});
-		// 	}
-		// });
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
-		this.resultProvider.push(provider);
+		this.searchProvider.push(provider);
 		return {
 			dispose: () => {
-				const idx = this.resultProvider.indexOf(provider);
+				const idx = this.searchProvider.indexOf(provider);
 				if (idx >= 0) {
-					this.resultProvider.splice(idx, 1);
+					this.searchProvider.splice(idx, 1);
 				}
 			}
 		};
@@ -104,7 +85,7 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			const providerPromises = this.resultProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
+			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
 					// single provider fail. fail all?
