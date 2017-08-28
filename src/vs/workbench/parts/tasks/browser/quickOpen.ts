@@ -15,13 +15,13 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, RunOptions } from 'vs/workbench/parts/tasks/common/taskService';
 import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actions';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(protected taskService: ITaskService, protected quickOpenService: IQuickOpenService, protected _task: CustomTask | ContributedTask, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -33,11 +33,11 @@ export class TaskEntry extends Model.QuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
 	}
 
-	public get task(): Task {
+	public get task(): CustomTask | ContributedTask {
 		return this._task;
 	}
 
-	protected doRun(task: Task, options?: RunOptions): boolean {
+	protected doRun(task: CustomTask | ContributedTask, options?: RunOptions): boolean {
 		this.taskService.run(task, options);
 		if (task.command.presentation.focus) {
 			this.quickOpenService.close();
@@ -55,7 +55,7 @@ export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
 
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
-	private tasks: TPromise<Task[]>;
+	private tasks: TPromise<(CustomTask | ContributedTask)[]>;
 
 
 	constructor(
@@ -83,10 +83,10 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				return new Model.QuickOpenModel(entries);
 			}
 			let recentlyUsedTasks = this.taskService.getRecentlyUsedTasks();
-			let recent: Task[] = [];
-			let configured: Task[] = [];
-			let detected: Task[] = [];
-			let taskMap: IStringDictionary<Task> = Object.create(null);
+			let recent: (CustomTask | ContributedTask)[] = [];
+			let configured: CustomTask[] = [];
+			let detected: ContributedTask[] = [];
+			let taskMap: IStringDictionary<CustomTask | ContributedTask> = Object.create(null);
 			tasks.forEach(task => taskMap[Task.getKey(task)] = task);
 			recentlyUsedTasks.keys().forEach(key => {
 				let task = taskMap[key];
@@ -96,7 +96,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 			});
 			for (let task of tasks) {
 				if (!recentlyUsedTasks.has(Task.getKey(task))) {
-					if (task._source.kind === TaskSourceKind.Workspace) {
+					if (CustomTask.is(task)) {
 						configured.push(task);
 					} else {
 						detected.push(task);
@@ -114,7 +114,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		});
 	}
 
-	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: Task[], groupLabel: string, withBorder: boolean = false) {
+	private fillEntries(entries: Model.QuickOpenEntry[], input: string, tasks: (CustomTask | ContributedTask)[], groupLabel: string, withBorder: boolean = false) {
 		let first = true;
 		for (let task of tasks) {
 			let highlights = Filters.matchesFuzzy(input, task._label);
@@ -130,9 +130,9 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		}
 	}
 
-	protected abstract getTasks(): TPromise<Task[]>;
+	protected abstract getTasks(): TPromise<(CustomTask | ContributedTask)[]>;
 
-	protected abstract createEntry(task: Task, highlights: Model.IHighlight[]): TaskEntry;
+	protected abstract createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): TaskEntry;
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
@@ -146,7 +146,7 @@ class CustomizeTaskAction extends Action {
 	private static ID = 'workbench.action.tasks.customizeTask';
 	private static LABEL = nls.localize('customizeTask', "Configure Task");
 
-	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: Task) {
+	constructor(private taskService: ITaskService, private quickOpenService: IQuickOpenService, private task: CustomTask | ContributedTask) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
 		this.updateClass();
 	}
@@ -156,9 +156,15 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public run(context: any): TPromise<any> {
-		return this.taskService.customize(this.task, undefined, true).then(() => {
-			this.quickOpenService.close();
-		});
+		if (ContributedTask.is(this.task)) {
+			return this.taskService.customize(this.task, undefined, true).then(() => {
+				this.quickOpenService.close();
+			});
+		} else {
+			return this.taskService.openConfig(this.task).then(() => {
+				this.quickOpenService.close();
+			});
+		}
 	}
 }
 
@@ -177,13 +183,13 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	public getActions(context: any): IAction[] {
 		let actions: Action[] = [];
 		let task = this.getTask(context);
-		if (task && task._source.kind === TaskSourceKind.Extension) {
+		if (task && ContributedTask.is(task) || CustomTask.is(task)) {
 			actions.push(new CustomizeTaskAction(this.taskService, this.quickOpenService, task));
 		}
 		return actions;
 	}
 
-	private getTask(context: any): Task {
+	private getTask(context: any): CustomTask | ContributedTask {
 		if (!context) {
 			return undefined;
 		}

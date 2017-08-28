@@ -10,7 +10,7 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task } from 'vs/workbench/parts/tasks/common/tasks';
+import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
@@ -18,7 +18,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import * as base from './quickOpen';
 
 class TaskEntry extends base.TaskEntry {
-	constructor(taskService: ITaskService, quickOpenService: IQuickOpenService, task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(taskService: ITaskService, quickOpenService: IQuickOpenService, task: CustomTask | ContributedTask, highlights: Model.IHighlight[] = []) {
 		super(taskService, quickOpenService, task, highlights);
 	}
 
@@ -47,13 +47,13 @@ export class QuickOpenHandler extends base.QuickOpenHandler {
 		return nls.localize('tasksAriaLabel', "Type the name of a task to run");
 	}
 
-	protected getTasks(): TPromise<Task[]> {
+	protected getTasks(): TPromise<(CustomTask | ContributedTask)[]> {
 		return this.activationPromise.then(() => {
-			return this.taskService.tasks();
+			return this.taskService.tasks().then(tasks => tasks.filter<CustomTask | ContributedTask>((task): task is CustomTask | ContributedTask => ContributedTask.is(task) || CustomTask.is(task)));
 		});
 	}
 
-	protected createEntry(task: Task, highlights: Model.IHighlight[]): base.TaskEntry {
+	protected createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): base.TaskEntry {
 		return new TaskEntry(this.taskService, this.quickOpenService, task, highlights);
 	}
 

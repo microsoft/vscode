@@ -14,7 +14,29 @@ import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
-import { canUseTranslate3d } from 'vs/base/browser/browser';
+import * as browser from 'vs/base/browser/browser';
+
+function canUseTranslate3d(): boolean {
+	if (browser.isFirefox) {
+		return false;
+	}
+
+	if (browser.getZoomLevel() !== 0) {
+		return false;
+	}
+
+	// see https://github.com/Microsoft/vscode/issues/24483
+	if (browser.isChromev56) {
+		const pixelRatio = browser.getPixelRatio();
+		if (Math.floor(pixelRatio) !== pixelRatio) {
+			// Not an integer
+			return false;
+		}
+	}
+
+	return true;
+}
+
 
 interface IItem<T> {
 	id: string;
