@@ -19,9 +19,9 @@ const options: minimist.Opts = {
 		'extensionTestsPath',
 		'install-extension',
 		'uninstall-extension',
-		'debugBrkPluginHost',
 		'debugId',
 		'debugPluginHost',
+		'debugBrkPluginHost',
 		'open-url',
 		'enable-proposed-api'
 	],
@@ -54,7 +54,9 @@ const options: minimist.Opts = {
 		'reuse-window': 'r',
 		performance: 'p',
 		'disable-extensions': 'disableExtensions',
-		'extensions-dir': 'extensionHomePath'
+		'extensions-dir': 'extensionHomePath',
+		'debugPluginHost': 'inspect-extensions',
+		'debugBrkPluginHost': 'inspect-brk-extensions',
 	}
 };
 
