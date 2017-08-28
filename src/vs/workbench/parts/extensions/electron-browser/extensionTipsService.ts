@@ -87,17 +87,16 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		}, err => []);
 	}
 
-	getRecommendations(): { [type: string]: string[]; } {
+	getRecommendations(): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
 
 		const exeBased = distinct(this._exeBasedRecommendations);
 
-		return {
-			fileBased,
-			exeBased
-		};
+		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
+
+		return distinct([...fileBased, ...exeBased]);
 	}
 
 	getKeymapRecommendations(): string[] {

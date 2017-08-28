@@ -291,7 +291,7 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): { [type: string]: string[]; };
+	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
