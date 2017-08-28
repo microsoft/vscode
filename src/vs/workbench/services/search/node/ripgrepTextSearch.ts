@@ -463,8 +463,10 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern, universalExcludes);
 	rgGlobs.globArgs
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
-	universalExcludes
-		.forEach(exclude => args.push('-g', `!${trimTrailingSlash(exclude)}`));
+	if (universalExcludes) {
+		universalExcludes
+			.forEach(exclude => args.push('-g', `!${trimTrailingSlash(exclude)}`));
+	}
 	siblingClauses = rgGlobs.siblingClauses;
 
 	if (config.maxFilesize) {
@@ -536,10 +538,13 @@ function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
 	}
 
 	const firstFolder = folderQueries[0];
+	if (!firstFolder.excludePattern) {
+		return null;
+	}
 
 	const universalExcludes = new Set<string>();
 	Object.keys(firstFolder.excludePattern).forEach(key => {
-		if (strings.startsWith(key, '**') && folderQueries.every(q => q.excludePattern[key] === true)) {
+		if (strings.startsWith(key, '**') && folderQueries.every(q => q.excludePattern && q.excludePattern[key] === true)) {
 			universalExcludes.add(key);
 		}
 	});
