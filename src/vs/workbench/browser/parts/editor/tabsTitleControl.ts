@@ -615,6 +615,7 @@ export class TabsTitleControl extends TitleControl {
 				const resource = fileResource.toString();
 				e.dataTransfer.setData('URL', resource); // enables cross window DND of tabs
 				e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resource].join(':')); // enables support to drag a tab as file to desktop
+				e.dataTransfer.setData('text/plain', fileResource.fsPath); // enables dropping tab resource path into text controls
 			}
 		}));
 
