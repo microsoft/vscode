@@ -115,9 +115,9 @@ export function parseArgs(args: string[]): ParsedArgs {
 }
 
 export const optionsHelp: { [name: string]: string; } = {
-	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
-	'-a, --add': localize('add', "Add folder(s) to the window that was last active."),
-	'-g, --goto': localize('goto', "Open the file at path at the line and character (add :line[:character] to path)."),
+	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
+	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
+	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
