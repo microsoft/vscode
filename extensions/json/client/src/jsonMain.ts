@@ -6,11 +6,13 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, Range, TextDocument, ColorRange, Color } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-import { ColorProvider } from './colorDecorators';
+
+import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -57,6 +59,11 @@ interface JSONSchemaSettings {
 	url?: string;
 	schema?: any;
 }
+
+const ColorFormat_HEX = {
+	opaque: '"#{red:X}{green:X}{blue:X}"',
+	transparent: '"#{red:X}{green:X}{blue:X}{alpha:X}"'
+};
 
 export function activate(context: ExtensionContext) {
 
@@ -116,11 +123,18 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-		let colorRequestor = (uri: string) => {
-			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
-		};
-
-		context.subscriptions.push(languages.registerColorProvider('json', new ColorProvider(colorRequestor)));
+		context.subscriptions.push(languages.registerColorProvider('json', {
+			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
+					return symbols.map(symbol => {
+						let range = client.protocol2CodeConverter.asRange(symbol.range);
+						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
+						return new ColorRange(range, color, [ColorFormat_HEX]);
+					});
+				});
+			}
+		}));
 	});
 
 	// Push the disposable to the context's subscriptions so that the

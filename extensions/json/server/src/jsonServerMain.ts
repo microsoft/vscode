@@ -7,8 +7,10 @@
 import {
 	createConnection, IConnection,
 	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, Range
+	DocumentRangeFormattingRequest, Disposable, Range, ServerCapabilities
 } from 'vscode-languageserver';
+
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import path = require('path');
@@ -70,16 +72,17 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			documentRangeFormattingProvider: false
-		}
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		documentRangeFormattingProvider: false,
+		colorProvider: true
 	};
+
+	return { capabilities };
 });
 
 let workspaceContext = {
@@ -313,11 +316,11 @@ connection.onDocumentRangeFormatting(formatParams => {
 	return languageService.format(document, formatParams.range, formatParams.options);
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let document = documents.get(uri);
+connection.onRequest(DocumentColorRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		let jsonDocument = getJSONDocument(document);
-		return languageService.findColorSymbols(document, jsonDocument);
+		return languageService.findDocumentColors(document, jsonDocument);
 	}
 	return [];
 });
