@@ -34,6 +34,9 @@ export class ColorPickerModel {
 
 	readonly formatters: IColorFormatter[];
 
+	private _onColorFlushed = new Emitter<Color>();
+	readonly onColorFlushed: Event<Color> = this._onColorFlushed.event;
+
 	private _onDidChangeColor = new Emitter<Color>();
 	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
@@ -55,10 +58,19 @@ export class ColorPickerModel {
 	}
 
 	selectNextColorFormat(): void {
+		const oldFomatterIndex = this.formatterIndex;
 		this._checkFormat((this.formatterIndex + 1) % this.formatters.length);
+		if (oldFomatterIndex !== this.formatterIndex) {
+			this.flushColor();
+		}
+	}
+
+	flushColor(): void {
+		this._onColorFlushed.fire(this._color);
 	}
 
 	private _checkFormat(start = this.formatterIndex): void {
+		let isNewFormat = this.formatterIndex !== start;
 		this.formatterIndex = start;
 
 		while (!canFormat(this.formatter, this._color)) {
@@ -69,6 +81,8 @@ export class ColorPickerModel {
 			}
 		}
 
-		this._onDidChangeFormatter.fire(this.formatter);
+		if (isNewFormat) {
+			this._onDidChangeFormatter.fire(this.formatter);
+		}
 	}
 }
