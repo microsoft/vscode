@@ -267,7 +267,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -737,6 +737,11 @@ export interface Command {
 	tooltip?: string;
 	arguments?: any[];
 }
+
+export interface CodeAction extends Command {
+	dontTriggerLightBulb?: boolean;
+}
+
 export interface ICodeLensSymbol {
 	range: IRange;
 	id?: string;

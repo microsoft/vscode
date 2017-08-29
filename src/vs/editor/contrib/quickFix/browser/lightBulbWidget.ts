@@ -70,7 +70,7 @@ export class LightBulbWidget implements IDisposable {
 		const { token } = this._futureFixes;
 
 		e.fixes.done(fixes => {
-			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
+			if (!token.isCancellationRequested && fixes && fixes.some(fix => !fix.dontTriggerLightBulb)) {
 				this.show(e);
 			} else {
 				this.hide();

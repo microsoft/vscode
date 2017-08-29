@@ -1665,6 +1665,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A code action for the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 */
+	export interface CodeAction extends Command {
+		/**
+		 * Should the lightbulb automatically be shown in the UI?
+		 */
+		dontTriggerLightBulb?: boolean;
+	}
+
+	/**
 	 * The code action interface defines the contract between extensions and
 	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
 	 *
@@ -1682,7 +1692,7 @@ declare module 'vscode' {
 		 * @return An array of commands or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]>;
+		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeAction[]>;
 	}
 
 	/**
