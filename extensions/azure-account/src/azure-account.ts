@@ -191,65 +191,50 @@ export class AzureLoginHelper {
 		const azureConfig = workspace.getConfiguration('azure');
 		const resourceFilter = azureConfig.get<string[]>('resourceFilter') || [];
 
-		const subscriptionItems: { session: AzureSession; subscription: SubscriptionModels.Subscription }[] = [];
-		for (const session of this.api.sessions) {
-			const credentials = session.credentials;
-			const client = new SubscriptionClient(credentials);
-			const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
-			subscriptionItems.push(...subscriptions.filter(subscription => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1)
-				.map(subscription => ({
-					session,
-					subscription
-				})));
-		}
-		subscriptionItems.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
-		const subscriptionResult = await window.showQuickPick(subscriptionItems.map(subscription => ({
-			label: subscription.subscription.displayName!,
-			description: subscription.subscription.subscriptionId!,
-			subscription
-		})));
+		const subscriptionItems = this.loadSubscriptionItems(resourceFilter);
+		const subscriptionResult = await window.showQuickPick(subscriptionItems);
 		if (!subscriptionResult) {
 			return;
 		}
 
 		const { session, subscription } = subscriptionResult.subscription;
-		const client = new ResourceManagementClient(session.credentials, subscription.subscriptionId!);
-		const resourceGroups = await listAll(client.resourceGroups, client.resourceGroups.list());
-		const resourceGroupFilters: AzureResourceFilter[] = [
-			{
-				...subscriptionResult.subscription,
-				allResourceGroups: true,
-				resourceGroups
-			}
-		];
-		resourceGroupFilters.push(...resourceGroups.filter(resourceGroup => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}/${resourceGroup.name}`) === -1)
-			.map(resourceGroup => ({
-				session,
-				subscription,
-				allResourceGroups: false,
-				resourceGroups: [resourceGroup]
-			})));
-		resourceGroupFilters.sort((a, b) => (!a.allResourceGroups ? a.resourceGroups[0].name! : '').localeCompare(!b.allResourceGroups ? b.resourceGroups[0].name! : ''));
-		const resourceGroupResult = await window.showQuickPick(resourceGroupFilters.map(resourceGroup => (!resourceGroup.allResourceGroups ? {
-			label: resourceGroup.resourceGroups[0].name!,
-			description: resourceGroup.resourceGroups[0].location,
-			resourceGroup
-		} : {
-				label: localize('azure-account.entireSubscription', "Entire Subscription"),
-				description: '',
-				resourceGroup
-			})));
-		if (!resourceGroupResult) {
-			return;
-		}
+		// const client = new ResourceManagementClient(session.credentials, subscription.subscriptionId!);
+		// const resourceGroups = await listAll(client.resourceGroups, client.resourceGroups.list());
+		// const resourceGroupFilters: AzureResourceFilter[] = [
+		// 	{
+		// 		...subscriptionResult.subscription,
+		// 		allResourceGroups: true,
+		// 		resourceGroups
+		// 	}
+		// ];
+		// resourceGroupFilters.push(...resourceGroups.filter(resourceGroup => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}/${resourceGroup.name}`) === -1)
+		// 	.map(resourceGroup => ({
+		// 		session,
+		// 		subscription,
+		// 		allResourceGroups: false,
+		// 		resourceGroups: [resourceGroup]
+		// 	})));
+		// resourceGroupFilters.sort((a, b) => (!a.allResourceGroups ? a.resourceGroups[0].name! : '').localeCompare(!b.allResourceGroups ? b.resourceGroups[0].name! : ''));
+		// const resourceGroupResult = await window.showQuickPick(resourceGroupFilters.map(resourceGroup => (!resourceGroup.allResourceGroups ? {
+		// 	label: resourceGroup.resourceGroups[0].name!,
+		// 	description: resourceGroup.resourceGroups[0].location,
+		// 	resourceGroup
+		// } : {
+		// 		label: localize('azure-account.entireSubscription', "Entire Subscription"),
+		// 		description: '',
+		// 		resourceGroup
+		// 	})));
+		// if (!resourceGroupResult) {
+		// 	return;
+		// }
 
-		const resourceGroup = resourceGroupResult.resourceGroup;
-		if (!resourceGroup.allResourceGroups) {
-			resourceFilter.push(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}/${resourceGroup.resourceGroups[0].name}`);
-		} else {
-			resourceFilter.splice(0, resourceFilter.length, ...resourceFilter.filter(c => !c.startsWith(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}/`)));
-			resourceFilter.push(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}`);
-		}
+		// const resourceGroup = resourceGroupResult.resourceGroup;
+		// if (!resourceGroup.allResourceGroups) {
+		// 	resourceFilter.push(`${resourceGroup.session.tenantId}/${resourceGroup.subscription.subscriptionId}/${resourceGroup.resourceGroups[0].name}`);
+		// } else {
+		resourceFilter.splice(0, resourceFilter.length, ...resourceFilter.filter(c => !c.startsWith(`${session.tenantId}/${subscription.subscriptionId}/`)));
+		resourceFilter.push(`${session.tenantId}/${subscription.subscriptionId}`);
+		// }
 
 		const resourceFilterConfig = azureConfig.inspect<string[]>('resourceFilter');
 		let target = ConfigurationTarget.Global;
@@ -263,6 +248,26 @@ export class AzureLoginHelper {
 			}
 		}
 		await azureConfig.update('resourceFilter', resourceFilter, target);
+	}
+
+	private async loadSubscriptionItems(resourceFilter: string[]) {
+		const subscriptionItems: { session: AzureSession; subscription: SubscriptionModels.Subscription }[] = [];
+		for (const session of this.api.sessions) {
+			const credentials = session.credentials;
+			const client = new SubscriptionClient(credentials);
+			const subscriptions = await listAll(client.subscriptions, client.subscriptions.list());
+			subscriptionItems.push(...subscriptions.filter(subscription => resourceFilter.indexOf(`${session.tenantId}/${subscription.subscriptionId}`) === -1)
+				.map(subscription => ({
+					session,
+					subscription
+				})));
+		}
+		subscriptionItems.sort((a, b) => a.subscription.displayName!.localeCompare(b.subscription.displayName!));
+		return subscriptionItems.map(subscription => ({
+			label: subscription.subscription.displayName!,
+			description: subscription.subscription.subscriptionId!,
+			subscription
+		}));
 	}
 
 	private async removeFilter() {
