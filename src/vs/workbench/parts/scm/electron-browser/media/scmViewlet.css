@@ -13,6 +13,15 @@
 	flex: 1;
 }
 
+.scm-viewlet .empty-message {
+	padding: 10px 22px 0 22px;
+	opacity: 0.5;
+}
+
+.scm-viewlet:not(.empty) .empty-message {
+	display: none;
+}
+
 .scm-viewlet .scm-status {
 	height: 100%;
 }

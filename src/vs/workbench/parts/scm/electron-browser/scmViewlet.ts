@@ -510,18 +510,21 @@ export class SCMViewlet extends PersistentViewsViewlet {
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const view = new SourceControlViewDescriptor(repository);
 		ViewsRegistry.registerViews([view]);
+		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
+		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
 
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
 
-		parent.addClass('scm-viewlet');
+		parent.addClass('scm-viewlet', 'empty');
+		append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no source controls active.")));
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
