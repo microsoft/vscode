@@ -479,6 +479,7 @@ class InstallAdditionalSCMProvidersAction extends Action {
 
 export class SCMViewlet extends PersistentViewsViewlet {
 
+	private menus: SCMMenus;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -501,6 +502,9 @@ export class SCMViewlet extends PersistentViewsViewlet {
 	) {
 		super(VIEWLET_ID, ViewLocation.SCM, 'scm', true,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+
+		this.menus = instantiationService.createInstance(SCMMenus, undefined);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -553,17 +557,23 @@ export class SCMViewlet extends PersistentViewsViewlet {
 			return this.views[0].getActions();
 		}
 
-		return [];
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		let result: IAction[] = [];
+		let result: IAction[];
 
 		if (this.showHeaderInTitleArea() && this.views.length === 1) {
 			result = [
 				...this.views[0].getSecondaryActions(),
 				new Separator()
 			];
+		} else {
+			result = this.menus.getTitleSecondaryActions();
+
+			if (result.length > 0) {
+				result.push(new Separator());
+			}
 		}
 
 		result.push(this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction));

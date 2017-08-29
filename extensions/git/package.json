@@ -441,6 +441,11 @@
       ],
       "scm/title": [
         {
+          "command": "git.init",
+          "group": "navigation",
+          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0"
+        },
+        {
           "command": "git.commit",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git"
