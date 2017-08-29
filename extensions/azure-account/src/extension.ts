@@ -35,8 +35,10 @@ function createStatusBarItem(api: AzureAccount) {
 				statusBarItem.show();
 				break;
 			case 'LoggedIn':
-				statusBarItem.text = localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId);
-				statusBarItem.show();
+				if (api.sessions.length) {
+					statusBarItem.text = localize('azure-account.loggedIn', "Azure: {0}", api.sessions[0].userId);
+					statusBarItem.show();
+				}
 				break;
 			default:
 				statusBarItem.hide();

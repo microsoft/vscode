@@ -6,7 +6,7 @@
 import { Event } from 'vscode';
 import { ServiceClientCredentials } from 'ms-rest';
 import { AzureEnvironment } from 'ms-rest-azure';
-import { SubscriptionModels, ResourceModels } from 'azure-arm-resource';
+import { SubscriptionModels } from 'azure-arm-resource';
 
 export type AzureLoginStatus = 'Initializing' | 'LoggingIn' | 'LoggedIn' | 'LoggedOut';
 
@@ -30,8 +30,6 @@ export interface AzureSession {
 export interface AzureResourceFilter {
 	readonly session: AzureSession;
 	readonly subscription: SubscriptionModels.Subscription;
-	readonly allResourceGroups: boolean;
-	readonly resourceGroups: ResourceModels.ResourceGroup[];
 }
 
 export interface Credentials {
