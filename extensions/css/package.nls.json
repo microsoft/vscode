@@ -17,7 +17,7 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"css.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",
 	"css.lint.zeroUnits.desc": "No unit for zero needed",
-	"css.trace.server.desc": "Selectors should not contain IDs because these rules are too tightly coupled with the HTML.",
+	"css.trace.server.desc": "Traces the communication between VS Code and the CSS language server.",
 	"css.validate.title": "Controls CSS validation and problem severities.",
 	"css.validate.desc": "Enables or disables all validations",
 	"less.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
