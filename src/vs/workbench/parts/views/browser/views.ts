@@ -403,12 +403,12 @@ export class ViewsViewlet extends Viewlet {
 
 	public getContextMenuActions(): IAction[] {
 		return this.getViewDescriptorsFromRegistry(true)
-			.filter(viewDescriptor => viewDescriptor.canToggleVisibility)
+			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
 				id: `${viewDescriptor.id}.toggleVisibility`,
 				label: viewDescriptor.name,
 				checked: this.isCurrentlyVisible(viewDescriptor),
-				enabled: this.contextKeyService.contextMatchesRules(viewDescriptor.when),
+				enabled: true,
 				run: () => this.toggleViewVisibility(viewDescriptor.id)
 			}));
 	}
