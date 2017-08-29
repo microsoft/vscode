@@ -168,6 +168,27 @@
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch Smoke Test",
+			"program": "${workspaceRoot}/test/smoke/out/main.js",
+			"cwd": "${workspaceRoot}/test/smoke",
+			"timeout": 240000,
+			"port": 9999,
+			"args": [
+				"-l",
+				"${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+			],
+			"outFiles": [
+				"${cwd}/out/**/*.js"
+			],
+			"env": {
+				"NODE_ENV": "development",
+				"VSCODE_DEV": "1",
+				"VSCODE_CLI": "1"
+			}
 		}
 	],
 	"compounds": [

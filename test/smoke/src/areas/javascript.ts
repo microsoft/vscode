@@ -25,7 +25,7 @@ export class JavaScript {
 	public async findAppReferences(): Promise<any> {
 		await this.setAppVarSelector();
 		try {
-			await this.spectron.client.click(this.appVarSelector, false);
+			await this.spectron.client.click(this.appVarSelector);
 		} catch (e) {
 			return Promise.reject(`Failed to select 'app' variable.`);
 		}

@@ -24,31 +24,35 @@ export function testConfigViews() {
 			return await app.start();
 		});
 		afterEach(async function () {
-			return await app.stop();
+			await app.stop();
 		});
 
 		it('turns off editor line numbers and verifies the live change', async function () {
-			await common.newUntitledFile();
-			await app.wait();
-			let elementsCount = await configView.getEditorLineNumbers();
-			assert.equal(elementsCount, 1, 'Line numbers are not present in the editor before disabling them.');
+			await common.openFile('app.js', true);
+			let lineNumbers = await app.client.elements('.line-numbers');
+			assert.ok(!!lineNumbers.value.length, 'Line numbers are not present in the editor before disabling them.');
+
 			await common.addSetting('editor.lineNumbers', 'off');
-			await app.wait();
-			elementsCount = await configView.getEditorLineNumbers();
-			assert.equal(elementsCount, 0, 'Line numbers are still present in the editor after disabling them.');
+
+			await common.selectTab('app.js');
+			lineNumbers = await app.client.elements('.line-numbers', result => !result || result.length === 0);
+			assert.ok(!lineNumbers.value.length, 'Line numbers are still present in the editor after disabling them.');
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
-			await configView.enterKeybindingsView();
+			await common.openKeybindings();
 			await common.type('workbench.action.toggleSidebarPosition');
-			await app.wait();
+
 			await configView.selectFirstKeybindingsMatch();
-			await configView.changeKeybinding();
+			await configView.openDefineKeybindingDialog();
 			await configView.enterBinding(['Control', 'u', 'NULL']);
 			await common.enter();
-			let html = await configView.getActivityBar(ActivityBarPosition.RIGHT);
-			assert.equal(html, undefined, 'Activity bar is positioned on the right, whereas should not be.');
-			await app.wait();
+
+			await app.client.element('div[aria-label="Keybindings"] div[aria-label="Keybinding is Control+U."]');
+
+			let html = await configView.getActivityBar(ActivityBarPosition.LEFT);
+			assert.ok(html, 'Activity bar should be positioned on the left.');
+
 			await configView.toggleActivityBarPosition();
 			html = await configView.getActivityBar(ActivityBarPosition.RIGHT);
 			assert.ok(html, 'Activity bar was not moved to right after toggling its position.');

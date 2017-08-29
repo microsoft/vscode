@@ -26,7 +26,7 @@ export class Extensions {
 
 		await this.spectron.client.clearElement(searchBoxSelector);
 		try {
-			await this.spectron.client.click(searchBoxSelector, false);
+			await this.spectron.client.click(searchBoxSelector);
 		} catch (e) {
 			return Promise.reject('Failed to click on search box in extensions viewlet.');
 		}

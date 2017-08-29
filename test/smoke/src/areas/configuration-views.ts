@@ -18,30 +18,32 @@ export class ConfigurationView {
 		// noop
 	}
 
-	public async getEditorLineNumbers(): Promise<any> {
+	public async hasLineNumbers(): Promise<boolean> {
 		const lineNumbers = await this.spectron.client.elements('.line-numbers');
-
-		return lineNumbers.value.length;
+		return !!lineNumbers.value.length;
 	}
 
 	public enterKeybindingsView(): any {
 		return this.spectron.command('workbench.action.openGlobalKeybindings');
 	}
 
-	public selectFirstKeybindingsMatch(): any {
-		return this.spectron.waitFor(this.spectron.client.click, 'div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
+	public async selectFirstKeybindingsMatch(): Promise<any> {
+		await this.spectron.client.click('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
+		return this.spectron.client.element('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');
 	}
 
-	public changeKeybinding(): any {
-		return this.spectron.command('editor.action.defineKeybinding');
+	public async openDefineKeybindingDialog(): Promise<any> {
+		await this.spectron.client.click('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
+		console.log('opening define keybindings');
+		return this.spectron.client.element('.defineKeybindingWidget .monaco-inputbox.synthetic-focus');
 	}
 
-	public enterBinding(keys: string[]): any {
+	public enterBinding(keys: string[]): Promise<any> {
 		this.keybinding = keys;
 		return this.spectron.client.keys(keys);
 	}
 
-	public toggleActivityBarPosition(): any {
+	public toggleActivityBarPosition(): Promise<any> {
 		return this.spectron.client.keys(this.keybinding);
 	}
 
@@ -56,7 +58,7 @@ export class ConfigurationView {
 			throw new Error('No such position for activity bar defined.');
 		}
 		try {
-			return await this.spectron.waitFor(this.spectron.client.getHTML, `.part.activitybar.${positionClass}`);
+			return this.spectron.client.getHTML(`.part.activitybar.${positionClass}`);
 		} catch (e) {
 			return undefined;
 		};

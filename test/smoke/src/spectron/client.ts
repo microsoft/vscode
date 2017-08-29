@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application } from 'spectron';
-import { Screenshot } from '../helpers/screenshot';
+import { IScreenshot } from '../helpers/screenshot';
+import { RawResult, Element } from 'webdriverio';
 
 /**
  * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
  */
 export class SpectronClient {
 
-	constructor(private spectron: Application, private shot: Screenshot) {
+	private readonly trials = 50;
+	private readonly trialWait = 100; // in milliseconds
+
+	constructor(private spectron: Application, private shot: IScreenshot) {
 		// noop
 	}
 
@@ -29,19 +33,19 @@ export class SpectronClient {
 		return this.spectron.client.getText(selector);
 	}
 
-	public async getHTML(selector: string, capture: boolean = true): Promise<any> {
-		await this.screenshot(capture);
-		return this.spectron.client.getHTML(selector);
+	public async getHTML(selector: string, capture: boolean = true, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
+		await this.screenshot();
+		return this.wait(this.spectron.client.getHTML, selector, accept);
 	}
 
-	public async click(selector: string, capture: boolean = true): Promise<any> {
-		await this.screenshot(capture);
-		return this.spectron.client.click(selector);
+	public async click(selector: string): Promise<any> {
+		await this.screenshot();
+		return this.wait(this.spectron.client.click, selector);
 	}
 
 	public async doubleClick(selector: string, capture: boolean = true): Promise<any> {
 		await this.screenshot(capture);
-		return this.spectron.client.doubleClick(selector);
+		return this.wait(this.spectron.client.doubleClick, selector);
 	}
 
 	public async leftClick(selector: string, xoffset: number, yoffset: number, capture: boolean = true): Promise<any> {
@@ -64,14 +68,19 @@ export class SpectronClient {
 		return this.spectron.client.setValue(selector, text);
 	}
 
-	public async elements(selector: string, capture: boolean = true): Promise<any> {
-		await this.screenshot(capture);
-		return this.spectron.client.elements(selector);
+	public async elements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<any> {
+		await this.screenshot(true);
+		return this.wait<RawResult<Element[]>>(this.spectron.client.elements, selector, result => accept(result.value));
 	}
 
-	public async element(selector: string, capture: boolean = true): Promise<any> {
-		await this.screenshot(capture);
-		return this.spectron.client.element(selector);
+	public async element(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
+		await this.screenshot();
+		return this.wait<RawResult<Element>>(this.spectron.client.element, selector, result => accept(result ? result.value : void 0));
+	}
+
+	public async elementActive(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
+		await this.screenshot();
+		return this.wait<RawResult<Element>>(this.spectron.client.elementActive, selector, result => accept(result ? result.value : void 0));
 	}
 
 	public async dragAndDrop(sourceElem: string, destinationElem: string, capture: boolean = true): Promise<any> {
@@ -115,13 +124,34 @@ export class SpectronClient {
 		return this.spectron.client.getTitle();
 	}
 
-	private async screenshot(capture: boolean): Promise<any> {
-		if (capture) {
-			try {
-				await this.shot.capture();
-			} catch (e) {
-				throw new Error(`Screenshot could not be captured: ${e}`);
+	private async wait<T>(func: (...args: any[]) => any, args: any, accept: (result: T) => boolean = result => !!result): Promise<T> {
+		let trial = 1;
+
+		while (true) {
+			if (trial > this.trials) {
+				throw new Error(`Timed out after ${this.trials * this.trialWait} seconds.`);
 			}
+
+			let result;
+			try {
+				result = await func.call(this, args);
+			} catch (e) {
+			}
+
+			if (accept(result)) {
+				return result;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, this.trialWait));
+			trial++;
+		}
+	}
+
+	private async screenshot(capture: boolean = true): Promise<any> {
+		try {
+			await this.shot.capture();
+		} catch (e) {
+			throw new Error(`Screenshot could not be captured: ${e}`);
 		}
 	}
 }

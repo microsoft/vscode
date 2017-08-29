@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { SpectronClient } from './client';
-import { Screenshot } from '../helpers/screenshot';
+import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
 var fs = require('fs');
 var path = require('path');
 
@@ -24,7 +24,7 @@ export class SpectronApplication {
 
 	private spectron: Application;
 	private keybindings: any[];
-	private screenshot: Screenshot;
+	private screenshot: IScreenshot;
 
 	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
 	private readonly pollTrials = 50;
@@ -58,7 +58,7 @@ export class SpectronApplication {
 			requireName: 'nodeRequire'
 		});
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
-		this.screenshot = new Screenshot(this, testName, testRetry);
+		this.screenshot = args.indexOf('--no-screenshot') === -1 ? new NullScreenshot() : new Screenshot(this, testName, testRetry);
 		this.client = new SpectronClient(this.spectron, this.screenshot);
 		this.retrieveKeybindings();
 	}

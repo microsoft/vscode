@@ -25,12 +25,23 @@ export class CommonActions {
 	}
 
 	public async addSetting(setting: string, value: string): Promise<any> {
-		await this.spectron.command('workbench.action.openGlobalSettings');
-		await this.spectron.wait();
-		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowRight', 'NULL'], false);
+		await this.openUserSettings();
+		await this.spectron.client.keys(['ArrowDown', 'NULL'], false);
+		await this.spectron.client.element(`.editable-preferences-editor-container .monaco-editor.focused`);
+		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
-		await this.spectron.wait();
-		return this.saveOpenedFile();
+		await this.saveOpenedFile();
+
+	}
+
+	public async openUserSettings(): Promise<void> {
+		await this.spectron.command('workbench.action.openGlobalSettings');
+		return this.spectron.client.element('.settings-search-input .synthetic-focus');
+	}
+
+	public async openKeybindings(): Promise<void> {
+		await this.spectron.command('workbench.action.openGlobalKeybindings');
+		return this.spectron.client.element('.settings-search-input .synthetic-focus');
 	}
 
 	public async newUntitledFile(): Promise<any> {
@@ -56,7 +67,13 @@ export class CommonActions {
 
 	public async selectTab(tabName: string): Promise<any> {
 		await this.closeCurrentNotification(); // close any notification messages that could overlap tabs
-		return this.spectron.client.click(`.tabs-container div[aria-label="${tabName}, tab"]`);
+		await this.spectron.client.click(`.tabs-container div[aria-selected="false"][aria-label="${tabName}, tab"]`);
+		await this.spectron.client.element(`.tabs-container div[aria-selected="true"][aria-label="${tabName}, tab"]`);
+		return this.waitForEditorFocus();
+	}
+
+	private async waitForEditorFocus(): Promise<void> {
+		return this.spectron.client.element(`.monaco-editor.focused`);
 	}
 
 	public async openFirstMatchFile(fileName: string): Promise<any> {
@@ -67,8 +84,15 @@ export class CommonActions {
 		return this.spectron.wait();
 	}
 
-	public saveOpenedFile(): Promise<any> {
-		return this.spectron.command('workbench.action.files.save');
+	public async saveOpenedFile(): Promise<any> {
+		try {
+			await this.spectron.client.element('.tabs-container .tab.active.dirty');
+		} catch (e) {
+			// ignore if there is no dirty file
+			return Promise.resolve();
+		}
+		await this.spectron.command('workbench.action.files.save');
+		return this.spectron.client.element('.tabs-container .tab.active.dirty', element => !element);
 	}
 
 	public type(text: string): Promise<any> {
@@ -121,12 +145,12 @@ export class CommonActions {
 		selector += '"]';
 
 		try {
-			await this.spectron.waitFor(this.spectron.client.doubleClick, selector);
+			await this.spectron.client.doubleClick(selector);
+			await this.spectron.client.element(`.tabs-container div[aria-label="${fileName}, tab"]`);
+			await this.spectron.client.element(`.monaco-editor.focused`);
 		} catch (e) {
 			return Promise.reject(`Cannot fine ${fileName} in a viewlet.`);
 		}
-
-		return this.spectron.wait();
 	}
 
 	public getExtensionSelector(fileName: string): string {
