@@ -18,7 +18,8 @@
 	opacity: 0.5;
 }
 
-.scm-viewlet:not(.empty) .empty-message {
+.scm-viewlet:not(.empty) .empty-message,
+.scm-viewlet.empty .monaco-split-view{
 	display: none;
 }
 
