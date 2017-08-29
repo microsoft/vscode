@@ -194,11 +194,11 @@
           "default": true,
           "description": "%html.validate.styles%"
         },
-        "html.autoClosingTags.enable": {
+        "html.autoClosingTags": {
           "type": "boolean",
           "scope": "resource",
           "default": true,
-          "description": "%html.autoClosingTags.enable%"
+          "description": "%html.autoClosingTags%"
         },
         "html.trace.server": {
           "type": "string",
