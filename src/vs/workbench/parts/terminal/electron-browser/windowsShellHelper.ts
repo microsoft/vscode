@@ -5,13 +5,14 @@
 
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
-import windowsProcessTree = require('windows-process-tree');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'xterm';
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
+
+let windowsProcessTree;
 
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
@@ -27,6 +28,10 @@ export class WindowsShellHelper {
 	) {
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		}
+
+		if (!windowsProcessTree) {
+			windowsProcessTree = require.__$__nodeRequire('windows-process-tree');
 		}
 
 		this._childProcessIdStack = [this._rootProcessId];
