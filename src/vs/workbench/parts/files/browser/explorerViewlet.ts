@@ -106,7 +106,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 			location: ViewLocation.Explorer,
 			ctor: EmptyView,
 			order: 1,
-			canToggleVisibility: true
+			canToggleVisibility: false
 		};
 	}
 
@@ -117,7 +117,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 			location: ViewLocation.Explorer,
 			ctor: ExplorerView,
 			order: 1,
-			canToggleVisibility: true
+			canToggleVisibility: false
 		};
 	}
 

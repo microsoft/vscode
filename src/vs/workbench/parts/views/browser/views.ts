@@ -652,7 +652,7 @@ export class ViewsViewlet extends Viewlet {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
-				label: nls.localize('removeView', "Remove from Side Bar"),
+				label: nls.localize('hideView', "Hide from Side Bar"),
 				enabled: true,
 				run: () => this.toggleViewVisibility(view.id)
 			}]),
