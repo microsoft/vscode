@@ -1048,6 +1048,7 @@
 		"styl": "_stylus",
 		"tf": "_terraform",
 		"tf.json": "_terraform",
+		"tfvars": "_terraform",
 		"tex": "_tex",
 		"sty": "_tex",
 		"dtx": "_tex",
