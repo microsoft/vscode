@@ -209,7 +209,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const resource = toResource(newInput.master);
-		this.settingsTargetsWidget.setTarget(resource, this.getSettingsConfigurationTarget(resource));
+		this.settingsTargetsWidget.setTarget(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
@@ -229,6 +229,17 @@ export class PreferencesEditor extends BaseEditor {
 			return ConfigurationTarget.FOLDER;
 		}
 		return null;
+	}
+
+	private getSettingsConfigurationTargetUri(resource: URI): URI {
+		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
+			return resource;
+		}
+		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
+			return resource;
+		}
+
+		return this.workspaceContextService.getRoot(resource);
 	}
 
 	private switchSettings(resource: URI): void {
