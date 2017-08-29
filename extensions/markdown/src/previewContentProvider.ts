@@ -153,14 +153,15 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			return vscode.Uri.file(href).toString();
 		}
 
+		const sourceUri = vscode.Uri.parse(resource.query);
 		// use a workspace relative path if there is a workspace
-		let root = vscode.workspace.getWorkspaceFolder(resource);
+		let root = vscode.workspace.getWorkspaceFolder(sourceUri);
 		if (root) {
 			return vscode.Uri.file(path.join(root.uri.fsPath, href)).toString();
 		}
 
 		// otherwise look relative to the markdown file
-		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
+		return vscode.Uri.file(path.join(path.dirname(sourceUri.fsPath), href)).toString();
 	}
 
 	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
