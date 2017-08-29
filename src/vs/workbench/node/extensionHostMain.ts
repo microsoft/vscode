@@ -72,9 +72,14 @@ export class ExtensionHostMain {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
 				let extension: IExtensionDescription;
+				let fileName: string;
 				for (const call of stackTrace) {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
-					extension = extension || map.findSubstr(stackTrace[0].getFileName());
+					fileName = call.getFileName();
+					if (!extension && fileName) {
+						extension = map.findSubstr(fileName);
+					}
+
 				}
 				extensionErrors.set(error, extension);
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
