@@ -58,7 +58,7 @@
           "title": "CSS",
           "allOf": [
             {
-              "title": "Controls CSS validation and problem severities.",
+              "title": "%css.validate.title%",
               "properties": {
                 "css.validate": {
                   "type": "boolean",
@@ -70,8 +70,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-				  "description": "%css.colorDecorators.enable.desc%",
-				  "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
+                  "description": "%css.colorDecorators.enable.desc%",
+                  "deprecationMessage": "%css.colorDecorators.enable.deprecationMessage%"
                 },
                 "css.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -280,7 +280,7 @@
                     "verbose"
                   ],
                   "default": "off",
-                  "description": "Traces the communication between VS Code and the CSS language server."
+                  "description": "%css.trace.server.desc%"
                 }
               }
             }
@@ -292,7 +292,7 @@
           "title": "SCSS (Sass)",
           "allOf": [
             {
-              "title": "Controls SCSS validation and problem severities.",
+              "title": "%scss.validate.title%",
               "properties": {
                 "scss.validate": {
                   "type": "boolean",
@@ -304,8 +304,8 @@
                   "type": "boolean",
                   "scope": "window",
                   "default": true,
-				  "description": "%scss.colorDecorators.enable.desc%",
-				  "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
+                  "description": "%scss.colorDecorators.enable.desc%",
+                  "deprecationMessage": "%scss.colorDecorators.enable.deprecationMessage%"
                 },
                 "scss.lint.compatibleVendorPrefixes": {
                   "type": "string",
@@ -516,7 +516,7 @@
           "title": "LESS",
           "allOf": [
             {
-              "title": "Controls LESS validation and problem severities.",
+              "title": "%less.validate.title%",
               "properties": {
                 "less.validate": {
                   "type": "boolean",
@@ -737,8 +737,8 @@
     }
   },
   "dependencies": {
-    "parse-color": "^1.0.0",
     "vscode-languageclient": "3.4.0-next.17",
+    "vscode-languageserver-protocol": "^3.1.1",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {

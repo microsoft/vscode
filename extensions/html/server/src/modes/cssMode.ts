@@ -50,9 +50,9 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.findReferences(embedded, position, cssStylesheets.get(embedded));
 		},
-		findColorSymbols(document: TextDocument) {
+		findDocumentColors(document: TextDocument) {
 			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findColorSymbols(embedded, cssStylesheets.get(embedded));
+			return cssLanguageService.findDocumentColors(embedded, cssStylesheets.get(embedded));
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);

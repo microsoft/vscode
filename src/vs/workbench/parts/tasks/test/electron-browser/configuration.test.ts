@@ -177,7 +177,7 @@ class CustomTaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
-			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace' },
+			_source: { kind: Tasks.TaskSourceKind.Workspace, label: 'workspace', config: { element: undefined, index: -1, file: '.vscode/tasks.json' } },
 			_label: name,
 			type: 'custom',
 			identifier: name,
@@ -450,7 +450,9 @@ function assertConfiguration(result: ParseResult, expected: Tasks.Task[]): void 
 function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.ok(actual._id);
 	assert.strictEqual(actual.name, expected.name, 'name');
-	assertCommandConfiguration(actual.command, expected.command);
+	if (!Tasks.CompositeTask.is(actual) && !Tasks.CompositeTask.is(expected)) {
+		assertCommandConfiguration(actual.command, expected.command);
+	}
 	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
 	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
 	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');

@@ -42,4 +42,3 @@ import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/common/wordOperations';
 import 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import 'vs/editor/contrib/find/browser/simpleFindWidget.contribution';

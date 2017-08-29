@@ -5,28 +5,25 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, } from 'vs/platform/contextkey/common/contextkey';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
+	protected _findInputFocused: IContextKey<boolean>;
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ISimpleFindWidgetService _simpleFindWidgetService: ISimpleFindWidgetService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ITerminalService private _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService, _simpleFindWidgetService);
+		super(_contextViewService);
+		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
 	public find(previous) {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
-			if (!this._isVisible) {
-				this.reveal(false);
-			}
 			if (previous) {
 				instance.findPrevious(val);
 			} else {
@@ -52,4 +49,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
 	}
 
+	protected onFindInputFocusTrackerFocus() {
+		this._findInputFocused.set(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this._findInputFocused.reset();
+	}
 }

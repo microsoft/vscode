@@ -15,6 +15,21 @@ suite('workspace-namespace', () => {
 
 	teardown(closeAllEditors);
 
+	test('MarkdownString', function () {
+		let md = new vscode.MarkdownString();
+		assert.equal(md.value, '');
+		assert.equal(md.isTrusted, undefined);
+
+		md = new vscode.MarkdownString('**bold**');
+		assert.equal(md.value, '**bold**');
+
+		md.appendText('**bold?**');
+		assert.equal(md.value, '**bold**\\*\\*bold?\\*\\*');
+
+		md.appendMarkdown('**bold**');
+		assert.equal(md.value, '**bold**\\*\\*bold?\\*\\***bold**');
+	});
+
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(vscode.workspace.textDocuments));

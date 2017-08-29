@@ -150,18 +150,8 @@ export class Workspace implements IWorkspace {
 		this.roots = roots;
 	}
 
-	private ensureAbsoluteAndUnique(roots: URI[]): URI[] {
-		if (!this.configuration) {
-			return roots;
-		}
-
-		return distinct(roots.map(root => {
-			if (paths.isAbsolute(root.fsPath)) {
-				return URI.file(root.fsPath);
-			}
-
-			return URI.file(paths.join(paths.dirname(this.configuration.fsPath), root.fsPath));
-		}), root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
+	private ensureUnique(roots: URI[]): URI[] {
+		return distinct(roots, root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
 	}
 
 	public get roots(): URI[] {
@@ -169,7 +159,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	public set roots(roots: URI[]) {
-		this._roots = this.ensureAbsoluteAndUnique(roots);
+		this._roots = this.ensureUnique(roots);
 		this.updateRootsMap();
 	}
 

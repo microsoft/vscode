@@ -15,6 +15,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -23,9 +24,11 @@ import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
+import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -376,8 +379,103 @@ export class ModelServiceImpl implements IModelService {
 			return;
 		}
 
-		// Otherwise update model
-		model.setValueFromTextSource(textSource);
+		// Otherwise find a diff between the values and update model
+		model.setEOL(textSource.EOL === '\r\n' ? editorCommon.EndOfLineSequence.CRLF : editorCommon.EndOfLineSequence.LF);
+		model.pushEditOperations(
+			[new Selection(1, 1, 1, 1)],
+			ModelServiceImpl._computeEdits(model, textSource),
+			(inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
+		);
+	}
+
+	/**
+	 * Compute edits to bring `model` to the state of `textSource`.
+	 */
+	public static _computeEdits(model: editorCommon.IModel, textSource: ITextSource): editorCommon.IIdentifiedSingleEditOperation[] {
+		const modelLineSequence = new class implements ISequence {
+			public getLength(): number {
+				return model.getLineCount();
+			}
+			public getElementHash(index: number): string {
+				return model.getLineContent(index + 1);
+			}
+		};
+		const textSourceLineSequence = new class implements ISequence {
+			public getLength(): number {
+				return textSource.lines.length;
+			}
+			public getElementHash(index: number): string {
+				return textSource.lines[index];
+			}
+		};
+
+		const diffResult = new LcsDiff(modelLineSequence, textSourceLineSequence).ComputeDiff(false);
+
+		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [], editsLen = 0;
+		const modelLineCount = model.getLineCount();
+		for (let i = 0, len = diffResult.length; i < len; i++) {
+			const diff = diffResult[i];
+			const originalStart = diff.originalStart;
+			const originalLength = diff.originalLength;
+			const modifiedStart = diff.modifiedStart;
+			const modifiedLength = diff.modifiedLength;
+
+			let lines: string[] = [];
+			for (let j = 0; j < modifiedLength; j++) {
+				lines[j] = textSource.lines[modifiedStart + j];
+			}
+			let text = lines.join('\n');
+
+			let range: Range;
+			if (originalLength === 0) {
+				// insertion
+
+				if (originalStart === modelLineCount) {
+					// insert at the end
+					const maxLineColumn = model.getLineMaxColumn(modelLineCount);
+					range = new Range(
+						modelLineCount, maxLineColumn,
+						modelLineCount, maxLineColumn
+					);
+					text = '\n' + text;
+				} else {
+					// insert
+					range = new Range(
+						originalStart + 1, 1,
+						originalStart + 1, 1
+					);
+					text = text + '\n';
+				}
+
+			} else if (modifiedLength === 0) {
+				// deletion
+
+				if (originalStart + originalLength >= modelLineCount) {
+					// delete at the end
+					range = new Range(
+						originalStart, model.getLineMaxColumn(originalStart),
+						originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
+					);
+				} else {
+					// delete
+					range = new Range(
+						originalStart + 1, 1,
+						originalStart + originalLength + 1, 1
+					);
+				}
+
+			} else {
+				// modification
+				range = new Range(
+					originalStart + 1, 1,
+					originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
+				);
+			}
+
+			edits[editsLen++] = EditOperation.replace(range, text);
+		}
+
+		return edits;
 	}
 
 	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {

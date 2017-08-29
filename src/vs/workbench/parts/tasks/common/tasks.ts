@@ -214,21 +214,38 @@ export namespace TaskGroup {
 
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
-export enum TaskSourceKind {
-	Workspace = 1,
-	Extension = 2,
-	Generic = 3
+
+export namespace TaskSourceKind {
+	export const Workspace: 'workspace' = 'workspace';
+	export const Extension: 'extension' = 'extension';
+	export const Composite: 'composite' = 'composite';
 }
 
-export interface TaskSource {
-	kind: TaskSourceKind;
-	label: string;
-	detail?: string;
-	config?: {
-		index: number;
-		element: any;
-	};
+export interface TaskSourceConfigElement {
+	file: string;
+	index: number;
+	element: any;
 }
+
+export interface WorkspaceTaskSource {
+	kind: 'workspace';
+	label: string;
+	config: TaskSourceConfigElement;
+	customizes?: TaskIdentifier;
+}
+
+export interface ExtensionTaskSource {
+	kind: 'extension';
+	label: string;
+	extension: string;
+}
+
+export interface CompositeTaskSource {
+	kind: 'composite';
+	label: string;
+}
+
+export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | CompositeTaskSource;
 
 export interface TaskIdentifier {
 	_key: string;
@@ -295,17 +312,17 @@ export interface CommonTask {
 	 */
 	_label: string;
 
-	/**
-	 * Indicated the source of the task (e.g tasks.json or extension)
-	 */
-	_source: TaskSource;
-
 	type: string;
 }
 
 export interface CustomTask extends CommonTask, ConfigurationProperties {
 
 	type: 'custom';
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: WorkspaceTaskSource;
 
 	name: string;
 
@@ -326,6 +343,11 @@ export namespace CustomTask {
 
 export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
 
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: WorkspaceTaskSource;
+
 	configures: TaskIdentifier;
 }
 
@@ -337,6 +359,11 @@ export namespace ConfiguringTask {
 }
 
 export interface ContributedTask extends CommonTask, ConfigurationProperties {
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: ExtensionTaskSource;
 
 	defines: TaskIdentifier;
 
@@ -355,14 +382,48 @@ export namespace ContributedTask {
 	}
 }
 
-export type Task = CustomTask | ContributedTask;
+export interface CompositeTask extends CommonTask, ConfigurationProperties {
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: CompositeTaskSource;
+
+	type: 'composite';
+
+	identifier: string;
+}
+
+export namespace CompositeTask {
+	export function is(value: any): value is CompositeTask {
+		let candidate = value as CompositeTask;
+		return candidate && candidate._source && candidate._source.kind === TaskSourceKind.Composite;
+	}
+}
+
+export type Task = CustomTask | ContributedTask | CompositeTask;
 
 export namespace Task {
 	export function getKey(task: Task): string {
-		if (CustomTask.is(task)) {
+		if (CustomTask.is(task) || CompositeTask.is(task)) {
 			return task.identifier;
 		} else {
 			return task.defines._key;
+		}
+	}
+
+	export function getTelemetryKind(task: Task): string {
+		if (ContributedTask.is(task)) {
+			return 'extension';
+		} else if (CustomTask.is(task)) {
+			if (task._source.customizes) {
+				return 'workspace>extension';
+			} else {
+				return 'workspace';
+			}
+		} else if (CompositeTask.is(task)) {
+			return 'composite';
+		} else {
+			return 'unknown';
 		}
 	}
 }

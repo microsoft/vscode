@@ -262,7 +262,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
-			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden. Possible values are \'always\' and \'mouseover\'")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',

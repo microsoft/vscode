@@ -192,8 +192,17 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	private _onMouseDown(e: IMouseEvent): void {
-		let domNodePosition = DomUtils.getDomNodePagePosition(this.domNode.domNode);
-		this._setDesiredScrollPositionNow(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(e, domNodePosition)));
+		let offsetX: number;
+		let offsetY: number;
+		if (e.target === this.domNode.domNode && typeof e.browserEvent.offsetX === 'number' && typeof e.browserEvent.offsetY === 'number') {
+			offsetX = e.browserEvent.offsetX;
+			offsetY = e.browserEvent.offsetY;
+		} else {
+			const domNodePosition = DomUtils.getDomNodePagePosition(this.domNode.domNode);
+			offsetX = e.posx - domNodePosition.left;
+			offsetY = e.posy - domNodePosition.top;
+		}
+		this._setDesiredScrollPositionNow(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(offsetX, offsetY)));
 		if (e.leftButton) {
 			e.preventDefault();
 			this._sliderMouseDown(e, () => { /*nothing to do*/ });
@@ -245,7 +254,7 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
 	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
 
-	protected abstract _mouseDownRelativePosition(e: ISimplifiedMouseEvent, domNodePosition: DomUtils.IDomNodePagePosition): number;
+	protected abstract _mouseDownRelativePosition(offsetX: number, offsetY: number): number;
 	protected abstract _sliderMousePosition(e: ISimplifiedMouseEvent): number;
 	protected abstract _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number;
 

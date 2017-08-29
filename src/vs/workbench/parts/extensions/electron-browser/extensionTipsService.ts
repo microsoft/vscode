@@ -26,18 +26,22 @@ import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as cp from 'child_process';
+import { distinct } from 'vs/base/common/arrays';
 
 interface IExtensionsContent {
 	recommendations: string[];
 }
 
 const empty: { [key: string]: any; } = Object.create(null);
+const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
 	_serviceBrand: any;
 
-	private _recommendations: { [id: string]: boolean; } = Object.create(null);
+	private _fileBasedRecommendations: { [id: string]: number; } = Object.create(null);
+	private _exeBasedRecommendations: string[] = [];
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
@@ -64,6 +68,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 		this._suggestTips();
 		this._suggestWorkspaceRecommendations();
+		this._suggestBasedOnExecutables();
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -84,8 +89,14 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	getRecommendations(): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
-		return Object.keys(this._recommendations)
+		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
+
+		const exeBased = distinct(this._exeBasedRecommendations);
+
+		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
+
+		return distinct([...fileBased, ...exeBased]);
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -111,9 +122,23 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this.importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 
 		// retrieve ids of previous recommendations
-		const storedRecommendations = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
-		for (let id of storedRecommendations) {
-			this._recommendations[id] = true;
+		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
+		if (Array.isArray<string>(storedRecommendationsJson)) {
+			for (let id of <string[]>storedRecommendationsJson) {
+				this._fileBasedRecommendations[id] = Date.now();
+			}
+		} else {
+			const now = Date.now();
+			forEach(storedRecommendationsJson, entry => {
+				if (typeof entry.value === 'number') {
+					const diff = (now - entry.value) / milliSecondsInADay;
+					if (diff > 7) {
+						delete this._fileBasedRecommendations[entry.value];
+					} else {
+						this._fileBasedRecommendations[entry.key] = entry.value;
+					}
+				}
+			});
 		}
 
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
@@ -158,18 +183,19 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// the critical path - in case glob-match is slow
 		setImmediate(() => {
 
+			const now = Date.now();
 			forEach(this._availableRecommendations, entry => {
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, uri.fsPath)) {
 					for (let id of ids) {
-						this._recommendations[id] = true;
+						this._fileBasedRecommendations[id] = now;
 					}
 				}
 			});
 
 			this.storageService.store(
 				'extensionsAssistant/recommendations',
-				JSON.stringify(Object.keys(this._recommendations)),
+				JSON.stringify(this._fileBasedRecommendations),
 				StorageScope.GLOBAL
 			);
 
@@ -286,6 +312,17 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					return this.setIgnoreRecommendationsConfig(true);
 				case 1: return this.setIgnoreRecommendationsConfig(false);
 			}
+		});
+	}
+
+	private _suggestBasedOnExecutables() {
+		const cmd = process.platform === 'win32' ? 'where' : 'which';
+		forEach(product.exeBasedExtensionTips, entry => {
+			cp.exec(`${cmd} ${entry.value.replace(/,/g, ' ')}`, (err, stdout, stderr) => {
+				if (stdout) {
+					this._exeBasedRecommendations.push(entry.key);
+				}
+			});
 		});
 	}
 

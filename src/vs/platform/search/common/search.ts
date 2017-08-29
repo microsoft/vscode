@@ -11,6 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as glob from 'vs/base/common/glob';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ID = 'searchService';
 
@@ -24,6 +25,11 @@ export interface ISearchService {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
+	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+}
+
+export interface ISearchResultProvider {
+	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 
 export interface IFolderQuery {

@@ -34,7 +34,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
@@ -140,8 +140,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
-			let reveal = task.command.presentation.reveal;
-			let focus = task.command.presentation.focus;
+			let reveal = RevealKind.Always;
+			let focus = false;
+			if (CustomTask.is(task) || ContributedTask.is(task)) {
+				reveal = task.command.presentation.reveal;
+				focus = task.command.presentation.focus;
+			}
 			if (reveal === RevealKind.Always || focus) {
 				this.terminalService.setActiveInstance(terminalData.terminal);
 				this.terminalService.showPanel(focus);
@@ -171,7 +175,9 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			return false;
 		}
 		this.terminalService.setActiveInstance(terminalData.terminal);
-		this.terminalService.showPanel(task.command.presentation.focus);
+		if (CustomTask.is(task) || ContributedTask.is(task)) {
+			this.terminalService.showPanel(task.command.presentation.focus);
+		}
 		return true;
 	}
 
@@ -253,7 +259,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 
-		if (task.command) {
+		if (ContributedTask.is(task) || CustomTask.is(task)) {
 			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
@@ -274,7 +280,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		}
 	}
 
-	private executeCommand(task: Task, trigger: string): TPromise<ITaskSummary> {
+	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
 		let terminal: ITerminalInstance = undefined;
 		let executedCommand: string = undefined;
 		let promise: TPromise<ITaskSummary> = undefined;
@@ -397,6 +403,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: true,
 					exitCode: summary.exitCode
@@ -410,6 +417,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};
@@ -420,7 +428,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: Task): [ITerminalInstance, string] {
+	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string] {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
@@ -556,7 +564,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		return [result, command];
 	}
 
-	private resolveCommandAndArgs(task: Task): { command: string, args: string[] } {
+	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: string, args: string[] } {
 		// First we need to use the command args:
 		let args: string[] = task.command.args ? task.command.args.slice() : [];
 		args = this.resolveVariables(args);

@@ -99,7 +99,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				// model has not been given out => nothing to do
 				return;
 			}
-			model.setValue(defaultKeybindingsContents(keybindingService));
+			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
 		});
 	}
 

@@ -1019,7 +1019,7 @@ namespace TaskIdentifier {
 const source: Tasks.TaskSource = {
 	kind: Tasks.TaskSourceKind.Workspace,
 	label: 'Workspace',
-	detail: '.settins\\tasks.json'
+	config: undefined
 };
 
 namespace GroupKind {
@@ -1130,7 +1130,7 @@ namespace ConfiguringTask {
 		}
 		let typeDeclaration = TaskDefinitionRegistry.get(type);
 		if (!typeDeclaration) {
-			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is not registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
+			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
 			context.problemReporter.error(message);
 			return undefined;
 		}
@@ -1159,11 +1159,16 @@ namespace ConfiguringTask {
 			});
 		}
 		let taskIdentifier = TaskIdentifier.from(identifier);
+		let configElement: Tasks.TaskSourceConfigElement = {
+			file: '.vscode\\tasks.json',
+			index,
+			element: external
+		};
 		let result: Tasks.ConfiguringTask = {
 			type: type,
 			configures: taskIdentifier,
 			_id: taskIdentifier._key,
-			_source: Objects.assign({}, source, { config: { index, element: external } }),
+			_source: Objects.assign({}, source, { config: configElement }),
 			_label: undefined
 		};
 		let configuration = ConfigurationProperties.from(external, context, true);
@@ -1215,7 +1220,7 @@ namespace CustomTask {
 		let result: Tasks.CustomTask = {
 			type: 'custom',
 			_id: context.uuidMap.getUUID(taskName),
-			_source: Objects.assign({}, source, { config: { index, element: external } }),
+			_source: Objects.assign({}, source, { config: { index, element: external, file: '.vscode\\tasks.json' } }),
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
@@ -1278,10 +1283,10 @@ namespace CustomTask {
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.TaskSource }): Tasks.CustomTask {
+	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string, _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 		let result: Tasks.CustomTask = {
 			_id: configuredProps._id,
-			_source: configuredProps._source,
+			_source: Objects.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
 			_label: configuredProps.name || contributedTask._label,
 			type: 'custom',
 			command: contributedTask.command,
@@ -1788,7 +1793,7 @@ export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IP
 	}
 }
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.TaskSource }): Tasks.CustomTask {
+export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
 }
 

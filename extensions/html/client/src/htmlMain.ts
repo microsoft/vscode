@@ -6,21 +6,17 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, IndentAction, Position, TextDocument } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Range as LSRange, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorRange } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
-import { activateColorDecorations } from './colorDecorators';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
+import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
-
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, LSRange[], any, any> = new RequestType('html/colorSymbols');
-}
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -31,6 +27,18 @@ interface IPackageInfo {
 	version: string;
 	aiKey: string;
 }
+
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
+	}
+};
 
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
@@ -74,13 +82,18 @@ export function activate(context: ExtensionContext) {
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
-		let colorRequestor = (uri: string) => {
-			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
-		};
-		let isDecoratorEnabled = (languageId: string) => {
-			return workspace.getConfiguration().get<boolean>('css.colorDecorators.enable');
-		};
-		let disposable = activateColorDecorations(colorRequestor, { html: true, handlebars: true, razor: true }, isDecoratorEnabled);
+		disposable = languages.registerColorProvider(documentSelector, {
+			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
+					return symbols.map(symbol => {
+						let range = client.protocol2CodeConverter.asRange(symbol.range);
+						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
+						return new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]);
+					});
+				});
+			}
+		});
 		toDispose.push(disposable);
 
 		let tagRequestor = (document: TextDocument, position: Position) => {

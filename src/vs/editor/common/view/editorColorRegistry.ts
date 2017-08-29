@@ -58,7 +58,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let outline = theme.getColor(activeContrastBorder);
 	if (outline) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${outline}; }; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${outline}; }`);
 	}
 
 	let invisibles = theme.getColor(editorWhitespaces);

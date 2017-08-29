@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { doComplete, isStyleSheet, getEmmetMode } from 'vscode-emmet-helper';
+import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
 import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
 
@@ -31,24 +31,49 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
-		let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
-		let newItems: vscode.CompletionItem[] = [];
-		if (result && result.items) {
-			result.items.forEach(item => {
-				let newItem = new vscode.CompletionItem(item.label);
-				newItem.documentation = item.documentation;
-				newItem.detail = item.detail;
-				newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
-				let oldrange = item.textEdit.range;
-				newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
+		let noiseCheckPromise: Thenable<any> = Promise.resolve();
 
-				newItem.filterText = item.filterText;
-				newItem.sortText = item.sortText;
-				newItems.push(newItem);
-			});
+		// Fix for https://github.com/Microsoft/vscode/issues/32647
+		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
+		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
+		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
+			let extractAbbreviationResults = extractAbbreviation(document, position);
+			if (extractAbbreviationResults) {
+				let abbreviation: string = extractAbbreviationResults.abbreviation;
+				if (abbreviation.startsWith('this.')) {
+					noiseCheckPromise = Promise.resolve(true);
+				} else {
+					noiseCheckPromise = vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[]) => {
+						return symbols.find(x => abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation));
+					});
+				}
+			}
 		}
 
-		return Promise.resolve(new vscode.CompletionList(newItems, true));
+		return noiseCheckPromise.then(noise => {
+			if (noise) {
+				return;
+			}
+
+			let result: vscode.CompletionList = doComplete(document, position, syntax, getEmmetConfiguration());
+			let newItems: vscode.CompletionItem[] = [];
+			if (result && result.items) {
+				result.items.forEach(item => {
+					let newItem = new vscode.CompletionItem(item.label);
+					newItem.documentation = item.documentation;
+					newItem.detail = item.detail;
+					newItem.insertText = new vscode.SnippetString(item.textEdit.newText);
+					let oldrange = item.textEdit.range;
+					newItem.range = new vscode.Range(oldrange.start.line, oldrange.start.character, oldrange.end.line, oldrange.end.character);
+
+					newItem.filterText = item.filterText;
+					newItem.sortText = item.sortText;
+					newItems.push(newItem);
+				});
+			}
+
+			return Promise.resolve(new vscode.CompletionList(newItems, true));
+		});
 	}
 
 	/**

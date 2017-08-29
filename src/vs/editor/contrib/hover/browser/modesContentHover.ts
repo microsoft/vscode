@@ -366,11 +366,10 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};
 
-				const colorListener = model.onDidChangeColor(updateEditorModel);
-				const formatterListener = model.onDidChangeFormatter(updateEditorModel);
+				const colorListener = model.onColorFlushed(updateEditorModel);
 
 				this._colorPicker = widget;
-				this.renderDisposable = combinedDisposable([colorListener, formatterListener, widget]);
+				this.renderDisposable = combinedDisposable([colorListener, widget]);
 			}
 		});
 

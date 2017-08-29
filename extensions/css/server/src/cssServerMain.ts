@@ -5,17 +5,14 @@
 'use strict';
 
 import {
-	createConnection, IConnection, Range,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
+	createConnection, IConnection, TextDocuments, TextDocument, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
+
 import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
-}
 
 export interface Settings {
 	css: LanguageSettings;
@@ -58,20 +55,20 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	}
 	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
 	scopedSettingsSupport = hasClientCapability('workspace.configuration');
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: snippetSupport ? { resolveProvider: false } : null,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			referencesProvider: true,
-			definitionProvider: true,
-			documentHighlightProvider: true,
-			codeActionProvider: true,
-			renameProvider: true
-		}
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: snippetSupport ? { resolveProvider: false } : null,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		referencesProvider: true,
+		definitionProvider: true,
+		documentHighlightProvider: true,
+		codeActionProvider: true,
+		renameProvider: true,
+		colorProvider: true
 	};
+	return { capabilities };
 });
 
 let languageServices: { [id: string]: LanguageService } = {
@@ -205,11 +202,11 @@ connection.onCodeAction(codeActionParams => {
 	return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let document = documents.get(uri);
+connection.onRequest(DocumentColorRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findColorSymbols(document, stylesheet);
+		return getLanguageService(document).findDocumentColors(document, stylesheet);
 	}
 	return [];
 });

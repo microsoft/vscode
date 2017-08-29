@@ -48,7 +48,7 @@ export interface IViewOptions {
 
 export interface IViewConstructorSignature {
 
-	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
+	new(initialSize: number, options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
 
 }
 
@@ -118,11 +118,12 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 	private dragHandler: DelayedDragHandler;
 
 	constructor(
+		initialSize: number,
 		options: ICollapsibleViewOptions,
 		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {
-		super({
+		super(initialSize, {
 			ariaHeaderLabel: options.ariaHeaderLabel,
 			sizing: options.sizing,
 			bodySize: options.initialBodySize ? options.initialBodySize : 4 * 22,
@@ -308,7 +309,7 @@ export interface IViewState {
 
 	collapsed: boolean;
 
-	size: number;
+	size: number | undefined;
 
 	isHidden: boolean;
 
@@ -421,8 +422,11 @@ export class ViewsViewlet extends Viewlet {
 
 	public focus(): void {
 		super.focus();
+
 		if (this.lastFocusedView) {
 			this.lastFocusedView.focus();
+		} else if (this.views.length > 0) {
+			this.views[0].focus();
 		}
 	}
 
@@ -530,10 +534,9 @@ export class ViewsViewlet extends Viewlet {
 			if (toAdd.length || toRemove.length) {
 				for (const view of this.splitView.getViews<IView>()) {
 					let viewState = this.viewsStates.get(view.id);
-					if (!viewState || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
+					if (!viewState || typeof viewState.size === 'undefined' || view.size !== viewState.size || !view.isExpanded() !== viewState.collapsed) {
 						viewState = this.updateViewStateSize(view);
 						this.viewsStates.set(view.id, viewState);
-						this.splitView.updateWeight(view, viewState.size);
 					}
 				}
 				if (toRemove.length) {
@@ -549,13 +552,15 @@ export class ViewsViewlet extends Viewlet {
 				for (const viewDescriptor of toAdd) {
 					let viewState = this.viewsStates.get(viewDescriptor.id);
 					let index = visible.indexOf(viewDescriptor);
-					const view = this.createView(viewDescriptor, {
-						id: viewDescriptor.id,
-						name: viewDescriptor.name,
-						actionRunner: this.getActionRunner(),
-						collapsed: viewState ? viewState.collapsed : void 0,
-						viewletSettings: this.viewletSettings
-					});
+					const view = this.createView(viewDescriptor,
+						viewState ? viewState.size : void 0,
+						{
+							id: viewDescriptor.id,
+							name: viewDescriptor.name,
+							actionRunner: this.getActionRunner(),
+							collapsed: viewState ? viewState.collapsed : void 0,
+							viewletSettings: this.viewletSettings
+						});
 					toCreate.push(view);
 
 					this.attachViewStyler(view);
@@ -693,8 +698,8 @@ export class ViewsViewlet extends Viewlet {
 			});
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IView {
+		return this.instantiationService.createInstance(viewDescriptor.ctor, initialSize, options);
 	}
 
 	protected get views(): IView[] {

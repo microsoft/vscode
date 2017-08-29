@@ -14,9 +14,7 @@ import { editorBackground, editorForeground } from 'vs/platform/theme/common/col
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
-
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export declare interface WebviewElement extends HTMLElement {
 	src: string;
@@ -57,7 +55,6 @@ export interface WebviewOptions {
 	svgWhiteList?: string[];
 }
 
-
 export default class Webview {
 	private static index: number = 0;
 
@@ -73,12 +70,11 @@ export default class Webview {
 	private _findStarted: boolean = false;
 
 	constructor(
-		private _parent: HTMLElement,
+		private parent: HTMLElement,
 		private _styleElement: Element,
 		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService,
 		private _contextKey: IContextKey<boolean>,
+		private _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
 		this._webview = <any>document.createElement('webview');
@@ -197,19 +193,21 @@ export default class Webview {
 			})
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this._simpleFindWidgetService, this);
-		// Register and add to disposables
-		this._disposables.push(this._simpleFindWidgetService.register(this._webviewFindWidget, [this._contextKey]));
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
 		this._disposables.push(this._webviewFindWidget);
 
-		if (_parent) {
-			_parent.appendChild(this._webviewFindWidget.getDomNode());
-			_parent.appendChild(this._webview);
+		if (parent) {
+			parent.appendChild(this._webviewFindWidget.getDomNode());
+			parent.appendChild(this._webview);
 		}
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
 		this._contextKey.set(isFocused || document.activeElement === this._webview);
+	}
+
+	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
+		this._findInputContextKey.set(isFocused);
 	}
 
 	dispose(): void {
@@ -379,8 +377,8 @@ export default class Webview {
 
 			contents.setZoomFactor(factor);
 
-			const width = this._parent.clientWidth;
-			const height = this._parent.clientHeight;
+			const width = this.parent.clientWidth;
+			const height = this.parent.clientHeight;
 			contents.setSize({
 				normal: {
 					width: Math.floor(width * factor),
@@ -448,5 +446,21 @@ export default class Webview {
 	public stopFind(keepSelection?: boolean): void {
 		this._findStarted = false;
 		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
+	}
+
+	public showFind() {
+		this._webviewFindWidget.reveal();
+	}
+
+	public hideFind() {
+		this._webviewFindWidget.hide();
+	}
+
+	public showNextFindTerm() {
+		this._webviewFindWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTerm() {
+		this._webviewFindWidget.showPreviousFindTerm();
 	}
 }

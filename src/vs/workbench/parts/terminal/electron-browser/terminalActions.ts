@@ -662,6 +662,75 @@ export class RenameTerminalAction extends Action {
 	}
 }
 
+export class FocusTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focusFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.terminalService.focusFindWidget();
+	}
+}
+
+export class HideTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.hideFindWidget';
+	public static LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.hideFindWidget());
+	}
+}
+
+export class ShowNextFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
+	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showNextFindTermFindWidget());
+	}
+}
+
+export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
+	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.showPreviousFindTermFindWidget());
+	}
+}
+
+
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(

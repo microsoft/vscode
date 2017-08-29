@@ -201,6 +201,10 @@ export interface IOpenFileRequest {
 	filesToDiff?: IPath[];
 }
 
+export interface IAddFoldersRequest {
+	foldersToAdd: IPath[];
+}
+
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	appRoot: string;
 	execPath: string;
