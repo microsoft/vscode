@@ -38,7 +38,7 @@
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add File to .gitignore",
 	"command.stash": "Stash",
-	"command.stashPop": "Pop Stash",
+	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
