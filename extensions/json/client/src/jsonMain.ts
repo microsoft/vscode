@@ -217,7 +217,12 @@ function getSettings(): Settings {
 				if (url && url[0] === '.') {
 					url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
 				}
-				schemas.push({ url, fileMatch: schema.fileMatch, schema: schema.schema });
+				let fileMatch = schema.fileMatch;
+
+				if (fileMatch) {
+					fileMatch = fileMatch.map(m => path.join(folder.uri.path + '*', m));
+				}
+				schemas.push({ url, fileMatch, schema: schema.schema });
 			});
 		};
 	});
