@@ -49,3 +49,7 @@ ifeq ($(strip $(call defined,CODIT_DIR)),0)
     $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
   endif
 endif
+
+# Handle braces inside the variable
+SIMPLE := $(info ()()(()))
+CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)

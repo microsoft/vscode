@@ -292,6 +292,18 @@
 				}
 			]
 		},
+		"braces-interpolation": {
+			"begin": "\\(",
+			"end": "\\)",
+			"patterns": [
+				{
+					"include": "#variables"
+				},
+				{
+					"include": "#braces-interpolation"
+				}
+			]
+		},
 		"recipe": {
 			"begin": "^(?!\\t)([^:]*)(:)(?!\\=)",
 			"beginCaptures": {
@@ -444,6 +456,9 @@
 							"patterns": [
 								{
 									"include": "#variables"
+								},
+								{
+									"include": "#braces-interpolation"
 								},
 								{
 									"match": "%|\\*",
