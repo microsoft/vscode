@@ -184,7 +184,7 @@ export class AzureLoginHelper {
 	}
 
 	private async addFilter() {
-		if (this.api.status !== 'LoggedIn') {
+		if (!(await this.waitForLogin())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -271,7 +271,7 @@ export class AzureLoginHelper {
 	}
 
 	private async removeFilter() {
-		if (this.api.status !== 'LoggedIn') {
+		if (!(await this.waitForLogin())) {
 			return commands.executeCommand('azure-account.askForLogin');
 		}
 
@@ -363,6 +363,26 @@ export class AzureLoginHelper {
 		}
 		this.api.filters.splice(0, this.api.filters.length, ...newFilters);
 		this.onFiltersChanged.fire();
+	}
+
+	private async waitForLogin() {
+		switch (this.api.status) {
+			case 'LoggedIn':
+				return true;
+			case 'LoggedOut':
+				return false;
+			case 'Initializing':
+			case 'LoggingIn':
+				return new Promise<boolean>(resolve => {
+					const subscription = this.api.onStatusChanged(() => {
+						subscription.dispose();
+						resolve(this.waitForLogin());
+					});
+				});
+			default:
+				const status: never = this.api.status;
+				throw new Error(`Unexpected status '${status}'`);
+		}
 	}
 }
 
