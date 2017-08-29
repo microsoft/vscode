@@ -368,7 +368,9 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	focus(): void {
-		this.inputBox.focus();
+		if (this.isExpanded()) {
+			this.inputBox.focus();
+		}
 	}
 
 	getActions(): IAction[] {
