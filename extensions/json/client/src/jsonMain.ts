@@ -204,28 +204,30 @@ function getSettings(): Settings {
 	}
 
 	let folders = workspace.workspaceFolders;
-	folders.forEach(folder => {
-		let jsonConfig = workspace.getConfiguration('json', folder.uri);
-		let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
-		let folderSchemas = schemaConfigInfo.workspaceFolderValue;
-		if (Array.isArray(folderSchemas)) {
-			folderSchemas.forEach(schema => {
-				let url = schema.url;
-				if (!url && schema.schema) {
-					url = schema.schema.id;
-				}
-				if (url && url[0] === '.') {
-					url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
-				}
-				let fileMatch = schema.fileMatch;
+	if (folders) {
+		folders.forEach(folder => {
+			let jsonConfig = workspace.getConfiguration('json', folder.uri);
+			let schemaConfigInfo = jsonConfig.inspect<JSONSchemaSettings[]>('schemas');
+			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
+			if (Array.isArray(folderSchemas)) {
+				folderSchemas.forEach(schema => {
+					let url = schema.url;
+					if (!url && schema.schema) {
+						url = schema.schema.id;
+					}
+					if (url && url[0] === '.') {
+						url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
+					}
+					let fileMatch = schema.fileMatch;
 
-				if (fileMatch) {
-					fileMatch = fileMatch.map(m => path.join(folder.uri.path + '*', m));
-				}
-				schemas.push({ url, fileMatch, schema: schema.schema });
-			});
-		};
-	});
+					if (fileMatch) {
+						fileMatch = fileMatch.map(m => path.join(folder.uri.path + '*', m));
+					}
+					schemas.push({ url, fileMatch, schema: schema.schema });
+				});
+			};
+		});
+	}
 	return settings;
 }
 
