@@ -37,6 +37,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
+			this.render();
 		});
 
 		const disposable = combinedDisposable([changeDisposable, removeDisposable]);

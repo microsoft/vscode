@@ -6,9 +6,9 @@
 'use strict';
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor } from 'vscode';
-import { Repository } from './repository';
-import { memoize, sequentialize } from './decorators';
-import { dispose } from './util';
+import { Repository, RepositoryState } from './repository';
+import { memoize, sequentialize, debounce } from './decorators';
+import { dispose, anyEvent, filterEvent } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
@@ -44,6 +44,8 @@ export class Model {
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
+	private possibleGitRepositoryPaths = new Set<string>();
+
 	private disposables: Disposable[] = [];
 
 	constructor(private git: Git) {
@@ -52,6 +54,29 @@ export class Model {
 
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		this.onDidChangeVisibleTextEditors(window.visibleTextEditors);
+
+		const fsWatcher = workspace.createFileSystemWatcher('**');
+		this.disposables.push(fsWatcher);
+
+		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		const onGitRepositoryChange = filterEvent(onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
+		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
+		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
+	}
+
+	private onPossibleGitRepositoryChange(uri: Uri): void {
+		const possibleGitRepositoryPath = uri.fsPath.replace(/\.git.*$/, '');
+		this.possibleGitRepositoryPaths.add(possibleGitRepositoryPath);
+		this.eventuallyScanPossibleGitRepositories();
+	}
+
+	@debounce(500)
+	private eventuallyScanPossibleGitRepositories(): void {
+		for (const path of this.possibleGitRepositoryPaths) {
+			this.tryOpenRepository(path);
+		}
+
+		this.possibleGitRepositoryPaths = new Set<string>();
 	}
 
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
@@ -112,11 +137,11 @@ export class Model {
 	}
 
 	private open(repository: Repository): void {
-		// const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === State.Disposed);
-		// const disappearListener = onDidDisappearRepository(() => disposable.dispose());
+		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
+		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const dispose = () => {
-			// disappearListener.dispose();
+			disappearListener.dispose();
 			changeListener.dispose();
 			repository.dispose();
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);

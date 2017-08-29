@@ -25,7 +25,7 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
-export enum State {
+export enum RepositoryState {
 	Idle,
 	Disposed
 }
@@ -296,8 +296,8 @@ export class Repository implements Disposable {
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
-	private _onDidChangeState = new EventEmitter<State>();
-	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
+	private _onDidChangeState = new EventEmitter<RepositoryState>();
+	readonly onDidChangeState: Event<RepositoryState> = this._onDidChangeState.event;
 
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
@@ -345,9 +345,9 @@ export class Repository implements Disposable {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	private _state = State.Idle;
-	get state(): State { return this._state; }
-	set state(state: State) {
+	private _state = RepositoryState.Idle;
+	get state(): RepositoryState { return this._state; }
+	set state(state: RepositoryState) {
 		this._state = state;
 		this._onDidChangeState.fire(state);
 
@@ -630,7 +630,7 @@ export class Repository implements Disposable {
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		if (this.state !== State.Idle) {
+		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
 
@@ -648,7 +648,7 @@ export class Repository implements Disposable {
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					this.state = State.Disposed;
+					this.state = RepositoryState.Disposed;
 				}
 
 				throw err;
@@ -780,8 +780,8 @@ export class Repository implements Disposable {
 		let stateContextKey = '';
 
 		switch (this.state) {
-			case State.Idle: stateContextKey = 'idle'; break;
-			case State.Disposed: stateContextKey = 'norepo'; break;
+			case RepositoryState.Idle: stateContextKey = 'idle'; break;
+			case RepositoryState.Disposed: stateContextKey = 'norepo'; break;
 		}
 
 		this._onDidChangeStatus.fire();
