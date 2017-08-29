@@ -1294,7 +1294,7 @@ export class CommandCenter {
 
 				result = repositoryPromise.then(repository => {
 					if (!repository) {
-						return Promise.reject(localize('modelnotfound', "Git model not found"));
+						return Promise.resolve();
 					}
 
 					return Promise.resolve(method.apply(this, [repository, ...args]));
