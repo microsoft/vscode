@@ -669,8 +669,11 @@ export class ViewsViewlet extends Viewlet {
 		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
 			// Checks in cache so that view do not jump. See #29609
 			let visibleViewsCount = 0;
-			this.viewsStates.forEach(viewState => {
-				if (!viewState.isHidden) {
+			const viewDecriptors = this.getViewDescriptorsFromRegistry();
+			this.viewsStates.forEach((viewState, id) => {
+				const viewDescriptor = viewDecriptors.filter(viewDescriptor => viewDescriptor.id === id)[0];
+				const isHidden = viewState.isHidden || (viewDescriptor && !this.contextKeyService.contextMatchesRules(viewDescriptor.when));
+				if (!isHidden) {
 					visibleViewsCount++;
 				}
 			});
