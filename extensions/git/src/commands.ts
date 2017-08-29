@@ -362,23 +362,18 @@ export class CommandCenter {
 		const preview = uris.length === 1 ? true : false;
 		const activeTextEditor = window.activeTextEditor;
 		for (const uri of uris) {
-			// If the active editor matches the current uri, get its selection
-			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
-				? activeTextEditor.selections
-				: undefined;
-
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
 
+			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
+				opts.selection = activeTextEditor.selection;
+			}
+
 			const document = await workspace.openTextDocument(uri);
 			await window.showTextDocument(document, opts);
-
-			if (selections && window.activeTextEditor) {
-				window.activeTextEditor.selections = selections;
-			}
 		}
 	}
 
