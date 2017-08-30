@@ -174,7 +174,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+		if (activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -368,7 +368,7 @@ export class CommandCenter {
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
 
-			if (activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()) {
+			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
 				opts.selection = activeTextEditor.selection;
 			}
 
