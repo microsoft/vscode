@@ -11,6 +11,7 @@ import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -62,6 +63,23 @@ export class Model {
 		const onGitRepositoryChange = filterEvent(onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
 		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
+
+		this.scanWorkspaceFolders();
+	}
+
+	/**
+	 * Scans the first level of each workspace folder, looking
+	 * for git repositories.
+	 */
+	private async scanWorkspaceFolders(): Promise<void> {
+		for (const folder of workspace.workspaceFolders || []) {
+			const root = folder.uri.fsPath;
+			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+
+			for (const child of children) {
+				this.tryOpenRepository(path.join(root, child));
+			}
+		}
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
