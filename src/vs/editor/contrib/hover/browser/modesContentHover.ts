@@ -363,6 +363,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						alpha: model.color.rgba.a
 					});
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
+					this._editor.pushUndoStop();
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};
 
