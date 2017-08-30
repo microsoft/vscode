@@ -272,7 +272,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  */
 function expandAbbr(input: ExpandAbbreviationInput): string {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const expandOptions = getExpandOptions(input.syntax, emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.filters);
+	const expandOptions = getExpandOptions(input.syntax, emmetConfig, input.filters);
 
 
 	if (input.textToWrap) {

@@ -79,6 +79,53 @@
                     "type": "boolean",
                     "default": false,
                     "description": "%emmetTriggerExpansionOnTab%"
+                },
+                "emmet.preferences":{
+                    "type": "object",
+                    "default": {},
+                    "description": "%emmetPreferences%",
+                    "properties": {
+                        "css.intUnit": {
+                            "type": "string",
+                            "default": "px",
+                            "description": "%emmetPreferencesIntUnit%"
+                        },
+                        "css.floatUnit": {
+                            "type": "string",
+                            "default": "em",
+                            "description": "%emmetPreferencesFloatUnit%"
+                        },
+                        "css.propertyEnd": {
+                            "type": "string",
+                            "default": ";",
+                            "description": "%emmetPreferencesCssAfter%"
+                        },
+                        "sass.propertyEnd": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesSassAfter%"
+                        },
+                        "stylus.propertyEnd": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesStylusAfter%"
+                        },
+                        "css.valueSeparator": {
+                            "type": "string",
+                            "default": ": ",
+                            "description": "%emmetPreferencesCssBetween%"
+                        },
+                        "sass.valueSeparator": {
+                            "type": "string",
+                            "default": ": ",
+                            "description": "%emmetPreferencesSassBetween%"
+                        },
+                        "stylus.valueSeparator": {
+                            "type": "string",
+                            "default": " ",
+                            "description": "%emmetPreferencesStylusBetween%"
+                        }
+                    }
                 }
             }
         },
@@ -212,7 +259,7 @@
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.0.22",
+        "vscode-emmet-helper": "^1.1.0",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"
