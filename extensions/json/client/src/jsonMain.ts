@@ -219,9 +219,8 @@ function getSettings(): Settings {
 						url = Uri.file(path.normalize(path.join(folder.uri.fsPath, url))).toString();
 					}
 					let fileMatch = schema.fileMatch;
-
 					if (fileMatch) {
-						fileMatch = fileMatch.map(m => path.join(folder.uri.path + '*', m));
+						fileMatch = fileMatch.map(m => folder.uri.toString() + '*' + m);
 					}
 					schemas.push({ url, fileMatch, schema: schema.schema });
 				});
