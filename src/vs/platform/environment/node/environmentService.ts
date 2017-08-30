@@ -31,9 +31,13 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/Microsoft/vscode/issues/30624
+const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+
 function getNixIPCHandle(userDataPath: string, type: string): string {
-	if (process.env['XDG_RUNTIME_DIR']) {
-		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
+	if (xdgRuntimeDir) {
+		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
 	}
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
