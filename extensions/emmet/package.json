@@ -44,7 +44,7 @@
                     "type": "object",
                     "default": {},
                     "description": "%emmetIncludeLanguages%"
-                                },
+                },
                 "emmet.variables": {
                     "type": "object",
                     "properties": {
@@ -60,14 +60,16 @@
                     "default": {},
                     "description": "%emmetVariables%"
                 },
-                "emmet.syntaxProfiles":{
+                "emmet.syntaxProfiles": {
                     "type": "object",
                     "default": {},
                     "description": "%emmetSyntaxProfiles%"
                 },
-                "emmet.excludeLanguages":{
+                "emmet.excludeLanguages": {
                     "type": "array",
-                    "default": ["markdown"],
+                    "default": [
+                        "markdown"
+                    ],
                     "description": "%emmetExclude%"
                 },
                 "emmet.extensionsPath": {
@@ -80,7 +82,7 @@
                     "default": false,
                     "description": "%emmetTriggerExpansionOnTab%"
                 },
-                "emmet.preferences":{
+                "emmet.preferences": {
                     "type": "object",
                     "default": {},
                     "description": "%emmetPreferences%",
@@ -126,6 +128,11 @@
                             "description": "%emmetPreferencesStylusBetween%"
                         }
                     }
+                },
+                "emmet.showSuggestionsAsSnippets": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%emmetShowSuggestionsAsSnippets%"
                 }
             }
         },
@@ -255,11 +262,10 @@
         "vscode": "1.0.1"
     },
     "dependencies": {
-
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.1.3",
+        "vscode-emmet-helper": "^1.1.4",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"

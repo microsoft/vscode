@@ -68,6 +68,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 					newItem.filterText = item.filterText;
 					newItem.sortText = item.sortText;
+
+					if (emmetConfig['showSuggestionsAsSnippets'] === true) {
+						newItem.kind = vscode.CompletionItemKind.Snippet;
+					}
 					newItems.push(newItem);
 				});
 			}
