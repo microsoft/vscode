@@ -24,6 +24,7 @@ export const editorWordHighlight = registerColor('editor.wordHighlightBackground
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
+export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -296,8 +297,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
-			color: themeColorFromId(overviewRulerWordHighlightForeground),
-			darkColor: themeColorFromId(overviewRulerWordHighlightForeground),
+			color: themeColorFromId(overviewRulerWordHighlightStrongForeground),
+			darkColor: themeColorFromId(overviewRulerWordHighlightStrongForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
