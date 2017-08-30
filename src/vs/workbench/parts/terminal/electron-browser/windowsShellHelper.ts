@@ -17,6 +17,7 @@ export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isDisposed: boolean;
+	private _currentRequest: TPromise<string>;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -94,10 +95,17 @@ export class WindowsShellHelper {
 		if (this._isDisposed) {
 			return TPromise.as('');
 		}
-		return new TPromise<string>(resolve => {
+		// Prevent multiple requests at once, instead return current request
+		if (this._currentRequest) {
+			return this._currentRequest;
+		}
+		this._currentRequest = new TPromise<string>(resolve => {
 			windowsProcessTree(this._rootProcessId, (tree) => {
-				resolve(this.traverseTree(tree));
+				const name = this.traverseTree(tree);
+				this._currentRequest = null;
+				resolve(name);
 			});
 		});
+		return this._currentRequest;
 	}
 }
