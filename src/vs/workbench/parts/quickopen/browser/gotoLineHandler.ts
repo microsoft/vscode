@@ -12,7 +12,7 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -119,7 +119,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		if (activeEditor) {
 			const editor = <IEditor>activeEditor.getControl();
 			editor.setSelection(range);
-			editor.revealRangeInCenter(range);
+			editor.revealRangeInCenter(range, ScrollType.Smooth);
 		}
 
 		return true;
@@ -139,7 +139,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const editorControl = <IEditor>activeEditor.getControl();
-			editorControl.revealRangeInCenter(range);
+			editorControl.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
 			if (types.isFunction(editorControl.changeDecorations)) {

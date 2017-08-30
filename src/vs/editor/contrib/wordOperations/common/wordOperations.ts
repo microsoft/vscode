@@ -6,7 +6,7 @@
 'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
@@ -49,7 +49,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		editor._getCursors().setStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
 		if (result.length === 1) {
 			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
-			editor.revealPosition(pos, false, true);
+			editor.revealPosition(pos, ScrollType.Smooth);
 		}
 	}
 

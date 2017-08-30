@@ -16,7 +16,7 @@ import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quic
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import filters = require('vs/base/common/filters');
 import { KeyMod } from 'vs/base/common/keyCodes';
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -323,7 +323,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 			if (activeEditor) {
 				const editor = <IEditor>activeEditor.getControl();
 				editor.setSelection(range);
-				editor.revealRangeInCenter(range);
+				editor.revealRangeInCenter(range, ScrollType.Smooth);
 			}
 		}
 
@@ -337,7 +337,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const editorControl = <IEditor>activeEditor.getControl();
-			editorControl.revealRangeInCenter(range);
+			editorControl.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
 			if (types.isFunction(editorControl.changeDecorations)) {

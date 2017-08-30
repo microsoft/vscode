@@ -23,6 +23,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { once } from 'vs/base/common/event';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -150,7 +151,7 @@ export class TextResourceEditor extends BaseTextEditor {
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
 		}
 	}
 

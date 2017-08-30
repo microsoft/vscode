@@ -16,7 +16,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommonCodeEditor, IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -150,7 +150,7 @@ export class ContextMenuController implements IEditorContribution {
 		var menuPosition = forcedPosition;
 		if (!menuPosition) {
 			// Ensure selection is visible
-			this._editor.revealPosition(this._editor.getPosition());
+			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
 
 			this._editor.render();
 			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());

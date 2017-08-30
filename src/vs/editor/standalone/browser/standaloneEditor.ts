@@ -328,6 +328,18 @@ export function setTheme(themeName: string): void {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum ScrollType {
+	Smooth = 0,
+	Immediate = 1,
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -371,6 +383,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
+		ScrollType: <any>ScrollType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

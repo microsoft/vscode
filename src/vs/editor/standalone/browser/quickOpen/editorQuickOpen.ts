@@ -66,7 +66,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			// Restore selection if canceled
 			if (canceled && this.lastKnownEditorSelection) {
 				this.editor.setSelection(this.lastKnownEditorSelection);
-				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection);
+				this.editor.revealRangeInCenterIfOutsideViewport(this.lastKnownEditorSelection, editorCommon.ScrollType.Smooth);
 			}
 
 			this.lastKnownEditorSelection = null;

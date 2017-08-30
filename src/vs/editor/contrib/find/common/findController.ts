@@ -716,7 +716,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		}
 
 		editor.setSelections(allSelections.concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -741,7 +741,7 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -770,7 +770,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -795,7 +795,7 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 

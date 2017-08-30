@@ -21,7 +21,7 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -153,7 +153,7 @@ export class ReplaceService implements IReplaceService {
 			this.updateReplacePreview(fileMatch).then(() => {
 				let editorControl = (<IDiffEditor>editor.getControl());
 				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber);
+					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 				}
 			});
 		}, errors.onUnexpectedError);
