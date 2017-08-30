@@ -27,6 +27,18 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 
+// List of regular expressions, for matching shells, functions to format a path, and booleans indicating whether the shell uses Windows-style paths
+const WIN_PATH_FORMATTERS: [RegExp, (path: string) => string, boolean][] = [
+	// WSL bash
+	[/^C:\\Windows\\(System32|sysnative|SysWoW64)\\bash(.exe)?$|ubuntu(.exe)?$|opensuse-42(.exe)?$|sles-12(.exe)?$/i, path => '/mnt/' + path[1] + path.substring(3), false],
+	// Git bash
+	[/bash(.exe)?$/i, path => path.substring(0, 2) + path.substring(3), false],
+	// Command prompt
+	[/cmd(.exe)?$/i, path => path[1].toUpperCase() + path.substring(2).replace(/\//g, '\\'), true],
+	// Powershell
+	[/powershell(.exe)?$/i, path => path[1].toUpperCase() + path.substring(2).replace(/\//g, '\\'), true],
+];
+
 export class TerminalPanel extends Panel {
 
 	private _actions: IAction[];
@@ -262,7 +274,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(TerminalPanel.preparePathForTerminal(uri), false);
+				terminal.sendText(this._preparePathForTerminal(uri), false);
 			}
 		}));
 	}
@@ -356,15 +368,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	/**
-	 * Adds quotes to a path if it contains whitespaces
+	 * Escapes special characters with backslashes for use with Unix and Linux OSes
 	 */
-	public static preparePathForTerminal(path: string): string {
-		if (platform.isWindows) {
-			if (/\s+/.test(path)) {
-				return `"${path}"`;
-			}
-			return path;
-		}
+	public static prepareUnixPathForTerminal(path: string): string {
 		path = path.replace(/(%5C|\\)/g, '\\\\');
 		const charsToEscape = [
 			' ', '\'', '"', '?', ':', ';', '!', '*', '(', ')', '{', '}', '[', ']'
@@ -377,5 +383,37 @@ export class TerminalPanel extends Panel {
 			}
 		}
 		return path;
+	}
+
+	/**
+	 * Surrounds a Windows path with quotation marks if necessary
+	 */
+	public static prepareWindowsPathForTerminal(path: string): string {
+		if (/\s+/.test(path)) {
+			return `"${path}"`;
+		}
+		return path;
+	}
+
+	/**
+	 * Adds quotes to a path if it contains whitespaces, and formats it for the correct windows subshell.
+	 * It is assumed there is an active terminal instance.
+	 */
+	private _preparePathForTerminal(path: string): string {
+		if (platform.isWindows) {
+			const terminal = this._terminalService.getActiveInstance();
+			const shell = terminal.getShellName();
+			for (const [format, formatter, isWinPath] of WIN_PATH_FORMATTERS) {
+				if (format.test(shell)) {
+					const newPath = formatter(path);
+					if (isWinPath) {
+						return TerminalPanel.prepareWindowsPathForTerminal(newPath);
+					} else {
+						return TerminalPanel.prepareUnixPathForTerminal(newPath);
+					}
+				}
+			}
+		}
+		return TerminalPanel.prepareUnixPathForTerminal(path);
 	}
 }

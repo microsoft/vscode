@@ -19,6 +19,8 @@ export class WindowsShellHelper {
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _wmicProcess: cp.ChildProcess;
 	private _isDisposed: boolean;
+	private _shellName: string;
+	private _programName: string;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -51,9 +53,9 @@ export class WindowsShellHelper {
 
 	private checkShell(): void {
 		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
-			this.getShellName().then(title => {
+			this.updateProgramName().then(title => {
 				if (!this._isDisposed) {
-					this._terminalInstance.setTitle(title, true);
+					this._terminalInstance.setTitle(this._programName, true);
 				}
 			});
 		}
@@ -63,6 +65,7 @@ export class WindowsShellHelper {
 		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
 			return tree.name;
 		}
+		this._shellName = tree.name;
 		if (!tree.children || tree.children.length === 0) {
 			return tree.name;
 		}
@@ -90,13 +93,30 @@ export class WindowsShellHelper {
 	}
 
 	/**
-	 * Returns the innermost shell executable running in the terminal
+	 * Queries the OS and retrieves the innermost shell running in the terminal as well as the
+	 * program the shell is running if it exists.
 	 */
-	public getShellName(): TPromise<string> {
-		return new TPromise<string>(resolve => {
+	public updateProgramName(): TPromise<void> {
+		return new TPromise<void>(resolve => {
 			windowsProcessTree(this._rootProcessId, (tree) => {
-				resolve(this.traverseTree(tree));
+				this._programName = this.traverseTree(tree);
+				resolve(null);
 			});
 		});
 	}
+
+	/**
+	 * Returns the innermost program executable running in the terminal
+	 */
+	public get programName(): string {
+		return this._programName;
+	}
+
+	/**
+	 * Returns the innermost shell executable running in the terminal
+	 */
+	public get shellName(): string {
+		return this._shellName;
+	}
+
 }

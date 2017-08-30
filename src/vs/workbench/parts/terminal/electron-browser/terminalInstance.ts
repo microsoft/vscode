@@ -931,6 +931,14 @@ export class TerminalInstance implements ITerminalInstance {
 			this._onTitleChanged.fire(title);
 		}
 	}
+
+	public getShellName(): string {
+		if (platform.isWindows) {
+			return this._windowsShellHelper.shellName;
+		} else {
+			return null;
+		}
+	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
