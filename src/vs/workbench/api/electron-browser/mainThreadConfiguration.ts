@@ -46,7 +46,8 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 	}
 
 	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target ? target : this.deriveConfigurationTarget(key, resource), { key, value }, { donotNotifyError: true, scopes: { resource } });
+		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
+		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true, scopes: { resource } });
 	}
 
 	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
