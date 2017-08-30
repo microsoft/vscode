@@ -152,6 +152,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
+		this._register(this.workspaceContextService.onDidChangeWorkspaceRoots(() => this.onWorkspaceRootsChanged()));
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -240,6 +241,16 @@ export class PreferencesEditor extends BaseEditor {
 		}
 
 		return this.workspaceContextService.getRoot(resource);
+	}
+
+	private onWorkspaceRootsChanged(): void {
+		if (this.input) {
+			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
+			if (!targetResource) {
+				this.switchSettings(this.preferencesService.userSettingsResource);
+			}
+		}
 	}
 
 	private switchSettings(resource: URI): void {
