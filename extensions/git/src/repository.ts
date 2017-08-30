@@ -813,14 +813,25 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateWhenIdleAndWait(): Promise<void> {
-		await this.whenIdle();
+		await this.whenIdleAndFocused();
 		await this.status();
 		await timeout(5000);
 	}
 
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
+	private async whenIdleAndFocused(): Promise<void> {
+		while (true) {
+			if (!this.operations.isIdle()) {
+				await eventToPromise(this.onDidRunOperation);
+				continue;
+			}
+
+			if (!window.state.focused) {
+				const onDidFocusWindow = filterEvent(window.onDidChangeWindowState, e => e.focused);
+				await eventToPromise(onDidFocusWindow);
+				continue;
+			}
+
+			return;
 		}
 	}
 
