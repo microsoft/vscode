@@ -116,14 +116,20 @@ export class Model {
 
 	@sequentialize
 	async tryOpenRepository(path: string): Promise<void> {
-		const repository = this.getRepository(path);
-
-		if (repository) {
+		if (this.getRepository(path)) {
 			return;
 		}
 
 		try {
 			const repositoryRoot = await this.git.getRepositoryRoot(path);
+
+			// This can happen whenever `path` has the wrong case sensitivity in
+			// case insensitive file systems
+			// https://github.com/Microsoft/vscode/issues/33498
+			if (this.getRepository(repositoryRoot)) {
+				return;
+			}
+
 			const repository = new Repository(this.git.open(repositoryRoot));
 
 			this.open(repository);
