@@ -1257,6 +1257,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 						});
 
 						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+							e.dataTransfer.dropEffect = 'copy'; // update the dropEffect, otherwise it would look like a "move" operation
+
 							positionOverlay(e, containers.length, index);
 						});
 
