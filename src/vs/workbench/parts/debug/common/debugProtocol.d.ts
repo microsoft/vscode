@@ -199,6 +199,19 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'loadedSource' event type.
+		The event indicates that some source has been added, changed, or removed from the set of all loaded sources.
+	*/
+	export interface LoadedSourceEvent extends Event {
+		// event: 'loadedSource';
+		body: {
+			/** The reason for the event. */
+			reason: 'new' | 'changed' | 'removed';
+			/** The new, changed, or removed source. */
+			source: Source;
+		};
+	}
+
 	/** Event message for 'process' event type.
 		The event indicates that the debugger has begun debugging a new process. Either one that it has launched, or one that it has attached to.
 	*/
@@ -834,6 +847,26 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Retrieves the set of all sources currently loaded by the debugged process. */
+	export interface LoadedSourcesRequest extends Request {
+		// command: 'loadedSources';
+		arguments?: LoadedSourcesArguments;
+	}
+
+	/** Arguments for 'loadedSources' request.
+		The 'loadedSources' request has no standardized arguments.
+	*/
+	export interface LoadedSourcesArguments {
+	}
+
+	/** Response to 'loadedSources' request. */
+	export interface LoadedSourcesResponse extends Response {
+		body: {
+			/** Set of loaded sources. */
+			sources: Source[];
+		};
+	}
+
 	/** Evaluate request; value of command field is 'evaluate'.
 		Evaluates the given expression in the context of the top most stack frame.
 		The expression has access to any variables and arguments that are in scope.
@@ -868,6 +901,8 @@ declare module DebugProtocol {
 			result: string;
 			/** The optional type of the evaluate result. */
 			type?: string;
+			/** Properties of a evaluate result that can be used to determine how to render the result in the UI. */
+			presentationHint?: VariablePresentationHint;
 			/** If variablesReference is > 0, the evaluate result is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 			variablesReference: number;
 			/** The number of named child variables.
@@ -1034,6 +1069,8 @@ declare module DebugProtocol {
 		supportTerminateDebuggee?: boolean;
 		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and the 'totalFrames' result of the 'StackTrace' request are supported. */
 		supportsDelayedStackTraceLoading?: boolean;
+		/** The debug adapter supports the 'loadedSources' request. */
+		supportsLoadedSourcesRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
@@ -1145,6 +1182,8 @@ declare module DebugProtocol {
 		presentationHint?: 'normal' | 'emphasize' | 'deemphasize';
 		/** The (optional) origin of this source: possible values 'internal module', 'inlined content from source map', etc. */
 		origin?: string;
+		/** An optional list of sources that are related to this source. These may be the source that generated this source. */
+		sources?: Source[];
 		/** Optional data that a debug adapter might want to loop through the client. The client should leave the data intact and persist it across sessions. The client should not interpret the data. */
 		adapterData?: any;
 		/** The checksums associated with this file. */
@@ -1215,8 +1254,8 @@ declare module DebugProtocol {
 		value: string;
 		/** The type of the variable's value. Typically shown in the UI when hovering over the value. */
 		type?: string;
-		/** Properties of a variable that can be used to determine how to render the variable in the UI. Format of the string value: TBD. */
-		kind?: string;
+		/** Properties of a variable that can be used to determine how to render the variable in the UI. */
+		presentationHint?: VariablePresentationHint;
 		/** Optional evaluatable name of this variable which can be passed to the 'EvaluateRequest' to fetch the variable's value. */
 		evaluateName?: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
@@ -1229,6 +1268,30 @@ declare module DebugProtocol {
 			The client can use this optional information to present the children in a paged UI and fetch them in chunks.
 		*/
 		indexedVariables?: number;
+	}
+
+	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
+	export interface VariablePresentationHint {
+		/** The kind of variable. Before introducing additional values, try to use the listed values.
+			Values: 'property', 'method', 'class', 'data', 'event', 'baseClass', 'innerClass', 'interface', 'mostDerivedClass', etc.
+		*/
+		kind?: string;
+		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.
+			Values:
+			'static': Indicates that the object is static.
+			'constant': Indicates that the object is a constant.
+			'readOnly': Indicates that the object is read only.
+			'rawString': Indicates that the object is a raw string.
+			'hasObjectId': Indicates that the object can have an Object ID created for it.
+			'canHaveObjectId': Indicates that the object has an Object ID associated with it.
+			'hasSideEffects': Indicates that the evaluation had side effects.
+			etc.
+		*/
+		attributes?: string[];
+		/** Visibility of variable. Before introducing additional values, try to use the listed values.
+			Values: 'public', 'private', 'protected', 'internal', 'final', etc.
+		*/
+		visibility?: string;
 	}
 
 	/** Properties of a breakpoint passed to the setBreakpoints request. */
