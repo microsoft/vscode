@@ -166,6 +166,17 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
+	test('resolveWorkspaceSync (support invalid JSON via fault tolerant parsing)', done => {
+		return service.createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
+			fs.writeFileSync(workspace.configPath, '{ "folders": [ { "path": "./ticino-playground/lib" } , ] }'); // trailing comma
+
+			const resolved = service.resolveWorkspaceSync(workspace.configPath);
+			assert.equal(URI.file(resolved.folders[0].path).fsPath, URI.file(path.join(path.dirname(workspace.configPath), 'ticino-playground', 'lib')).fsPath);
+
+			done();
+		});
+	});
+
 	test('saveWorkspace (untitled)', done => {
 		let savedEvent: IWorkspaceSavedEvent;
 		const listener = service.onWorkspaceSaved(e => {

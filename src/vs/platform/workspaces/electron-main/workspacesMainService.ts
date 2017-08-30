@@ -20,6 +20,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
 import URI from 'vs/base/common/uri';
+import * as json from 'vs/base/common/json';
 
 // TODO@Ben migration
 export interface ILegacyStoredWorkspace {
@@ -109,7 +110,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		// Parse workspace file
 		let storedWorkspace: IStoredWorkspace;
 		try {
-			storedWorkspace = JSON.parse(contents);
+			storedWorkspace = json.parse(contents); // use fault tolerant parser
 		} catch (error) {
 			throw new Error(`${path} cannot be parsed as JSON file (${error}).`);
 		}
