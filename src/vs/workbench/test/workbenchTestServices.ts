@@ -916,6 +916,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	show(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
 		return 0;
 	}
