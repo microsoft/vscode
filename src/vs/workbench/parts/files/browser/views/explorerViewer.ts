@@ -55,6 +55,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
+import { extractResources } from 'vs/base/browser/dnd';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -857,14 +858,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: FileStat | Model, originalEvent: DragMouseEvent): TPromise<void> {
-		const fileList = <FileList>(<DesktopDragAndDropData>data).getData().files;
-		const filePaths: string[] = [];
-		for (let i = 0; i < fileList.length; i++) {
-			filePaths.push(fileList[i].path);
-		}
+		const droppedResources = extractResources(originalEvent.browserEvent as DragEvent, true);
 
 		// Check for dropped external files to be folders
-		return this.fileService.resolveFiles(filePaths.map(filePath => { return { resource: URI.file(filePath) }; })).then(result => {
+		return this.fileService.resolveFiles(droppedResources).then(result => {
 
 			// Pass focus to window
 			this.windowService.focusWindow();
@@ -899,7 +896,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			else if (target instanceof FileStat) {
 				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
 				return importAction.run({
-					input: { paths: filePaths }
+					input: { paths: droppedResources.map(res => res.resource.fsPath) }
 				});
 			}
 
