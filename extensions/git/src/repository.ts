@@ -382,7 +382,7 @@ export class Repository implements Disposable {
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		const label = `Git - ${path.basename(repository.root)}`;
+		const label = `${path.basename(repository.root)} (Git)`;
 
 		this._sourceControl = scm.createSourceControl('git', label);
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
