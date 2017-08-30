@@ -343,7 +343,13 @@ class SourceControlView extends CollapsibleView {
 
 		this.list = new List(this.listContainer, delegate, renderers, {
 			identityProvider,
-			keyboardSupport: false
+			keyboardSupport: false,
+
+			// sad... we must do this because the list can be rerendered between a
+			// mousedown and the respective mouseup events. since the list isn't as
+			// cool as react (yet), it always removes all DOM nodes on rerender
+			// https://github.com/Microsoft/vscode/issues/30323
+			selectOnMouseDown: true
 		});
 
 		this.disposables.push(attachListStyler(this.list, this.themeService));
