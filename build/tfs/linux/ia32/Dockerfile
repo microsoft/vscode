@@ -8,6 +8,7 @@ RUN apt-get update
 # Dependencies
 RUN apt-get install -y build-essential
 RUN apt-get install -y gcc-multilib g++-multilib
+RUN apt-get install -y git
 RUN apt-get install -y zip
 RUN apt-get install -y rpm
 RUN apt-get install -y createrepo
