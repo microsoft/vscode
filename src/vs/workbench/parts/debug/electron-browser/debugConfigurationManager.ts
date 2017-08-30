@@ -212,7 +212,7 @@ const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 export class ConfigurationManager implements IConfigurationManager {
 	private adapters: Adapter[];
 	private breakpointModeIdsSet = new Set<string>();
-	private launches: Launch[];
+	private launches: ILaunch[];
 	private _selectedName: string;
 	private _selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
@@ -334,10 +334,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
 			this.initLaunches();
-		}));
-
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.selectedLaunch);
+			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
 			this.selectConfiguration(toSelect);
 		}));
 
@@ -347,6 +344,9 @@ export class ConfigurationManager implements IConfigurationManager {
 	private initLaunches(): void {
 		const workspace = this.contextService.getWorkspace();
 		this.launches = workspace ? workspace.roots.map(root => this.instantiationService.createInstance(Launch, this, root)) : [];
+		if (this.launches.indexOf(this._selectedLaunch) === -1) {
+			this._selectedLaunch = undefined;
+		}
 	}
 
 	public getLaunches(): ILaunch[] {
