@@ -873,6 +873,9 @@ export class DebugService implements debug.IDebugService {
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
+				if (process) {
+					this.model.removeProcess(process.getId());
+				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
