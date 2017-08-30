@@ -31,6 +31,8 @@ export class Adapter {
 		}
 	}
 
+	public hasConfigurationProvider = false;
+
 	public getAdapterExecutable(root: uri, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
 		if (this.rawAdapter.adapterExecutableCommand) {

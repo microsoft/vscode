@@ -248,6 +248,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			return;
 		}
 		this._providers.set(handle, debugConfigurationProvider);
+		const adapter = this.getAdapter(debugConfigurationProvider.type);
+		if (adapter) {
+			adapter.hasConfigurationProvider = true;
+		}
 	}
 
 	public unregisterDebugConfigurationProvider(handle: number): boolean {
@@ -419,7 +423,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration()), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 			.then(picked => {
 				if (picked instanceof Adapter) {
 					return picked;

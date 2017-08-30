@@ -408,7 +408,7 @@ export interface IConfigurationManager {
 	getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }>;
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
-	unregisterDebugConfigurationProvider(handle): void;
+	unregisterDebugConfigurationProvider(handle: number): void;
 	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
 }
 
