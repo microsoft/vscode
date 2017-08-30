@@ -55,12 +55,19 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 			let position = new Position(rangeStart.line, rangeStart.character + lastChange.text.length);
 			tagProvider(document, position).then(text => {
 				if (text && isEnabled) {
-					let activeDocument = window.activeTextEditor && window.activeTextEditor.document;
+					let activeEditor = window.activeTextEditor;
+					let activeDocument = activeEditor && activeEditor.document;
 					if (document === activeDocument && activeDocument.version === version) {
-						window.activeTextEditor.insertSnippet(new SnippetString(text), position);
+						let selections = activeEditor.selections;
+						if (selections.length && selections.some(s => s.active.isEqual(position))) {
+							activeEditor.insertSnippet(new SnippetString(text), selections.map(s => s.active));
+						} else {
+							activeEditor.insertSnippet(new SnippetString(text), position);
+						}
 					}
 				}
 			});
+			timeout = void 0;
 		}, 100);
 	}
 	return Disposable.from(...disposables);
