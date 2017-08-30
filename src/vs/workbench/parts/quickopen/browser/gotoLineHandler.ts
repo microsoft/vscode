@@ -18,7 +18,7 @@ import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/c
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { editorRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export const GOTO_LINE_PREFIX = ':';
@@ -221,8 +221,8 @@ export class GotoLineHandler extends QuickOpenHandler {
 					range: range,
 					options: {
 						overviewRuler: {
-							color: themeColorFromId(editorRangeHighlight),
-							darkColor: themeColorFromId(editorRangeHighlight),
+							color: themeColorFromId(overviewRulerRangeHighlight),
+							darkColor: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}

@@ -24,7 +24,7 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export class Match {
@@ -98,8 +98,8 @@ export class FileMatch extends Disposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -108,8 +108,8 @@ export class FileMatch extends Disposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
-			color: themeColorFromId(editorFindMatchHighlight),
-			darkColor: themeColorFromId(editorFindMatchHighlight),
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

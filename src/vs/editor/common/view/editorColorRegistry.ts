@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import { registerColor, editorBackground, activeContrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 
 /**
  * Definition of the editor colors
@@ -35,6 +35,9 @@ export const editorErrorBorder = registerColor('editorError.border', { dark: nul
 
 export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('warningForeground', 'Foreground color of warning squigglies in the editor.'));
 export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hc: Color.fromHex('#71B771').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning squigglies in the editor.'));
+
+const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
+export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights.'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {

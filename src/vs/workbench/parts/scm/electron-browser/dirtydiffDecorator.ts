@@ -5,6 +5,8 @@
 
 'use strict';
 
+import nls = require('vs/nls');
+
 import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -26,7 +28,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 
 export const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
 	dark: Color.fromHex('#00bcf2').transparent(0.6),
@@ -47,14 +49,20 @@ export const editorGutterDeletedBackground = registerColor('editorGutter.deleted
 }, localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
 
 
+const overviewRulerDefault = new Color(new RGBA(0, 122, 204, 0.6));
+export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+
+
 class DirtyDiffModelDecorator {
 
 	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: themeColorFromId(editorGutterModifiedBackground),
-			darkColor: themeColorFromId(editorGutterModifiedBackground),
+			color: themeColorFromId(overviewRulerModifiedForeground),
+			darkColor: themeColorFromId(overviewRulerModifiedForeground),
 			position: common.OverviewRulerLane.Left
 		}
 	});
@@ -63,8 +71,8 @@ class DirtyDiffModelDecorator {
 		linesDecorationsClassName: 'dirty-diff-added-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: themeColorFromId(editorGutterAddedBackground),
-			darkColor: themeColorFromId(editorGutterAddedBackground),
+			color: themeColorFromId(overviewRulerAddedForeground),
+			darkColor: themeColorFromId(overviewRulerAddedForeground),
 			position: common.OverviewRulerLane.Left
 		}
 	});
@@ -73,8 +81,8 @@ class DirtyDiffModelDecorator {
 		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
 		isWholeLine: true,
 		overviewRuler: {
-			color: themeColorFromId(editorGutterDeletedBackground),
-			darkColor: themeColorFromId(editorGutterDeletedBackground),
+			color: themeColorFromId(overviewRulerDeletedForeground),
+			darkColor: themeColorFromId(overviewRulerDeletedForeground),
 			position: common.OverviewRulerLane.Left
 		}
 	});

@@ -23,7 +23,7 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export const enum FindStartFocusAction {
@@ -1106,8 +1106,8 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
-			color: themeColorFromId(editorSelectionHighlight),
-			darkColor: themeColorFromId(editorSelectionHighlight),
+			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
