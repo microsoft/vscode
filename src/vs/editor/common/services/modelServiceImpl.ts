@@ -29,6 +29,8 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { overviewRulerWarning, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -115,9 +117,8 @@ class ModelMarkerHandler {
 	private static _createDecorationOption(marker: IMarker): editorCommon.IModelDecorationOptions {
 
 		let className: string;
-		let color: string;
-		let darkColor: string;
-		let hcColor: string;
+		let color: ThemeColor;
+		let darkColor: ThemeColor;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -126,16 +127,14 @@ class ModelMarkerHandler {
 			case Severity.Warning:
 			case Severity.Info:
 				className = ClassName.EditorWarningDecoration;
-				color = 'rgba(18,136,18,0.7)';
-				darkColor = 'rgba(18,136,18,0.7)';
-				hcColor = 'rgba(50,255,50,1)';
+				color = themeColorFromId(overviewRulerWarning);
+				darkColor = themeColorFromId(overviewRulerWarning);
 				break;
 			case Severity.Error:
 			default:
 				className = ClassName.EditorErrorDecoration;
-				color = 'rgba(255,18,18,0.7)';
-				darkColor = 'rgba(255,18,18,0.7)';
-				hcColor = 'rgba(255,50,50,1)';
+				color = themeColorFromId(overviewRulerError);
+				darkColor = themeColorFromId(overviewRulerError);
 				break;
 		}
 
@@ -164,7 +163,6 @@ class ModelMarkerHandler {
 			overviewRuler: {
 				color,
 				darkColor,
-				hcColor,
 				position: editorCommon.OverviewRulerLane.Right
 			}
 		};
