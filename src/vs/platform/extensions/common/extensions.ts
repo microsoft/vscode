@@ -12,6 +12,7 @@ import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistr
 export interface IExtensionDescription {
 	readonly id: string;
 	readonly name: string;
+	readonly displayName?: string;
 	readonly version: string;
 	readonly publisher: string;
 	readonly isBuiltin: boolean;
