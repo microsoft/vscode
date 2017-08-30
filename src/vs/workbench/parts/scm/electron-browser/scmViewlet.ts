@@ -235,13 +235,29 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 
 class SourceControlViewDescriptor implements IViewDescriptor {
 
+	// This ID magic needs to happen in order to preserve
+	// good splitview state when reloading the workbench
+	static idCount = 0;
+	static freeIds: string[] = [];
+
+	readonly id: string;
+
 	get repository(): ISCMRepository { return this._repository; }
-	get id(): string { return this._repository.provider.id; }
 	get name(): string { return this._repository.provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _repository: ISCMRepository) { }
+	constructor(private _repository: ISCMRepository) {
+		if (SourceControlViewDescriptor.freeIds.length > 0) {
+			this.id = SourceControlViewDescriptor.freeIds.shift();
+		} else {
+			this.id = `scm${SourceControlViewDescriptor.idCount++}`;
+		}
+	}
+
+	dispose(): void {
+		SourceControlViewDescriptor.freeIds.push(this.id);
+	}
 }
 
 class SourceControlView extends CollapsibleView {
@@ -482,6 +498,7 @@ class InstallAdditionalSCMProvidersAction extends Action {
 export class SCMViewlet extends PersistentViewsViewlet {
 
 	private menus: SCMMenus;
+	private repositoryToViewDescriptor = new Map<string, SourceControlViewDescriptor>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -510,13 +527,19 @@ export class SCMViewlet extends PersistentViewsViewlet {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const view = new SourceControlViewDescriptor(repository);
-		ViewsRegistry.registerViews([view]);
+		const viewDescriptor = new SourceControlViewDescriptor(repository);
+		this.repositoryToViewDescriptor.set(repository.provider.id, viewDescriptor);
+
+		ViewsRegistry.registerViews([viewDescriptor]);
 		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
+		const viewDescriptor = this.repositoryToViewDescriptor.get(repository.provider.id);
+		this.repositoryToViewDescriptor.delete(repository.provider.id);
+		viewDescriptor.dispose();
+
 		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
 		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
