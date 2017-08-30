@@ -934,7 +934,6 @@ export class ReportIssueAction extends Action {
 			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
 - OS Version: ${osVersion}
 - Extensions: ${areExtensionsDisabled ? 'Extensions are disabled' : this.generateExtensionTable(extensions)}
-- Arguments: ${process.argv.slice(1)}
 ---
 
 Steps to Reproduce:
