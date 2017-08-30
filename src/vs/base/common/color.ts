@@ -260,8 +260,22 @@ export class Color {
 	}
 
 	readonly rgba: RGBA;
-	get hsla(): HSLA { return HSLA.fromRGBA(this.rgba); }
-	get hsva(): HSVA { return HSVA.fromRGBA(this.rgba); }
+	private _hsla: HSLA;
+	get hsla(): HSLA {
+		if (this._hsla) {
+			return this._hsla;
+		} else {
+			return HSLA.fromRGBA(this.rgba);
+		}
+	}
+
+	private _hsva: HSVA;
+	get hsva(): HSVA {
+		if (this._hsva) {
+			return this._hsva;
+		}
+		return HSVA.fromRGBA(this.rgba);
+	}
 
 	constructor(arg: RGBA | HSLA | HSVA) {
 		if (!arg) {
@@ -269,8 +283,10 @@ export class Color {
 		} else if (arg instanceof RGBA) {
 			this.rgba = arg;
 		} else if (arg instanceof HSLA) {
+			this._hsla = arg;
 			this.rgba = HSLA.toRGBA(arg);
 		} else if (arg instanceof HSVA) {
+			this._hsva = arg;
 			this.rgba = HSVA.toRGBA(arg);
 		} else {
 			throw new Error('Invalid color ctor argument');
@@ -278,7 +294,7 @@ export class Color {
 	}
 
 	equals(other: Color): boolean {
-		return !!other && RGBA.equals(this.rgba, other.rgba);
+		return !!other && RGBA.equals(this.rgba, other.rgba) && HSLA.equals(this.hsla, other.hsla) && HSVA.equals(this.hsva, other.hsva);
 	}
 
 	/**
