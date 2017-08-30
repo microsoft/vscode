@@ -139,7 +139,7 @@ export class StatusBarController implements IWorkbenchContribution {
 		const commands = repository.provider.statusBarCommands || [];
 		const disposables = commands.map(c => this.statusbarService.addEntry({
 			text: c.title,
-			tooltip: c.tooltip,
+			tooltip: `${repository.provider.label} - ${c.tooltip}`,
 			command: c.id,
 			arguments: c.arguments
 		}, MainThreadStatusBarAlignment.LEFT, 10000));
