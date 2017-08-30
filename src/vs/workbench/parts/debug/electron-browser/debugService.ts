@@ -926,7 +926,7 @@ export class DebugService implements debug.IDebugService {
 
 		return process.session.disconnect(true).then(() => {
 			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
-				this.broadcastService.broadcast({
+				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
 					payload: [process.session.root.fsPath]
 				});
