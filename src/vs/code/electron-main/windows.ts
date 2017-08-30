@@ -352,8 +352,9 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-		let pathsToOpen = this.getPathsToOpen(openConfig);
+		openConfig = this.validateOpenConfig(openConfig);
 
+		let pathsToOpen = this.getPathsToOpen(openConfig);
 
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
@@ -443,6 +444,16 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		return usedWindows;
+	}
+
+	private validateOpenConfig(config: IOpenConfiguration): IOpenConfiguration {
+
+		// Make sure addMode is only enabled if we have an active window
+		if (config.addMode && (config.initialStartup || !this.getLastActiveWindow())) {
+			config.addMode = false;
+		}
+
+		return config;
 	}
 
 	private doOpen(
@@ -695,12 +706,12 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let windowsToOpen: IPathToOpen[];
-		let convertFoldersToWorkspace = false;
+		let isCommandLineOrAPICall = false;
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			windowsToOpen = this.doExtractPathsFromAPI(openConfig);
-			convertFoldersToWorkspace = true;
+			isCommandLineOrAPICall = true;
 		}
 
 		// Check for force empty
@@ -711,7 +722,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length > 0) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
-			convertFoldersToWorkspace = true;
+			isCommandLineOrAPICall = true;
 		}
 
 		// Extract windows: from previous session
@@ -721,7 +732,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Convert multiple folders into workspace (if opened via API or CLI)
 		// This will ensure to open these folders in one window instead of multiple
-		if (convertFoldersToWorkspace && product.quality !== 'stable') { // TODO@Ben multi root
+		// If we are in addMode, we should not do this because in that case all
+		// folders should be added to the existing window.
+		if (!openConfig.addMode && isCommandLineOrAPICall && product.quality !== 'stable') { // TODO@Ben multi root
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
 			if (foldersToOpen.length > 1) {
 				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
