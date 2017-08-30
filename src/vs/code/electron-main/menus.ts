@@ -18,7 +18,7 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { tildify, mnemonicLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
+import { tildify, mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';

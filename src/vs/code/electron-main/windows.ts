@@ -31,7 +31,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1308,7 +1308,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.pickFileAndOpen({
 			windowId: window ? window.id : void 0,
 			dialogOptions: {
-				buttonLabel: mnemonicLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
+				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
 				title: localize('openWorkspaceTitle', "Open Workspace"),
 				filters: WORKSPACE_FILTER,
 				properties: ['openFile'],
@@ -1359,8 +1359,8 @@ export class WindowsManager implements IWindowsMainService {
 			CANCEL
 		}
 
-		const save = { label: mnemonicLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
 		const buttons: { label: string; result: ConfirmResult; }[] = [];
@@ -1404,7 +1404,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
 				const target = dialog.showSaveDialog(e.window.win, {
-					buttonLabel: mnemonicLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
 					defaultPath: this.getWorkspaceDialogDefaultPath(workspace)

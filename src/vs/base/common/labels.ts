@@ -301,12 +301,32 @@ export function template(template: string, values: { [key: string]: string | ISe
 	}).map(segment => segment.value).join('');
 }
 
-export function mnemonicLabel(label: string, forceDisableMnemonics?: boolean): string {
-	if (!platform.isWindows || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
+/**
+ * Handles mnemonics for menu items. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via & character (replace && with &)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
+	if (platform.isMacintosh || forceDisableMnemonics) {
+		return label.replace(/\(&&\w\)|&&/g, '');
 	}
 
 	return label.replace(/&&/g, '&');
+}
+
+/**
+ * Handles mnemonics for buttons. Depending on OS:
+ * - Windows: Supported via & character (replace && with &)
+ * -   Linux: Supported via _ character (replace && with _)
+ * -   macOS: Unsupported (replace && with empty string)
+ */
+export function mnemonicButtonLabel(label: string): string {
+	if (platform.isMacintosh) {
+		return label.replace(/\(&&\w\)|&&/g, '');
+	}
+
+	return label.replace(/&&/g, platform.isWindows ? '&' : '_');
 }
 
 export function unmnemonicLabel(label: string): string {
