@@ -17,10 +17,10 @@ export const LANGUAGE_MODES: Object = {
 	'haml': ['!', '.', '}', ':', '*', '$'],
 	'xml': ['.', '}', '*', '$'],
 	'xsl': ['!', '.', '}', '*', '$'],
-	'css': [':'],
-	'scss': [':'],
+	'css': [':', ';'],
+	'scss': [':', ';'],
 	'sass': [':'],
-	'less': [':'],
+	'less': [':', ';'],
 	'stylus': [':'],
 	'javascriptreact': ['.', '}', '*', '$'],
 	'typescriptreact': ['.', '}', '*', '$']
