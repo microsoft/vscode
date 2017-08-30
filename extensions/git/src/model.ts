@@ -159,6 +159,16 @@ export class Model {
 		this._onDidOpenRepository.fire(repository);
 	}
 
+	close(repository: Repository): void {
+		const openRepository = this.getOpenRepository(repository);
+
+		if (!openRepository) {
+			return;
+		}
+
+		openRepository.dispose();
+	}
+
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(localize('no repositories', "There are no available repositories"));
@@ -180,6 +190,7 @@ export class Model {
 		return liveRepository && liveRepository.repository;
 	}
 
+	private getOpenRepository(repository: Repository): OpenRepository | undefined;
 	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
 	private getOpenRepository(path: string): OpenRepository | undefined;
@@ -187,6 +198,10 @@ export class Model {
 	private getOpenRepository(hint: any): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
+		}
+
+		if (hint instanceof Repository) {
+			return this.openRepositories.filter(r => r.repository === hint)[0];
 		}
 
 		if (typeof hint === 'string') {

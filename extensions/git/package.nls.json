@@ -1,6 +1,7 @@
 {
 	"command.clone": "Clone",
 	"command.init": "Initialize Repository",
+	"command.close": "Close Repository",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openFile": "Open File",
