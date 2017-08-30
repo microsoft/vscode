@@ -434,7 +434,7 @@
 							"name": "punctuation.definition.variable.makefile"
 						}
 					},
-					"end": "\\)",
+					"end": "\\)|((?<!\\\\)\\n)",
 					"name": "string.interpolated.makefile",
 					"patterns": [
 						{
@@ -451,7 +451,7 @@
 									"name": "support.function.$1.makefile"
 								}
 							},
-							"end": "(?=\\))",
+							"end": "(?=\\)|((?<!\\\\)\\n))",
 							"name": "meta.scope.function-call.makefile",
 							"patterns": [
 								{
@@ -463,6 +463,10 @@
 								{
 									"match": "%|\\*",
 									"name": "constant.other.placeholder.makefile"
+								},
+								{
+									"match": "\\\\\\n",
+									"name": "constant.character.escape.continuation.makefile"
 								}
 							]
 						},
@@ -484,11 +488,15 @@
 						},
 						{
 							"begin": "(?<=\\()(?!\\))",
-							"end": "(?=\\))",
+							"end": "(?=\\)|((?<!\\\\)\\n))",
 							"name": "variable.other.makefile",
 							"patterns": [
 								{
 									"include": "#variables"
+								},
+								{
+									"match": "\\\\\\n",
+									"name": "constant.character.escape.continuation.makefile"
 								}
 							]
 						}
