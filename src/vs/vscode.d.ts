@@ -5540,14 +5540,14 @@ declare module 'vscode' {
 	 */
 	export interface DebugConfiguration {
 		/**
-		 * The type for the debug session.
+		 * The type of the debug session.
 		 */
 		type: string;
 
 		/**
-		 * An optional name for the debug session.
+		 * The name of the debug session.
 		 */
-		name?: string;
+		name: string;
 
 		/**
 		 * The request type of the debug session.
