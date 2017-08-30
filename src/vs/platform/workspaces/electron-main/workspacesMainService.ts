@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -85,21 +85,17 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				writeFileSync(path, JSON.stringify(workspace, null, '\t'));
 			}
 
-			let absoluteFolders: IStoredWorkspaceFolder[] = [];
+			// relative paths get resolved against the workspace location
 			workspace.folders.forEach(folder => {
-				if (isAbsolute(folder.path)) {
-					absoluteFolders.push(folder);
-				} else {
-					absoluteFolders.push({
-						path: resolve(dirname(path), folder.path) // relative paths get resolved against the workspace location
-					});
+				if (folder.path && !isAbsolute(folder.path)) {
+					folder.path = resolve(dirname(path), folder.path);
 				}
 			});
 
 			return {
 				id: this.getWorkspaceId(path),
 				configPath: path,
-				folders: absoluteFolders
+				folders: workspace.folders
 			};
 		} catch (error) {
 			this.logService.log(error.toString());
@@ -205,12 +201,14 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			// is a parent of the location of the workspace file itself. Otherwise keep
 			// using absolute paths.
 			storedWorkspace.folders.forEach(folder => {
-				if (!isAbsolute(folder.path)) {
-					folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
-				}
+				if (folder.path) {
+					if (!isAbsolute(folder.path)) {
+						folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
+					}
 
-				if (isEqualOrParent(folder.path, targetConfigFolder, !isLinux)) {
-					folder.path = relative(targetConfigFolder, folder.path); // absolute paths get converted to relative ones to workspace location if possible
+					if (isEqualOrParent(folder.path, targetConfigFolder, !isLinux)) {
+						folder.path = relative(targetConfigFolder, folder.path); // absolute paths get converted to relative ones to workspace location if possible
+					}
 				}
 			});
 
