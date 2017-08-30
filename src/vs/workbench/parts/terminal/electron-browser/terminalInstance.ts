@@ -656,9 +656,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processState = ProcessState.KILLED_BY_PROCESS;
 		}
 
-		// Only trigger wait on exit when the exit was triggered by the process,
-		// not through the `workbench.action.terminal.kill` command
-		if (this._processState === ProcessState.KILLED_BY_PROCESS && this._shellLaunchConfig.waitOnExit) {
+		// Only trigger wait on exit when the exit was *not* triggered by the
+		// user (via the `workbench.action.terminal.kill` command).
+		if (this._shellLaunchConfig.waitOnExit && this._processState !== ProcessState.KILLED_BY_USER) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
