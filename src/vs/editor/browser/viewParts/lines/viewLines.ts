@@ -239,7 +239,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._horizontalRevealRequest = null;
 		}
 
-		if (e.scrollType === ScrollType.Smooth) {
+		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
+		if (e.scrollType === ScrollType.Smooth && scrollTopDelta > this._lineHeight) {
 			this._context.viewLayout.setScrollPositionSmooth(newScrollPosition);
 		} else {
 			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
