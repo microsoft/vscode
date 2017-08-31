@@ -21,7 +21,6 @@ import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 const USE_MIMINAL_MODEL_LINE = true;
 
-const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
 export interface ITextModelCreationData {
@@ -800,7 +799,7 @@ export class TextModel implements editorCommon.ITextModel {
 		throw new Error('Unknown EOL preference');
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = Number.MAX_VALUE): editorCommon.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRange: Range;
