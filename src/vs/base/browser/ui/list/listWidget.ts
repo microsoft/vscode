@@ -385,9 +385,11 @@ class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		const focus = this.list.getFocus();
-		this.list.setSelection(focus);
-		this.list.open(focus);
+		if (!this.options.selectOnMouseDown) {
+			const focus = this.list.getFocus();
+			this.list.setSelection(focus);
+			this.list.open(focus);
+		}
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
