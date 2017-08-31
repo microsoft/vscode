@@ -570,6 +570,10 @@ export class SCMViewlet extends PersistentViewsViewlet {
 		return this.instantiationService.createInstance(viewDescriptor.ctor, initialSize, options);
 	}
 
+	protected getDefaultViewSize(): number | undefined {
+		return this.dimension && this.dimension.height / this.views.length;
+	}
+
 	getOptimalWidth(): number {
 		return 400;
 	}

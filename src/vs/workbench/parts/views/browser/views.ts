@@ -324,7 +324,7 @@ export class ViewsViewlet extends Viewlet {
 
 	private splitView: SplitView;
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
-	private dimension: Dimension;
+	protected dimension: Dimension;
 	private viewletSettings: object;
 
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
@@ -553,7 +553,7 @@ export class ViewsViewlet extends Viewlet {
 					let viewState = this.viewsStates.get(viewDescriptor.id);
 					let index = visible.indexOf(viewDescriptor);
 					const view = this.createView(viewDescriptor,
-						viewState ? viewState.size : void 0,
+						viewState ? viewState.size : this.getDefaultViewSize(),
 						{
 							id: viewDescriptor.id,
 							name: viewDescriptor.name,
@@ -573,6 +573,10 @@ export class ViewsViewlet extends Viewlet {
 			}
 		}
 		return TPromise.as([]);
+	}
+
+	protected getDefaultViewSize(): number | undefined {
+		return undefined;
 	}
 
 	private attachViewStyler(widget: IThemable, options?: { noContrastBorder?: boolean }): IDisposable {
