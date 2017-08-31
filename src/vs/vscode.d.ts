@@ -4064,10 +4064,10 @@ declare module 'vscode' {
 		/**
 		 * Executes the command denoted by the given command identifier.
 		 *
-		 * When executing an editor command not all types are allowed to
+		 * * *Note 1:* When executing an editor command not all types are allowed to
 		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
-		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
-		 * There are no restrictions when executing commands that have been contributed
+		 * `number`, `undefined`, and `null`, as well as [`Position`](#Position), [`Range`](#Range), [`Uri`](#Uri) and [`Location`](#Location).
+		 * * *Note 2:* There are no restrictions when executing commands that have been contributed
 		 * by extensions.
 		 *
 		 * @param command Identifier of the command to execute.
