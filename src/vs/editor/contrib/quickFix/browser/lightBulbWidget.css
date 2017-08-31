@@ -8,7 +8,8 @@
 	align-items: center;
 	justify-content: center;
 	height: 16px;
-	width: 16px;
+	width: 20px;
+	padding-left: 2px;
 }
 
 .monaco-editor .lightbulb-glyph.hidden {
