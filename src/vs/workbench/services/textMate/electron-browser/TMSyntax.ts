@@ -15,7 +15,7 @@ import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensi
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -108,6 +108,8 @@ export class TextMateService implements ITextMateService {
 	private _languageToScope: Map<string, string>;
 	private _styleElement: HTMLStyleElement;
 
+	private _currentTokenColors: ITokenColorizationRule[];
+
 	public onDidEncounterLanguage: Event<LanguageId>;
 
 	constructor(
@@ -161,12 +163,41 @@ export class TextMateService implements ITextMateService {
 
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
+		if (!this.compareTokenRules(colorTheme.tokenColors)) {
+			return;
+		}
 		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
 		let colorMap = TextMateService._toColorMap(this._grammarRegistry.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
+
+	private compareTokenRules(newRules: ITokenColorizationRule[]): boolean {
+		let currRules = this._currentTokenColors;
+		this._currentTokenColors = newRules;
+		if (!newRules || !currRules || newRules.length !== currRules.length) {
+			return true;
+		}
+		for (let i = newRules.length - 1; i >= 0; i--) {
+			let r1 = newRules[i];
+			let r2 = currRules[i];
+			if (r1.scope !== r2.scope) {
+				return true;
+			}
+			let s1 = r1.settings;
+			let s2 = r2.settings;
+			if (s1 && s2) {
+				if (s1.fontStyle !== s2.fontStyle || s1.foreground !== s2.foreground) {
+					return true;
+				}
+			} else if (!s1 || !s2) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 
 	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
