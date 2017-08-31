@@ -59,9 +59,9 @@
     "watch": "gulp watch-extension:azure-account"
   },
   "devDependencies": {
-    "@types/copy-paste": "^1.1.30",
-    "@types/node": "^6.0.40",
-    "@types/opn": "^3.0.28"
+    "@types/copy-paste": "1.1.30",
+    "@types/node": "6.0.40",
+    "@types/opn": "3.0.28"
   },
   "dependencies": {
     "adal-node": "^0.1.22",
