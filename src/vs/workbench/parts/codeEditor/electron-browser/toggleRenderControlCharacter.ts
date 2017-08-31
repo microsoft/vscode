@@ -15,8 +15,8 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.toggleRenderControlCharacter',
-			label: nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-			alias: 'Toggle Control Characters',
+			label: nls.localize('toggleRenderControlCharacters', "View: Toggle Control Characters"),
+			alias: 'View: Toggle Control Characters',
 			precondition: null
 		});
 	}
