@@ -376,10 +376,10 @@ export class Repository implements Disposable {
 
 		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => !/^\.\./.test(path.relative(repository.root, uri.fsPath)));
-		onRepositoryChange(this.onFSChange, this, this.disposables);
+		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
-		const onGitChange = filterEvent(onRepositoryChange, uri => /\/\.git\//.test(uri.path));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
 		const label = `${path.basename(repository.root)} (Git)`;
