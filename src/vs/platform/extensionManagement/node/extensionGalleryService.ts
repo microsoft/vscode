@@ -551,7 +551,14 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		const firstOptions = assign({}, options, { url });
 
 		return this.requestService.request(firstOptions)
-			.then(context => context.res.statusCode === 200 ? context : TPromise.wrapError<IRequestContext>(new Error('expected 200')))
+			.then(context => {
+				if (context.res.statusCode === 200) {
+					return TPromise.as(context);
+				}
+
+				return asText(context)
+					.then(message => TPromise.wrapError<IRequestContext>(new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`)));
+			})
 			.then(null, err => {
 				if (isPromiseCanceledError(err)) {
 					return TPromise.wrapError<IRequestContext>(err);

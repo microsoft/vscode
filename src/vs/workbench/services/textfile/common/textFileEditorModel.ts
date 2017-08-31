@@ -408,14 +408,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private doUpdateTextModel(value: string | IRawTextSource): TPromise<TextFileEditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
-		this.setDirty(false); // Ensure we are not tracking a stale state
+		// Ensure we are not tracking a stale state
+		this.setDirty(false);
 
+		// Update model value in a block that ignores model content change events
 		this.blockModelContentChange = true;
 		try {
 			this.updateTextEditorModel(value);
 		} finally {
 			this.blockModelContentChange = false;
 		}
+
+		// Ensure we track the latest saved version ID given that the contents changed
+		this.updateSavedVersionId();
 
 		return TPromise.as<TextFileEditorModel>(this);
 	}
@@ -767,15 +772,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.dirty = false;
 			this.inConflictMode = false;
 			this.inErrorMode = false;
-
-			// we remember the models alternate version id to remember when the version
-			// of the model matches with the saved version on disk. we need to keep this
-			// in order to find out if the model changed back to a saved version (e.g.
-			// when undoing long enough to reach to a version that is saved and then to
-			// clear the dirty flag)
-			if (this.textEditorModel) {
-				this.bufferSavedVersionId = this.textEditorModel.getAlternativeVersionId();
-			}
+			this.updateSavedVersionId();
 		} else {
 			this.dirty = true;
 		}
@@ -787,6 +784,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.inErrorMode = wasInErrorMode;
 			this.bufferSavedVersionId = oldBufferSavedVersionId;
 		};
+	}
+
+	private updateSavedVersionId(): void {
+		// we remember the models alternate version id to remember when the version
+		// of the model matches with the saved version on disk. we need to keep this
+		// in order to find out if the model changed back to a saved version (e.g.
+		// when undoing long enough to reach to a version that is saved and then to
+		// clear the dirty flag)
+		if (this.textEditorModel) {
+			this.bufferSavedVersionId = this.textEditorModel.getAlternativeVersionId();
+		}
 	}
 
 	private updateLastResolvedDiskStat(newVersionOnDiskStat: IFileStat): void {

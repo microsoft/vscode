@@ -32,7 +32,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
-	private executeOnSelect: (() => boolean)[];
+	private options: { label: string, handler: (() => boolean) }[];
 	private toDispose: lifecycle.IDisposable[];
 	private selected: number;
 
@@ -62,7 +62,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			}
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(e => {
-			if (this.executeOnSelect[e.index]()) {
+			if (this.options[e.index].handler()) {
 				this.selected = e.index;
 			} else {
 				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
@@ -152,36 +152,35 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
 	private updateOptions(): void {
 		this.selected = 0;
-		this.executeOnSelect = [];
-		const options = [];
+		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
 		const launches = manager.getLaunches();
 		manager.getLaunches().forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
 				if (name === manager.selectedName && launch === manager.selectedLaunch) {
-					this.selected = this.executeOnSelect.length;
+					this.selected = this.options.length;
 				}
-				this.executeOnSelect.push(() => { manager.selectConfiguration(launch, name); return true; });
-				options.push(launches.length > 1 ? `${name} (${launch.name})` : name);
+				const label = launches.length > 1 ? `${name} (${launch.name})` : name;
+				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 			}));
 
-		if (options.length === 0) {
-			options.push(nls.localize('noConfigurations', "No Configurations"));
-			this.executeOnSelect.push(() => false);
+		if (this.options.length === 0) {
+			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		}
-		options.push(StartDebugActionItem.SEPARATOR);
-		this.executeOnSelect.push(undefined);
+		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
 
-		const disabledIdx = options.length - 1;
+		const disabledIdx = this.options.length - 1;
 		launches.forEach(l => {
-			options.push(launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration..."));
-			this.executeOnSelect.push(() => {
-				this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
-				return false;
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+			this.options.push({
+				label, handler: () => {
+					this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
+					return false;
+				}
 			});
 		});
 
-		this.selectBox.setOptions(options, this.selected, disabledIdx);
+		this.selectBox.setOptions(this.options.map(data => data.label), this.selected, disabledIdx);
 	}
 }
 

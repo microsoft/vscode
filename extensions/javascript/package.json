@@ -42,7 +42,8 @@
         "extensions": [
           ".js",
           ".es6",
-          ".mjs"
+          ".mjs",
+          ".pac"
         ],
         "filenames": [
           "jakefile"

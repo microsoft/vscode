@@ -349,13 +349,12 @@ export class SettingsTargetsWidget extends Widget {
 		}
 
 		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
-			const currentRoot = this.uri instanceof URI ? this.workspaceContextService.getRoot(this.uri) : null;
 			actions.push(new Separator());
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
 					label: getSettingsTargetName(ConfigurationTarget.FOLDER, root, this.workspaceContextService),
-					checked: currentRoot && currentRoot.fsPath === root.fsPath,
+					checked: this.uri.fsPath === root.fsPath,
 					enabled: true,
 					run: () => this.onTargetClicked(root)
 				};

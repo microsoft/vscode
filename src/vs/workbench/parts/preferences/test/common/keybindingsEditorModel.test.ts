@@ -520,7 +520,7 @@ suite('Keybindings Editor Model test', () => {
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		return testObject.resolve().then(() => {
-			const actual = testObject.fetch('"shift meta esc ctrl c"').filter(element => element.keybindingItem.command === command);
+			const actual = testObject.fetch('"shift meta escape ctrl c"').filter(element => element.keybindingItem.command === command);
 			assert.equal(1, actual.length);
 			assert.deepEqual(actual[0].keybindingMatches.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
 			assert.deepEqual(actual[0].keybindingMatches.chordPart, { ctrlKey: true, keyCode: true });
@@ -558,10 +558,21 @@ suite('Keybindings Editor Model test', () => {
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		return testObject.resolve().then(() => {
-			const actual = testObject.fetch('"shift+meta+esc ctrl+c"').filter(element => element.keybindingItem.command === command);
+			const actual = testObject.fetch('"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
 			assert.equal(1, actual.length);
 			assert.deepEqual(actual[0].keybindingMatches.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
 			assert.deepEqual(actual[0].keybindingMatches.chordPart, { keyCode: true, ctrlKey: true });
+		});
+	});
+
+	test('filter exact matches with space #32993', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Space, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Backspace, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('"ctrl+space"').filter(element => element.keybindingItem.command === command);
+			assert.equal(1, actual.length);
 		});
 	});
 

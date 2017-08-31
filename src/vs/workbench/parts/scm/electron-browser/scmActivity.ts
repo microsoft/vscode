@@ -37,6 +37,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
+			this.render();
 		});
 
 		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
@@ -48,6 +49,8 @@ export class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private render(): void {
+		this.badgeDisposable.dispose();
+
 		const count = this.scmService.repositories.reduce((r, repository) => {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
@@ -136,7 +139,7 @@ export class StatusBarController implements IWorkbenchContribution {
 		const commands = repository.provider.statusBarCommands || [];
 		const disposables = commands.map(c => this.statusbarService.addEntry({
 			text: c.title,
-			tooltip: c.tooltip,
+			tooltip: `${repository.provider.label} - ${c.tooltip}`,
 			command: c.id,
 			arguments: c.arguments
 		}, MainThreadStatusBarAlignment.LEFT, 10000));

@@ -400,7 +400,7 @@ export class FoldingController implements IFoldingController {
 		}
 		this.editor.setHiddenAreas(hiddenAreas);
 		if (focusLine) {
-			this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 });
+			this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 }, editorCommon.ScrollType.Smooth);
 		}
 	}
 

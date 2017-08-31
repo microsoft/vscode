@@ -15,7 +15,7 @@ interface ExpandAbbreviationInput {
 	abbreviation: string;
 	rangeToReplace: vscode.Range;
 	textToWrap?: string[];
-	filters?: string[];
+	filter?: string;
 }
 
 export function wrapWithAbbreviation(args) {
@@ -73,13 +73,13 @@ export function wrapIndividualLinesWithAbbreviation(args) {
 			return;
 		}
 
-		let { abbreviation, filters } = extractedResults;
+		let { abbreviation, filter } = extractedResults;
 		let input: ExpandAbbreviationInput = {
 			syntax,
 			abbreviation,
 			rangeToReplace: editor.selection,
 			textToWrap: lines,
-			filters
+			filter
 		};
 
 		return expandAbbreviationInRange(editor, [input], true);
@@ -106,15 +106,15 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 	let firstAbbreviation: string;
 	let allAbbreviationsSame: boolean = true;
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range, string, string[]] => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range, string, string] => {
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
 			let extractedResults = extractAbbreviationFromText(abbr);
 			if (extractedResults) {
-				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filters];
+				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filter];
 			}
-			return [null, '', []];
+			return [null, '', ''];
 		}
 
 		const currentLine = editor.document.lineAt(position.line).text;
@@ -127,21 +127,21 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			if (matches) {
 				abbr = matches[1];
 				rangeToReplace = new vscode.Range(position.translate(0, -(abbr.length + 1)), position);
-				return [rangeToReplace, abbr, []];
+				return [rangeToReplace, abbr, ''];
 			}
 		}
 		let extractedResults = extractAbbreviation(editor.document, position, false);
 		if (!extractedResults) {
-			return [null, '', []];
+			return [null, '', ''];
 		}
 
-		let { abbreviationRange, abbreviation, filters } = extractedResults;
-		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filters];
+		let { abbreviationRange, abbreviation, filter } = extractedResults;
+		return [new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character), abbreviation, filter];
 	};
 
 	editor.selections.forEach(selection => {
 		let position = selection.isReversed ? selection.anchor : selection.active;
-		let [rangeToReplace, abbreviation, filters] = getAbbreviation(editor.document, selection, position, syntax);
+		let [rangeToReplace, abbreviation, filter] = getAbbreviation(editor.document, selection, position, syntax);
 		if (!rangeToReplace) {
 			return;
 		}
@@ -160,7 +160,7 @@ export function expandEmmetAbbreviation(args): Thenable<boolean> {
 			allAbbreviationsSame = false;
 		}
 
-		abbreviationList.push({ syntax, abbreviation, rangeToReplace, filters });
+		abbreviationList.push({ syntax, abbreviation, rangeToReplace, filter });
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
@@ -272,11 +272,11 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  */
 function expandAbbr(input: ExpandAbbreviationInput): string {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const expandOptions = getExpandOptions(input.syntax, emmetConfig['syntaxProfiles'], emmetConfig['variables'], input.filters);
+	const expandOptions = getExpandOptions(input.syntax, emmetConfig, input.filter);
 
 
 	if (input.textToWrap) {
-		if (input.filters && input.filters.indexOf('t') > -1) {
+		if (input.filter && input.filter.indexOf('t') > -1) {
 			input.textToWrap = input.textToWrap.map(line => {
 				return line.replace(trimRegex, '').trim();
 			});

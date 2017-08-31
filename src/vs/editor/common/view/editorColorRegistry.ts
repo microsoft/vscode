@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import { registerColor, editorBackground, activeContrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 
 /**
  * Definition of the editor colors
@@ -36,6 +36,13 @@ export const editorErrorBorder = registerColor('editorError.border', { dark: nul
 export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('warningForeground', 'Foreground color of warning squigglies in the editor.'));
 export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hc: Color.fromHex('#71B771').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning squigglies in the editor.'));
 
+const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
+export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights.'));
+export const overviewRulerError = registerColor('editorOverviewRuler.errorForeground', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('overviewRuleError', 'Overview ruler marker color for errors.'));
+export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: new Color(new RGBA(18, 136, 18, 0.7)), light: new Color(new RGBA(18, 136, 18, 0.7)), hc: new Color(new RGBA(50, 255, 50, 1)) }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
+export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: new Color(new RGBA(18, 18, 136, 0.7)), light: new Color(new RGBA(18, 18, 136, 0.7)), hc: new Color(new RGBA(50, 50, 255, 1)) }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
+
+
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(editorBackground);
@@ -58,7 +65,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let outline = theme.getColor(activeContrastBorder);
 	if (outline) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${outline}; }; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${outline}; }`);
 	}
 
 	let invisibles = theme.getColor(editorWhitespaces);

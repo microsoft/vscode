@@ -152,6 +152,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
+		this._register(this.workspaceContextService.onDidChangeWorkspaceRoots(() => this.onWorkspaceRootsChanged()));
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -209,7 +210,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
 		const resource = toResource(newInput.master);
-		this.settingsTargetsWidget.setTarget(resource, this.getSettingsConfigurationTarget(resource));
+		this.settingsTargetsWidget.setTarget(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
 
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
@@ -229,6 +230,27 @@ export class PreferencesEditor extends BaseEditor {
 			return ConfigurationTarget.FOLDER;
 		}
 		return null;
+	}
+
+	private getSettingsConfigurationTargetUri(resource: URI): URI {
+		if (this.preferencesService.userSettingsResource.fsPath === resource.fsPath) {
+			return resource;
+		}
+		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
+			return resource;
+		}
+
+		return this.workspaceContextService.getRoot(resource);
+	}
+
+	private onWorkspaceRootsChanged(): void {
+		if (this.input) {
+			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
+			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
+			if (!targetResource) {
+				this.switchSettings(this.preferencesService.userSettingsResource);
+			}
+		}
 	}
 
 	private switchSettings(resource: URI): void {
@@ -327,9 +349,12 @@ class PreferencesRenderers extends Disposable {
 			this._defaultPreferencesRenderer = defaultPreferencesRenderer;
 
 			this._disposables = dispose(this._disposables);
-			this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
-			this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
-			this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
+
+			if (this._defaultPreferencesRenderer) {
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
+				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
+				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
+			}
 		}
 	}
 
@@ -779,6 +804,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 					preferencesRenderer.dispose();
 				}
 			});
+			this.preferencesRendererCreationPromise = TPromise.as(null);
 		}
 	}
 
@@ -801,7 +827,7 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
 			.then(editorModel => {
-				if (editorModel instanceof DefaultSettingsEditorModel) {
+				if (editorModel instanceof DefaultSettingsEditorModel && this.editor.getModel()) {
 					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
 					preferencesRenderer.render();
 					return preferencesRenderer;
@@ -824,7 +850,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		if (this.isSettingsModel()) {
 			return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
 				.then(([defaultSettingsModel, settingsModel]) => {
-					if (settingsModel instanceof SettingsEditorModel) {
+					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER:
 								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);

@@ -39,7 +39,10 @@ export class ColorPickerHeader extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorFormat()));
-		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => this.model.color = this.model.originalColor));
+		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
+			this.model.color = this.model.originalColor;
+			this.model.flushColor();
+		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangeFormatter(this.onDidChangeFormatter, this));
 		this.onDidChangeColor(this.model.color);
@@ -77,14 +80,21 @@ export class ColorPickerBody extends Disposable {
 		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
 		this._register(this.saturationBox);
 		this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
+		this._register(this.saturationBox.onColorFlushed(this.flushColor, this));
 
 		this.opacityStrip = new OpacityStrip(this.domNode, this.model);
 		this._register(this.opacityStrip);
 		this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
+		this._register(this.opacityStrip.onColorFlushed(this.flushColor, this));
 
 		this.hueStrip = new HueStrip(this.domNode, this.model);
 		this._register(this.hueStrip);
 		this._register(this.hueStrip.onDidChange(this.onDidHueChange, this));
+		this._register(this.hueStrip.onColorFlushed(this.flushColor, this));
+	}
+
+	private flushColor(): void {
+		this.model.flushColor();
 	}
 
 	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
@@ -122,6 +132,9 @@ class SaturationBox extends Disposable {
 	private _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
+	private _onColorFlushed = new Emitter<void>();
+	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
+
 	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
@@ -154,6 +167,7 @@ class SaturationBox extends Disposable {
 		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);
 		}, true);
@@ -221,6 +235,9 @@ abstract class Strip extends Disposable {
 	private _onDidChange = new Emitter<number>();
 	readonly onDidChange: Event<number> = this._onDidChange.event;
 
+	private _onColorFlushed = new Emitter<void>();
+	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
+
 	constructor(container: HTMLElement, protected model: ColorPickerModel) {
 		super();
 		this.domNode = dom.append(container, $('.strip'));
@@ -251,6 +268,7 @@ abstract class Strip extends Disposable {
 		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
+			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);
 			dom.removeClass(this.domNode, 'grabbing');

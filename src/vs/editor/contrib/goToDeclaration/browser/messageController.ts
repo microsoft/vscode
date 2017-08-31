@@ -133,7 +133,7 @@ class MessageWidget implements IContentWidget {
 	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
 
 		this._editor = editor;
-		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber);
+		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
 		this._position = { lineNumber, column: 1 };
 
 		this._domNode = document.createElement('div');

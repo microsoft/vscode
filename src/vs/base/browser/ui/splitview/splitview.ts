@@ -44,6 +44,7 @@ export interface IViewOptions {
 }
 
 export interface IView extends ee.IEventEmitter {
+	readonly initialSize: number;
 	size: number;
 	sizing: ViewSizing;
 	fixedSize: number;
@@ -74,7 +75,7 @@ export abstract class View extends ee.EventEmitter implements IView {
 	protected _fixedSize: number;
 	protected _minimumSize: number;
 
-	constructor(opts: IViewOptions) {
+	constructor(public initialSize: number, opts: IViewOptions) {
 		super();
 
 		this.size = 0;
@@ -130,8 +131,8 @@ export abstract class HeaderView extends View {
 	private headerBackground: Color;
 	private headerHighContrastBorder: Color;
 
-	constructor(opts: IHeaderViewOptions) {
-		super(opts);
+	constructor(initialSize: number, opts: IHeaderViewOptions) {
+		super(initialSize, opts);
 
 		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 		this._showHeader = this._headerSize > 0;
@@ -267,12 +268,17 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 	private _previousSize: number = null;
 	private readonly viewSizing: ViewSizing;
 
-	constructor(opts: ICollapsibleViewOptions) {
-		super(opts);
+	constructor(initialSize: number | undefined, opts: ICollapsibleViewOptions) {
+		super(initialSize, opts);
 		this.viewSizing = opts.sizing;
 		this.ariaHeaderLabel = opts.ariaHeaderLabel;
 
 		this.setBodySize(types.isUndefined(opts.bodySize) ? 22 : opts.bodySize);
+
+		if (typeof this.initialSize === 'undefined') {
+			this.initialSize = this._bodySize + this.headerSize;
+		}
+
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
 	}
 
@@ -457,15 +463,14 @@ class PlainView extends View {
 class DeadView extends PlainView {
 
 	constructor(view: IView) {
-		super({ sizing: ViewSizing.Fixed, fixedSize: 0 });
-		this.size = view.size;
+		super(view.size, { sizing: ViewSizing.Fixed, fixedSize: 0 });
 	}
 }
 
 class VoidView extends PlainView {
 
 	constructor() {
-		super({ sizing: ViewSizing.Fixed, minimumSize: 0, fixedSize: 0 });
+		super(0, { sizing: ViewSizing.Fixed, minimumSize: 0, fixedSize: 0 });
 	}
 
 	setFlexible(size?: number): void {
@@ -499,7 +504,6 @@ export class SplitView extends lifecycle.Disposable implements
 	private viewFocusNextListeners: lifecycle.IDisposable[];
 	private viewFocusListeners: lifecycle.IDisposable[];
 	private viewDnDListeners: lifecycle.IDisposable[][];
-	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
 	private sashesListeners: lifecycle.IDisposable[];
@@ -537,7 +541,6 @@ export class SplitView extends lifecycle.Disposable implements
 		this.viewFocusNextListeners = [];
 		this.viewFocusListeners = [];
 		this.viewDnDListeners = [];
-		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
@@ -585,9 +588,6 @@ export class SplitView extends lifecycle.Disposable implements
 		view.render(viewElement, this.orientation);
 		this.views.splice(index, 0, view);
 
-		// Initial weight
-		this.initialWeights.splice(index, 0, initialWeight);
-
 		// Render view
 		if (index === viewCount) {
 			this.el.appendChild(viewElement);
@@ -615,14 +615,6 @@ export class SplitView extends lifecycle.Disposable implements
 
 		this.viewFocusPreviousListeners.splice(index, 0, view.addListener('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
 		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
-	}
-
-	updateWeight(view: IView, weight: number) {
-		let index = this.views.indexOf(view);
-		if (index < 0) {
-			return;
-		}
-		this.initialWeights[index] = weight;
 	}
 
 	removeView(view: IView): void {
@@ -659,7 +651,6 @@ export class SplitView extends lifecycle.Disposable implements
 		this.viewDnDListeners.splice(index, 1);
 
 		this.views.splice(index, 1);
-		this.initialWeights.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
 		this.viewElements.splice(index, 1);
 
@@ -791,9 +782,6 @@ export class SplitView extends lifecycle.Disposable implements
 		const [view] = this.views.splice(fromIndex, 1);
 		this.views.splice(toIndex, 0, view);
 
-		const [weight] = this.initialWeights.splice(fromIndex, 1);
-		this.initialWeights.splice(toIndex, 0, weight);
-
 		this.el.removeChild(this.viewElements[fromIndex]);
 		this.el.insertBefore(this.viewElements[fromIndex], this.viewElements[toIndex < fromIndex ? toIndex : toIndex + 1]);
 		const [viewElement] = this.viewElements.splice(fromIndex, 1);
@@ -869,7 +857,7 @@ export class SplitView extends lifecycle.Disposable implements
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
-				totalWeight += this.initialWeights[i];
+				totalWeight += v.initialSize;
 			} else {
 				fixedSize += v.fixedSize;
 			}
@@ -879,7 +867,11 @@ export class SplitView extends lifecycle.Disposable implements
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
-				v.size = this.initialWeights[i] * flexibleSize / totalWeight;
+				if (totalWeight === 0) {
+					v.size = flexibleSize;
+				} else {
+					v.size = v.initialSize * flexibleSize / totalWeight;
+				}
 			} else {
 				v.size = v.fixedSize;
 			}

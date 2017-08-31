@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass, IOutline } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
@@ -81,7 +81,7 @@ class SymbolEntry extends QuickOpenEntryGroup {
 		// Apply selection and focus
 		let range = this.toSelection();
 		this.editor.setSelection(range);
-		this.editor.revealRangeInCenter(range);
+		this.editor.revealRangeInCenter(range, ScrollType.Smooth);
 		this.editor.focus();
 
 		return true;
@@ -91,7 +91,7 @@ class SymbolEntry extends QuickOpenEntryGroup {
 
 		// Select Outline Position
 		let range = this.toSelection();
-		this.editor.revealRangeInCenter(range);
+		this.editor.revealRangeInCenter(range, ScrollType.Smooth);
 
 		// Decorate if possible
 		this.decorator.decorateLine(this.range, this.editor);

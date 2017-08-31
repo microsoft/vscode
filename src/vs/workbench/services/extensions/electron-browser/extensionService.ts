@@ -154,6 +154,7 @@ export class ExtensionService implements IExtensionService {
 		});
 
 		const restart = new Action('restart', nls.localize('restart', "Restart Extension Host"), '', true, (): TPromise<boolean> => {
+			this._messageService.hideAll();
 			this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
 			return TPromise.as(true);
 		});

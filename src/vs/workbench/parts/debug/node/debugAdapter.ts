@@ -5,6 +5,7 @@
 
 import fs = require('fs');
 import path = require('path');
+import { parse } from 'vs/base/common/json';
 import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -30,6 +31,8 @@ export class Adapter {
 			rawAdapter.win = rawAdapter.windows;
 		}
 	}
+
+	public hasConfigurationProvider = false;
 
 	public getAdapterExecutable(root: uri, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
@@ -145,12 +148,20 @@ export class Adapter {
 		if (typeof this.rawAdapter.initialConfigurations === 'string') {
 			// Contributed initialConfigurations is a command that needs to be invoked
 			// Debug adapter will dynamically provide the full launch.json
+			// TODO@Isidor stop supporting initialConfigurations
 			return this.commandService.executeCommand<string>(<string>this.rawAdapter.initialConfigurations, folderUri).then(content => {
 				// Debug adapter returned the full content of the launch.json - return it after format
-				if (editorConfig.editor.insertSpaces) {
-					content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+				try {
+					const config = parse(content);
+					config.configurations.push(...initialConfigs);
+					content = JSON.stringify(config, null, '\t').split('\n').map(line => '\t' + line).join('\n').trim();
+				} catch (e) {
+					// noop
 				}
 
+				if (editorConfig.editor && editorConfig.editor.insertSpaces) {
+					content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+				}
 				return content;
 			});
 		}

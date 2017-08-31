@@ -11,16 +11,16 @@ import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 export const LANGUAGE_MODES: Object = {
-	'html': ['!', '.', '}', ':', '*', '$'],
-	'jade': ['!', '.', '}', ':', '*', '$'],
-	'slim': ['!', '.', '}', ':', '*', '$'],
-	'haml': ['!', '.', '}', ':', '*', '$'],
-	'xml': ['.', '}', '*', '$'],
-	'xsl': ['!', '.', '}', '*', '$'],
-	'css': [':'],
-	'scss': [':'],
+	'html': ['!', '.', '}', ':', '*', '$', ']'],
+	'jade': ['!', '.', '}', ':', '*', '$', ']'],
+	'slim': ['!', '.', '}', ':', '*', '$', ']'],
+	'haml': ['!', '.', '}', ':', '*', '$', ']'],
+	'xml': ['.', '}', '*', '$', ']'],
+	'xsl': ['!', '.', '}', '*', '$', ']'],
+	'css': [':', ';'],
+	'scss': [':', ';'],
 	'sass': [':'],
-	'less': [':'],
+	'less': [':', ';'],
 	'stylus': [':'],
 	'javascriptreact': ['.', '}', '*', '$'],
 	'typescriptreact': ['.', '}', '*', '$']
@@ -259,7 +259,7 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 export function getEmmetConfiguration() {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
 	return {
-		useNewEmmet: true,
+		preferences: emmetConfig['preferences'],
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles: emmetConfig['syntaxProfiles'],

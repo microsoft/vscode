@@ -18,6 +18,7 @@ import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -396,7 +397,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
-		this.editor.revealLine(revealLineNumber);
+		this.editor.revealLine(revealLineNumber, ScrollType.Smooth);
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {

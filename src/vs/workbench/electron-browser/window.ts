@@ -24,7 +24,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -39,6 +39,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -73,7 +75,9 @@ export class ElectronWindow extends Themable {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(themeService);
 
@@ -149,6 +153,9 @@ export class ElectronWindow extends Themable {
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
+
+		// Support addFolders event if we have a workspace opened
+		ipc.on('vscode:addFolders', (event, request: IAddFoldersRequest) => this.onAddFolders(request));
 
 		// Emit event when vscode has loaded
 		this.partService.joinCreation().then(() => {
@@ -274,6 +281,31 @@ export class ElectronWindow extends Themable {
 				return null;
 			}));
 		});
+	}
+
+	private onAddFolders(request: IAddFoldersRequest): void {
+		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
+
+		// Workspace: just add to workspace config
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			this.workspaceEditingService.addRoots(foldersToAdd).done(null, errors.onUnexpectedError);
+		}
+
+		// Single folder or no workspace: create workspace and open
+		else {
+			let workspaceFolders: URI[] = [];
+
+			// Folder of workspace is the first of multi root workspace, so add it
+			if (this.contextService.hasFolderWorkspace()) {
+				workspaceFolders.push(...this.contextService.getWorkspace().roots);
+			}
+
+			// Fill in remaining ones from request
+			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));
+
+			// Create workspace and open (ensure no duplicates)
+			this.windowService.createAndOpenWorkspace(arrays.distinct(workspaceFolders.map(folder => folder.fsPath), folder => platform.isLinux ? folder : folder.toLowerCase()));
+		}
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {

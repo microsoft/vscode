@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
-import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
+import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
 import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -21,14 +22,9 @@ import uri from 'vscode-uri';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('html/colorSymbols');
-}
-
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
-
 
 // Create a connection for the server
 let connection: IConnection = createConnection();
@@ -58,6 +54,7 @@ documents.onDidClose(e => {
 });
 
 function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
+	console.log('scopedSettingsSupport ' + scopedSettingsSupport + 'needsSettings ' + needsDocumentSettings());
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -97,21 +94,22 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
-			hoverProvider: true,
-			documentHighlightProvider: true,
-			documentRangeFormattingProvider: false,
-			documentLinkProvider: { resolveProvider: false },
-			documentSymbolProvider: true,
-			definitionProvider: true,
-			signatureHelpProvider: { triggerCharacters: ['('] },
-			referencesProvider: true,
-		}
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
+		hoverProvider: true,
+		documentHighlightProvider: true,
+		documentRangeFormattingProvider: false,
+		documentLinkProvider: { resolveProvider: false },
+		documentSymbolProvider: true,
+		definitionProvider: true,
+		signatureHelpProvider: { triggerCharacters: ['('] },
+		referencesProvider: true,
+		colorProvider: true
 	};
+
+	return { capabilities };
 });
 
 let formatterRegistration: Thenable<Disposable> = null;
@@ -187,7 +185,7 @@ async function validateTextDocument(textDocument: TextDocument) {
 	let diagnostics: Diagnostic[] = [];
 	if (textDocument.languageId === 'html') {
 		let modes = languageModes.getAllModesInDocument(textDocument);
-		let settings = await getDocumentSettings(textDocument, () => modes.some(m => m.doValidation && m.doValidation.length > 1));
+		let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
 		modes.forEach(mode => {
 			if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
 				pushAll(diagnostics, mode.doValidation(textDocument, settings));
@@ -313,25 +311,28 @@ connection.onDocumentSymbol(documentSymbolParms => {
 	return symbols;
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let ranges: Range[] = [];
-	let document = documents.get(uri);
+connection.onRequest(DocumentColorRequest.type, params => {
+	let infos: ColorInformation[] = [];
+	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		languageModes.getAllModesInDocument(document).forEach(m => {
-			if (m.findColorSymbols) {
-				pushAll(ranges, m.findColorSymbols(document));
+			if (m.findDocumentColors) {
+				pushAll(infos, m.findDocumentColors(document));
 			}
 		});
 	}
-	return ranges;
+	return infos;
 });
 
 connection.onRequest(TagCloseRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
-		let mode = languageModes.getModeAtPosition(document, params.position);
-		if (mode && mode.doAutoClose) {
-			return mode.doAutoClose(document, params.position);
+		let pos = params.position;
+		if (pos.character > 0) {
+			let mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+			if (mode && mode.doAutoClose) {
+				return mode.doAutoClose(document, pos);
+			}
 		}
 	}
 	return null;

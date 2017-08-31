@@ -118,9 +118,8 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
-			this.updateEnablement();
-		});
+		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement());
+		this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement());
 	}
 
 	public run(): TPromise<any> {
@@ -145,6 +144,10 @@ export class StartAction extends AbstractDebugAction {
 			return false;
 		}
 		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+			return false;
+		}
+		const compound = launch && launch.getCompound(selectedName);
+		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
 

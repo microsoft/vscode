@@ -150,14 +150,14 @@ export class SimpleEditorService implements IEditorService {
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection);
+				editor.revealRangeInCenter(selection, editorCommon.ScrollType.Immediate);
 			} else {
 				let pos = {
 					lineNumber: selection.startLineNumber,
 					column: selection.startColumn
 				};
 				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos);
+				editor.revealPositionInCenter(pos, editorCommon.ScrollType.Immediate);
 			}
 		}
 

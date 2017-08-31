@@ -23,6 +23,8 @@ import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/comm
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -714,7 +716,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 		}
 
 		editor.setSelections(allSelections.concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -739,7 +741,7 @@ export class AddSelectionToPreviousFindMatchAction extends SelectPreviousFindMat
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -768,7 +770,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
-		editor.revealRangeInCenterIfOutsideViewport(nextMatch);
+		editor.revealRangeInCenterIfOutsideViewport(nextMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -793,7 +795,7 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 		let allSelections = editor.getSelections();
 		editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(previousMatch));
-		editor.revealRangeInCenterIfOutsideViewport(previousMatch);
+		editor.revealRangeInCenterIfOutsideViewport(previousMatch, editorCommon.ScrollType.Smooth);
 	}
 }
 
@@ -1104,8 +1106,8 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});

@@ -44,7 +44,7 @@
                     "type": "object",
                     "default": {},
                     "description": "%emmetIncludeLanguages%"
-                                },
+                },
                 "emmet.variables": {
                     "type": "object",
                     "properties": {
@@ -60,14 +60,16 @@
                     "default": {},
                     "description": "%emmetVariables%"
                 },
-                "emmet.syntaxProfiles":{
+                "emmet.syntaxProfiles": {
                     "type": "object",
                     "default": {},
                     "description": "%emmetSyntaxProfiles%"
                 },
-                "emmet.excludeLanguages":{
+                "emmet.excludeLanguages": {
                     "type": "array",
-                    "default": ["markdown"],
+                    "default": [
+                        "markdown"
+                    ],
                     "description": "%emmetExclude%"
                 },
                 "emmet.extensionsPath": {
@@ -79,6 +81,58 @@
                     "type": "boolean",
                     "default": false,
                     "description": "%emmetTriggerExpansionOnTab%"
+                },
+                "emmet.preferences": {
+                    "type": "object",
+                    "default": {},
+                    "description": "%emmetPreferences%",
+                    "properties": {
+                        "css.intUnit": {
+                            "type": "string",
+                            "default": "px",
+                            "description": "%emmetPreferencesIntUnit%"
+                        },
+                        "css.floatUnit": {
+                            "type": "string",
+                            "default": "em",
+                            "description": "%emmetPreferencesFloatUnit%"
+                        },
+                        "css.propertyEnd": {
+                            "type": "string",
+                            "default": ";",
+                            "description": "%emmetPreferencesCssAfter%"
+                        },
+                        "sass.propertyEnd": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesSassAfter%"
+                        },
+                        "stylus.propertyEnd": {
+                            "type": "string",
+                            "default": "",
+                            "description": "%emmetPreferencesStylusAfter%"
+                        },
+                        "css.valueSeparator": {
+                            "type": "string",
+                            "default": ": ",
+                            "description": "%emmetPreferencesCssBetween%"
+                        },
+                        "sass.valueSeparator": {
+                            "type": "string",
+                            "default": ": ",
+                            "description": "%emmetPreferencesSassBetween%"
+                        },
+                        "stylus.valueSeparator": {
+                            "type": "string",
+                            "default": " ",
+                            "description": "%emmetPreferencesStylusBetween%"
+                        }
+                    }
+                },
+                "emmet.showSuggestionsAsSnippets": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "%emmetShowSuggestionsAsSnippets%"
                 }
             }
         },
@@ -208,11 +262,10 @@
         "vscode": "1.0.1"
     },
     "dependencies": {
-
         "@emmetio/html-matcher": "^0.3.1",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.0.21",
+        "vscode-emmet-helper": "^1.1.5",
         "vscode-languageserver-types": "^3.0.3",
         "image-size": "^0.5.2",
         "vscode-nls": "2.0.2"

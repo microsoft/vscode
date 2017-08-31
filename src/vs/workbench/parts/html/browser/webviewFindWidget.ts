@@ -5,19 +5,16 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
-import WebView from './webview';
+import Webview from './webview';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ISimpleFindWidgetService _simpleFindWidgetService: ISimpleFindWidgetService,
-		private _webview: WebView,
+		private webview: Webview
 	) {
-		super(_contextViewService, _contextKeyService, _simpleFindWidgetService);
+		super(_contextViewService);
+
 		this.find = this.find.bind(this);
 		this.hide = this.hide.bind(this);
 		this.onInputChanged = this.onInputChanged.bind(this);
@@ -25,39 +22,43 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 	public find(previous) {
 		let val = this.inputValue;
-		if (this._webview !== null && val) {
-			if (!this._isVisible) {
-				this.reveal(false);
-			}
-			this._webview.find(val, { findNext: true, forward: !previous });
+		if (this.webview !== null && val) {
+			this.webview.find(val, { findNext: true, forward: !previous });
 		}
 	};
 
 	public hide() {
 		super.hide();
-		this._webview.stopFind(true);
-		this._webview.focus();
+		this.webview.stopFind(true);
+		this.webview.focus();
 	}
 
 	public onInputChanged() {
-		if (!this._webview) {
+		if (!this.webview) {
 			return;
 		}
 
 		let val = this.inputValue;
 		if (val) {
-			this._webview.startFind(val);
+			this.webview.startFind(val);
 		} else {
-			this._webview.stopFind(false);
+			this.webview.stopFind(false);
 		}
 	}
 
 	protected onFocusTrackerFocus() {
-		this._webview.notifyFindWidgetFocusChanged(true);
+		this.webview.notifyFindWidgetFocusChanged(true);
 	}
 
 	protected onFocusTrackerBlur() {
-		this._webview.notifyFindWidgetFocusChanged(false);
+		this.webview.notifyFindWidgetFocusChanged(false);
 	}
 
+	protected onFindInputFocusTrackerFocus() {
+		this.webview.notifyFindWidgetInputFocusChanged(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this.webview.notifyFindWidgetInputFocusChanged(false);
+	}
 }

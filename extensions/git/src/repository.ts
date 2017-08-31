@@ -25,7 +25,7 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
-export enum State {
+export enum RepositoryState {
 	Idle,
 	Disposed
 }
@@ -296,8 +296,8 @@ export class Repository implements Disposable {
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
-	private _onDidChangeState = new EventEmitter<State>();
-	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
+	private _onDidChangeState = new EventEmitter<RepositoryState>();
+	readonly onDidChangeState: Event<RepositoryState> = this._onDidChangeState.event;
 
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
@@ -345,9 +345,9 @@ export class Repository implements Disposable {
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
-	private _state = State.Idle;
-	get state(): State { return this._state; }
-	set state(state: State) {
+	private _state = RepositoryState.Idle;
+	get state(): RepositoryState { return this._state; }
+	set state(state: RepositoryState) {
 		this._state = state;
 		this._onDidChangeState.fire(state);
 
@@ -375,13 +375,14 @@ export class Repository implements Disposable {
 		this.disposables.push(fsWatcher);
 
 		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-		onWorkspaceChange(this.onFSChange, this, this.disposables);
+		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => !/^\.\./.test(path.relative(repository.root, uri.fsPath)));
+		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
-		const onGitChange = filterEvent(onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
+		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		const label = `Git - ${path.basename(repository.root)}`;
+		const label = `${path.basename(repository.root)} (Git)`;
 
 		this._sourceControl = scm.createSourceControl('git', label);
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
@@ -629,7 +630,7 @@ export class Repository implements Disposable {
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		if (this.state !== State.Idle) {
+		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
 
@@ -647,7 +648,7 @@ export class Repository implements Disposable {
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					this.state = State.Disposed;
+					this.state = RepositoryState.Disposed;
 				}
 
 				throw err;
@@ -779,8 +780,8 @@ export class Repository implements Disposable {
 		let stateContextKey = '';
 
 		switch (this.state) {
-			case State.Idle: stateContextKey = 'idle'; break;
-			case State.Disposed: stateContextKey = 'norepo'; break;
+			case RepositoryState.Idle: stateContextKey = 'idle'; break;
+			case RepositoryState.Disposed: stateContextKey = 'norepo'; break;
 		}
 
 		this._onDidChangeStatus.fire();
@@ -812,14 +813,25 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateWhenIdleAndWait(): Promise<void> {
-		await this.whenIdle();
+		await this.whenIdleAndFocused();
 		await this.status();
 		await timeout(5000);
 	}
 
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
+	private async whenIdleAndFocused(): Promise<void> {
+		while (true) {
+			if (!this.operations.isIdle()) {
+				await eventToPromise(this.onDidRunOperation);
+				continue;
+			}
+
+			if (!window.state.focused) {
+				const onDidFocusWindow = filterEvent(window.onDidChangeWindowState, e => e.focused);
+				await eventToPromise(onDidFocusWindow);
+				continue;
+			}
+
+			return;
 		}
 	}
 

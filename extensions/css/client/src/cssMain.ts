@@ -6,17 +6,26 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, ExtensionContext } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
+import { languages, window, commands, ExtensionContext, TextDocument, ColorRange, Color } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, TextEdit } from 'vscode-languageclient';
+
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
-import { ColorProvider } from './colorDecorators';
+import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
-}
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
+	}
+};
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -33,9 +42,11 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['css', 'scss', 'less'];
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: ['css', 'scss', 'less'],
+		documentSelector,
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
 		},
@@ -53,11 +64,19 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	client.onReady().then(_ => {
-		let colorRequestor = (uri: string) => {
-			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
-		};
-
-		context.subscriptions.push(languages.registerColorProvider(['css', 'scss', 'less'], new ColorProvider(colorRequestor)));
+		// register color provider
+		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
+			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
+					return symbols.map(symbol => {
+						let range = client.protocol2CodeConverter.asRange(symbol.range);
+						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
+						return new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]);
+					});
+				});
+			}
+		}));
 	});
 
 	let indentationRules = {

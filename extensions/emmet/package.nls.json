@@ -29,5 +29,15 @@
 	"emmetShowAbbreviationSuggestions": "Shows possible emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to \"never\".",
 	"emmetIncludeLanguages": "Enable emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and emmet supported language.\n Eg: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Variables to be used in emmet snippets",
-	"emmetTriggerExpansionOnTab": "When enabled, emmet abbreviations are expanded when pressing TAB."
+	"emmetTriggerExpansionOnTab": "When enabled, emmet abbreviations are expanded when pressing TAB.",
+	"emmetPreferences": "Preferences used to modify behavior of some actions and resolvers of Emmet.",
+	"emmetPreferencesIntUnit": "Default unit for integer values",
+	"emmetPreferencesFloatUnit": "Default unit for float values",
+	"emmetPreferencesCssAfter": "Symbol to be placed at the end of CSS property when expanding CSS abbreviations",
+	"emmetPreferencesSassAfter": "Symbol to be placed at the end of CSS property when expanding CSS abbreviations in Sass files",
+	"emmetPreferencesStylusAfter": "Symbol to be placed at the end of CSS property when expanding CSS abbreviations in Stylus files",
+	"emmetPreferencesCssBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations",
+	"emmetPreferencesSassBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations in Sass files",
+	"emmetPreferencesStylusBetween": "Symbol to be placed at the between CSS property and value when expanding CSS abbreviations in Stylus files",
+	"emmetShowSuggestionsAsSnippets": "If true, then emmet suggestions will show up as snippets allowing you to order them as per editor.snippetSuggestions setting."
 }

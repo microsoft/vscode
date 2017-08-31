@@ -873,6 +873,9 @@ export class DebugService implements debug.IDebugService {
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
+				if (process) {
+					this.model.removeProcess(process.getId());
+				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
@@ -926,7 +929,7 @@ export class DebugService implements debug.IDebugService {
 
 		return process.session.disconnect(true).then(() => {
 			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
-				this.broadcastService.broadcast({
+				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
 					payload: [process.session.root.fsPath]
 				});

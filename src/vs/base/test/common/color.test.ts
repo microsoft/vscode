@@ -23,9 +23,9 @@ suite('Color', () => {
 		let color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));
 
 		assert.deepEqual(color1.hsla, Color.getLighterColor(color1, color2).hsla);
-		assert.deepEqual(new HSLA(0, 0, 0.918, 1), Color.getLighterColor(color2, color1).hsla);
+		assert.deepEqual(new HSLA(0, 0, 0.916, 1), Color.getLighterColor(color2, color1).hsla);
 		assert.deepEqual(new HSLA(0, 0, 0.851, 1), Color.getLighterColor(color2, color1, 0.3).hsla);
-		assert.deepEqual(new HSLA(0, 0, 0.980, 1), Color.getLighterColor(color2, color1, 0.7).hsla);
+		assert.deepEqual(new HSLA(0, 0, 0.981, 1), Color.getLighterColor(color2, color1, 0.7).hsla);
 		assert.deepEqual(new HSLA(0, 0, 1, 1), Color.getLighterColor(color2, color1, 1).hsla);
 
 	});
@@ -47,7 +47,7 @@ suite('Color', () => {
 		assert.deepEqual(new HSLA(60, 1, 0.284, 1), Color.getDarkerColor(color1, color2, 1).hsla);
 
 		// Abyss theme
-		assert.deepEqual(new HSLA(355, 0.875, 0.157, 1), Color.getDarkerColor(Color.fromHex('#770811'), Color.fromHex('#000c18'), 0.4).hsla);
+		assert.deepEqual(new HSLA(355, 0.874, 0.157, 1), Color.getDarkerColor(Color.fromHex('#770811'), Color.fromHex('#000c18'), 0.4).hsla);
 	});
 
 	test('luminance', function () {
@@ -178,6 +178,12 @@ suite('Color', () => {
 			assert.deepEqual(HSVA.fromRGBA(new RGBA(128, 0, 128, 1)), new HSVA(300, 1, 0.502, 1));
 			assert.deepEqual(HSVA.fromRGBA(new RGBA(0, 128, 128, 1)), new HSVA(180, 1, 0.502, 1));
 			assert.deepEqual(HSVA.fromRGBA(new RGBA(0, 0, 128, 1)), new HSVA(240, 1, 0.502, 1));
+		});
+
+		test('Keep hue value when saturation is 0', () => {
+			assert.deepEqual(HSVA.toRGBA(new HSVA(10, 0, 0, 0)), HSVA.toRGBA(new HSVA(20, 0, 0, 0)));
+			assert.deepEqual(new Color(new HSVA(10, 0, 0, 0)).rgba, new Color(new HSVA(20, 0, 0, 0)).rgba);
+			assert.notDeepEqual(new Color(new HSVA(10, 0, 0, 0)).hsva, new Color(new HSVA(20, 0, 0, 0)).hsva);
 		});
 	});
 

@@ -51,6 +51,7 @@ export class ExtensionsListView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -69,7 +70,7 @@ export class ExtensionsListView extends CollapsibleView {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), ariaHeaderLabel: options.name, sizing: ViewSizing.Flexible, collapsed: !!options.collapsed, initialBodySize: 1 * 62 }, keybindingService, contextMenuService);
 	}
 
 	renderHeader(container: HTMLElement): void {

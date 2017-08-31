@@ -295,8 +295,12 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean>;
+
 	$registerFileSystemProvider(handle: number, authority: string): void;
+	$unregisterFileSystemProvider(handle): void;
 	$onFileSystemChange(handle: number, resource: URI): void;
+	$updateSearchSession(session: number, data): void;
+	$finishSearchSession(session: number, err?: any): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -360,6 +364,10 @@ export interface MainThreadCredentialsShape extends IDisposable {
 	$readSecret(service: string, account: string): Thenable<string | undefined>;
 	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
 	$deleteSecret(service: string, account: string): Thenable<boolean>;
+}
+
+export interface MainThreadWindowShape extends IDisposable {
+	$getWindowVisibility(): TPromise<boolean>;
 }
 
 // -- extension host
@@ -435,8 +443,11 @@ export interface ExtHostTreeViewsShape {
 
 export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData): void;
+
 	$resolveFile(handle: number, resource: URI): TPromise<string>;
 	$storeFile(handle: number, resource: URI, content: string): TPromise<any>;
+	$startSearch(handle: number, session: number, query: string): void;
+	$cancelSearch(handle: number, session: number): void;
 }
 
 export interface ExtHostExtensionServiceShape {
@@ -534,6 +545,10 @@ export interface ExtHostDebugServiceShape {
 export interface ExtHostCredentialsShape {
 }
 
+export interface ExtHostWindowShape {
+	$onDidChangeWindowFocus(value: boolean): void;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -562,6 +577,7 @@ export const MainContext = {
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),
+	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
 export const ExtHostContext = {
@@ -585,4 +601,5 @@ export const ExtHostContext = {
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials'),
+	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

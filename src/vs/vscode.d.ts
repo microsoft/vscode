@@ -4064,10 +4064,10 @@ declare module 'vscode' {
 		/**
 		 * Executes the command denoted by the given command identifier.
 		 *
-		 * When executing an editor command not all types are allowed to
+		 * * *Note 1:* When executing an editor command not all types are allowed to
 		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
-		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
-		 * There are no restrictions when executing commands that have been contributed
+		 * `number`, `undefined`, and `null`, as well as [`Position`](#Position), [`Range`](#Range), [`Uri`](#Uri) and [`Location`](#Location).
+		 * * *Note 2:* There are no restrictions when executing commands that have been contributed
 		 * by extensions.
 		 *
 		 * @param command Identifier of the command to execute.
@@ -4085,6 +4085,17 @@ declare module 'vscode' {
 		 * @return Thenable that resolves to a list of command ids.
 		 */
 		export function getCommands(filterInternal?: boolean): Thenable<string[]>;
+	}
+
+	/**
+	 * Represents the state of a window.
+	 */
+	export interface WindowState {
+
+		/**
+		 * Whether the current window is focused.
+		 */
+		readonly focused: boolean;
 	}
 
 	/**
@@ -4138,6 +4149,19 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
+		 * Represents the current window's state.
+		 *
+		 * @readonly
+		 */
+		export let state: WindowState;
+
+		/**
+		 * An [event](#Event) which fires when the focus state of the current window
+		 * changes. The value of the event represents whether the window is focused.
+		 */
+		export const onDidChangeWindowState: Event<WindowState>;
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
@@ -5516,14 +5540,14 @@ declare module 'vscode' {
 	 */
 	export interface DebugConfiguration {
 		/**
-		 * The type for the debug session.
+		 * The type of the debug session.
 		 */
 		type: string;
 
 		/**
-		 * An optional name for the debug session.
+		 * The name of the debug session.
 		 */
-		name?: string;
+		name: string;
 
 		/**
 		 * The request type of the debug session.

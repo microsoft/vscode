@@ -15,6 +15,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
@@ -181,7 +182,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 	}
 
 	private _show(): void {
-		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber);
+		this._editor.revealLineInCenterIfOutsideViewport(this._position.lineNumber, ScrollType.Smooth);
 		this._visible = true;
 		this._editor.layoutContentWidget(this);
 

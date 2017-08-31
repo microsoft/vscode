@@ -160,7 +160,7 @@ export class ProgressService2 implements IProgressService2 {
 				'progress-badge'
 			);
 			const startTimeVisible = Date.now();
-			const minTimeVisible = 150;
+			const minTimeVisible = 300;
 			activityProgress = {
 				dispose() {
 					const d = Date.now() - startTimeVisible;
@@ -173,7 +173,7 @@ export class ProgressService2 implements IProgressService2 {
 					}
 				}
 			};
-		}, 150);
+		}, 300);
 
 		always(promise, () => {
 			clearTimeout(delayHandle);

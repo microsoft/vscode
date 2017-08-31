@@ -26,7 +26,6 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { ISimpleFindWidgetService } from 'vs/editor/contrib/find/browser/simpleFindWidgetService';
 
 export class TerminalPanel extends Panel {
 
@@ -48,8 +47,7 @@ export class TerminalPanel extends Panel {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ISimpleFindWidgetService private _simpleFindWidgetService: ISimpleFindWidgetService
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
@@ -65,8 +63,6 @@ export class TerminalPanel extends Panel {
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
-		// Register SimpleFindWidget
-		this._register(this._simpleFindWidgetService.register(this._findWidget, [this._terminalService.terminalFocusContextKey]));
 
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
@@ -163,6 +159,27 @@ export class TerminalPanel extends Panel {
 		if (activeInstance) {
 			activeInstance.focus(true);
 		}
+	}
+
+	public focusFindWidget() {
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
+			this._findWidget.reveal(activeInstance.selection);
+		} else {
+			this._findWidget.reveal();
+		}
+	}
+
+	public hideFindWidget() {
+		this._findWidget.hide();
+	}
+
+	public showNextFindTermFindWidget(): void {
+		this._findWidget.showNextFindTerm();
+	}
+
+	public showPreviousFindTermFindWidget(): void {
+		this._findWidget.showPreviousFindTerm();
 	}
 
 	private _attachEventListeners(): void {

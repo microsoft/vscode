@@ -41,6 +41,7 @@
 .colorpicker-header .original-color {
 	width: 74px;
 	z-index: inherit;
+	cursor: pointer;
 }
 
 

@@ -40,12 +40,6 @@ const scssContents = `
 }
 `
 
-const bemFilterExample = 'ul.search-form._wide>li.-querystring+li.-btn_large|bem';
-const expectedBemFilterOutput = `<ul class="search-form search-form_wide">
-		<li class="search-form__querystring"></li>
-		<li class="search-form__btn search-form__btn_large"></li>
-	</ul>`;
-
 const htmlContents = `
 <body class="header">
 	<ul class="nav main">
@@ -62,7 +56,7 @@ const htmlContents = `
 			m10
 		}
 	</style>
-	${bemFilterExample}
+	<span></span>
 	(ul>li.item$)*2
 	(ul>li.item$)*2+span
 	(div>dl>(dt+dd)*2)
@@ -187,11 +181,6 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			});
 		});
 	});
-
-	// TODO@Ramya test failing on our build machines on macOS
-	// test('Expand using bem filter', () => {
-	// 	return testHtmlExpandAbbreviation(new Selection(16, 55, 16, 55), bemFilterExample, expectedBemFilterOutput);
-	// });
 
 });
 

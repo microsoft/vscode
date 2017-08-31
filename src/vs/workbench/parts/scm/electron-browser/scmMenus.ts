@@ -28,13 +28,18 @@ export class SCMMenus implements IDisposable {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private provider: ISCMProvider,
+		private provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
 		const scmProviderKey = this.contextKeyService.createKey<string | undefined>('scmProvider', void 0);
-		scmProviderKey.set(provider.contextValue);
+
+		if (provider) {
+			scmProviderKey.set(provider.contextValue);
+		} else {
+			scmProviderKey.set('');
+		}
 
 		this.titleMenu = this.menuService.createMenu(MenuId.SCMTitle, this.contextKeyService);
 		this.disposables.push(this.titleMenu);

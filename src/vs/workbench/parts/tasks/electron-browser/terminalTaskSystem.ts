@@ -403,6 +403,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: true,
 					exitCode: summary.exitCode
@@ -416,6 +417,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				let telemetryEvent: TelemetryEvent = {
 					trigger: trigger,
 					runner: 'terminal',
+					taskKind: Task.getTelemetryKind(task),
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};

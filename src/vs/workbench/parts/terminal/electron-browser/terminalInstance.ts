@@ -157,15 +157,13 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcess(this._shellLaunchConfig);
+		this._createProcess();
 		this._createXterm();
 
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				if (!this._isDisposed) {
-					import('vs/workbench/parts/terminal/electron-browser/windowsShellHelper').then((module) => {
-						this._windowsShellHelper = new module.WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
-					});
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
 				}
 			});
 		}
@@ -556,10 +554,10 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcess(shell: IShellLaunchConfig): void {
+	protected _createProcess(): void {
 		const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-		if (!shell.executable) {
-			this._configHelper.mergeDefaultShellPathAndArgs(shell);
+		if (!this._shellLaunchConfig.executable) {
+			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
 		let envFromConfig: IStringDictionary<string>;
@@ -579,18 +577,18 @@ export class TerminalInstance implements ITerminalInstance {
 			const platformKey = platform.isMacintosh ? 'osx' : 'linux';
 			envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
 		}
-		const env = TerminalInstance.createTerminalEnv(envFromConfig, shell, this._initialCwd, locale, this._cols, this._rows);
+		const env = TerminalInstance.createTerminalEnv(envFromConfig, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
 		this._processState = ProcessState.LAUNCHING;
 
-		if (shell.name) {
-			this.setTitle(shell.name, false);
+		if (this._shellLaunchConfig.name) {
+			this.setTitle(this._shellLaunchConfig.name, false);
 		} else {
 			// Only listen for process title changes when a name is not provided
-			this.setTitle(shell.executable, true);
+			this.setTitle(this._shellLaunchConfig.executable, true);
 			this._messageTitleListener = (message) => {
 				if (message.type === 'title') {
 					this.setTitle(message.content ? message.content : '', true);
@@ -658,9 +656,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processState = ProcessState.KILLED_BY_PROCESS;
 		}
 
-		// Only trigger wait on exit when the exit was triggered by the process,
-		// not through the `workbench.action.terminal.kill` command
-		if (this._processState === ProcessState.KILLED_BY_PROCESS && this._shellLaunchConfig.waitOnExit) {
+		// Only trigger wait on exit when the exit was *not* triggered by the
+		// user (via the `workbench.action.terminal.kill` command).
+		if (this._shellLaunchConfig.waitOnExit && this._processState !== ProcessState.KILLED_BY_USER) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}
@@ -727,7 +725,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Initialize new process
 		const oldTitle = this._title;
-		this._createProcess(shell);
+		this._shellLaunchConfig = shell;
+		this._createProcess();
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}

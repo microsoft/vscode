@@ -363,14 +363,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						alpha: model.color.rgba.a
 					});
 					editorModel.pushEditOperations([], [{ identifier: null, range, text, forceMoveMarkers: false }], () => []);
+					this._editor.pushUndoStop();
 					range = range.setEndPosition(range.endLineNumber, range.startColumn + text.length);
 				};
 
-				const colorListener = model.onDidChangeColor(updateEditorModel);
-				const formatterListener = model.onDidChangeFormatter(updateEditorModel);
+				const colorListener = model.onColorFlushed(updateEditorModel);
 
 				this._colorPicker = widget;
-				this.renderDisposable = combinedDisposable([colorListener, formatterListener, widget]);
+				this.renderDisposable = combinedDisposable([colorListener, widget]);
 			}
 		});
 

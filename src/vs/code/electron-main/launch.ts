@@ -107,7 +107,8 @@ export class LaunchService implements ILaunchService {
 				forceNewWindow: args.wait || args['new-window'],
 				preferNewWindow: !args['reuse-window'],
 				forceReuseWindow: args['reuse-window'],
-				diffMode: args.diff
+				diffMode: args.diff,
+				addMode: args.add
 			});
 		}
 

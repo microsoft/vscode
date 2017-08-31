@@ -174,7 +174,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+		if (activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -362,23 +362,18 @@ export class CommandCenter {
 		const preview = uris.length === 1 ? true : false;
 		const activeTextEditor = window.activeTextEditor;
 		for (const uri of uris) {
-			// If the active editor matches the current uri, get its selection
-			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
-				? activeTextEditor.selections
-				: undefined;
-
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
 
+			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
+				opts.selection = activeTextEditor.selection;
+			}
+
 			const document = await workspace.openTextDocument(uri);
 			await window.showTextDocument(document, opts);
-
-			if (selections && window.activeTextEditor) {
-				window.activeTextEditor.selections = selections;
-			}
 		}
 	}
 
@@ -1299,7 +1294,7 @@ export class CommandCenter {
 
 				result = repositoryPromise.then(repository => {
 					if (!repository) {
-						return Promise.reject(localize('modelnotfound', "Git model not found"));
+						return Promise.resolve();
 					}
 
 					return Promise.resolve(method.apply(this, [repository, ...args]));

@@ -24,6 +24,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/b
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 class KeybindingInputWidget extends Widget {
 
@@ -289,7 +290,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 	}
 
 	public start(): TPromise<string> {
-		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition());
+		this._editor.revealPositionInCenterIfOutsideViewport(this._editor.getPosition(), ScrollType.Smooth);
 		const layoutInfo = this._editor.getLayoutInfo();
 		this._widget.layout(new Dimension(layoutInfo.width, layoutInfo.height));
 		return this._widget.define();

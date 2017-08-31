@@ -38,7 +38,6 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
-	public get terminalFocusContextKey(): IContextKey<boolean> { return this._terminalFocusContextKey; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -64,7 +63,6 @@ export abstract class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
@@ -207,6 +205,11 @@ export abstract class TerminalService implements ITerminalService {
 			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
 		}
 	}
+
+	public abstract focusFindWidget(): TPromise<void>;
+	public abstract hideFindWidget(): void;
+	public abstract showNextFindTermFindWidget(): void;
+	public abstract showPreviousFindTermFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

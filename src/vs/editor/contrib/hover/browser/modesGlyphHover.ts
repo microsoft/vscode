@@ -61,7 +61,7 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
 			let hoverMessage = d.options.glyphMarginHoverMessage;
 
-			if (!isEmptyMarkdownString(hoverMessage)) {
+			if (isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}
 

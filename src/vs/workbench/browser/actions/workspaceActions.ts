@@ -21,7 +21,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
-import { mnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isParent } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -116,7 +116,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 		}
 
-		const folders = super.pickFolders(mnemonicLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
+		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
 		if (!folders || !folders.length) {
 			return TPromise.as(null);
 		}
@@ -146,7 +146,7 @@ class NewWorkspaceAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const folders = this.pickFolders(mnemonicLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
+		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
 		if (folders && folders.length) {
 			return this.createWorkspace([...this.presetRoots, ...folders.map(folder => URI.file(folder))]);
 		}
@@ -238,7 +238,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		}
 
 		return this.windowService.showSaveDialog({
-			buttonLabel: mnemonicLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultPath

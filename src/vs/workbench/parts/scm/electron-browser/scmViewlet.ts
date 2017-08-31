@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { ViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -235,13 +235,29 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 
 class SourceControlViewDescriptor implements IViewDescriptor {
 
+	// This ID magic needs to happen in order to preserve
+	// good splitview state when reloading the workbench
+	static idCount = 0;
+	static freeIds: string[] = [];
+
+	readonly id: string;
+
 	get repository(): ISCMRepository { return this._repository; }
-	get id(): string { return this._repository.provider.id; }
 	get name(): string { return this._repository.provider.label; }
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
-	constructor(private _repository: ISCMRepository) { }
+	constructor(private _repository: ISCMRepository) {
+		if (SourceControlViewDescriptor.freeIds.length > 0) {
+			this.id = SourceControlViewDescriptor.freeIds.shift();
+		} else {
+			this.id = `scm${SourceControlViewDescriptor.idCount++}`;
+		}
+	}
+
+	dispose(): void {
+		SourceControlViewDescriptor.freeIds.push(this.id);
+	}
 }
 
 class SourceControlView extends CollapsibleView {
@@ -255,6 +271,7 @@ class SourceControlView extends CollapsibleView {
 	private disposables: IDisposable[] = [];
 
 	constructor(
+		initialSize: number,
 		private repository: ISCMRepository,
 		options: IViewletViewOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -268,7 +285,7 @@ class SourceControlView extends CollapsibleView {
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super({ ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
+		super(initialSize, { ...(options as IViewOptions), sizing: ViewSizing.Flexible }, keybindingService, contextMenuService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 		this.menus.onDidChangeTitle(this.updateActions, this, this.disposables);
@@ -366,8 +383,10 @@ class SourceControlView extends CollapsibleView {
 		toggleClass(this.inputBoxContainer, 'scroll', editorHeight >= 134);
 	}
 
-	focusBody(): void {
-		this.inputBox.focus();
+	focus(): void {
+		if (this.isExpanded()) {
+			this.inputBox.focus();
+		}
 	}
 
 	getActions(): IAction[] {
@@ -476,8 +495,10 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
-export class SCMViewlet extends ViewsViewlet {
+export class SCMViewlet extends PersistentViewsViewlet {
 
+	private menus: SCMMenus;
+	private repositoryToViewDescriptor = new Map<string, SourceControlViewDescriptor>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -498,45 +519,57 @@ export class SCMViewlet extends ViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.SCM, true,
+		super(VIEWLET_ID, ViewLocation.SCM, 'scm', true,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+
+		this.menus = instantiationService.createInstance(SCMMenus, undefined);
+		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const view = new SourceControlViewDescriptor(repository);
-		ViewsRegistry.registerViews([view]);
+		const viewDescriptor = new SourceControlViewDescriptor(repository);
+		this.repositoryToViewDescriptor.set(repository.provider.id, viewDescriptor);
+
+		ViewsRegistry.registerViews([viewDescriptor]);
+		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
+		const viewDescriptor = this.repositoryToViewDescriptor.get(repository.provider.id);
+		this.repositoryToViewDescriptor.delete(repository.provider.id);
+		viewDescriptor.dispose();
+
 		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
+		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
 
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
 
-		parent.addClass('scm-viewlet');
+		parent.addClass('scm-viewlet', 'empty');
+		append(parent.getHTMLElement(), $('div.empty-message', null, localize('no open repo', "There are no source controls active.")));
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): IView {
+	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IView {
 		if (viewDescriptor instanceof SourceControlViewDescriptor) {
-			return this.instantiationService.createInstance(SourceControlView, viewDescriptor.repository, options);
+			return this.instantiationService.createInstance(SourceControlView, initialSize, viewDescriptor.repository, options);
 		}
 
-		return this.instantiationService.createInstance(viewDescriptor.ctor, options);
+		return this.instantiationService.createInstance(viewDescriptor.ctor, initialSize, options);
+	}
+
+	protected getDefaultViewSize(): number | undefined {
+		return this.dimension && this.dimension.height / this.views.length;
 	}
 
 	getOptimalWidth(): number {
 		return 400;
-	}
-
-	focus(): void {
-		super.focus();
 	}
 
 	getTitle(): string {
@@ -556,17 +589,23 @@ export class SCMViewlet extends ViewsViewlet {
 			return this.views[0].getActions();
 		}
 
-		return [];
+		return this.menus.getTitleActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		let result: IAction[] = [];
+		let result: IAction[];
 
 		if (this.showHeaderInTitleArea() && this.views.length === 1) {
 			result = [
 				...this.views[0].getSecondaryActions(),
 				new Separator()
 			];
+		} else {
+			result = this.menus.getTitleSecondaryActions();
+
+			if (result.length > 0) {
+				result.push(new Separator());
+			}
 		}
 
 		result.push(this.instantiationService.createInstance(InstallAdditionalSCMProvidersAction));

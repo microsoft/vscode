@@ -142,6 +142,10 @@
 	padding: 0 20px 0 20px;
 }
 
+.explorer-viewlet .explorer-item.nonexistent-root {
+	opacity: 0.5;
+}
+
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;

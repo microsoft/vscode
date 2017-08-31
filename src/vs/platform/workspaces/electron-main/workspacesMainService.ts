@@ -5,22 +5,22 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { extname, join, dirname, isAbsolute, resolve } from 'path';
-import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { readFileSync, writeFileSync } from 'fs';
+import { extname, join, dirname, isAbsolute, resolve, relative } from 'path';
+import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux } from 'vs/base/common/platform';
-import { copy, delSync, readdirSync } from 'vs/base/node/extfs';
-import { nfcall } from 'vs/base/common/async';
+import { delSync, readdirSync } from 'vs/base/node/extfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual } from 'vs/base/common/paths';
+import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
 import URI from 'vs/base/common/uri';
+import * as json from 'vs/base/common/json';
 
 // TODO@Ben migration
 export interface ILegacyStoredWorkspace {
@@ -55,50 +55,77 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this._onUntitledWorkspaceDeleted.event;
 	}
 
+	public resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
+		if (!this.isWorkspacePath(path)) {
+			return TPromise.as(null); // does not look like a valid workspace config file
+		}
+
+		return readFile(path).then(contents => this.doResolveWorkspace(path, contents.toString()));
+	}
+
 	public resolveWorkspaceSync(path: string): IResolvedWorkspace {
-		const isWorkspace = this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
-		if (!isWorkspace) {
+		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file
 		}
 
+		return this.doResolveWorkspace(path, readFileSync(path, 'utf8'));
+	}
+
+	private isWorkspacePath(path: string): boolean {
+		return this.isInsideWorkspacesHome(path) || extname(path) === `.${WORKSPACE_EXTENSION}`;
+	}
+
+	private doResolveWorkspace(path: string, contents: string): IResolvedWorkspace {
 		try {
-			const rawWorkspace = JSON.parse(readFileSync(path, 'utf8'));
-
-			const workspace = rawWorkspace as IStoredWorkspace;
-			if (!Array.isArray(workspace.folders) || workspace.folders.length === 0) {
-				this.logService.log(`${path} looks like an invalid workspace file.`);
-
-				return null; // looks like an invalid workspace file
-			}
+			const workspace = this.doParseStoredWorkspace(path, contents);
 
 			// TODO@Ben migration
-			const legacyStoredWorkspace = rawWorkspace as ILegacyStoredWorkspace;
+			const legacyStoredWorkspace = (<any>workspace) as ILegacyStoredWorkspace;
 			if (legacyStoredWorkspace.folders.some(folder => typeof folder === 'string')) {
-				(rawWorkspace as IStoredWorkspace).folders = legacyStoredWorkspace.folders.map(folder => ({ path: URI.parse(folder).fsPath }));
-				writeFileSync(path, JSON.stringify(rawWorkspace, null, '\t'));
+				workspace.folders = legacyStoredWorkspace.folders.map(folder => ({ path: URI.parse(folder).fsPath }));
+				writeFileSync(path, JSON.stringify(workspace, null, '\t'));
 			}
 
-			let absoluteFolders: IStoredWorkspaceFolder[] = [];
+			// relative paths get resolved against the workspace location
 			workspace.folders.forEach(folder => {
-				if (isAbsolute(folder.path)) {
-					absoluteFolders.push(folder);
-				} else {
-					absoluteFolders.push({
-						path: resolve(dirname(path), folder.path) // relative paths get resolved against the workspace location
-					});
+				if (!isAbsolute(folder.path)) {
+					folder.path = resolve(dirname(path), folder.path);
 				}
 			});
 
 			return {
 				id: this.getWorkspaceId(path),
 				configPath: path,
-				folders: absoluteFolders
+				folders: workspace.folders
 			};
 		} catch (error) {
-			this.logService.log(`${path} cannot be parsed as JSON file (${error}).`);
-
-			return null; // unable to read or parse as workspace file
+			this.logService.log(error.toString());
 		}
+
+		return null;
+	}
+
+	private doParseStoredWorkspace(path: string, contents: string): IStoredWorkspace {
+
+		// Parse workspace file
+		let storedWorkspace: IStoredWorkspace;
+		try {
+			storedWorkspace = json.parse(contents); // use fault tolerant parser
+		} catch (error) {
+			throw new Error(`${path} cannot be parsed as JSON file (${error}).`);
+		}
+
+		// Filter out folders which do not have a path set
+		if (Array.isArray(storedWorkspace.folders)) {
+			storedWorkspace.folders = storedWorkspace.folders.filter(folder => !!folder.path);
+		}
+
+		// Validate
+		if (!Array.isArray(storedWorkspace.folders) || storedWorkspace.folders.length === 0) {
+			throw new Error(`${path} looks like an invalid workspace file.`);
+		}
+
+		return storedWorkspace;
 	}
 
 	private isInsideWorkspacesHome(path: string): boolean {
@@ -106,26 +133,46 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	}
 
 	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier> {
-		if (!folders.length) {
-			return TPromise.wrapError(new Error('Creating a workspace requires at least one folder.'));
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+
+		return mkdirp(configParent).then(() => {
+			return writeFile(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
+		});
+	}
+
+	public createWorkspaceSync(folders: string[]): IWorkspaceIdentifier {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
+
+		if (!existsSync(this.workspacesHome)) {
+			mkdirSync(this.workspacesHome);
 		}
 
+		mkdirSync(configParent);
+
+		writeFileSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
+
+		return workspace;
+	}
+
+	private createUntitledWorkspace(folders: string[]): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = join(this.workspacesHome, randomId);
 		const untitledWorkspaceConfigPath = join(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
-		return mkdirp(untitledWorkspaceConfigFolder).then(() => {
-			const storedWorkspace: IStoredWorkspace = {
-				folders: folders.map(folder => ({
-					path: folder
-				}))
-			};
+		const storedWorkspace: IStoredWorkspace = {
+			folders: folders.map(folder => ({
+				path: folder
+			}))
+		};
 
-			return writeFile(untitledWorkspaceConfigPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => ({
+		return {
+			workspace: {
 				id: this.getWorkspaceId(untitledWorkspaceConfigPath),
 				configPath: untitledWorkspaceConfigPath
-			}));
-		});
+			},
+			configParent: untitledWorkspaceConfigFolder,
+			storedWorkspace
+		};
 	}
 
 	public getWorkspaceId(workspaceConfigPath: string): string {
@@ -140,24 +187,49 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this.isInsideWorkspacesHome(workspace.configPath);
 	}
 
-	public saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier> {
+	public saveWorkspace(workspace: IWorkspaceIdentifier, targetConfigPath: string): TPromise<IWorkspaceIdentifier> {
 
 		// Return early if target is same as source
-		if (isEqual(workspace.configPath, target, !isLinux)) {
+		if (isEqual(workspace.configPath, targetConfigPath, !isLinux)) {
 			return TPromise.as(workspace);
 		}
 
-		// Copy to new target
-		return nfcall(copy, workspace.configPath, target).then(() => {
-			const savedWorkspaceIdentifier = { id: this.getWorkspaceId(target), configPath: target };
+		// Read the contents of the workspace file and resolve it
+		return readFile(workspace.configPath).then(rawWorkspaceContents => {
+			let storedWorkspace: IStoredWorkspace;
+			try {
+				storedWorkspace = this.doParseStoredWorkspace(workspace.configPath, rawWorkspaceContents.toString());
+			} catch (error) {
+				return TPromise.wrapError(error);
+			}
 
-			// Event
-			this._onWorkspaceSaved.fire({ workspace: savedWorkspaceIdentifier, oldConfigPath: workspace.configPath });
+			const sourceConfigFolder = dirname(workspace.configPath);
+			const targetConfigFolder = dirname(targetConfigPath);
 
-			// Delete untitled workspace
-			this.deleteUntitledWorkspaceSync(workspace);
+			// Rewrite absolute paths to relative paths if the target workspace folder
+			// is a parent of the location of the workspace file itself. Otherwise keep
+			// using absolute paths.
+			storedWorkspace.folders.forEach(folder => {
+				if (!isAbsolute(folder.path)) {
+					folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
+				}
 
-			return savedWorkspaceIdentifier;
+				if (isEqualOrParent(folder.path, targetConfigFolder, !isLinux)) {
+					folder.path = relative(targetConfigFolder, folder.path) || '.'; // absolute paths get converted to relative ones to workspace location if possible
+				}
+			});
+
+			return writeFile(targetConfigPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => {
+				const savedWorkspaceIdentifier = { id: this.getWorkspaceId(targetConfigPath), configPath: targetConfigPath };
+
+				// Event
+				this._onWorkspaceSaved.fire({ workspace: savedWorkspaceIdentifier, oldConfigPath: workspace.configPath });
+
+				// Delete untitled workspace
+				this.deleteUntitledWorkspaceSync(workspace);
+
+				return savedWorkspaceIdentifier;
+			});
 		});
 	}
 
