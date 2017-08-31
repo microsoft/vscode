@@ -163,6 +163,10 @@ export interface INewScrollDimensions {
 export interface IScrollPosition {
 	readonly scrollLeft: number;
 	readonly scrollTop: number;
+}
+export interface ISmoothScrollPosition {
+	readonly scrollLeft: number;
+	readonly scrollTop: number;
 
 	readonly width: number;
 	readonly height: number;
@@ -365,8 +369,8 @@ function createComposed(a: IAnimation, b: IAnimation, cut: number): IAnimation {
 
 export class SmoothScrollingOperation {
 
-	public readonly from: IScrollPosition;
-	public to: IScrollPosition;
+	public readonly from: ISmoothScrollPosition;
+	public to: ISmoothScrollPosition;
 	public readonly duration: number;
 	private readonly _startTime: number;
 	public animationFrameDisposable: IDisposable;
@@ -374,7 +378,7 @@ export class SmoothScrollingOperation {
 	private scrollLeft: IAnimation;
 	private scrollTop: IAnimation;
 
-	protected constructor(from: IScrollPosition, to: IScrollPosition, startTime: number, duration: number) {
+	protected constructor(from: ISmoothScrollPosition, to: ISmoothScrollPosition, startTime: number, duration: number) {
 		this.from = from;
 		this.to = to;
 		this.duration = duration;
@@ -435,11 +439,11 @@ export class SmoothScrollingOperation {
 		return new SmoothScrollingUpdate(this.to.scrollLeft, this.to.scrollTop, true);
 	}
 
-	public combine(from: IScrollPosition, to: IScrollPosition, duration: number): SmoothScrollingOperation {
+	public combine(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
 		return SmoothScrollingOperation.start(from, to, duration);
 	}
 
-	public static start(from: IScrollPosition, to: IScrollPosition, duration: number): SmoothScrollingOperation {
+	public static start(from: ISmoothScrollPosition, to: ISmoothScrollPosition, duration: number): SmoothScrollingOperation {
 		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
 		duration = duration + 10;
 		const startTime = Date.now() - 10;
