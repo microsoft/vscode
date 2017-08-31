@@ -2,60 +2,6 @@
   "name": "azure-account",
   "version": "0.1.0",
   "dependencies": {
-    "@types/copy-paste": {
-      "version": "1.1.30",
-      "from": "@types/copy-paste@>=1.1.30 <2.0.0",
-      "resolved": "https://registry.npmjs.org/@types/copy-paste/-/copy-paste-1.1.30.tgz",
-      "dev": true
-    },
-    "@types/form-data": {
-      "version": "2.2.0",
-      "from": "@types/form-data@*",
-      "resolved": "https://registry.npmjs.org/@types/form-data/-/form-data-2.2.0.tgz",
-      "dependencies": {
-        "@types/node": {
-          "version": "8.0.24",
-          "from": "@types/node@*",
-          "resolved": "https://registry.npmjs.org/@types/node/-/node-8.0.24.tgz"
-        }
-      }
-    },
-    "@types/node": {
-      "version": "6.0.87",
-      "from": "@types/node@>=6.0.40 <7.0.0",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.87.tgz",
-      "dev": true
-    },
-    "@types/opn": {
-      "version": "3.0.28",
-      "from": "@types/opn@>=3.0.28 <4.0.0",
-      "resolved": "https://registry.npmjs.org/@types/opn/-/opn-3.0.28.tgz",
-      "dev": true
-    },
-    "@types/request": {
-      "version": "0.0.45",
-      "from": "@types/request@>=0.0.45 <0.0.46",
-      "resolved": "https://registry.npmjs.org/@types/request/-/request-0.0.45.tgz",
-      "dependencies": {
-        "@types/node": {
-          "version": "8.0.24",
-          "from": "@types/node@*",
-          "resolved": "https://registry.npmjs.org/@types/node/-/node-8.0.24.tgz"
-        }
-      }
-    },
-    "@types/uuid": {
-      "version": "2.0.30",
-      "from": "@types/uuid@>=2.0.29 <3.0.0",
-      "resolved": "https://registry.npmjs.org/@types/uuid/-/uuid-2.0.30.tgz",
-      "dependencies": {
-        "@types/node": {
-          "version": "8.0.24",
-          "from": "@types/node@*",
-          "resolved": "https://registry.npmjs.org/@types/node/-/node-8.0.24.tgz"
-        }
-      }
-    },
     "adal-node": {
       "version": "0.1.22",
       "from": "adal-node@>=0.1.22 <0.2.0",
