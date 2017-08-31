@@ -53,3 +53,6 @@ endif
 # Handle braces inside the variable
 SIMPLE := $(info ()()(()))
 CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
+
+N := $(strip ) $ $() 123 () # Braces are meaningful and not highlighted. Result: "123 ()"
+$(info Show the $$N variable inside $$(info Show...): $(strip $N), $(strip $(N)))
