@@ -50,9 +50,21 @@ ifeq ($(strip $(call defined,CODIT_DIR)),0)
   endif
 endif
 
+ifeq (0,1)
+  # Never pass inside
+  $(corrupted
+     variable
+       is not highlighted)
+  $(backslash allows \
+     to highlight \
+       the variable)
+  $(info The same is \
+           for functions)
+endif
+
 # Handle braces inside the variable
 SIMPLE := $(info ()()(()))
 CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
 
-N := $(strip ) $ $() 123 () # Braces are meaningful and not highlighted. Result: "123 ()"
+N := $(strip ) $ $() 123 () # Result: "123 ()". Braces at the end are not highlighted.
 $(info Show the $$N variable inside $$(info Show...): $(strip $N), $(strip $(N)))
