@@ -470,27 +470,27 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
 
 		let localMaxLineWidth = 1;
-		let result = true;
+		let allWidthsComputed = true;
 		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
 			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
 
 			if (fast && !visibleLine.getWidthIsFast()) {
 				// Cannot compute width in a fast way for this line
-				result = false;
+				allWidthsComputed = false;
 				continue;
 			}
 
 			localMaxLineWidth = Math.max(localMaxLineWidth, visibleLine.getWidth());
 		}
 
-		if (rendStartLineNumber === 1 && rendEndLineNumber === this._context.model.getLineCount()) {
+		if (allWidthsComputed && rendStartLineNumber === 1 && rendEndLineNumber === this._context.model.getLineCount()) {
 			// we know the max line width for all the lines
 			this._maxLineWidth = 0;
 		}
 
 		this._ensureMaxLineWidth(localMaxLineWidth);
 
-		return result;
+		return allWidthsComputed;
 	}
 
 	public prepareRender(): void {
