@@ -329,7 +329,20 @@ export class FormatString extends Marker {
 	}
 
 	toTextmateString(): string {
-		return '';
+		let value = '${';
+		value += this.index;
+		if (this.shorthandName) {
+			value += `:/${this.shorthandName}`;
+
+		} else if (this.ifValue && this.elseValue) {
+			value += `:?${this.ifValue}:${this.elseValue}`;
+		} else if (this.ifValue) {
+			value += `:+${this.ifValue}`;
+		} else if (this.elseValue) {
+			value += `:-${this.elseValue}`;
+		}
+		value += '}';
+		return value;
 	}
 
 	clone(): FormatString {
