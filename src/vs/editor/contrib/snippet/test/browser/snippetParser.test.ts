@@ -51,7 +51,7 @@ suite('SnippetParser', () => {
 		scanner.text('$foo-bar');
 		assert.equal(scanner.next().type, TokenType.Dollar);
 		assert.equal(scanner.next().type, TokenType.VariableName);
-		assert.equal(scanner.next().type, TokenType.Format);
+		assert.equal(scanner.next().type, TokenType.Dash);
 		assert.equal(scanner.next().type, TokenType.VariableName);
 		assert.equal(scanner.next().type, TokenType.EOF);
 
@@ -220,12 +220,25 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${foo/([A-Z][a-z])/format/funky}', '${foo/([A-Z][a-z])/format/funky}', Text);
 		assertTextAndMarker('${foo/([A-Z][a-z]/format/}', '${foo/([A-Z][a-z]/format/}', Text);
 
+		// tricky regex
+		// assertTextAndMarker('${foo/m\\/atch/format/}', '', Variable);
+
 		// incomplete
 		assertTextAndMarker('${foo///', '${foo///', Text);
 		assertTextAndMarker('${foo/regex/format/options', '${foo/regex/format/options', Text);
 
+		// format string
+		assertMarker('${foo/.*/${0:fooo}/i}', Variable);
+		assertMarker('${foo/.*/${1}/i}', Variable);
+		assertMarker('${foo/.*/$1/i}', Variable);
+		assertMarker('${foo/.*/This-$1-encloses/i}', Variable);
+		assertMarker('${foo/.*/complex${1:else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:-else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:+if}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:?if:else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:/upcase}/i}', Variable);
+
 		// assertMarker('${foo/regex\/format/options}', Text);
-		// assertMarker('${foo/.*/${0:fooo}/options}', Variable);
 	});
 
 	test('Parser, placeholder with choice', () => {

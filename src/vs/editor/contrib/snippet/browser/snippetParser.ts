@@ -19,6 +19,9 @@ export enum TokenType {
 	Int,
 	VariableName,
 	Format,
+	Plus,
+	Dash,
+	QuestionMark,
 	EOF
 }
 
@@ -40,6 +43,9 @@ export class Scanner {
 		[CharCode.Backslash]: TokenType.Backslash,
 		[CharCode.Slash]: TokenType.Forwardslash,
 		[CharCode.Pipe]: TokenType.Pipe,
+		[CharCode.Plus]: TokenType.Plus,
+		[CharCode.Dash]: TokenType.Dash,
+		[CharCode.QuestionMark]: TokenType.QuestionMark,
 	};
 
 	static isDigitCharacter(ch: number): boolean {
@@ -293,19 +299,43 @@ export class Choice extends Marker {
 export class Transform extends Marker {
 
 	regexp: RegExp;
-	format: string;
+
+	toString(): string {
+		return '';
+	}
 
 	toTextmateString(): string {
-		return `/${Text.escape(this.regexp.source)}/${Text.escape(this.format)}/${this.regexp.ignoreCase ? 'i' : ''}`;
+		return `/${Text.escape(this.regexp.source)}/${this.children.map(c => c.toTextmateString())}/${this.regexp.ignoreCase ? 'i' : ''}`;
 	}
 
 	clone(): Transform {
 		let ret = new Transform();
 		ret.regexp = new RegExp(this.regexp.source, this.regexp.ignoreCase ? 'i' : '');
-		ret.format = this.format;
+		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
 
+}
+
+export class FormatString extends Marker {
+
+	constructor(
+		readonly index: number,
+		readonly shorthandName?: string,
+		readonly ifValue?: string,
+		readonly elseValue?: string,
+	) {
+		super();
+	}
+
+	toTextmateString(): string {
+		return '';
+	}
+
+	clone(): FormatString {
+		let ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
+		return ret;
+	}
 }
 
 export class Variable extends Marker {
@@ -316,10 +346,10 @@ export class Variable extends Marker {
 
 	resolve(resolver: VariableResolver): boolean {
 		let value = resolver.resolve(this);
-		let [firstChild] = this._children;
-		if (firstChild instanceof Transform && this._children.length === 1) {
-			value = (value || '').replace(firstChild.regexp, firstChild.format);
-		}
+		// let [firstChild] = this._children;
+		// if (firstChild instanceof Transform && this._children.length === 1) {
+		// 	value = (value || '').replace(firstChild.regexp, firstChild.format);
+		// }
 		if (value !== undefined) {
 			this._children = [new Text(value)];
 			return true;
@@ -538,6 +568,19 @@ export class SnippetParser {
 		return false;
 	}
 
+	private _until(type: TokenType): false | string {
+		if (this._token.type === TokenType.EOF) {
+			return false;
+		}
+		let start = this._token;
+		while (this._token.type !== type) {
+			this._token = this._scanner.next();
+		}
+		let value = this._scanner.value.substring(start.pos, this._token.pos + this._token.len);
+		this._token = this._scanner.next();
+		return value;
+	}
+
 	private _parse(marker: Marker): boolean {
 		return this._parseEscaped(marker)
 			|| this._parseTabstopOrVariableName(marker)
@@ -738,33 +781,147 @@ export class SnippetParser {
 	}
 
 	private _parseTransform(parent: Variable): boolean {
-		let marker = new Transform();
-		let parts: string[] = [''];
-		while (this._token.type !== TokenType.EOF && this._token.type !== TokenType.CurlyClose) {
+		// ...<regex>/<format>/<options>}
+
+		let regexValue = '';
+		let regexOptions = '';
+
+		let transform = new Transform();
+		// let parts: string[] = [''];
+
+		// (1) /regex
+		while (true) {
 			if (this._accept(TokenType.Forwardslash)) {
-				// move to next part
-				parts.unshift('');
-			} else {
-				// append things to current part
-				parts[0] += this._scanner.tokenText(this._token);
-				this._accept(undefined);
+				break;
 			}
+			// if (this._token.type === TokenType.Backslash) {
+			// 	this._accept(undefined);
+			// 	if (this._token.type === TokenType.Forwardslash) {
+
+			// 	}
+			// }
+			if (this._token.type !== TokenType.EOF) {
+				regexValue += this._accept(undefined, true);
+				continue;
+			}
+			return false;
 		}
 
-		if (this._accept(TokenType.CurlyClose) && parts.length === 3) {
-
-			try {
-				marker.regexp = new RegExp(parts[2], parts[0]);
-			} catch (e) {
-				// invalid regexp
-				return false;
+		// (2) /format
+		while (true) {
+			if (this._accept(TokenType.Forwardslash)) {
+				break;
 			}
+			if (this._parseFormatString(transform) || this._parseAnything(transform)) {
+				continue;
+			}
+			return false;
+		}
 
-			marker.format = parts[1];
-			parent.appendChild(marker);
+		// (3) /option
+		while (true) {
+			if (this._accept(TokenType.CurlyClose)) {
+				break;
+			}
+			if (this._token.type !== TokenType.EOF) {
+				regexOptions += this._accept(undefined, true);
+				continue;
+			}
+			return false;
+		}
+
+		try {
+			transform.regexp = new RegExp(regexValue, regexOptions);
+		} catch (e) {
+			// invalid regexp
+			return false;
+		}
+
+		parent.appendChild(transform);
+		return true;
+	}
+
+	private _parseFormatString(parent: Transform): boolean {
+
+		const token = this._token;
+		if (!this._accept(TokenType.Dollar)) {
+			return false;
+		}
+
+		let complex = false;
+		if (this._accept(TokenType.CurlyOpen)) {
+			complex = true;
+		}
+
+		let index = this._accept(TokenType.Int, true);
+
+		if (!index) {
+			this._backTo(token);
+			return false;
+
+		} else if (!complex) {
+			// $1
+			parent.appendChild(new FormatString(Number(index)));
 			return true;
+
+		} else if (this._accept(TokenType.CurlyClose)) {
+			// ${1}
+			parent.appendChild(new FormatString(Number(index)));
+			return true;
+
+		} else if (!this._accept(TokenType.Colon)) {
+			this._backTo(token);
+			return false;
 		}
 
+		if (this._accept(TokenType.Forwardslash)) {
+			// ${1:/upcase}
+			let shorthand = this._accept(TokenType.VariableName, true);
+			if (!shorthand) {
+				this._backTo(token);
+				return false;
+			} else {
+				parent.appendChild(new FormatString(Number(index), shorthand));
+				return true;
+			}
+
+		} else if (this._accept(TokenType.Plus)) {
+			// ${1:+<if>}
+			let ifValue = this._until(TokenType.CurlyClose);
+			if (ifValue) {
+				parent.appendChild(new FormatString(Number(index), undefined, undefined, ifValue));
+				return true;
+			}
+
+		} else if (this._accept(TokenType.Dash)) {
+			// ${2:-<else>}
+			let elseValue = this._until(TokenType.CurlyClose);
+			if (elseValue) {
+				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
+				return true;
+			}
+
+		} else if (this._accept(TokenType.QuestionMark)) {
+			// ${2:?<if>:<else>}
+			let ifValue = this._until(TokenType.Colon);
+			if (ifValue) {
+				let elseValue = this._until(TokenType.CurlyClose);
+				if (elseValue) {
+					parent.appendChild(new FormatString(Number(index), undefined, ifValue, elseValue));
+					return true;
+				}
+			}
+
+		} else {
+			// ${1:<else>}
+			let elseValue = this._until(TokenType.CurlyClose);
+			if (elseValue) {
+				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
+				return true;
+			}
+		}
+
+		this._backTo(token);
 		return false;
 	}
 
