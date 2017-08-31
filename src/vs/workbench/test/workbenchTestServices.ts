@@ -631,9 +631,19 @@ export class TestFileService implements IFileService {
 	private _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
+	private content = 'Hello Html';
+
 	constructor() {
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
+	}
+
+	public setContent(content: string): void {
+		this.content = content;
+	}
+
+	public getContent(): string {
+		return this.content;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -675,7 +685,7 @@ export class TestFileService implements IFileService {
 	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
 		return TPromise.as({
 			resource: resource,
-			value: 'Hello Html',
+			value: this.content,
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),
@@ -689,7 +699,7 @@ export class TestFileService implements IFileService {
 			value: {
 				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
-						callback('Hello Html');
+						callback(this.content);
 					}
 					if (event === 'end') {
 						callback();
