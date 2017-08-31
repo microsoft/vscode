@@ -198,7 +198,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
 		const query = this.queryBuilder.file(folderResources, options);
-		this.searchService.extendQuery(query);
 
 		return query;
 	}
