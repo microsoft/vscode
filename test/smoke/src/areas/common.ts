@@ -31,7 +31,6 @@ export class CommonActions {
 		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
 		await this.saveOpenedFile();
-
 	}
 
 	public async openUserSettings(): Promise<void> {

@@ -52,6 +52,7 @@ export class SpectronApplication {
 
 		this.spectron = new Application({
 			path: electronPath,
+			// args: ['/Users/sandy081/work/vscode', ...args],
 			args: args,
 			chromeDriverArgs: chromeDriverArgs,
 			startTimeout: 10000,
@@ -167,5 +168,24 @@ export class SpectronApplication {
 			default:
 				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
 		};
+	}
+
+	public type(text: string): Promise<any> {
+		return new Promise((res) => {
+			let textSplit = text.split(' ');
+
+			const type = async (i: number) => {
+				if (!textSplit[i] || textSplit[i].length <= 0) {
+					return res();
+				}
+
+				const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
+				await this.client.keys(toType, false);
+				await this.client.keys(['NULL']);
+				await type(i + 1);
+			};
+
+			return type(0);
+		});
 	}
 }
