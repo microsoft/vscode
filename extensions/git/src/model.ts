@@ -76,9 +76,9 @@ export class Model {
 			const root = folder.uri.fsPath;
 			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
 
-			for (const child of children) {
-				this.tryOpenRepository(path.join(root, child));
-			}
+			children
+				.filter(child => child !== '.git')
+				.forEach(child => this.tryOpenRepository(path.join(root, child)));
 		}
 	}
 
@@ -156,7 +156,7 @@ export class Model {
 				return;
 			}
 
-			console.error('Failed to find repository:', err);
+			// console.error('Failed to find repository:', err);
 		}
 	}
 
