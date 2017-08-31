@@ -163,6 +163,9 @@ export interface INewScrollDimensions {
 export interface IScrollPosition {
 	readonly scrollLeft: number;
 	readonly scrollTop: number;
+
+	readonly width: number;
+	readonly height: number;
 }
 export interface INewScrollPosition {
 	scrollLeft?: number;
@@ -326,7 +329,7 @@ export class Scrollable extends Disposable {
 	}
 }
 
-class SmoothScrollingUpdate implements IScrollPosition {
+export class SmoothScrollingUpdate {
 
 	public readonly scrollLeft: number;
 	public readonly scrollTop: number;
@@ -340,7 +343,27 @@ class SmoothScrollingUpdate implements IScrollPosition {
 
 }
 
-class SmoothScrollingOperation {
+export interface IAnimation {
+	(completion: number): number;
+}
+
+function createEaseOutCubic(from: number, to: number): IAnimation {
+	const delta = to - from;
+	return function (completion: number): number {
+		return from + delta * easeOutCubic(completion);
+	};
+}
+
+function createComposed(a: IAnimation, b: IAnimation, cut: number): IAnimation {
+	return function (completion: number): number {
+		if (completion < cut) {
+			return a(completion / cut);
+		}
+		return b((completion - cut) / (1 - cut));
+	};
+}
+
+export class SmoothScrollingOperation {
 
 	public readonly from: IScrollPosition;
 	public to: IScrollPosition;
@@ -348,15 +371,40 @@ class SmoothScrollingOperation {
 	private readonly _startTime: number;
 	public animationFrameDisposable: IDisposable;
 
-	private constructor(from: IScrollPosition, to: IScrollPosition, duration: number) {
+	private scrollLeft: IAnimation;
+	private scrollTop: IAnimation;
+
+	protected constructor(from: IScrollPosition, to: IScrollPosition, startTime: number, duration: number) {
 		this.from = from;
 		this.to = to;
-
-		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
-		this.duration = duration + 10;
-		this._startTime = Date.now() - 10;
+		this.duration = duration;
+		this._startTime = startTime;
 
 		this.animationFrameDisposable = null;
+
+		this._initAnimations();
+	}
+
+	private _initAnimations(): void {
+		this.scrollLeft = this._initAnimation(this.from.scrollLeft, this.to.scrollLeft, this.to.width);
+		this.scrollTop = this._initAnimation(this.from.scrollTop, this.to.scrollTop, this.to.height);
+	}
+
+	private _initAnimation(from: number, to: number, viewportSize: number): IAnimation {
+		const delta = Math.abs(from - to);
+		if (delta > 2.5 * viewportSize) {
+			let stop1: number, stop2: number;
+			if (from < to) {
+				// scroll to 75% of the viewportSize
+				stop1 = from + 0.75 * viewportSize;
+				stop2 = to - 0.75 * viewportSize;
+			} else {
+				stop1 = from - 0.75 * viewportSize;
+				stop2 = to + 0.75 * viewportSize;
+			}
+			return createComposed(createEaseOutCubic(from, stop1), createEaseOutCubic(stop2, to), 0.33);
+		}
+		return createEaseOutCubic(from, to);
 	}
 
 	public dispose(): void {
@@ -368,15 +416,19 @@ class SmoothScrollingOperation {
 
 	public acceptScrollDimensions(state: ScrollState): void {
 		this.to = state.withScrollPosition(this.to);
+		this._initAnimations();
 	}
 
 	public tick(): SmoothScrollingUpdate {
-		const completion = (Date.now() - this._startTime) / this.duration;
+		return this._tick(Date.now());
+	}
+
+	protected _tick(now: number): SmoothScrollingUpdate {
+		const completion = (now - this._startTime) / this.duration;
 
 		if (completion < 1) {
-			const t = easeOutCubic(completion);
-			const newScrollLeft = this.from.scrollLeft + (this.to.scrollLeft - this.from.scrollLeft) * t;
-			const newScrollTop = this.from.scrollTop + (this.to.scrollTop - this.from.scrollTop) * t;
+			const newScrollLeft = this.scrollLeft(completion);
+			const newScrollTop = this.scrollTop(completion);
 			return new SmoothScrollingUpdate(newScrollLeft, newScrollTop, false);
 		}
 
@@ -388,14 +440,18 @@ class SmoothScrollingOperation {
 	}
 
 	public static start(from: IScrollPosition, to: IScrollPosition, duration: number): SmoothScrollingOperation {
-		return new SmoothScrollingOperation(from, to, duration);
+		// +10 / -10 : pretend the animation already started for a quicker response to a scroll request
+		duration = duration + 10;
+		const startTime = Date.now() - 10;
+
+		return new SmoothScrollingOperation(from, to, startTime, duration);
 	}
 }
 
-function easeInCubic(t) {
+function easeInCubic(t: number) {
 	return Math.pow(t, 3);
 }
 
-function easeOutCubic(t) {
+function easeOutCubic(t: number) {
 	return 1 - easeInCubic(1 - t);
 }
