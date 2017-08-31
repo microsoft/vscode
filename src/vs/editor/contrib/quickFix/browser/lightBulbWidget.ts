@@ -14,8 +14,7 @@ import { QuickFixComputeEvent } from './quickFixModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
-	private static _prefOnLine = [ContentWidgetPositionPreference.EXACT];
-	private static _prefAroundLine = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
+	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLDivElement;
 	private readonly _editor: ICodeEditor;
@@ -33,16 +32,22 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		this._editor.addContentWidget(this);
 
 		this._domNode = document.createElement('div');
-		dom.addClass(this._domNode, 'lightbulb-glyph');
+		this._domNode.className = 'lightbulb-glyph';
 
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
-			const { top, height } = dom.getDomNodePagePosition(<HTMLDivElement>e.target);
+			const { top, height } = dom.getDomNodePagePosition(this._domNode);
 			const { lineHeight } = this._editor.getConfiguration();
+
+			let pad = Math.floor(lineHeight / 3);
+			if (this._position.position.lineNumber < this._model.position.lineNumber) {
+				pad += lineHeight;
+			}
+
 			this._onClick.fire({
 				x: e.posx,
-				y: top + height + Math.floor(lineHeight / 3)
+				y: top + height + pad
 			});
 		}));
 
@@ -106,11 +111,20 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { lineNumber } = e.position;
 		const model = this._editor.getModel();
 		const indent = model.getIndentLevel(lineNumber);
-		const lineHasSpace = fontInfo.spaceWidth * indent > 28;
+		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
+
+		let effectiveLineNumber = lineNumber;
+		if (!lineHasSpace) {
+			if (lineNumber > 1) {
+				effectiveLineNumber -= 1;
+			} else {
+				effectiveLineNumber += 1;
+			}
+		}
 
 		this._position = {
-			position: { lineNumber, column: 1 },
-			preference: lineHasSpace ? LightBulbWidget._prefOnLine : LightBulbWidget._prefAroundLine
+			position: { lineNumber: effectiveLineNumber, column: 1 },
+			preference: LightBulbWidget._posPref
 		};
 
 		this._editor.layoutContentWidget(this);
