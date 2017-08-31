@@ -679,6 +679,13 @@ export class DebugService implements debug.IDebugService {
 					}
 					// end of deprecation
 
+					if (!config && commandAndType.type) {
+						config = {
+							type: commandAndType.type,
+							request: 'launch'
+						};
+					}
+
 					if (config) {
 						return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, config).then(config => {
 
