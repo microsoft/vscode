@@ -177,16 +177,6 @@ export class Model {
 		this._onDidOpenRepository.fire(repository);
 	}
 
-	close(repository: Repository): void {
-		const openRepository = this.getOpenRepository(repository);
-
-		if (!openRepository) {
-			return;
-		}
-
-		openRepository.dispose();
-	}
-
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(localize('no repositories', "There are no available repositories"));
