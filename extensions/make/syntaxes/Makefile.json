@@ -419,16 +419,11 @@
 		"variables": {
 			"patterns": [
 				{
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.variable.makefile"
-						}
-					},
-					"match": "(\\$?\\$)[@%<?^+*]",
+					"match": "\\$[^\\(\\)]",
 					"name": "variable.language.makefile"
 				},
 				{
-					"begin": "\\$?\\$\\(",
+					"begin": "(\\$|(?<=\\$))\\(",
 					"captures": {
 						"0": {
 							"name": "punctuation.definition.variable.makefile"
