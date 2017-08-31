@@ -146,6 +146,10 @@ export class StartAction extends AbstractDebugAction {
 		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
 			return false;
 		}
+		const compound = launch && launch.getCompound(selectedName);
+		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+			return false;
+		}
 
 		return true;
 	}
