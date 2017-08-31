@@ -280,7 +280,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
@@ -296,11 +296,15 @@ class QuickFixAdapter {
 			}
 		});
 
-		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
-			if (!Array.isArray(commands)) {
+		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(actions => {
+			if (!Array.isArray(actions)) {
 				return undefined;
 			}
-			return commands.map(command => this._commands.toInternal(command));
+			return actions.map(action => {
+				const a: modes.CodeAction = this._commands.toInternal(action as vscode.Command);
+				a.dontTriggerLightBulb = action.dontTriggerLightBulb;
+				return a;
+			});
 		});
 	}
 }
@@ -921,7 +925,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> {
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 

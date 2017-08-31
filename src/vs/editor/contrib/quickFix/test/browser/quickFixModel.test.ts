@@ -12,7 +12,7 @@ import { Model } from 'vs/editor/common/model/model';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
-import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, LanguageIdentifier, CodeAction } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
@@ -249,5 +249,4 @@ suite('QuickFix', () => {
 
 		reg.dispose();
 	});
-
 });

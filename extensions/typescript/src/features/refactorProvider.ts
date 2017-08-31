@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection, Position } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, workspace, WorkspaceEdit, window, QuickPickItem, Selection, Position, CodeAction } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -56,20 +56,22 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 				return [];
 			}
 
-			const actions: Command[] = [];
+			const actions: CodeAction[] = [];
 			for (const info of response.body) {
 				if (info.inlineable === false) {
 					actions.push({
 						title: info.description,
 						command: this.selectRefactorCommandId,
-						arguments: [file, info, range]
+						arguments: [file, info, range],
+						dontTriggerLightBulb: true
 					});
 				} else {
 					for (const action of info.actions) {
 						actions.push({
 							title: action.description,
 							command: this.doRefactorCommandId,
-							arguments: [file, info.name, action.name, range]
+							arguments: [file, info.name, action.name, range],
+							dontTriggerLightBulb: true
 						});
 					}
 				}

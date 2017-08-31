@@ -4070,7 +4070,7 @@ declare module monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): Command[] | Thenable<Command[]>;
+		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 	}
 
 	/**
@@ -4862,6 +4862,10 @@ declare module monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CodeAction extends Command {
+		dontTriggerLightBulb?: boolean;
 	}
 
 	export interface ICodeLensSymbol {
