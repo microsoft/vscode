@@ -35,6 +35,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -93,7 +94,7 @@ export class TextDiffEditor extends BaseTextEditor {
 					else if (input.matches(activeDiffInput.originalInput)) {
 						const originalEditor = this.getControl().getOriginalEditor();
 						if (options instanceof TextEditorOptions) {
-							(<TextEditorOptions>options).apply(originalEditor);
+							(<TextEditorOptions>options).apply(originalEditor, ScrollType.Smooth);
 
 							return TPromise.as(this);
 						}
@@ -123,7 +124,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(<IDiffEditor>this.getControl());
+				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
 			}
 
 			return TPromise.as<void>(null);
@@ -154,7 +155,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			// Handle TextOptions
 			let alwaysRevealFirst = true;
 			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
+				const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
 				if (hadOptions) {
 					alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
 				}

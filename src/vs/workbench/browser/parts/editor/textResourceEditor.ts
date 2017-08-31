@@ -67,7 +67,7 @@ export class TextResourceEditor extends BaseTextEditor {
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(this.getControl());
+				textOptions.apply(this.getControl(), ScrollType.Smooth);
 			}
 
 			return TPromise.as<void>(null);
@@ -98,7 +98,7 @@ export class TextResourceEditor extends BaseTextEditor {
 			let optionsGotApplied = false;
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
-				optionsGotApplied = textOptions.apply(textEditor);
+				optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
 			}
 
 			// Otherwise restore View State
