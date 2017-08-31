@@ -65,7 +65,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		// Directory Actions
-		if (stat.isDirectory) {
+		if (stat.isDirectory && stat.exists) {
 
 			// New File
 			actions.push(this.instantiationService.createInstance(NewFileAction, tree, <FileStat>stat));
