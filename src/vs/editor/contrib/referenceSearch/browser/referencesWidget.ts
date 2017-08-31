@@ -834,10 +834,11 @@ export class ReferenceWidget extends PeekViewWidget {
 			const model = ref.object;
 			if (model) {
 				this._previewModelReference = ref;
+				let isSameModel = (this._preview.getModel() === model.textEditorModel);
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
-				this._preview.revealRangeInCenter(sel, editorCommon.ScrollType.Smooth);
+				this._preview.revealRangeInCenter(sel, isSameModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate);
 			} else {
 				this._preview.setModel(this._previewNotAvailableMessage);
 				ref.dispose();
