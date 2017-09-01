@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const https = require('https');
-const program = require('commander');
-const git = require('simple-git')();
-const child_process = require('child_process');
-const path = require('path');
-const mkdirp = require('mkdirp');
+import * as fs from 'fs';
+import * as https from 'https';
+import * as program from 'commander';
+import * as simplegit from 'simple-git';
+import * as cp from 'child_process';
+import * as path from 'path';
+import * as mkdirp from 'mkdirp';
+
+const git = simplegit();
 
 const testDataPath = path.join(process.cwd(), 'test_data');
 const codeWorkspacePath = path.join(testDataPath, 'smoketest.code-workspace');
@@ -33,12 +35,13 @@ program.on('--help', () => {
 	console.log('    $ npm test -- -l path/to/latest/binary -s path/to/stable/binary');
 	console.log('');
 });
+
 program.parse(process.argv);
 
 if (!program.latest) {
 	fail('You must specify the binary to run the smoke test against');
 }
-if (!binaryExists(program.latest) || (program.stable && !binaryExists(program.stable))) {
+if (!fs.existsSync(program.latest) || (program.stable && !fs.existsSync(program.stable))) {
 	fail('The file path to electron binary does not exist or permissions do not allow to execute it. Please check the path provided.');
 }
 if (parseInt(process.version.substr(1)) < 6) {
@@ -81,7 +84,7 @@ async function main(): Promise<void> {
 
 	await createWorkspaceFile(codeWorkspacePath, workspace);
 	await cleanOrClone(testRepoUrl, testRepoLocalDir);
-	await execute('npm install', testRepoLocalDir);
+	cp.execSync('npm install', { cwd: testRepoLocalDir });
 	await runTests();
 }
 
@@ -100,7 +103,7 @@ function toUri(path: string): string {
 
 function runTests(): void {
 	console.log('Running tests...');
-	var proc = child_process.spawn(process.execPath, [
+	var proc = cp.spawn(process.execPath, [
 		'out/mocha-runner.js'
 	]);
 	proc.stdout.on('data', data => {
@@ -122,7 +125,7 @@ function runTests(): void {
 async function cleanOrClone(repo: string, dir: string): Promise<any> {
 	console.log('Cleaning or cloning test project repository...');
 
-	if (!folderExists(dir)) {
+	if (!fs.existsSync(dir)) {
 		await gitClone(repo, dir);
 	} else {
 		git.cwd(dir);
@@ -146,22 +149,6 @@ async function gitResetAndClean(): Promise<any> {
 	console.log('Test project was successfully reset to initial state.');
 }
 
-function execute(cmd: string, dir: string): Promise<any> {
-	return new Promise((res, rej) => {
-		console.log(`Running ${cmd}...`);
-		child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
-			if (error) {
-				rej(error);
-			}
-			if (stderr) {
-				console.error(stderr);
-			}
-			console.log(stdout);
-			res();
-		});
-	});
-}
-
 function getKeybindings(url: string, location: string): Promise<any> {
 	console.log(`Fetching keybindings from ${url}...`);
 	return new Promise((resolve, reject) => {
@@ -171,7 +158,7 @@ function getKeybindings(url: string, location: string): Promise<any> {
 			}
 
 			var buffer: Buffer[] = [];
-			res.on('data', (chunk) => buffer.push(chunk));
+			res.on('data', (chunk: Buffer) => buffer.push(chunk));
 			res.on('end', () => {
 				fs.writeFile(location, Buffer.concat(buffer), 'utf8', () => {
 					console.log('Keybindings were successfully fetched.');
@@ -201,22 +188,4 @@ function createWorkspaceFile(path: string, workspace: any): Promise<any> {
 			});
 		});
 	});
-}
-
-function folderExists(folder: string): boolean {
-	try {
-		fs.accessSync(folder, 'rw');
-		return true;
-	} catch (e) {
-		return false;
-	}
-}
-
-function binaryExists(filePath: string): boolean {
-	try {
-		fs.accessSync(filePath, 'x');
-		return true;
-	} catch (e) {
-		return false;
-	}
 }
