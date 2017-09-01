@@ -3971,6 +3971,13 @@ declare module 'vscode' {
 		export let appName: string;
 
 		/**
+		 * The application root folder from which the editor is running.
+		 *
+		 * @readonly
+		 */
+		export let appRoot: string;
+
+		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
 		 *
 		 * @readonly
