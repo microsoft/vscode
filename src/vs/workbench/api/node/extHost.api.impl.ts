@@ -120,7 +120,7 @@ export function createApiFactory(
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
-		if (extension.enableProposedApi && !extension.isBuiltin) {
+		if (extension.enableProposedApi && !extension.isBuiltin && extension.id !== 'ms-vscode.azure-account') {
 
 			if (
 				!initData.environment.enableProposedApiForAll &&
