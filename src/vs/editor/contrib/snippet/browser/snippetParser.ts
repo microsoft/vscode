@@ -796,23 +796,22 @@ export class SnippetParser {
 	private _parseTransform(parent: Variable): boolean {
 		// ...<regex>/<format>/<options>}
 
+		let transform = new Transform();
 		let regexValue = '';
 		let regexOptions = '';
-
-		let transform = new Transform();
-		// let parts: string[] = [''];
 
 		// (1) /regex
 		while (true) {
 			if (this._accept(TokenType.Forwardslash)) {
 				break;
 			}
-			// if (this._token.type === TokenType.Backslash) {
-			// 	this._accept(undefined);
-			// 	if (this._token.type === TokenType.Forwardslash) {
 
-			// 	}
-			// }
+			let escaped: string;
+			if (escaped = this._accept(TokenType.Backslash, true)) {
+				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
+				regexValue += escaped;
+			}
+
 			if (this._token.type !== TokenType.EOF) {
 				regexValue += this._accept(undefined, true);
 				continue;

@@ -221,7 +221,8 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${foo/([A-Z][a-z]/format/}', '${foo/([A-Z][a-z]/format/}', Text);
 
 		// tricky regex
-		// assertTextAndMarker('${foo/m\\/atch/format/}', '', Variable);
+		assertTextAndMarker('${foo/m\\/atch/$1/i}', '', Variable);
+		assertMarker('${foo/regex\/format/options}', Text);
 
 		// incomplete
 		assertTextAndMarker('${foo///', '${foo///', Text);
@@ -238,7 +239,6 @@ suite('SnippetParser', () => {
 		assertMarker('${foo/.*/complex${1:?if:else}/i}', Variable);
 		assertMarker('${foo/.*/complex${1:/upcase}/i}', Variable);
 
-		// assertMarker('${foo/regex\/format/options}', Text);
 	});
 
 	test('Parser, placeholder with choice', () => {
