@@ -120,7 +120,7 @@ export function createApiFactory(
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
-		if (extension.enableProposedApi && !extension.isBuiltin) {
+		if (extension.enableProposedApi && !extension.isBuiltin && extension.id !== 'ms-vscode.azure-account') {
 
 			if (
 				!initData.environment.enableProposedApiForAll &&
@@ -520,7 +520,7 @@ export function createApiFactory(
 		};
 
 		// namespace: credentials
-		const credentials = {
+		const credentials: typeof vscode.credentials = {
 			readSecret(service: string, account: string): Thenable<string | undefined> {
 				return extHostCredentials.readSecret(service, account);
 			},
@@ -544,6 +544,7 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
+			credentials,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
@@ -598,8 +599,8 @@ export function createApiFactory(
 			Task: extHostTypes.Task,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget
 		};
-		if (extension.enableProposedApi && extension.isBuiltin) {
-			api['credentials'] = credentials;
+		if (!extension.enableProposedApi) {
+			delete api.credentials; // Instead of error to avoid #31854
 		}
 		return api;
 	};
