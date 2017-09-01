@@ -2,6 +2,18 @@
   "name": "azure-account",
   "version": "0.1.0",
   "dependencies": {
+    "@types/form-data": {
+      "version": "2.2.0",
+      "from": "@types/form-data@*",
+      "resolved": "https://registry.npmjs.org/@types/form-data/-/form-data-2.2.0.tgz",
+      "dependencies": {
+        "@types/node": {
+          "version": "8.0.24",
+          "from": "@types/node@*",
+          "resolved": "https://registry.npmjs.org/@types/node/-/node-8.0.24.tgz"
+        }
+      }
+    },
     "@types/node": {
       "version": "6.0.40",
       "from": "@types/node@6.0.40",
