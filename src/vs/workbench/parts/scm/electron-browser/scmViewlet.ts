@@ -540,7 +540,7 @@ export class SCMViewlet extends PersistentViewsViewlet {
 		this.repositoryToViewDescriptor.delete(repository.provider.id);
 		viewDescriptor.dispose();
 
-		ViewsRegistry.deregisterViews([repository.provider.id], ViewLocation.SCM);
+		ViewsRegistry.deregisterViews([viewDescriptor.id], ViewLocation.SCM);
 		toggleClass(this.getContainer().getHTMLElement(), 'empty', this.views.length === 0);
 		this.updateTitleArea();
 	}
