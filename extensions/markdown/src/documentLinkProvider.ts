@@ -8,20 +8,61 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
+function normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
+	const uri = vscode.Uri.parse(link);
+	if (uri.scheme) {
+		return uri;
+	}
 
-	private _linkPattern = /(\[[^\]]*\]\(\s*?)(((((?=.*\)\)+)|(?=.*\)\]+))[^\s\)]+?)|([^\s]+)))\)/g;
+	// assume it must be a file
+	let resourcePath = uri.path;
+	if (!uri.path) {
+		resourcePath = document.uri.path;
+	} else if (uri.path[0] === '/') {
+		const root = vscode.workspace.getWorkspaceFolder(document.uri);
+		if (root) {
+			resourcePath = path.join(root.uri.fsPath, uri.path);
+		}
+	} else {
+		resourcePath = path.join(base, uri.path);
+	}
 
-	constructor() { }
+	return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+}
 
-	public provideDocumentLinks(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const results: vscode.DocumentLink[] = [];
+function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {
+	const out: RegExpMatchArray[] = [];
+	pattern.lastIndex = 0;
+	let match: RegExpMatchArray | null;
+	while ((match = pattern.exec(text))) {
+		out.push(match);
+	}
+	return out;
+}
+
+export default class LinkProvider implements vscode.DocumentLinkProvider {
+	private linkPattern = /(\[[^\]]*\]\(\s*?)(((((?=.*\)\)+)|(?=.*\)\]+))[^\s\)]+?)|([^\s]+)))\)/g;
+	private referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)(\w*)\]/g;
+	private definitionPattern = /^([\t ]*\[(\w+)\]:\s*)(\S+)/gm;
+
+	public provideDocumentLinks(
+		document: vscode.TextDocument,
+		_token: vscode.CancellationToken
+	): vscode.DocumentLink[] {
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
 
-		this._linkPattern.lastIndex = 0;
-		let match: RegExpMatchArray | null;
-		while ((match = this._linkPattern.exec(text))) {
+		return this.privateInlineLinks(text, document, base)
+			.concat(this.provideReferenceLinks(text, document, base));
+	}
+
+	private privateInlineLinks(
+		text: string,
+		document: vscode.TextDocument,
+		base: string
+	): vscode.DocumentLink[] {
+		const results: vscode.DocumentLink[] = [];
+		for (const match of matchAll(this.linkPattern, text)) {
 			const pre = match[1];
 			const link = match[2];
 			const offset = (match.index || 0) + pre.length;
@@ -30,7 +71,7 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 			try {
 				results.push(new vscode.DocumentLink(
 					new vscode.Range(linkStart, linkEnd),
-					this.normalizeLink(document, link, base)));
+					normalizeLink(document, link, base)));
 			} catch (e) {
 				// noop
 			}
@@ -39,25 +80,70 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		return results;
 	}
 
-	private normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
-		const uri = vscode.Uri.parse(link);
-		if (uri.scheme) {
-			return uri;
-		}
+	private provideReferenceLinks(
+		text: string,
+		document: vscode.TextDocument,
+		base: string
+	): vscode.DocumentLink[] {
+		const results: vscode.DocumentLink[] = [];
 
-		// assume it must be a file
-		let resourcePath = uri.path;
-		if (!uri.path) {
-			resourcePath = document.uri.path;
-		} else if (uri.path[0] === '/') {
-			const root = vscode.workspace.getWorkspaceFolder(document.uri);
-			if (root) {
-				resourcePath = path.join(root.uri.fsPath, uri.path);
+		const definitions = this.getDefinitions(text, document);
+		for (const match of matchAll(this.referenceLinkPattern, text)) {
+			let linkStart: vscode.Position;
+			let linkEnd: vscode.Position;
+			const reference = match[3];
+			if (reference) { // [text][ref]
+				const pre = match[1];
+				const offset = (match.index || 0) + pre.length;
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + reference.length);
+			} else { // [ref][]
+				const offset = (match.index || 0) + 1;
+				linkStart = document.positionAt(offset + 1);
+				linkEnd = document.positionAt(offset + match[2].length);
 			}
-		} else {
-			resourcePath = path.join(base, uri.path);
+
+			try {
+				const link = definitions.get(reference);
+				if (link) {
+					results.push(new vscode.DocumentLink(
+						new vscode.Range(linkStart, linkEnd),
+						normalizeLink(document, link.link, base)));
+				}
+			} catch (e) {
+				// noop
+			}
 		}
 
-		return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+		for (const definition of Array.from(definitions.values())) {
+			try {
+				results.push(new vscode.DocumentLink(
+					definition.linkRange,
+					normalizeLink(document, definition.link, base)));
+			} catch (e) {
+				// noop
+			}
+		}
+
+		return results;
+	}
+
+	private getDefinitions(text: string, document: vscode.TextDocument) {
+		const out = new Map<string, { link: string, linkRange: vscode.Range }>();
+		for (const match of matchAll(this.definitionPattern, text)) {
+			const pre = match[1];
+			const reference = match[2];
+			const link = match[3].trim();
+
+			const offset = (match.index || 0) + pre.length;
+			const linkStart = document.positionAt(offset);
+			const linkEnd = document.positionAt(offset + link.length);
+
+			out.set(reference, {
+				link: link,
+				linkRange: new vscode.Range(linkStart, linkEnd)
+			});
+		}
+		return out;
 	}
 }
