@@ -19,7 +19,6 @@
     "htmlparser2": "^3.9.2",
     "mocha": "^3.2.0",
     "rimraf": "^2.6.1",
-    "simple-git": "^1.73.0",
     "spectron": "~3.6.4",
     "strip-json-comments": "^2.0.1",
     "typescript": "^2.2.2"
