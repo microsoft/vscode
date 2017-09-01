@@ -137,9 +137,9 @@ suite('Snippet Variables Resolver', function () {
 	});
 
 
-	function assertVariableResolve2(input: string, expected: string) {
+	function assertVariableResolve2(input: string, expected: string, varValue?: string) {
 		const snippet = new SnippetParser().parse(input)
-			.resolveVariables({ resolve(variable) { return variable.name; } });
+			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
 
 		const actual = snippet.toString();
 		assert.equal(actual, expected);
@@ -154,5 +154,8 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
 		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
 		assertVariableResolve2('${Foo/.*/${1:+Bar}/img}', 'Bar');
+
+		//https://github.com/Microsoft/vscode/issues/33162
+		assertVariableResolve2('export default class ${TM_FILENAME/(\\w+)\\.js/$1/g}', 'export default class FooFile', 'FooFile.js');
 	});
 });
