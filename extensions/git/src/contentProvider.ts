@@ -70,7 +70,6 @@ export class GitContentProvider {
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
-			console.warn('git provideTextDocumentContent: could not find repository');
 			return '';
 		}
 
