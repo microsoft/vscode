@@ -1175,7 +1175,7 @@
 					<key>match</key>
 					<string>(`+)([^`]|(?!(?&lt;!`)\1(?!`))`)*+(\1)</string>
 					<key>name</key>
-					<string>markup.inline.raw.markdown</string>
+					<string>markup.inline.raw.string.markdown</string>
 				</dict>
 			</dict>
 		</dict>
