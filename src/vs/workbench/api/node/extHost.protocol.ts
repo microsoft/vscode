@@ -53,6 +53,7 @@ export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	enableProposedApiForAll: boolean;
 	enableProposedApiFor: string | string[];
+	appRoot: string;
 	appSettingsHome: string;
 	disableExtensions: boolean;
 	userExtensionsHome: string;
