@@ -300,6 +300,27 @@ export class Transform extends Marker {
 
 	regexp: RegExp;
 
+	resolve(value: string): string {
+		const match = this.regexp.exec(value);
+		if (!match) {
+			// return input string?
+			return '';
+		}
+
+		let ret = '';
+		walk(this.children, marker => {
+			if (marker instanceof FormatString) {
+				let value = match[marker.index];
+				value = marker.resolve(value);
+				ret += value;
+			} else {
+				ret += marker.toString();
+			}
+			return true;
+		});
+		return ret;
+	}
+
 	toString(): string {
 		return '';
 	}
@@ -326,6 +347,22 @@ export class FormatString extends Marker {
 		readonly elseValue?: string,
 	) {
 		super();
+	}
+
+	resolve(value: string): string {
+		if (this.shorthandName === 'upcase') {
+			return value.toLocaleUpperCase();
+		} else if (this.shorthandName === 'downcase') {
+			return value.toLocaleLowerCase();
+		} else if (this.shorthandName === 'capitalize') {
+			return value[0].toLocaleUpperCase() + value.substr(1);
+		} else if (Boolean(value) && typeof this.ifValue === 'string') {
+			return this.ifValue;
+		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
+			return this.elseValue;
+		} else {
+			return value || '';
+		}
 	}
 
 	toTextmateString(): string {
@@ -359,10 +396,10 @@ export class Variable extends Marker {
 
 	resolve(resolver: VariableResolver): boolean {
 		let value = resolver.resolve(this);
-		// let [firstChild] = this._children;
-		// if (firstChild instanceof Transform && this._children.length === 1) {
-		// 	value = (value || '').replace(firstChild.regexp, firstChild.format);
-		// }
+		let [firstChild] = this._children;
+		if (firstChild instanceof Transform && this._children.length === 1) {
+			value = firstChild.resolve(value || '');
+		}
 		if (value !== undefined) {
 			this._children = [new Text(value)];
 			return true;
@@ -589,7 +626,7 @@ export class SnippetParser {
 		while (this._token.type !== type) {
 			this._token = this._scanner.next();
 		}
-		let value = this._scanner.value.substring(start.pos, this._token.pos + this._token.len);
+		let value = this._scanner.value.substring(start.pos, this._token.pos);
 		this._token = this._scanner.next();
 		return value;
 	}
@@ -889,7 +926,7 @@ export class SnippetParser {
 		if (this._accept(TokenType.Forwardslash)) {
 			// ${1:/upcase}
 			let shorthand = this._accept(TokenType.VariableName, true);
-			if (!shorthand) {
+			if (!shorthand || !this._accept(TokenType.CurlyClose)) {
 				this._backTo(token);
 				return false;
 			} else {

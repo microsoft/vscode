@@ -136,12 +136,23 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
 
+
+	function assertVariableResolve2(input: string, expected: string) {
+		const snippet = new SnippetParser().parse(input)
+			.resolveVariables({ resolve(variable) { return variable.name; } });
+
+		const actual = snippet.toString();
+		assert.equal(actual, expected);
+	}
+
 	test('Variable Snippet Transform', function () {
 
 		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
-		// assert.equal(snippet.toString(), 'name=text.txt');
 		snippet.resolveVariables(resolver);
-
 		assert.equal(snippet.toString(), 'name=text');
+
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
+		assertVariableResolve2('${Foo/.*/${1:+Bar}/img}', 'Bar');
 	});
 });

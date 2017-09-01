@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('SnippetParser', () => {
 
@@ -564,5 +563,30 @@ suite('SnippetParser', () => {
 	test('Snippets: make parser ignore `${0|choice|}`, #31599', function () {
 		assertTextAndMarker('${0|foo,bar|}', '${0|foo,bar|}', Text);
 		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
+	});
+
+	test('Transform -> FormatString#resolve', function () {
+
+		// shorthand functions
+		assert.equal(new FormatString(1, 'upcase').resolve('foo'), 'FOO');
+		assert.equal(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
+		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
+		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
+		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
+
+		// if
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(undefined), '');
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(''), '');
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve('bar'), 'foo');
+
+		// else
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(''), 'foo');
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve('bar'), 'bar');
+
+		// if-else
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
 	});
 });
