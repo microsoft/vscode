@@ -48,7 +48,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.4.1",
+    "typescript": "2.5.2",
     "typescript-formatter": "4.0.1",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",

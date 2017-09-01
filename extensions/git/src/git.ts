@@ -82,7 +82,7 @@ function findGitDarwin(): Promise<IGit> {
 
 			function getVersion(path: string) {
 				// make sure git executes
-				cp.exec('git --version', (err, stdout: Buffer) => {
+				cp.exec('git --version', (err: Error, stdout: any) => {
 					if (err) {
 						return e('git not found');
 					}
