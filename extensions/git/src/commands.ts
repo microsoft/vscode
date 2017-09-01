@@ -152,10 +152,10 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource, undefined, true);
+		await this._openResource(resource, undefined, true, false);
 	}
 
-	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -174,7 +174,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -406,6 +406,7 @@ export class CommandCenter {
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
+		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -433,7 +434,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(resource, preview, preserveFocus);
+			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}
 	}
 
