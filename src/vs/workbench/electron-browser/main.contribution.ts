@@ -104,6 +104,16 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 		'default': true
 	},
+	'workbench.editor.tabDescription': {
+		'type': 'string',
+		'default': '${pathDifferential}',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
+			`Controls tab descriptions. Variables are substituted based on the context:
+\${pathShort}: e.g. parent
+\${pathMedium}: e.g. more/parent
+\${pathLong}: e.g. workspace/more/parent
+\${pathDifferential}: e.g. .../parent, when another tab shares the same title`),
+	},
 	'workbench.editor.tabCloseButton': {
 		'type': 'string',
 		'enum': ['left', 'right', 'off'],

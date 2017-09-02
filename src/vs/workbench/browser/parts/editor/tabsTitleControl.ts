@@ -12,7 +12,8 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { shorten, getPathLabel } from 'vs/base/common/labels';
+import { shorten, getPathLabel, template } from 'vs/base/common/labels';
+import { nativeSep, join } from 'vs/base/common/paths';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -44,10 +45,10 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IEditorInputLabel {
 	name: string;
-	hasAmbiguousName?: boolean;
 	description?: string;
 	title?: string;
 }
@@ -60,6 +61,7 @@ export class TabsTitleControl extends TitleControl {
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
+	private tabDescriptionTemplate: string;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -76,7 +78,8 @@ export class TabsTitleControl extends TitleControl {
 		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
 		@IFileService private fileService: IFileService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IWorkspacesService private workspacesService: IWorkspacesService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -211,6 +214,10 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// Configuration updates
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
+		this.onConfigurationChanged();
+
 		// Editor Actions Container
 		const editorActionsContainer = document.createElement('div');
 		DOM.addClass(editorActionsContainer, 'editor-actions');
@@ -247,6 +254,15 @@ export class TabsTitleControl extends TitleControl {
 		return (element.className === 'tabs-container');
 	}
 
+	private onConfigurationChanged(): void {
+		const tabDescriptionTemplate = this.configurationService.lookup<string>('workbench.editor.tabDescription').value;
+
+		if (tabDescriptionTemplate !== this.tabDescriptionTemplate) {
+			this.tabDescriptionTemplate = tabDescriptionTemplate;
+			this.doUpdate();
+		}
+	}
+
 	protected doUpdate(): void {
 		if (!this.context) {
 			return;
@@ -264,7 +280,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.context.getEditors();
-		const labels = this.getUniqueTabLabels(editorsOfGroup);
+		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
@@ -276,7 +292,7 @@ export class TabsTitleControl extends TitleControl {
 
 				const label = labels[index];
 				const name = label.name;
-				const description = label.hasAmbiguousName && label.description ? label.description : '';
+				const description = label.description || '';
 				const title = label.title || '';
 
 				// Container
@@ -338,11 +354,12 @@ export class TabsTitleControl extends TitleControl {
 		this.layout();
 	}
 
-	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new Map<string, IEditorInputLabel[]>();
 		const mapLabelAndDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
+		const mapLabelAndDescriptionToDifferential = new Map<string, string>();
 
 		// Build labels and descriptions for each editor
 		editors.forEach(editor => {
@@ -378,12 +395,29 @@ export class TabsTitleControl extends TitleControl {
 				if (duplicates.length > 1) {
 					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
 					duplicates.forEach((duplicate, i) => {
-						duplicate.description = shortenedDescriptions[i];
-						duplicate.hasAmbiguousName = true;
+						mapLabelAndDescriptionToDifferential.set(
+							`${duplicate.name}${duplicate.description}`,
+							shortenedDescriptions[i],
+						);
 					});
 				}
 			}
 		});
+
+		for (const label of labels) {
+			const description = label.description;
+			if (description) {
+				const parts = description.split(nativeSep);
+				const definitions = {
+					pathShort: parts[parts.length - 1],
+					pathMedium: join(...parts.slice(-2)),
+					pathLong: description,
+					pathDifferential: mapLabelAndDescriptionToDifferential.get(`${label.name}${label.description}`) || '',
+				};
+
+				label.description = template(this.tabDescriptionTemplate, definitions);
+			}
+		}
 
 		return labels;
 	}
