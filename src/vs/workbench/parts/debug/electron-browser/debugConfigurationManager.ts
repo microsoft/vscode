@@ -258,7 +258,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._providers.delete(handle);
 	}
 
-	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any> {
+	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
 
 		// collect all candidates
 		const providers: IDebugConfigurationProvider[] = [];
