@@ -104,6 +104,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 		'default': true
 	},
+	'workbench.editor.alwaysShowTabDescription': {
+		'type': 'boolean',
+		'description': nls.localize('alwaysShowTabDescription', "Controls if editor tabs always show their description or not."),
+		'default': false
+	},
 	'workbench.editor.tabCloseButton': {
 		'type': 'string',
 		'enum': ['left', 'right', 'off'],

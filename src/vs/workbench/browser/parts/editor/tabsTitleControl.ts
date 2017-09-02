@@ -44,6 +44,7 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IEditorInputLabel {
 	name: string;
@@ -60,6 +61,7 @@ export class TabsTitleControl extends TitleControl {
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
+	private alwaysShowTabDescription: boolean;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -76,7 +78,8 @@ export class TabsTitleControl extends TitleControl {
 		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
 		@IFileService private fileService: IFileService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IWorkspacesService private workspacesService: IWorkspacesService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -211,6 +214,9 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		// Configuration updates
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
+
 		// Editor Actions Container
 		const editorActionsContainer = document.createElement('div');
 		DOM.addClass(editorActionsContainer, 'editor-actions');
@@ -247,6 +253,15 @@ export class TabsTitleControl extends TitleControl {
 		return (element.className === 'tabs-container');
 	}
 
+	private onConfigurationChanged(): void {
+		const alwaysShowTabDescription = this.configurationService.lookup<boolean>('workbench.editor.alwaysShowTabDescription').value;
+
+		if (alwaysShowTabDescription !== this.alwaysShowTabDescription) {
+			this.alwaysShowTabDescription = alwaysShowTabDescription;
+			this.doUpdate();
+		}
+	}
+
 	protected doUpdate(): void {
 		if (!this.context) {
 			return;
@@ -276,7 +291,7 @@ export class TabsTitleControl extends TitleControl {
 
 				const label = labels[index];
 				const name = label.name;
-				const description = label.hasAmbiguousName && label.description ? label.description : '';
+				const description = (this.alwaysShowTabDescription || label.hasAmbiguousName) && label.description ? label.description : '';
 				const title = label.title || '';
 
 				// Container
@@ -367,23 +382,25 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Mark duplicates and shorten their descriptions
-		mapLabelToDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates = duplicates.filter(d => {
-					// we could have items with equal label and description. in that case it does not make much
-					// sense to produce a shortened version of the label, so we ignore those kind of items
-					return typeof d.description === 'string' && mapLabelAndDescriptionToDuplicates.get(`${d.name}${d.description}`).length === 1;
-				});
-
+		if (!this.alwaysShowTabDescription) {
+			mapLabelToDuplicates.forEach(duplicates => {
 				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
-					duplicates.forEach((duplicate, i) => {
-						duplicate.description = shortenedDescriptions[i];
-						duplicate.hasAmbiguousName = true;
+					duplicates = duplicates.filter(d => {
+						// we could have items with equal label and description. in that case it does not make much
+						// sense to produce a shortened version of the label, so we ignore those kind of items
+						return typeof d.description === 'string' && mapLabelAndDescriptionToDuplicates.get(`${d.name}${d.description}`).length === 1;
 					});
+
+					if (duplicates.length > 1) {
+						const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
+						duplicates.forEach((duplicate, i) => {
+							duplicate.description = shortenedDescriptions[i];
+							duplicate.hasAmbiguousName = true;
+						});
+					}
 				}
-			}
-		});
+			});
+		}
 
 		return labels;
 	}
