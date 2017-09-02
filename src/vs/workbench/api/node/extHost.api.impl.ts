@@ -515,9 +515,9 @@ export function createApiFactory(
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			},
-			registerDebugConfigurationProvider: proposedApiFunction(extension, (debugType: string, provider: vscode.DebugConfigurationProvider) => {
+			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
-			}),
+			},
 		};
 
 		// namespace: credentials
