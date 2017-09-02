@@ -262,6 +262,9 @@ export class TestHistoryService implements IHistoryService {
 	public back(acrossEditors?: boolean): void {
 	}
 
+	public last(): void {
+	}
+
 	public remove(input: IEditorInput | IResourceInput): void {
 	}
 

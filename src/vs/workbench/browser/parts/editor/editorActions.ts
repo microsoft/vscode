@@ -1116,6 +1116,22 @@ export class NavigateBackwardsAction extends Action {
 	}
 }
 
+export class NavigateLastAction extends Action {
+
+	public static ID = 'workbench.action.navigateLast';
+	public static LABEL = nls.localize('navigateLast', "Go Last");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.last();
+
+		return TPromise.as(null);
+	}
+}
+
 export class ReopenClosedEditorAction extends Action {
 
 	public static ID = 'workbench.action.reopenClosedEditor';
