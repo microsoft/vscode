@@ -245,7 +245,10 @@ export class TerminalInstance implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected _createXterm(): void {
+		const font = this._configHelper.getFont();
 		this._xterm = new XTermTerminal({
+			fontFamily: font.fontFamily,
+			fontSize: parseInt(font.fontSize.replace('px', ''), 10),
 			scrollback: this._configHelper.config.scrollback
 		});
 		if (this._shellLaunchConfig.initialText) {

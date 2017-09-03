@@ -73,8 +73,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			fontFamily,
 			fontSize: fontSize + 'px',
 			lineHeight,
-			charWidth: rect.width,
-			charHeight: rect.height
+			charWidth: Math.ceil(rect.width),
+			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;
 	}
