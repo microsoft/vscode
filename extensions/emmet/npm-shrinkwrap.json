@@ -39,7 +39,7 @@
     },
     "vscode-emmet-helper": {
       "version": "1.1.7",
-      "from": "vscode-emmet-helper@>=1.1.7 <2.0.0",
+      "from": "vscode-emmet-helper@>=1.0.17 <2.0.0",
       "resolved": "https://registry.npmjs.org/vscode-emmet-helper/-/vscode-emmet-helper-1.1.7.tgz"
     },
     "vscode-languageserver-types": {
