@@ -223,7 +223,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
-				this._xterm.emit('scroll', this._xterm.ydisp);
+				this._xterm.emit('scroll', this._xterm.buffer.ydisp);
 			}
 		}
 
@@ -488,7 +488,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm.emit('scroll', this._xterm.ydisp);
+			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
 		}
 	}
 
