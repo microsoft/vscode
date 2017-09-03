@@ -55,10 +55,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		// TODO: This should leverage CharMeasure
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
+		style.lineHeight = 'normal';
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
