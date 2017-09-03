@@ -89,3 +89,47 @@
 .hc-black .monaco-workbench .quick-open-terminal-configure {
 	background-image: url('configure-inverse.svg');
 }
+
+
+
+
+
+
+
+
+
+/* Previously in xterm.css*/
+
+
+.monaco-workbench .panel.integrated-terminal .xterm {
+	position: relative;
+	height: 100%;
+	user-select: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm:focus {
+	/* Hide outline when focus jumps from xterm to the text area */
+	outline: none;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: -5px;
+	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
+	position: absolute;
+	top: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
+}
