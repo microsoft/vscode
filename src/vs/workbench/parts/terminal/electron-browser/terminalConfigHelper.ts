@@ -94,10 +94,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		let lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
-		if (!lineHeight) {
-			lineHeight = DEFAULT_LINE_HEIGHT;
-		}
+		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}

@@ -133,7 +133,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.lineHeight': {
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),
 			'type': 'number',
-			'default': 1.2
+			'default': 1
 		},
 		'terminal.integrated.enableBold': {
 			'type': 'boolean',
