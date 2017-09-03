@@ -72,7 +72,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		this._lastFontMeasurement = {
 			fontFamily,
-			fontSize: fontSize + 'px',
+			fontSize,
 			lineHeight,
 			charWidth: Math.ceil(rect.width),
 			charHeight: Math.ceil(rect.height)

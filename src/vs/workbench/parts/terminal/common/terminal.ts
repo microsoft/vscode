@@ -91,7 +91,7 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
 	charWidth: number;
 	charHeight: number;
