@@ -203,7 +203,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const font = this._configHelper.getFont();
 		this._cols = Math.max(Math.floor(dimension.width / font.charWidth), 1);
-		this._rows = Math.max(Math.floor(dimension.height / font.charHeight), 1);
+		this._rows = Math.max(Math.floor(dimension.height / Math.floor(font.charHeight * font.lineHeight)), 1);
 		return dimension.width;
 	}
 
@@ -246,7 +246,11 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected _createXterm(): void {
 		const font = this._configHelper.getFont();
+		// TODO: font.fontSize should not include 'px' anymore
+		// TODO: Support lineHeight
+		// TODO: Support lineHeight, font* changes
 		this._xterm = new XTermTerminal({
+			lineHeight: font.lineHeight,
 			fontFamily: font.fontFamily,
 			fontSize: parseInt(font.fontSize.replace('px', ''), 10),
 			scrollback: this._configHelper.config.scrollback
@@ -884,6 +888,12 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (this._xterm) {
+			// TODO: Only do this when there's a change
+			const font = this._configHelper.getFont();
+			this._xterm.setOption('lineHeight', font.lineHeight);
+			this._xterm.setOption('fontSize', parseInt(font.fontSize.replace('px', ''), 10));
+			this._xterm.setOption('fontFamily', font.fontFamily);
+
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}

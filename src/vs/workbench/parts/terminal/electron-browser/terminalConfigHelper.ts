@@ -25,7 +25,7 @@ interface IFullTerminalConfiguration {
 	};
 }
 
-const DEFAULT_LINE_HEIGHT = 1.2;
+const DEFAULT_LINE_HEIGHT = 1.0;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -59,7 +59,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight.toString(10);
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -93,7 +92,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
+		let lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 		if (!lineHeight) {
 			lineHeight = DEFAULT_LINE_HEIGHT;
 		}

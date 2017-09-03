@@ -333,26 +333,12 @@ export class TerminalPanel extends Panel {
 		if (this._terminalService.terminalInstances.length === 0) {
 			return;
 		}
-		let newFont = this._terminalService.configHelper.getFont();
-		dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
-		if (!this._font || this._fontsDiffer(this._font, newFont)) {
-			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
-				`font-family: ${newFont.fontFamily};` +
-				`font-size: ${newFont.fontSize};` +
-				`line-height: ${newFont.lineHeight};` +
-				'}';
-			this._font = newFont;
-		}
+		this._font = this._terminalService.configHelper.getFont();
+		// TODO: Can we support ligatures?
+		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
+		// TODO: How to handle Disable bold?
+		// dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));
-	}
-
-	private _fontsDiffer(a: ITerminalFont, b: ITerminalFont): boolean {
-		return a.charHeight !== b.charHeight ||
-			a.charWidth !== b.charWidth ||
-			a.fontFamily !== b.fontFamily ||
-			a.fontSize !== b.fontSize ||
-			a.lineHeight !== b.lineHeight;
 	}
 
 	/**
