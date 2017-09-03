@@ -41,12 +41,15 @@
 	height: 100%;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm-viewport {
-	/* Align the viewport to the bottom of the panel, just like the terminal */
+.monaco-workbench .panel.integrated-terminal .xterm-viewport,
+.monaco-workbench .panel.integrated-terminal canvas {
+	/* Align the viewport and canvases to the bottom of the panel */
 	position: absolute;
 	right: -20px;
 	bottom: 0;
 	left: 0;
+	/* Disable upstream's style */
+	top: auto;
 }
 
 .monaco-workbench .panel.integrated-terminal {
