@@ -426,10 +426,12 @@ interface ITerminalOptions {
 
 	  // Moficiations to official .d.ts below
 
-	  /**
-	   * The viewport position.
-	   */
-	  ydisp: number;
+	   buffer: {
+		/**
+		 * The viewport position.
+		 */
+		ydisp: number;
+	  };
 
 	  /**
 	   * Emit an event on the terminal.
