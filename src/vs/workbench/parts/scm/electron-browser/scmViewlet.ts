@@ -565,7 +565,7 @@ export class SCMViewlet extends PersistentViewsViewlet {
 	}
 
 	protected getDefaultViewSize(): number | undefined {
-		return this.dimension && this.dimension.height / this.views.length;
+		return this.dimension && this.dimension.height / Math.max(this.views.length, 1);
 	}
 
 	getOptimalWidth(): number {
