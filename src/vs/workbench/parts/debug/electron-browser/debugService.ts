@@ -290,23 +290,8 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidStop(event => {
 			this.updateStateAndEmit(session.getId(), debug.State.Stopped);
-			const threadId = event.body.threadId;
-
-			session.threads().then(response => {
-				if (!response || !response.body || !response.body.threads) {
-					return;
-				}
-
-				const rawThread = response.body.threads.filter(t => t.id === threadId).pop();
-				this.model.rawUpdate({
-					sessionId: session.getId(),
-					thread: rawThread,
-					threadId,
-					stoppedDetails: event.body,
-					allThreadsStopped: event.body.allThreadsStopped
-				});
-
-				const thread = process && process.getThread(threadId);
+			this.fetchThreads(session, event.body).done(() => {
+				const thread = process && process.getThread(event.body.threadId);
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
@@ -407,14 +392,16 @@ export class DebugService implements debug.IDebugService {
 		}));
 	}
 
-	private fetchThreads(session: RawDebugSession): TPromise<any> {
+	private fetchThreads(session: RawDebugSession, stoppedDetails?: debug.IRawStoppedDetails): TPromise<any> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread =>
 					this.model.rawUpdate({
 						sessionId: session.getId(),
 						threadId: thread.id,
-						thread
+						thread,
+						stoppedDetails,
+						allThreadsStopped: stoppedDetails ? stoppedDetails.allThreadsStopped : undefined
 					}));
 			}
 		});
