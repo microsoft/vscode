@@ -63,12 +63,12 @@ export interface ILifecycleService {
 
 	unload(window: ICodeWindow, reason: UnloadReason, payload?: object): TPromise<boolean /* veto */>;
 
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
+	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void;
 
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
 	isQuitRequested(): boolean;
 
-	kill(code?: number);
+	kill(code?: number): void;
 }
 
 export class LifecycleService implements ILifecycleService {

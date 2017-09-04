@@ -211,14 +211,14 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
 	constructor(id: string, label: string,
-		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
+		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService,
-		@ITelemetryService telemetryService) {
+		@IExtensionService extensionService: IExtensionService,
+		@ITelemetryService telemetryService: ITelemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService, telemetryService);
@@ -230,14 +230,14 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
 
 	constructor(id: string, label: string,
-		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
+		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService,
-		@ITelemetryService telemetryService) {
+		@IExtensionService extensionService: IExtensionService,
+		@ITelemetryService telemetryService: ITelemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService, telemetryService);

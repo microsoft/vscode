@@ -37,7 +37,7 @@ class ConfigureLocaleAction extends Action {
 		'}'
 	].join('\n');
 
-	constructor(id, label,
+	constructor(id: string, label: string,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,

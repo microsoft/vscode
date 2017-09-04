@@ -146,7 +146,7 @@ export class CustomConfigurationModel<T> extends ConfigurationModel<T> {
 				currentParent = previousParents.pop();
 			},
 			onArrayBegin: () => {
-				let array = [];
+				let array: any[] = [];
 				onValue(array);
 				previousParents.push(currentParent);
 				currentParent = array;

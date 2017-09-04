@@ -172,7 +172,7 @@ export abstract class Marker {
 		}
 	}
 
-	toString() {
+	toString(): string {
 		return this.children.reduce((prev, cur) => prev + cur.toString(), '');
 	}
 

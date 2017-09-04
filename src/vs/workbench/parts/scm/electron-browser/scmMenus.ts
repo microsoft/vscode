@@ -85,8 +85,8 @@ export class SCMMenus implements IDisposable {
 		contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(resource));
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary = [];
-		const secondary = [];
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
 

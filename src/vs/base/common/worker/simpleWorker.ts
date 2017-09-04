@@ -242,7 +242,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration
 		]);
 		this._onModuleLoaded.then((availableMethods: string[]) => {
-			let proxy = <T><any>{};
+			let proxy = <T>{};
 			for (let i = 0; i < availableMethods.length; i++) {
 				proxy[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
 			}

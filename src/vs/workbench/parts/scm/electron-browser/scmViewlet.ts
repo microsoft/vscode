@@ -334,7 +334,7 @@ class SourceControlView extends CollapsibleView {
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
 
-		const actionItemProvider = action => this.getActionItem(action);
+		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
 		const renderers = [
 			new ResourceGroupRenderer(this.menus, actionItemProvider, this.themeService),

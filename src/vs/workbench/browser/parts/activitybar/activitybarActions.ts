@@ -83,14 +83,18 @@ export class ViewletActivityAction extends ActivityAction {
 	private lastRun: number = 0;
 
 	constructor(
-		private viewlet: ViewletDescriptor,
+		private _viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
-		super(viewlet);
+		super(_viewlet);
 	}
 
-	public run(event): TPromise<any> {
+	public get descriptor(): ViewletDescriptor {
+		return this._viewlet;
+	}
+
+	public run(event: any): TPromise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return TPromise.as(false); // do not run on right click
 		}
@@ -106,11 +110,11 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
+		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
 			return this.partService.setSideBarHidden(true);
 		}
 
-		return this.viewletService.openViewlet(this.viewlet.id, true)
+		return this.viewletService.openViewlet(this._viewlet.id, true)
 			.then(() => this.activate());
 	}
 }
@@ -240,11 +244,22 @@ export class ActivityActionItem extends BaseActionItem {
 			else if (badge instanceof ProgressBadge) {
 				this.$badge.show();
 			}
-
-			const description = badge.getDescription();
-			this.$label.attr('aria-label', `${this.activity.name} - ${description}`);
-			this.$label.title(description);
 		}
+
+		// Title
+		let title: string;
+		if (badge && badge.getDescription()) {
+			title = `${this.activity.name} - ${badge.getDescription()}`;
+		} else {
+			title = this.activity.name;
+		}
+
+		[this.$label, this.$badge, this.$container].forEach(b => {
+			if (b) {
+				b.attr('aria-label', title);
+				b.title(title);
+			}
+		});
 	}
 
 	private handleBadgeChangeEvenet(): void {
@@ -271,7 +286,7 @@ export class ViewletActionItem extends ActivityActionItem {
 	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
 	private static draggedViewlet: ViewletDescriptor;
 
-	private _keybinding: string;
+	private viewletActivity: IActivity;
 	private cssClass: string;
 
 	constructor(
@@ -285,7 +300,6 @@ export class ViewletActionItem extends ActivityActionItem {
 		super(action, { draggable: true }, themeService);
 
 		this.cssClass = action.class;
-		this._keybinding = this.getKeybindingLabel(this.viewlet.id);
 
 		if (!ViewletActionItem.manageExtensionAction) {
 			ViewletActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -296,8 +310,29 @@ export class ViewletActionItem extends ActivityActionItem {
 		}
 	}
 
+	protected get activity(): IActivity {
+		if (!this.viewletActivity) {
+			let activityName: string;
+
+			const keybinding = this.getKeybindingLabel(this.viewlet.id);
+			if (keybinding) {
+				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.viewlet.name, keybinding);
+			} else {
+				activityName = this.viewlet.name;
+			}
+
+			this.viewletActivity = {
+				id: this.viewlet.id,
+				cssClass: this.cssClass,
+				name: activityName
+			};
+		}
+
+		return this.viewletActivity;
+	}
+
 	private get viewlet(): ViewletDescriptor {
-		return this.action.activity as ViewletDescriptor;
+		return this.action.descriptor;
 	}
 
 	private getKeybindingLabel(id: string): string {
@@ -374,9 +409,6 @@ export class ViewletActionItem extends ActivityActionItem {
 			}
 		});
 
-		// Keybinding
-		this.keybinding = this._keybinding; // force update
-
 		// Activate on drag over to reveal targets
 		[this.$badge, this.$label].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
 			if (!ViewletActionItem.getDraggedViewlet() && !this.getAction().checked) {
@@ -431,25 +463,6 @@ export class ViewletActionItem extends ActivityActionItem {
 		this.$container.domFocus();
 	}
 
-	public set keybinding(keybinding: string) {
-		this._keybinding = keybinding;
-
-		if (!this.$label) {
-			return;
-		}
-
-		let title: string;
-		if (keybinding) {
-			title = nls.localize('titleKeybinding', "{0} ({1})", this.activity.name, keybinding);
-		} else {
-			title = this.activity.name;
-		}
-
-		this.$label.title(title);
-		this.$badge.title(title);
-		this.$container.title(title);
-	}
-
 	protected _updateClass(): void {
 		if (this.cssClass) {
 			this.$badge.removeClass(this.cssClass);
@@ -496,7 +509,7 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	public run(event): TPromise<any> {
+	public run(event: any): TPromise<any> {
 		this.showMenu();
 
 		return TPromise.as(true);

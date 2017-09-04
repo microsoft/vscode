@@ -40,7 +40,7 @@ export class SharedProcess implements ISharedProcess {
 		this.window.loadURL(url);
 
 		// Prevent the window from dying
-		const onClose = e => {
+		const onClose = (e: Event) => {
 			if (this.window.isVisible()) {
 				e.preventDefault();
 				this.window.hide();

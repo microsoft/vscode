@@ -41,10 +41,10 @@ namespace OpenSnippetsAction {
 			return windowsService.openWindow([filePath], { forceReuseWindow: true });
 		}
 
-		var modeIds = modeService.getRegisteredModes();
-		var picks: IPickOpenEntry[] = [];
+		const modeIds = modeService.getRegisteredModes();
+		let picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
-			var name = modeService.getLanguageName(modeId);
+			const name = modeService.getLanguageName(modeId);
 			if (name) {
 				picks.push({ label: name, id: modeId });
 			}
@@ -55,12 +55,12 @@ namespace OpenSnippetsAction {
 
 		return quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
 			if (language) {
-				var snippetPath = join(environmentService.appSettingsHome, 'snippets', language.id + '.json');
+				const snippetPath = join(environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						return openFile(snippetPath);
 					}
-					var defaultContent = [
+					const defaultContent = [
 						'{',
 						'/*',
 						'\t// Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',

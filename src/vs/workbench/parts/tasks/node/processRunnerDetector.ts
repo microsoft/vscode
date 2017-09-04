@@ -38,7 +38,7 @@ interface TaskInfos {
 }
 
 interface TaskDetectorMatcher {
-	init();
+	init(): void;
 	match(tasks: string[], line: string);
 }
 

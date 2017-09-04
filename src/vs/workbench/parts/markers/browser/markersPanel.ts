@@ -370,7 +370,7 @@ export class MarkersPanel extends Panel {
 		return null;
 	}
 
-	private hasSelectedMarkerFor(resource): boolean {
+	private hasSelectedMarkerFor(resource: Resource): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {

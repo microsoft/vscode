@@ -358,7 +358,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
-		let foldersToAdd = [];
+		let foldersToAdd: IPath[] = [];
 		if (openConfig.addMode && product.quality !== 'stable') { // TODO@Ben multi root
 			foldersToAdd = pathsToOpen.filter(path => !!path.folderPath).map(path => ({ filePath: path.folderPath }));
 			pathsToOpen = pathsToOpen.filter(path => !path.folderPath);

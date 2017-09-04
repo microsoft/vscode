@@ -20,7 +20,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
-	public find(previous) {
+	public find(previous: boolean) {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {

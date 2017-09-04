@@ -108,7 +108,7 @@ export class MoveLinesCommand implements ICommand {
 						insertingText = newIndentation + this.trimLeft(movingLineText);
 					} else {
 						// no enter rule matches, let's check indentatin rules then.
-						virtualModel.getLineContent = (lineNumber) => {
+						virtualModel.getLineContent = (lineNumber: number) => {
 							if (lineNumber === s.startLineNumber) {
 								return model.getLineContent(movingLineNumber);
 							} else {
@@ -140,7 +140,7 @@ export class MoveLinesCommand implements ICommand {
 						}
 					} else {
 						// it doesn't match onEnter rules, let's check indentation rules then.
-						virtualModel.getLineContent = (lineNumber) => {
+						virtualModel.getLineContent = (lineNumber: number) => {
 							if (lineNumber === s.startLineNumber) {
 								return insertingText;
 							} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {

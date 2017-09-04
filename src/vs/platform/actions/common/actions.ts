@@ -186,7 +186,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 	}
 
 	run(...args: any[]): TPromise<any> {
-		let runArgs = [];
+		let runArgs: any[] = [];
 
 		if (this._options.arg) {
 			runArgs = [...runArgs, this._options.arg];

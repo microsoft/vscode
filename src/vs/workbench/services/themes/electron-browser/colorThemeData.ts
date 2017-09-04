@@ -208,7 +208,7 @@ export function fromStorageData(input: string): ColorThemeData {
 }
 
 export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
-	let baseTheme = theme['uiTheme'] || 'vs-dark';
+	let baseTheme: string = theme['uiTheme'] || 'vs-dark';
 
 	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 	let themeData = new ColorThemeData();

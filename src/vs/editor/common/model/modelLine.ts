@@ -196,7 +196,7 @@ export abstract class AbstractModelLine {
 	///
 
 	public abstract get text(): string;
-	protected abstract _setText(text: string, tabSize: number);
+	protected abstract _setText(text: string, tabSize: number): void;
 	protected abstract _createTokensAdjuster(): ITokensAdjuster;
 	protected abstract _createModelLine(text: string, tabSize: number): IModelLine;
 

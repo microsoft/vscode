@@ -424,7 +424,7 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
-	on(listener, thisArgs, disposables: IDisposable[]) {
+	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
 	}
 }
@@ -514,10 +514,10 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 		emitter.fire(e);
 	});
 
-	const flush = (listener, thisArgs?) => buffer.forEach(e => listener.call(thisArgs, e));
+	const flush = (listener: (e: T) => any, thisArgs?: any) => buffer.forEach(e => listener.call(thisArgs, e));
 
 	const emitter = new Emitter<T>({
-		onListenerDidAdd(emitter, listener, thisArgs?) {
+		onListenerDidAdd(emitter, listener: (e: T) => any, thisArgs?: any) {
 			if (nextTick) {
 				setTimeout(() => flush(listener, thisArgs));
 			} else {

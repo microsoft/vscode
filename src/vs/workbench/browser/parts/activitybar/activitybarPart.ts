@@ -156,14 +156,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				if (!stack) {
 					return;
 				}
+
 				const idx = stack.indexOf(activity);
 				if (idx < 0) {
 					return;
 				}
+
 				stack.splice(idx, 1);
 				if (stack.length === 0) {
 					delete this.viewletIdToActivityStack[viewletId];
 				}
+
 				this.updateActivity(viewletId);
 			}
 		};
@@ -174,13 +177,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (!action) {
 			return;
 		}
-		const stack = this.viewletIdToActivityStack[viewletId];
-		if (!stack || !stack.length) {
-			// reset
-			action.setBadge(undefined);
 
-		} else {
-			// update
+		const stack = this.viewletIdToActivityStack[viewletId];
+
+		// reset
+		if (!stack || !stack.length) {
+			action.setBadge(undefined);
+		}
+
+		// update
+		else {
 			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {

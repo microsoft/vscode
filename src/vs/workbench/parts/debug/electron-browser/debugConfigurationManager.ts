@@ -249,7 +249,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 		this._providers.set(handle, debugConfigurationProvider);
 		const adapter = this.getAdapter(debugConfigurationProvider.type);
-		if (adapter) {
+		// Check if the provider contributes provideDebugConfigurations method
+		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
 			adapter.hasConfigurationProvider = true;
 		}
 	}
