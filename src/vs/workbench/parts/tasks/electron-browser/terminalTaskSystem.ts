@@ -259,7 +259,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 
-		if (ContributedTask.is(task) || CustomTask.is(task)) {
+		if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
 			return TPromise.join(promises).then((summaries): TPromise<ITaskSummary> | ITaskSummary => {
 				for (let summary of summaries) {
 					if (summary.exitCode !== 0) {
