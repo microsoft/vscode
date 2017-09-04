@@ -9,10 +9,10 @@ import { Screenshot } from '../helpers/screenshot';
 var fs = require('fs');
 var path = require('path');
 
-export const LATEST_PATH = process.env.VSCODE_LATEST_PATH;
-export const STABLE_PATH = process.env.VSCODE_STABLE_PATH;
-export const WORKSPACE_PATH = process.env.SMOKETEST_REPO;
-export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH;
+export const LATEST_PATH = process.env.VSCODE_PATH || '';
+export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
+export const WORKSPACE_PATH = process.env.SMOKETEST_REPO || '';
+export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH || '';
 export const USER_DIR = 'test_data/temp_user_dir';
 export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
 
@@ -48,6 +48,11 @@ export class SpectronApplication {
 		}
 		if (!extensionDirIsSet) {
 			args.push(`--extensions-dir=${this.sampleExtensionsDir}`);
+		}
+
+		const repo = process.env.VSCODE_REPOSITORY;
+		if (repo) {
+			args = [repo, ...args];
 		}
 
 		this.spectron = new Application({
@@ -96,7 +101,7 @@ export class SpectronApplication {
 	}
 
 	private retrieveKeybindings() {
-		fs.readFile(path.join(process.cwd(), `test_data/keybindings.json`), 'utf8', (err, data) => {
+		fs.readFile(path.join(__dirname, '../../test_data/keybindings.json'), 'utf8', (err, data) => {
 			if (err) {
 				throw err;
 			}

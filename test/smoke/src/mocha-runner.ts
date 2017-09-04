@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MochaTest = require('mocha');
+const path = require('path');
 
 const mochaTest = new MochaTest({
 	timeout: 60000,
 	slow: 10000,
 	useColors: true
 });
-mochaTest.addFile(require('path').join(process.cwd(), 'out/test.js'));
+mochaTest.addFile(path.join(__dirname, 'test.js'));
 mochaTest.run((failures) => {
 	process.exit(failures);
 });

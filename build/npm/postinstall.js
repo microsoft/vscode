@@ -58,4 +58,5 @@ function npmInstallBuildDependencies() {
 }
 
 npmInstall(`build`); // node modules required for build
+npmInstall('test/smoke'); // node modules required for smoketest
 npmInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
