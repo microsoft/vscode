@@ -283,13 +283,13 @@ class QuickFixAdapter {
 	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const ran = TypeConverters.toRange(range);
+		const ran = <vscode.Range>TypeConverters.toRange(range);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		this._diagnostics.forEach(collection => {
 			if (collection.has(resource)) {
 				for (let diagnostic of collection.get(resource)) {
-					if (diagnostic.range.intersection(ran)) {
+					if (ran.contains(diagnostic.range)) {
 						allDiagnostics.push(diagnostic);
 					}
 				}
