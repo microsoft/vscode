@@ -6,72 +6,86 @@
 
 import 'vs/css!./lightBulbWidget';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 
-export class LightBulbWidget implements IDisposable {
+export class LightBulbWidget implements IDisposable, IContentWidget {
 
-	private readonly _options = {
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		glyphMarginClassName: 'lightbulb-glyph',
-		glyphMarginHoverMessage: <IMarkdownString>undefined
-	};
+	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
+	private readonly _domNode: HTMLDivElement;
 	private readonly _editor: ICodeEditor;
+	private readonly _disposables: IDisposable[] = [];
 	private readonly _onClick = new Emitter<{ x: number, y: number }>();
-	private readonly _mouseDownSubscription: IDisposable;
 
-	private _decorationIds: string[] = [];
-	private _currentLine: number;
+	readonly onClick: Event<{ x: number, y: number }> = this._onClick.event;
+
+	private _position: IContentWidgetPosition;
 	private _model: QuickFixComputeEvent;
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
-		this._mouseDownSubscription = this._editor.onMouseDown(e => {
+		this._editor.addContentWidget(this);
 
-			// not on glyh margin or not on 💡
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
-				|| this._currentLine === undefined
-				|| this._currentLine !== e.target.position.lineNumber
-			) {
-				return;
-			}
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'lightbulb-glyph';
 
+		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
-			const { top, height } = dom.getDomNodePagePosition(<HTMLDivElement>e.target.element);
+			const { top, height } = dom.getDomNodePagePosition(this._domNode);
 			const { lineHeight } = this._editor.getConfiguration();
+
+			let pad = Math.floor(lineHeight / 3);
+			if (this._position.position.lineNumber < this._model.position.lineNumber) {
+				pad += lineHeight;
+			}
+
 			this._onClick.fire({
-				x: e.event.posx,
-				y: top + height + Math.floor(lineHeight / 3)
+				x: e.posx,
+				y: top + height + pad
 			});
-		});
+		}));
+
+		this._disposables.push(this._editor.onDidChangeCursorSelection(e => {
+			// hide lightbulb when selection starts to
+			// enclose it
+			if (this._position && e.selection.containsPosition(this._position.position)) {
+				this.hide();
+			}
+		}));
 	}
 
 	dispose(): void {
-		this._mouseDownSubscription.dispose();
-		this.hide();
+		dispose(this._disposables);
+		this._editor.removeContentWidget(this);
 	}
 
-	get onClick(): Event<{ x: number, y: number }> {
-		return this._onClick.event;
+	getId(): string {
+		return 'LightBulbWidget';
 	}
 
-	set model(e: QuickFixComputeEvent) {
-		this._model = e;
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IContentWidgetPosition {
+		return this._position;
+	}
+
+	set model(value: QuickFixComputeEvent) {
 		this.hide();
+		this._model = value;
 		this._futureFixes = new CancellationTokenSource();
 		const { token } = this._futureFixes;
 
-		e.fixes.done(fixes => {
+		this._model.fixes.done(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				this.show(e);
+				this.show(this._model);
 			} else {
 				this.hide();
 			}
@@ -85,26 +99,42 @@ export class LightBulbWidget implements IDisposable {
 	}
 
 	set title(value: string) {
-		// TODO(joh,alex) this isn't working well because the hover hover
-		// message sticks around after clicking the light bulb
-		// this._options.glyphMarginHoverMessage = value;
+		this._domNode.title = value;
 	}
 
-	get title() {
-		return this._options.glyphMarginHoverMessage && this._options.glyphMarginHoverMessage.value;
+	get title(): string {
+		return this._domNode.title;
 	}
 
 	show(e: QuickFixComputeEvent): void {
-		this._currentLine = e.range.startLineNumber;
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, [{
-			options: this._options,
-			range: { ...e.range, endLineNumber: e.range.startLineNumber }
-		}]);
+		const { fontInfo } = this._editor.getConfiguration();
+		const { lineNumber } = e.position;
+		const model = this._editor.getModel();
+		const indent = model.getIndentLevel(lineNumber);
+		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
+
+		let effectiveLineNumber = lineNumber;
+		if (!lineHasSpace) {
+			if (lineNumber > 1) {
+				effectiveLineNumber -= 1;
+			} else {
+				effectiveLineNumber += 1;
+			}
+		}
+
+		this._position = {
+			position: { lineNumber: effectiveLineNumber, column: 1 },
+			preference: LightBulbWidget._posPref
+		};
+
+		this._editor.layoutContentWidget(this);
+		this._model = e;
 	}
 
 	hide(): void {
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
+		this._position = null;
+		this._model = null;
 		this._futureFixes.cancel();
-		this._currentLine = undefined;
+		this._editor.layoutContentWidget(this);
 	}
 }

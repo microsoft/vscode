@@ -273,7 +273,7 @@ class QuickFixAdapter {
 	private _diagnostics: ExtHostDiagnostics;
 	private _provider: vscode.CodeActionProvider;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, diagnostics: ExtHostDiagnostics, heapService: ExtHostHeapService, provider: vscode.CodeActionProvider) {
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, diagnostics: ExtHostDiagnostics, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
 		this._commands = commands;
 		this._diagnostics = diagnostics;
@@ -283,13 +283,13 @@ class QuickFixAdapter {
 	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const ran = TypeConverters.toRange(range);
+		const ran = <vscode.Range>TypeConverters.toRange(range);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		this._diagnostics.forEach(collection => {
 			if (collection.has(resource)) {
 				for (let diagnostic of collection.get(resource)) {
-					if (diagnostic.range.intersection(ran)) {
+					if (ran.contains(diagnostic.range)) {
 						allDiagnostics.push(diagnostic);
 					}
 				}
@@ -916,7 +916,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, this._heapService, provider));
+		this._adapter.set(handle, new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
 		this._proxy.$registerQuickFixSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
