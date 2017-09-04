@@ -8,6 +8,10 @@ import * as https from 'https';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as mkdirp from 'mkdirp';
+import * as minimist from 'minimist';
+
+const [, , ...args] = process.argv;
+const opts = minimist(args, { string: ['build', 'stable-build'] });
 
 const testDataPath = path.join(__dirname, '..', 'test_data');
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
@@ -42,7 +46,8 @@ function getDevElectronPath(): string {
 	}
 }
 
-let [, , testCodePath, stableCodePath] = process.argv;
+let testCodePath = opts.build;
+let stableCodePath = opts['stable-build'];
 
 if (testCodePath) {
 	process.env.VSCODE_PATH = testCodePath;
@@ -125,10 +130,36 @@ async function main(): Promise<void> {
 
 	console.log('Running npm install...');
 	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
-
-	console.log('Running tests...');
-	const mocha = cp.spawnSync(process.execPath, ['out/mocha-runner.js'], { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
-	process.exit(mocha.status);
 }
 
-main().catch(fail);
+/**
+ * WebDriverIO 4.8.0 outputs all kinds of "deprecation" warnings
+ * for common commands like `keys` and `moveToObject`.
+ * According to https://github.com/Codeception/CodeceptJS/issues/531,
+ * these deprecation warnings are for Firefox, and have no alternative replacements.
+ * Since we can't downgrade WDIO as suggested (it's Spectron's dep, not ours),
+ * we must suppress the warning with a classic monkey-patch.
+ *
+ * @see webdriverio/lib/helpers/depcrecationWarning.js
+ * @see https://github.com/webdriverio/webdriverio/issues/2076
+ */
+// Filter out the following messages:
+const wdioDeprecationWarning = /^WARNING: the "\w+" command will be depcrecated soon./; // [sic]
+// Monkey patch:
+const warn = console.warn;
+console.warn = function suppressWebdriverWarnings(message) {
+	if (wdioDeprecationWarning.test(message)) { return; }
+	warn.apply(console, arguments);
+};
+
+before(async () => main());
+
+import './areas/css/css.test';
+import './areas/explorer/explorer.test';
+import './areas/preferences/settings.test';
+import './areas/preferences/keybindings.test';
+import './areas/multiroot/multiroot.test';
+import './areas/extensions/extensions.test';
+import './areas/search/search.test';
+import './areas/workbench/data-loss.test';
+// import './areas/workbench/data-migration.test';
