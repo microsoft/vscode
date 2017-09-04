@@ -1239,6 +1239,12 @@ export class CodeMenu {
 	}
 
 	private reportMenuActionTelemetry(id: string): void {
+		/* __GDPR__
+		   "workbencActionExecuted" : {
+			  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: telemetryFrom });
 	}
 

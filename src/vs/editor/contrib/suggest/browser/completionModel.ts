@@ -16,6 +16,14 @@ export interface ICompletionItem extends ISuggestionItem {
 	idx?: number;
 }
 
+
+/* __GDPR__FRAGMENT__
+   "ICompletionStats" : {
+	  "suggestionCount" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "snippetCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "textCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+   }
+ */
 export interface ICompletionStats {
 	suggestionCount: number;
 	snippetCount: number;

@@ -62,6 +62,21 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	};
 }
 
+
+/* __GDPR__FRAGMENT__
+   "GalleryExtensionTelemetryData" : {
+	  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "name": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "galleryId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "publisherId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+	  "publisherName": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+	  "publisherDisplayName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+	  "dependencies": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "${include}": [
+		 "${GalleryExtensionTelemetryData2}"
+	  ]
+   }
+ */
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
 		id: extension.id,

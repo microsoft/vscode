@@ -180,10 +180,22 @@ const configurationValueWhitelist = [
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidUpdateConfiguration(event => {
 		if (event.source !== ConfigurationSource.Default) {
+			/* __GDPR__
+			   "updateConfiguration" : {
+				  "configurationSource" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "configurationKeys": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			telemetryService.publicLog('updateConfiguration', {
 				configurationSource: ConfigurationSource[event.source],
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
+			/* __GDPR__
+			   "updateConfigurationValues" : {
+				  "configurationSource" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "configurationValues": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+			   }
+			 */
 			telemetryService.publicLog('updateConfigurationValues', {
 				configurationSource: ConfigurationSource[event.source],
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
@@ -194,6 +206,11 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 
 export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
 	return lifecycleService.onShutdown(event => {
+		/* __GDPR__
+		   "shutdown" : {
+			  "reason" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
@@ -201,6 +218,11 @@ export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycl
 export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
 	return keybindingService.onDidUpdateKeybindings(event => {
 		if (event.source === KeybindingSource.User && event.keybindings) {
+			/* __GDPR__
+			   "updateKeybindings" : {
+				   "bindings": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+			   }
+			 */
 			telemetryService.publicLog('updateKeybindings', {
 				bindings: event.keybindings.map(binding => ({
 					key: binding.key,
