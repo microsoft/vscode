@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -23,11 +23,15 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
+import { ResourceQueue } from 'vs/base/common/async';
 
 export class FileEditorTracker implements IWorkbenchContribution {
+
+	protected closeOnFileDelete: boolean;
+
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	protected closeOnFileDelete: boolean;
+	private modelLoadQueue: ResourceQueue<void>;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -40,6 +44,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.modelLoadQueue = new ResourceQueue<void>();
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
@@ -243,74 +248,46 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private handleUpdates(e: FileChangesEvent): void {
 
-		// Collect distinct (saved) models to update.
-		//
-		// Note: we also consider the added event because it could be that a file was added
-		// and updated right after.
-		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
-			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => model && !model.isDirty()), m => m.getResource().toString());
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
 
-		// Handle updates to visible editors specially to preserve view state
-		const visibleModels = this.handleUpdatesToVisibleEditors(e);
-
-		// Handle updates to remaining models that are not visible
-		modelsToUpdate.forEach(model => {
-			if (visibleModels.indexOf(model) >= 0) {
-				return; // already updated
-			}
-
-			// Load model to update
-			model.load().done(null, errors.onUnexpectedError);
-		});
+		// Handle updates to text models
+		this.handleUpdatesToTextModels(e);
 	}
 
-	private handleUpdatesToVisibleEditors(e: FileChangesEvent): ITextFileEditorModel[] {
-		const updatedModels: ITextFileEditorModel[] = [];
-
+	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			const fileResource = toResource(editor.input, { filter: 'file', supportSideBySide: true });
 
-			// File Editor
-			if (fileResource) {
-
-				// File got added or updated, so check for model and update
-				// Note: we also consider the added event because it could be that a file was added
-				// and updated right after.
-				if (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED)) {
-
-					// Text file: check for last save time
-					const textModel = this.textFileService.models.get(fileResource);
-					if (textModel) {
-
-						// We only ever update models that are in good saved state
-						if (!textModel.isDirty()) {
-							const codeEditor = editor.getControl() as IEditor;
-							const viewState = codeEditor.saveViewState();
-							const lastKnownEtag = textModel.getETag();
-
-							textModel.load().done(() => {
-
-								// only restore the view state if the model changed and the editor is still showing it
-								if (textModel.getETag() !== lastKnownEtag && codeEditor.getModel() === textModel.textEditorModel) {
-									codeEditor.restoreViewState(viewState);
-								}
-							}, errors.onUnexpectedError);
-
-							updatedModels.push(textModel);
-						}
-					}
-
-					// Binary file: always update
-					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
-						this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
-					}
-				}
+			// Binary editor that should reload from event
+			if (fileResource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED))) {
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 			}
 		});
+	}
 
-		return updatedModels;
+	private handleUpdatesToTextModels(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		distinct([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource))
+			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
+			.forEach(model => this.queueModelLoad(model));
+	}
+
+	private queueModelLoad(model: ITextFileEditorModel): void {
+
+		// Load model to update (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelLoadQueue.queueFor(model.getResource());
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
+		}
 	}
 
 	public dispose(): void {

@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import Async = require('vs/base/common/async');
+import URI from 'vs/base/common/uri';
 
 suite('Async', () => {
 	test('Throttler - non async', function (done) {
@@ -452,8 +453,15 @@ suite('Async', () => {
 		let asyncPromise = false;
 		let f2 = () => TPromise.timeout(10).then(() => asyncPromise = true);
 
+		assert.equal(queue.size, 0);
+
 		queue.queue(f1);
-		queue.queue(f2).then(() => {
+		assert.equal(queue.size, 0); // sync promise is already done
+
+		const p = queue.queue(f2);
+		assert.equal(queue.size, 1);
+		return p.then(() => {
+			assert.equal(queue.size, 1);
 			assert.ok(syncPromise);
 			assert.ok(asyncPromise);
 
@@ -568,5 +576,23 @@ suite('Async', () => {
 				assert.ok(!finished);
 			});
 		});
+	});
+
+	test('ResourceQueue - simple', function () {
+		let queue = new Async.ResourceQueue();
+
+		const r1Queue = queue.queueFor(URI.file('/some/path'));
+		const r2Queue = queue.queueFor(URI.file('/some/other/path'));
+
+		assert.ok(r1Queue);
+		assert.ok(r2Queue);
+		assert.equal(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+
+		let syncPromiseFactory = () => TPromise.as(true);
+
+		r1Queue.queue(syncPromiseFactory);
+
+		const r1Queue2 = queue.queueFor(URI.file('/some/path'));
+		assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 	});
 });
