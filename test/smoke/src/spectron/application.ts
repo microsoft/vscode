@@ -7,17 +7,15 @@ import { Application } from 'spectron';
 import { SpectronClient } from './client';
 import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
-
-
-var fs = require('fs');
-var path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
 
 export const LATEST_PATH = process.env.VSCODE_PATH || '';
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
 export const WORKSPACE_PATH = process.env.SMOKETEST_REPO || '';
 export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH || '';
-export const USER_DIR = 'test_data/temp_user_dir';
-export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
+export const USER_DIR = path.join(__dirname, '../../test_data/temp_user_dir');
+export const EXTENSIONS_DIR = path.join(__dirname, 'test_data/temp_extensions_dir');
 
 /**
  * Wraps Spectron's Application instance with its used methods.
@@ -31,7 +29,7 @@ export class SpectronApplication {
 	private keybindings: any[];
 	private screenshot: IScreenshot;
 
-	private readonly sampleExtensionsDir: string = 'test_data/sample_extensions_dir';
+	private readonly sampleExtensionsDir: string = EXTENSIONS_DIR;
 	private readonly pollTrials = 50;
 	private readonly pollTimeout = 1; // in secs
 
