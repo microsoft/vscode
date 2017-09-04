@@ -16,7 +16,7 @@ var __extends = (this && this.__extends) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 var ts = require("typescript");
 var Lint = require("tslint");
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -28,7 +28,7 @@ var Rule = (function (_super) {
     return Rule;
 }(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
-var AsyncRuleWalker = (function (_super) {
+var AsyncRuleWalker = /** @class */ (function (_super) {
     __extends(AsyncRuleWalker, _super);
     function AsyncRuleWalker(file, opts, allowed) {
         var _this = _super.call(this, file, opts) || this;

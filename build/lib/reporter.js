@@ -54,7 +54,7 @@ function log() {
 function createReporter() {
     var errors = [];
     allErrors.push(errors);
-    var ReportFunc = (function () {
+    var ReportFunc = /** @class */ (function () {
         function ReportFunc(err) {
             errors.push(err);
         }
