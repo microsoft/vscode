@@ -51,6 +51,8 @@ export interface IViewLayout {
 	getCurrentScrollTop(): number;
 	getCurrentViewport(): Viewport;
 
+	getFutureViewport(): Viewport;
+
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 	setScrollPositionNow(position: INewScrollPosition): void;
 	setScrollPositionSmooth(position: INewScrollPosition): void;

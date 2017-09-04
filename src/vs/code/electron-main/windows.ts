@@ -31,7 +31,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -352,8 +352,9 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	public open(openConfig: IOpenConfiguration): CodeWindow[] {
-		let pathsToOpen = this.getPathsToOpen(openConfig);
+		openConfig = this.validateOpenConfig(openConfig);
 
+		let pathsToOpen = this.getPathsToOpen(openConfig);
 
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
@@ -443,6 +444,16 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		return usedWindows;
+	}
+
+	private validateOpenConfig(config: IOpenConfiguration): IOpenConfiguration {
+
+		// Make sure addMode is only enabled if we have an active window
+		if (config.addMode && (config.initialStartup || !this.getLastActiveWindow())) {
+			config.addMode = false;
+		}
+
+		return config;
 	}
 
 	private doOpen(
@@ -695,12 +706,12 @@ export class WindowsManager implements IWindowsMainService {
 
 	private getPathsToOpen(openConfig: IOpenConfiguration): IPathToOpen[] {
 		let windowsToOpen: IPathToOpen[];
-		let convertFoldersToWorkspace = false;
+		let isCommandLineOrAPICall = false;
 
 		// Extract paths: from API
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
 			windowsToOpen = this.doExtractPathsFromAPI(openConfig);
-			convertFoldersToWorkspace = true;
+			isCommandLineOrAPICall = true;
 		}
 
 		// Check for force empty
@@ -711,7 +722,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Extract paths: from CLI
 		else if (openConfig.cli._.length > 0) {
 			windowsToOpen = this.doExtractPathsFromCLI(openConfig.cli);
-			convertFoldersToWorkspace = true;
+			isCommandLineOrAPICall = true;
 		}
 
 		// Extract windows: from previous session
@@ -721,7 +732,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Convert multiple folders into workspace (if opened via API or CLI)
 		// This will ensure to open these folders in one window instead of multiple
-		if (convertFoldersToWorkspace && product.quality !== 'stable') { // TODO@Ben multi root
+		// If we are in addMode, we should not do this because in that case all
+		// folders should be added to the existing window.
+		if (!openConfig.addMode && isCommandLineOrAPICall && product.quality !== 'stable') { // TODO@Ben multi root
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
 			if (foldersToOpen.length > 1) {
 				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
@@ -1308,7 +1321,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.pickFileAndOpen({
 			windowId: window ? window.id : void 0,
 			dialogOptions: {
-				buttonLabel: mnemonicLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
+				buttonLabel: mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open")),
 				title: localize('openWorkspaceTitle', "Open Workspace"),
 				filters: WORKSPACE_FILTER,
 				properties: ['openFile'],
@@ -1359,8 +1372,8 @@ export class WindowsManager implements IWindowsMainService {
 			CANCEL
 		}
 
-		const save = { label: mnemonicLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const save = { label: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: mnemonicButtonLabel(localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
 		const buttons: { label: string; result: ConfirmResult; }[] = [];
@@ -1404,7 +1417,7 @@ export class WindowsManager implements IWindowsMainService {
 			// Save: save workspace, but do not veto unload
 			case ConfirmResult.SAVE: {
 				const target = dialog.showSaveDialog(e.window.win, {
-					buttonLabel: mnemonicLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
 					defaultPath: this.getWorkspaceDialogDefaultPath(workspace)

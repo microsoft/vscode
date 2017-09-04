@@ -25,6 +25,7 @@ import {
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -326,6 +327,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -825,18 +827,21 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				}
 
 				const extension = result.firstPage[0];
-				return this.open(extension).then(() => {
-					const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
-					const options = [
-						nls.localize('install', "Install"),
-						nls.localize('cancel', "Cancel")
-					];
-					return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
-						if (value !== 0) {
-							return TPromise.as(null);
-						}
 
-						return this.install(extension);
+				return this.windowService.show().then(() => {
+					return this.open(extension).then(() => {
+						const message = nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher);
+						const options = [
+							nls.localize('install', "Install"),
+							nls.localize('cancel', "Cancel")
+						];
+						return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
+							if (value !== 0) {
+								return TPromise.as(null);
+							}
+
+							return this.install(extension);
+						});
 					});
 				});
 			});

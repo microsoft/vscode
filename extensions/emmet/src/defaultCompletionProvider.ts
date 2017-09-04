@@ -44,7 +44,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					noiseCheckPromise = Promise.resolve(true);
 				} else {
 					noiseCheckPromise = vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[]) => {
-						return symbols.find(x => abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation));
+						return symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 					});
 				}
 			}
@@ -68,6 +68,10 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 					newItem.filterText = item.filterText;
 					newItem.sortText = item.sortText;
+
+					if (emmetConfig['showSuggestionsAsSnippets'] === true) {
+						newItem.kind = vscode.CompletionItemKind.Snippet;
+					}
 					newItems.push(newItem);
 				});
 			}

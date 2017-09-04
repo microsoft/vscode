@@ -506,7 +506,8 @@ export class Minimap extends ViewPart {
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
 				viewEvents.VerticalRevealType.Center,
-				false
+				false,
+				editorCommon.ScrollType.Smooth
 			));
 		});
 

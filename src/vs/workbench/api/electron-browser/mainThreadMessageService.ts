@@ -72,7 +72,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			messageHide = this._messageService.show(severity, {
 				message,
 				actions,
-				source: extension && `${extension.name} (${extension.id})`
+				source: extension && `${extension.displayName || extension.name}`
 			});
 		});
 	}

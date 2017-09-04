@@ -71,6 +71,7 @@ export class FileStat implements IFileStat {
 	public children: FileStat[];
 	public parent: FileStat;
 
+	public exists: boolean;
 	public isDirectoryResolved: boolean;
 
 	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
@@ -90,6 +91,7 @@ export class FileStat implements IFileStat {
 		}
 
 		this.isDirectoryResolved = false;
+		this.exists = true;
 	}
 
 	public getId(): string {

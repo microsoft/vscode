@@ -163,9 +163,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				if (!this._isDisposed) {
-					import('vs/workbench/parts/terminal/electron-browser/windowsShellHelper').then((module) => {
-						this._windowsShellHelper = new module.WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
-					});
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
 				}
 			});
 		}
@@ -658,9 +656,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processState = ProcessState.KILLED_BY_PROCESS;
 		}
 
-		// Only trigger wait on exit when the exit was triggered by the process,
-		// not through the `workbench.action.terminal.kill` command
-		if (this._processState === ProcessState.KILLED_BY_PROCESS && this._shellLaunchConfig.waitOnExit) {
+		// Only trigger wait on exit when the exit was *not* triggered by the
+		// user (via the `workbench.action.terminal.kill` command).
+		if (this._shellLaunchConfig.waitOnExit && this._processState !== ProcessState.KILLED_BY_USER) {
 			if (exitCode) {
 				this._xterm.writeln(exitCodeMessage);
 			}

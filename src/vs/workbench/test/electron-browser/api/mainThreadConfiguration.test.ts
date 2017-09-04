@@ -127,7 +127,25 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(ConfigurationTarget.FOLDER, target.args[0][0]);
 	});
 
-	test('update configuration with configuration target', function () {
+	test('update configuration with user configuration target', function () {
+		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ hasMultiFolderWorkspace: () => false });
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, OneGetThreadService(null));
+
+		testObject.$updateConfigurationOption(ConfigurationTarget.USER, 'extHostConfiguration.window', 'value', URI.file('abc'));
+
+		assert.equal(ConfigurationTarget.USER, target.args[0][0]);
+	});
+
+	test('update configuration with workspace configuration target', function () {
+		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ hasMultiFolderWorkspace: () => false });
+		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, OneGetThreadService(null));
+
+		testObject.$updateConfigurationOption(ConfigurationTarget.WORKSPACE, 'extHostConfiguration.window', 'value', URI.file('abc'));
+
+		assert.equal(ConfigurationTarget.WORKSPACE, target.args[0][0]);
+	});
+
+	test('update configuration with folder configuration target', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ hasMultiFolderWorkspace: () => false });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, OneGetThreadService(null));
 

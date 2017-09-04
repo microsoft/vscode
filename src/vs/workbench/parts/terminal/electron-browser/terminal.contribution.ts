@@ -229,7 +229,7 @@ configurationRegistry.registerConfiguration({
 				NavigateLeftAction.ID,
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID,
-				'workbench.action.quickOpenNavigateNextInViewPicker'
+				'workbench.action.quickOpenView'
 			].sort()
 		},
 		'terminal.integrated.env.osx': {

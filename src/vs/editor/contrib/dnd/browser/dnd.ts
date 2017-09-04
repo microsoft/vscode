@@ -176,7 +176,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 			this._dndDecorationIds = changeAccessor.deltaDecorations(this._dndDecorationIds, newDecorations);
 		});
-		this._editor.revealPosition(position);
+		this._editor.revealPosition(position, editorCommon.ScrollType.Immediate);
 	}
 
 	private _removeDecoration(): void {

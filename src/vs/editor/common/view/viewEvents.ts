@@ -10,6 +10,7 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -198,10 +199,13 @@ export class ViewRevealRangeRequestEvent {
 	 */
 	public readonly revealHorizontal: boolean;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
+	public readonly scrollType: ScrollType;
+
+	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
+		this.scrollType = scrollType;
 	}
 }
 

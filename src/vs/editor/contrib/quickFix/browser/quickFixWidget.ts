@@ -15,6 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Action } from 'vs/base/common/actions';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class QuickFixContextMenu {
 
@@ -63,7 +64,7 @@ export class QuickFixContextMenu {
 
 	private _toCoords(position: Position): { x: number, y: number } {
 
-		this._editor.revealPosition(position);
+		this._editor.revealPosition(position, ScrollType.Immediate);
 		this._editor.render();
 
 		// Translate to absolute editor position

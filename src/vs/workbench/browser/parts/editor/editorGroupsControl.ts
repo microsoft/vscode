@@ -1257,6 +1257,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 						});
 
 						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+
+							// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
+							// not dragging a tab actually because there we support both moving as well as copying
+							if (!TabsTitleControl.getDraggedEditor()) {
+								e.dataTransfer.dropEffect = 'copy';
+							}
+
 							positionOverlay(e, containers.length, index);
 						});
 

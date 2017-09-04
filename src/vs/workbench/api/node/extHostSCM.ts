@@ -62,6 +62,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	private static _handlePool: number = 0;
 	private _resourceHandlePool: number = 0;
 	private _resourceStates: vscode.SourceControlResourceState[] = [];
+	private _resourceStatesRollingDisposables: { (): void }[] = [];
 	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 
 	get id(): string {
@@ -93,12 +94,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourceStatesMap.clear();
 		this._resourceStates = [...resources];
 
+		const handles: number[] = [];
 		const rawResources = resources.map(r => {
 			const handle = this._resourceHandlePool++;
 			this._resourceStatesMap.set(handle, r);
+			handles.push(handle);
 
 			const sourceUri = r.resourceUri.toString();
 			const command = this._commands.toInternal(r.command);
@@ -121,6 +123,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 		});
+
+		const disposable = () => handles.forEach(handle => this._resourceStatesMap.delete(handle));
+		this._resourceStatesRollingDisposables.push(disposable);
+
+		while (this._resourceStatesRollingDisposables.length >= 10) {
+			this._resourceStatesRollingDisposables.shift()();
+		}
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
 	}

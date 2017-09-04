@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams, ServerCapabilities } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
@@ -54,6 +54,7 @@ documents.onDidClose(e => {
 });
 
 function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
+	console.log('scopedSettingsSupport ' + scopedSettingsSupport + 'needsSettings ' + needsDocumentSettings());
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -184,7 +185,7 @@ async function validateTextDocument(textDocument: TextDocument) {
 	let diagnostics: Diagnostic[] = [];
 	if (textDocument.languageId === 'html') {
 		let modes = languageModes.getAllModesInDocument(textDocument);
-		let settings = await getDocumentSettings(textDocument, () => modes.some(m => m.doValidation && m.doValidation.length > 1));
+		let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
 		modes.forEach(mode => {
 			if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
 				pushAll(diagnostics, mode.doValidation(textDocument, settings));
@@ -326,9 +327,12 @@ connection.onRequest(DocumentColorRequest.type, params => {
 connection.onRequest(TagCloseRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
-		let mode = languageModes.getModeAtPosition(document, params.position);
-		if (mode && mode.doAutoClose) {
-			return mode.doAutoClose(document, params.position);
+		let pos = params.position;
+		if (pos.character > 0) {
+			let mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+			if (mode && mode.doAutoClose) {
+				return mode.doAutoClose(document, pos);
+			}
 		}
 	}
 	return null;

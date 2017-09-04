@@ -15,8 +15,8 @@ export class ToggleMinimapAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.toggleMinimap',
-			label: nls.localize('toggleMinimap', "Toggle Minimap"),
-			alias: 'Toggle Minimap',
+			label: nls.localize('toggleMinimap', "View: Toggle Minimap"),
+			alias: 'View: Toggle Minimap',
 			precondition: null
 		});
 	}

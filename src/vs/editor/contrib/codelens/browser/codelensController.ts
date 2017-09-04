@@ -254,7 +254,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			});
 		});
 		if (shouldRestoreCenteredRange) {
-			this._editor.revealRangeInCenter(centeredRange);
+			this._editor.revealRangeInCenter(centeredRange, editorCommon.ScrollType.Immediate);
 		}
 	}
 

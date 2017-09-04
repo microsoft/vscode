@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
-import windowsProcessTree = require('windows-process-tree');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
@@ -13,11 +11,13 @@ import { Terminal as XTermTerminal } from 'xterm';
 
 const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 
+let windowsProcessTree;
+
 export class WindowsShellHelper {
 	private _childProcessIdStack: number[];
 	private _onCheckShell: Emitter<TPromise<string>>;
-	private _wmicProcess: cp.ChildProcess;
 	private _isDisposed: boolean;
+	private _currentRequest: TPromise<string>;
 
 	public constructor(
 		private _rootProcessId: number,
@@ -27,6 +27,10 @@ export class WindowsShellHelper {
 	) {
 		if (!platform.isWindows) {
 			throw new Error(`WindowsShellHelper cannot be instantiated on ${platform.platform}`);
+		}
+
+		if (!windowsProcessTree) {
+			windowsProcessTree = require.__$__nodeRequire('windows-process-tree');
 		}
 
 		this._childProcessIdStack = [this._rootProcessId];
@@ -55,6 +59,9 @@ export class WindowsShellHelper {
 	}
 
 	private traverseTree(tree: any): string {
+		if (!tree) {
+			return '';
+		}
 		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
 			return tree.name;
 		}
@@ -79,19 +86,26 @@ export class WindowsShellHelper {
 
 	public dispose(): void {
 		this._isDisposed = true;
-		if (this._wmicProcess) {
-			this._wmicProcess.kill();
-		}
 	}
 
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
 	public getShellName(): TPromise<string> {
-		return new TPromise<string>(resolve => {
+		if (this._isDisposed) {
+			return TPromise.as('');
+		}
+		// Prevent multiple requests at once, instead return current request
+		if (this._currentRequest) {
+			return this._currentRequest;
+		}
+		this._currentRequest = new TPromise<string>(resolve => {
 			windowsProcessTree(this._rootProcessId, (tree) => {
-				resolve(this.traverseTree(tree));
+				const name = this.traverseTree(tree);
+				this._currentRequest = null;
+				resolve(name);
 			});
 		});
+		return this._currentRequest;
 	}
 }

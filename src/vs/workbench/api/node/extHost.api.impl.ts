@@ -201,7 +201,8 @@ export function createApiFactory(
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return Platform.language; },
-			get appName() { return product.nameLong; }
+			get appName() { return product.nameLong; },
+			get appRoot() { return initData.environment.appRoot; },
 		});
 
 		// namespace: extensions

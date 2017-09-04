@@ -182,7 +182,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		</style>`;
 	}
 
-	private getStyles(uri: vscode.Uri, nonce: string): string {
+	private getStyles(resource: vscode.Uri, nonce: string): string {
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
@@ -190,7 +190,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
 			${this.getSettingsOverrideStyles(nonce)}
-			${this.computeCustomStyleSheetIncludes(uri)}`;
+			${this.computeCustomStyleSheetIncludes(resource)}`;
 	}
 
 	private getScripts(nonce: string): string {
@@ -236,7 +236,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
 				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
-				${this.getStyles(uri, nonce)}
+				${this.getStyles(sourceUri, nonce)}
 				<base href="${document.uri.toString(true)}">
 			</head>
 			<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">

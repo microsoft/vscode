@@ -15,7 +15,7 @@ import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces
 export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 	private _raw: T;
-	private _folders: string[];
+	private _folders: IStoredWorkspaceFolder[];
 	private _worksapaceSettings: ConfigurationModel<T>;
 	private _tasksConfiguration: ConfigurationModel<T>;
 	private _launchConfiguration: ConfigurationModel<T>;
@@ -27,7 +27,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 		this._workspaceConfiguration = this.consolidate();
 	}
 
-	get folders(): string[] {
+	get folders(): IStoredWorkspaceFolder[] {
 		return this._folders;
 	}
 
@@ -38,7 +38,7 @@ export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> 
 	protected processRaw(raw: T): void {
 		this._raw = raw;
 
-		this._folders = ((this._raw['folders'] || []) as IStoredWorkspaceFolder[]).map(folder => folder.path);
+		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._worksapaceSettings = this.parseConfigurationModel('settings');
 		this._tasksConfiguration = this.parseConfigurationModel('tasks');
 		this._launchConfiguration = this.parseConfigurationModel('launch');

@@ -547,9 +547,9 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#5e4a336693e1d5b079c7aecd286a1abcfbc10421"
     },
     "vscode-debugprotocol": {
-      "version": "1.23.0-pre.0",
-      "from": "vscode-debugprotocol@1.23.0-pre.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.23.0-pre.0.tgz"
+      "version": "1.23.0",
+      "from": "vscode-debugprotocol@1.23.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.23.0.tgz"
     },
     "vscode-ripgrep": {
       "version": "0.0.25",
@@ -566,10 +566,15 @@
       "from": "winreg@1.2.0",
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
+    "windows-process-tree": {
+      "version": "0.1.3",
+      "from": "windows-process-tree@0.1.3",
+      "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.3.tgz"
+    },
     "xterm": {
       "version": "2.9.1",
       "from": "Tyriar/xterm.js#vscode-release/1.16",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#ec134e64b555543043b49b26b238db452f588224"
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#d383d25c4e879578a2dabc3381f039b246abb34b"
     },
     "yauzl": {
       "version": "2.8.0",

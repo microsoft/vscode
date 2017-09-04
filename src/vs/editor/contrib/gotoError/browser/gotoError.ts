@@ -177,7 +177,7 @@ class MarkerModel {
 		this.withoutWatchingEditorPosition(() => {
 			const pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos);
+			this._editor.revealPositionInCenter(pos, editorCommon.ScrollType.Smooth);
 		});
 	}
 

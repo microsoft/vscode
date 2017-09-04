@@ -3971,6 +3971,13 @@ declare module 'vscode' {
 		export let appName: string;
 
 		/**
+		 * The application root folder from which the editor is running.
+		 *
+		 * @readonly
+		 */
+		export let appRoot: string;
+
+		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
 		 *
 		 * @readonly
@@ -4064,10 +4071,10 @@ declare module 'vscode' {
 		/**
 		 * Executes the command denoted by the given command identifier.
 		 *
-		 * When executing an editor command not all types are allowed to
+		 * * *Note 1:* When executing an editor command not all types are allowed to
 		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
-		 * `number`, `undefined`, and `null`, as well as classes defined in this API.
-		 * There are no restrictions when executing commands that have been contributed
+		 * `number`, `undefined`, and `null`, as well as [`Position`](#Position), [`Range`](#Range), [`Uri`](#Uri) and [`Location`](#Location).
+		 * * *Note 2:* There are no restrictions when executing commands that have been contributed
 		 * by extensions.
 		 *
 		 * @param command Identifier of the command to execute.
@@ -5540,14 +5547,14 @@ declare module 'vscode' {
 	 */
 	export interface DebugConfiguration {
 		/**
-		 * The type for the debug session.
+		 * The type of the debug session.
 		 */
 		type: string;
 
 		/**
-		 * An optional name for the debug session.
+		 * The name of the debug session.
 		 */
-		name?: string;
+		name: string;
 
 		/**
 		 * The request type of the debug session.

@@ -10,7 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
@@ -666,13 +666,13 @@ export class TextEditorOptions extends EditorOptions {
 	 *
 	 * @return if something was applied
 	 */
-	public apply(editor: IEditor): boolean {
+	public apply(editor: IEditor, scrollType: ScrollType): boolean {
 
 		// View state
-		return this.applyViewState(editor);
+		return this.applyViewState(editor, scrollType);
 	}
 
-	private applyViewState(editor: IEditor): boolean {
+	private applyViewState(editor: IEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate
@@ -694,9 +694,9 @@ export class TextEditorOptions extends EditorOptions {
 				};
 				editor.setSelection(range);
 				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealRangeInCenterIfOutsideViewport(range);
+					editor.revealRangeInCenterIfOutsideViewport(range, scrollType);
 				} else {
-					editor.revealRangeInCenter(range);
+					editor.revealRangeInCenter(range, scrollType);
 				}
 			}
 
@@ -708,9 +708,9 @@ export class TextEditorOptions extends EditorOptions {
 				};
 				editor.setPosition(pos);
 				if (this.revealInCenterIfOutsideViewport) {
-					editor.revealPositionInCenterIfOutsideViewport(pos);
+					editor.revealPositionInCenterIfOutsideViewport(pos, scrollType);
 				} else {
-					editor.revealPositionInCenter(pos);
+					editor.revealPositionInCenter(pos, scrollType);
 				}
 			}
 

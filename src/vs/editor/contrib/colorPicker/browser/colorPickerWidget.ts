@@ -129,6 +129,7 @@ class SaturationBox extends Disposable {
 	private width: number;
 	private height: number;
 
+	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private _onDidChange = new Emitter<{ s: number, v: number }>();
 	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
 
@@ -154,22 +155,24 @@ class SaturationBox extends Disposable {
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
+		this.monitor = null;
 	}
 
 	private onMouseDown(e: MouseEvent): void {
-		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		this.monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 
 		if (e.target !== this.selection) {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+		this.monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableListener(document, dom.EventType.MOUSE_UP, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
-			monitor.stopMonitoring(true);
+			this.monitor.stopMonitoring(true);
+			this.monitor = null;
 		}, true);
 	}
 
@@ -221,6 +224,9 @@ class SaturationBox extends Disposable {
 	}
 
 	private onDidChangeColor(): void {
+		if (this.monitor && this.monitor.isMonitoring()) {
+			return;
+		}
 		this.paint();
 	}
 }

@@ -388,7 +388,7 @@ export class StackFrame implements IStackFrame {
 				selection: this.range,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus
+				pinned: !preserveFocus && !this.source.inMemory
 			}
 		}, sideBySide);
 	}

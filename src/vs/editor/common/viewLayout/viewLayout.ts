@@ -136,6 +136,17 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		);
 	}
 
+	public getFutureViewport(): Viewport {
+		const scrollDimensions = this.scrollable.getScrollDimensions();
+		const currentScrollPosition = this.scrollable.getFutureScrollPosition();
+		return new Viewport(
+			currentScrollPosition.scrollTop,
+			currentScrollPosition.scrollLeft,
+			scrollDimensions.width,
+			scrollDimensions.height
+		);
+	}
+
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {
 		let isViewportWrapping = this._configuration.editor.wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {

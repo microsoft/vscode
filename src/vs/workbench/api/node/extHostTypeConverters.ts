@@ -150,14 +150,27 @@ export namespace MarkdownString {
 		return markup.map(MarkdownString.from);
 	}
 
+	interface Codeblock {
+		language: string;
+		value: string;
+	}
+
+	function isCodeblock(thing: any): thing is Codeblock {
+		return typeof thing === 'object'
+			&& typeof (<Codeblock>thing).language === 'string'
+			&& typeof (<Codeblock>thing).value === 'string';
+	}
+
 	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
-		if (htmlContent.isMarkdownString(markup)) {
-			return markup;
-		} else if (typeof markup === 'string' || !markup) {
-			return { value: <string>markup || '', isTrusted: true };
-		} else {
+		if (isCodeblock(markup)) {
 			const { language, value } = markup;
-			return { value: '```' + language + '\n' + value + '\n```' };
+			return { value: '```' + language + '\n' + value + '\n```\n' };
+		} else if (htmlContent.isMarkdownString(markup)) {
+			return markup;
+		} else if (typeof markup === 'string') {
+			return { value: <string>markup, isTrusted: true };
+		} else {
+			return { value: '' };
 		}
 	}
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {

@@ -259,7 +259,7 @@ export class DiffReview extends Disposable {
 
 		if (jumpToLineNumber !== -1) {
 			this._diffEditor.setPosition(new Position(jumpToLineNumber, 1));
-			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1));
+			this._diffEditor.revealPosition(new Position(jumpToLineNumber, 1), editorCommon.ScrollType.Immediate);
 		}
 	}
 

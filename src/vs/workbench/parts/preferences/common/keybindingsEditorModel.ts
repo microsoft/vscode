@@ -385,7 +385,7 @@ class KeybindingItemMatches {
 			return false;
 		}
 		const ariaLabel = keybinding.keyAriaLabel;
-		if (ariaLabel.length === 1 || word.length === 1) {
+		if (this.completeMatch || ariaLabel.length === 1 || word.length === 1) {
 			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
 				return true;
 			}

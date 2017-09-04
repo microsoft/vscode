@@ -366,10 +366,15 @@ export class WindowsService implements IWindowsService, IDisposable {
 	 * This should only fire whenever an extension URL is open
 	 * and there are no windows to handle it.
 	 */
-	private openExtensionForURI(uri: URI): TPromise<void> {
+	private async openExtensionForURI(uri: URI): TPromise<void> {
 		const cli = assign(Object.create(null), this.environmentService.args);
-		this.windowsMainService.open({ context: OpenContext.API, cli });
-		return TPromise.as(null);
+		const window = await this.windowsMainService.open({ context: OpenContext.API, cli })[0];
+
+		if (!window) {
+			return;
+		}
+
+		window.win.show();
 	}
 
 	dispose(): void {

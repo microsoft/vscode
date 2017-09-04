@@ -152,10 +152,10 @@ export class CommandCenter {
 
 	@command('git.openResource')
 	async openResource(resource: Resource): Promise<void> {
-		await this._openResource(resource, undefined, true);
+		await this._openResource(resource, undefined, true, false);
 	}
 
-	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean): Promise<void> {
+	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -174,7 +174,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 
-		if (activeTextEditor && activeTextEditor.document.uri.toString() === right.toString()) {
+		if (preserveSelection && activeTextEditor && activeTextEditor.document.uri.fsPath === right.fsPath) {
 			opts.selection = activeTextEditor.selection;
 		}
 
@@ -362,23 +362,18 @@ export class CommandCenter {
 		const preview = uris.length === 1 ? true : false;
 		const activeTextEditor = window.activeTextEditor;
 		for (const uri of uris) {
-			// If the active editor matches the current uri, get its selection
-			const selections = activeTextEditor && activeTextEditor.document.uri.toString() === uri.toString()
-				? activeTextEditor.selections
-				: undefined;
-
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
 				preview: preview,
 				viewColumn: activeTextEditor && activeTextEditor.viewColumn || ViewColumn.One
 			};
 
+			if (activeTextEditor && activeTextEditor.document.uri.fsPath === uri.fsPath) {
+				opts.selection = activeTextEditor.selection;
+			}
+
 			const document = await workspace.openTextDocument(uri);
 			await window.showTextDocument(document, opts);
-
-			if (selections && window.activeTextEditor) {
-				window.activeTextEditor.selections = selections;
-			}
 		}
 	}
 
@@ -411,6 +406,7 @@ export class CommandCenter {
 	@command('git.openChange')
 	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
+		const preserveSelection = arg instanceof Uri || !arg;
 		let resources: Resource[] | undefined = undefined;
 
 		if (arg instanceof Uri) {
@@ -438,7 +434,7 @@ export class CommandCenter {
 
 		const preview = resources.length === 1 ? undefined : false;
 		for (const resource of resources) {
-			await this._openResource(resource, preview, preserveFocus);
+			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}
 	}
 
@@ -1299,7 +1295,7 @@ export class CommandCenter {
 
 				result = repositoryPromise.then(repository => {
 					if (!repository) {
-						return Promise.reject(localize('modelnotfound', "Git model not found"));
+						return Promise.resolve();
 					}
 
 					return Promise.resolve(method.apply(this, [repository, ...args]));

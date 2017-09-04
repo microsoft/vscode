@@ -106,7 +106,7 @@ suite('QuickFix', () => {
 
 	});
 
-	test('Oracle -> ask once per marker/word', () => {
+	test('Oracle -> ask once per marker/word', async () => {
 
 		const start = promiseOnce(markerService.onMarkerChanged);
 
@@ -118,41 +118,41 @@ suite('QuickFix', () => {
 			source: ''
 		}]);
 
-		return start.then(() => {
+		await start;
 
-			let stacks: string[] = [];
-			let counter = 0;
-			let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-				provideCodeActions() {
-					counter += 1;
-					stacks.push(new Error().stack);
-					return [];
-				}
-			});
-
-			let fixes: TPromise<any>[] = [];
-			let oracle = new QuickFixOracle(editor, markerService, e => {
-				fixes.push(e.fixes);
-			}, 10);
-
-			editor.setPosition({ lineNumber: 1, column: 3 }); // marker
-			editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
-
-			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(() => {
-
-				assert.equal(counter, 1, stacks.join('\n----\n'));
-
-				editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
-				editor.setPosition({ lineNumber: 2, column: 2 }); // word
-				editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
-
-				return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
-					reg.dispose();
-					oracle.dispose();
-					assert.equal(counter, 2, stacks.join('\n----\n'));
-				});
-			});
+		let counter = 0;
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions() {
+				counter += 1;
+				return [];
+			}
 		});
+
+		let fixes: TPromise<any>[] = [];
+		let oracle = new QuickFixOracle(editor, markerService, e => {
+			fixes.push(e.fixes);
+		}, 10);
+
+		editor.setPosition({ lineNumber: 1, column: 3 }); // marker
+		editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
+
+		await TPromise.join([TPromise.timeout(20)].concat(fixes));
+		assert.equal(counter, 1);
+
+		// no auto trigger when empty selection
+		editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
+		editor.setPosition({ lineNumber: 2, column: 2 }); // word
+		editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+		await TPromise.join([TPromise.timeout(20)].concat(fixes));
+		assert.equal(counter, 1);
+
+		// auto trigger on non-empty selection
+		editor.setSelection({ startLineNumber: 2, startColumn: 2, endLineNumber: 2, endColumn: 6 });
+		await TPromise.join([TPromise.timeout(20)].concat(fixes));
+		assert.equal(counter, 2);
+
+		reg.dispose();
+		oracle.dispose();
 	});
 
 	test('Oracle -> selection wins over marker', () => {
@@ -182,8 +182,8 @@ suite('QuickFix', () => {
 
 		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
 
-			// 'auto' triggered, non-empty selection
-			assert.equal(range, undefined);
+			// -> marker wins
+			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6 });
 
 			// 'auto' triggered, non-empty selection BUT within a marker
 			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 4 });
@@ -215,12 +215,13 @@ suite('QuickFix', () => {
 			source: ''
 		}]);
 
-		// case 1 - drag selection over multiple lines -> no automatic lightbulb
+		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
 		await new TPromise(resolve => {
 
 			let oracle = new QuickFixOracle(editor, markerService, e => {
 				assert.equal(e.type, 'auto');
-				assert.equal(e.range, undefined);
+				assert.deepEqual(e.range, { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 });
+				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
 
 				oracle.dispose();
 				resolve(null);

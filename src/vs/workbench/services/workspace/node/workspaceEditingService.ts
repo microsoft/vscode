@@ -75,7 +75,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			const workspaceConfigFolder = dirname(workspace.configuration.fsPath);
 			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => {
 				if (isEqualOrParent(newWorkspaceRoot, workspaceConfigFolder, !isLinux)) {
-					newWorkspaceRoot = relative(workspaceConfigFolder, newWorkspaceRoot); // absolute paths get converted to relative ones to workspace location if possible
+					newWorkspaceRoot = relative(workspaceConfigFolder, newWorkspaceRoot) || '.'; // absolute paths get converted to relative ones to workspace location if possible
 				}
 
 				return { path: newWorkspaceRoot };

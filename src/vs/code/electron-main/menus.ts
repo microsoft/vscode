@@ -18,7 +18,7 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { tildify, mnemonicLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -492,7 +492,7 @@ export class CodeMenu {
 		let label: string;
 		let path: string;
 		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = unmnemonicLabel(tildify(workspace, this.environmentService.userHome));
+			label = unmnemonicLabel(getPathLabel(workspace, null, this.environmentService));
 			path = workspace;
 		} else {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
