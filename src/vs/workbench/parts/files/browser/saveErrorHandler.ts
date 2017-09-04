@@ -263,6 +263,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 					// Clean up
 					input.dispose();
 					reference.dispose();
+					editorService.closeEditor(position, input);
 				});
 			});
 		});
@@ -291,6 +292,7 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 				// Clean up
 				input.dispose();
 				reference.dispose();
+				editorService.closeEditor(position, input);
 			});
 		});
 	});
