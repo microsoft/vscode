@@ -5,17 +5,14 @@
 
 import { SpectronApplication } from '../spectron/application';
 
-export class FirstExperience {
+export class Window {
+
 	constructor(private spectron: SpectronApplication) {
-		// noop
+
 	}
 
-	public async getWelcomeTab(): Promise<any> {
-		let el = await this.spectron.client.waitForElement('.vs_code_welcome_page-name-file-icon');
-		if (el) {
-			return el;
-		}
-
-		return undefined;
+	public async getTitle(): Promise<string> {
+		return this.spectron.client.getTitle();
 	}
+
 }

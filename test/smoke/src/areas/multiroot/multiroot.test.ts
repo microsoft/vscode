@@ -5,38 +5,34 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../spectron/application';
-import { CommonActions } from '../areas/common';
+import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../../spectron/application';
+import { QuickOpen } from '../quickopen/quickopen';
+import { Window } from '../window';
 
 let app: SpectronApplication;
-let common: CommonActions;
 
 export function testMultiRoot() {
 	describe('Multi Root', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [CODE_WORKSPACE_PATH]);
-			common = new CommonActions(app);
-
-			return await app.start();
+			return app.start();
 		});
 
 		afterEach(async function () {
-			return await app.stop();
+			return app.stop();
 		});
 
 		it('shows results from all folders', async function () {
-			await common.openQuickOpen();
-			await app.wait();
-			await common.type('*.*');
-			await app.wait();
-			const elCount = await common.getQuickOpenElements();
-			assert.equal(elCount, 6);
+			let quickOpen = new QuickOpen(app);
+			await quickOpen.openQuickOpen();
+			await app.type('*.*');
+			const elements = await quickOpen.getQuickOpenElements();
+			assert.equal(elements.length, 6);
 		});
 
 		it('shows workspace name in title', async function () {
-			await app.wait();
-			const title = await common.getWindowTitle();
+			const title = await new Window(app).getTitle();
 			assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 		});
 	});

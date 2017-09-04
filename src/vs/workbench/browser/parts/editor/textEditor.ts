@@ -196,6 +196,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			// Update editor options after having set the input. We do this because there can be
 			// editor input specific options (e.g. an ARIA label depending on the input showing)
 			this.updateEditorConfiguration();
+			this._editorContainer.getHTMLElement().setAttribute('aria-label', this.computeAriaLabel());
 		});
 	}
 

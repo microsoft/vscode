@@ -28,6 +28,6 @@ export class ActivityBar {
 			throw new Error('No such position for activity bar defined.');
 		}
 
-		return this.spectron.client.element(`.part.activitybar.${positionClass}`);
+		return this.spectron.client.waitForElement(`.part.activitybar.${positionClass}`);
 	}
 }

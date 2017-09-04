@@ -16,8 +16,8 @@ export class DataLoss {
 
 	public async verifyTabIsDirty(tabName: string, active?: boolean): Promise<any> {
 		let activeSelector = active ? '.active' : '';
-		let el = await this.spectron.client.element(`.tabs-container .tab.dirty${activeSelector}[aria-label="${tabName}, tab"]`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`.tabs-container .tab.dirty${activeSelector}[aria-label="${tabName}, tab"]`);
+		if (el) {
 			return el;
 		}
 

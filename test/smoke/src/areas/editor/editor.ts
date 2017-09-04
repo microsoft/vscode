@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
-export class FirstExperience {
+export class Editor {
+
 	constructor(private spectron: SpectronApplication) {
-		// noop
 	}
 
-	public async getWelcomeTab(): Promise<any> {
-		let el = await this.spectron.client.waitForElement('.vs_code_welcome_page-name-file-icon');
-		if (el) {
-			return el;
-		}
-
-		return undefined;
+	public async getEditorFirstLineText(): Promise<string> {
+		const result = await this.spectron.client.waitForText('.monaco-editor.focused .view-lines span span:nth-child(1)');
+		return Array.isArray(result) ? result.join() : result;
 	}
 }

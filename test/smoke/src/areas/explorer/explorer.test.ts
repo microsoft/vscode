@@ -5,19 +5,15 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
-import { CommonActions } from '../areas/common';
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
 
 let app: SpectronApplication;
-let common: CommonActions;
 
 export function testExplorer() {
 	describe('Explorer', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
-			common = new CommonActions(app);
-
 			return await app.start();
 		});
 		afterEach(async function () {
@@ -25,19 +21,18 @@ export function testExplorer() {
 		});
 
 		it('quick open search produces correct result', async function () {
-			await common.openQuickOpen();
-			await common.type('.js');
-			await app.wait();
-			const elCount = await common.getQuickOpenElements();
-			assert.equal(elCount, 7);
+			await app.workbench.quickopen.openQuickOpen();
+			await app.client.type('.js');
+			const elements = await app.workbench.quickopen.getQuickOpenElements();
+			assert.equal(elements.length, 7);
 		});
 
 		it('quick open respects fuzzy matching', async function () {
-			await common.openQuickOpen();
-			await common.type('a.s');
-			await app.wait();
-			const elCount = await common.getQuickOpenElements();
-			assert.equal(elCount, 3);
+			await app.workbench.quickopen.openQuickOpen();
+			await app.client.type('a.s');
+
+			const elements = await app.workbench.quickopen.getQuickOpenElements();
+			assert.equal(elements.length, 3);
 		});
 	});
 }

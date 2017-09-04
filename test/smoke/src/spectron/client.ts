@@ -16,7 +16,6 @@ export class SpectronClient {
 	private readonly trialWait = 100; // in milliseconds
 
 	constructor(private spectron: Application, private shot: IScreenshot) {
-		// noop
 	}
 
 	public windowByIndex(index: number): Promise<any> {
@@ -33,19 +32,30 @@ export class SpectronClient {
 		return this.spectron.client.getText(selector);
 	}
 
-	public async getHTML(selector: string, capture: boolean = true, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
+	public async waitForText(selector: string, text?: string, accept?: (result: string) => boolean): Promise<string> {
 		await this.screenshot();
-		return this.wait(this.spectron.client.getHTML, selector, accept, `getHTML with selector ${selector}`);
+		accept = accept ? accept : result => text !== void 0 ? text === result : !!result;
+		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
+	}
+
+	public async waitForHTML(selector: string, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
+		await this.screenshot();
+		return this.waitFor(() => this.spectron.client.getHTML(selector), accept, `getHTML with selector ${selector}`);
+	}
+
+	public async waitAndClick(selector: string): Promise<any> {
+		await this.screenshot();
+		return this.waitFor(() => this.spectron.client.click(selector), void 0, `click with selector ${selector}`);
 	}
 
 	public async click(selector: string): Promise<any> {
 		await this.screenshot();
-		return this.wait(this.spectron.client.click, selector, void 0, `click with selector ${selector}`);
+		return this.spectron.client.click(selector);
 	}
 
-	public async doubleClick(selector: string, capture: boolean = true): Promise<any> {
+	public async doubleClickAndWait(selector: string, capture: boolean = true): Promise<any> {
 		await this.screenshot(capture);
-		return this.wait(this.spectron.client.doubleClick, selector, void 0, `doubleClick with selector ${selector}`);
+		return this.waitFor(() => this.spectron.client.doubleClick(selector), void 0, `doubleClick with selector ${selector}`);
 	}
 
 	public async leftClick(selector: string, xoffset: number, yoffset: number, capture: boolean = true): Promise<any> {
@@ -63,24 +73,42 @@ export class SpectronClient {
 		return this.spectron.client.moveToObject(selector);
 	}
 
+	public async waitAndmoveToObject(selector: string): Promise<any> {
+		await this.screenshot();
+		return this.waitFor(() => this.spectron.client.moveToObject(selector), void 0, `move to object with selector ${selector}`);
+	}
+
 	public async setValue(selector: string, text: string, capture: boolean = true): Promise<any> {
 		await this.screenshot(capture);
 		return this.spectron.client.setValue(selector, text);
 	}
 
-	public async elements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<any> {
+	public async waitForElements(selector: string, accept: (result: Element[]) => boolean = result => result.length > 0): Promise<Element[]> {
 		await this.screenshot(true);
-		return this.wait<RawResult<Element[]>>(this.spectron.client.elements, selector, result => accept(result.value), `elements with selector ${selector}`);
+		return this.waitFor<RawResult<Element[]>>(() => this.spectron.client.elements(selector), result => accept(result.value), `elements with selector ${selector}`)
+			.then(result => result.value);
 	}
 
-	public async element(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
+	public async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<Element> {
 		await this.screenshot();
-		return this.wait<RawResult<Element>>(this.spectron.client.element, selector, result => accept(result ? result.value : void 0), `element with selector ${selector}`);
+		return this.waitFor<RawResult<Element>>(() => this.spectron.client.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`)
+			.then(result => result.value);
 	}
 
-	public async elementActive(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
+	public async element(selector: string): Promise<Element> {
 		await this.screenshot();
-		return this.wait<RawResult<Element>>(this.spectron.client.elementActive, selector, result => accept(result ? result.value : void 0), `elementActive with selector ${selector}`);
+		return this.spectron.client.element(selector)
+			.then(result => result.value);
+	}
+
+	public async waitForActiveElement(accept: (result: Element | undefined) => boolean = result => !!result): Promise<any> {
+		await this.screenshot();
+		return this.waitFor<RawResult<Element>>(() => this.spectron.client.elementActive(), result => accept(result ? result.value : void 0), `elementActive`);
+	}
+
+	public async waitForAttribute(selector: string, attribute: string, accept: (result: string) => boolean = result => !!result): Promise<string> {
+		await this.screenshot();
+		return this.waitFor<string>(() => this.spectron.client.getAttribute(selector), accept, `attribute with selector ${selector}`);
 	}
 
 	public async dragAndDrop(sourceElem: string, destinationElem: string, capture: boolean = true): Promise<any> {
@@ -120,22 +148,31 @@ export class SpectronClient {
 		return this.spectron.client.isVisible(selector);
 	}
 
-	public getTitle(): string {
+	public async getTitle(): Promise<string> {
 		return this.spectron.client.getTitle();
 	}
 
-	private async wait<T>(func: (...args: any[]) => any, args: any, accept: (result: T) => boolean = result => !!result, functionDetails: string): Promise<T> {
+	private async screenshot(capture: boolean = true): Promise<any> {
+		try {
+			await this.shot.capture();
+		} catch (e) {
+			throw new Error(`Screenshot could not be captured: ${e}`);
+		}
+	}
+
+	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string): Promise<T> {
 		let trial = 1;
 
 		while (true) {
 			if (trial > this.trials) {
-				return new Promise<T>((res, rej) => rej(`${functionDetails}: Timed out after ${this.trials * this.trialWait} seconds.`));
+				return new Promise<T>((res, rej) => rej(`${timeoutMessage}: Timed out after ${this.trials * this.trialWait} seconds.`));
 			}
 
 			let result;
 			try {
-				result = await func.call(this, args);
+				result = await func();
 			} catch (e) {
+				// TODO: what to do?
 			}
 
 			if (accept(result)) {
@@ -147,11 +184,22 @@ export class SpectronClient {
 		}
 	}
 
-	private async screenshot(capture: boolean = true): Promise<any> {
-		try {
-			await this.shot.capture();
-		} catch (e) {
-			throw new Error(`Screenshot could not be captured: ${e}`);
-		}
+	public type(text: string): Promise<any> {
+		return new Promise((res) => {
+			let textSplit = text.split(' ');
+
+			const type = async (i: number) => {
+				if (!textSplit[i] || textSplit[i].length <= 0) {
+					return res();
+				}
+
+				const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
+				await this.keys(toType, false);
+				await this.keys(['NULL']);
+				await type(i + 1);
+			};
+
+			return type(0);
+		});
 	}
 }

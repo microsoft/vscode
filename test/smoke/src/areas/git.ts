@@ -26,7 +26,7 @@ export class Git {
 	public async verifyScmChange(fileName: string): Promise<any> {
 		let el;
 		try {
-			el = await this.spectron.client.element(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"]`);
+			el = await this.spectron.client.waitForElement(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.commonActions.getExtensionSelector(fileName)}"]`);
 		} catch (e) {
 			return Promise.reject(`${fileName} change is not present in SCM viewlet.`);
 		}
@@ -57,7 +57,7 @@ export class Git {
 		await this.spectron.wait();
 
 		try {
-			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-4');
+			await this.spectron.client.waitAndClick('.action-label.icon.contrib-cmd-icon-4');
 		} catch (e) {
 			return Promise.reject('Stage button was not found');
 		}
@@ -72,7 +72,7 @@ export class Git {
 		}
 
 		try {
-			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-6');
+			await this.spectron.client.waitAndClick('.action-label.icon.contrib-cmd-icon-6');
 		} catch (e) {
 			return Promise.reject('Unstage button was not found.');
 		}
@@ -106,7 +106,7 @@ export class Git {
 
 	public focusOnCommitBox(): Promise<any> {
 		try {
-			return this.spectron.client.click('div[id="workbench.view.scm"] textarea');
+			return this.spectron.client.waitAndClick('div[id="workbench.view.scm"] textarea');
 		} catch (e) {
 			return Promise.reject('Failed to focus on commit box: ' + e);
 		}
@@ -114,7 +114,7 @@ export class Git {
 
 	public async pressCommit(): Promise<any> {
 		try {
-			await this.spectron.client.click('.action-label.icon.contrib-cmd-icon-10');
+			await this.spectron.client.waitAndClick('.action-label.icon.contrib-cmd-icon-10');
 		} catch (e) {
 			return Promise.reject('Failed to press commit: ' + e);
 		}
@@ -131,7 +131,7 @@ export class Git {
 	}
 
 	private getFirstChangeIndex(changeClass: string, selector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+		return this.spectron.waitFor(this.spectron.client.waitForHTML, selector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let lineIndex: number = 0;
 				let changeFound: boolean;

@@ -6,6 +6,9 @@
 import { Application } from 'spectron';
 import { SpectronClient } from './client';
 import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
+import { Workbench } from '../areas/workbench/workbench';
+
+
 var fs = require('fs');
 var path = require('path');
 
@@ -20,7 +23,9 @@ export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
  * Wraps Spectron's Application instance with its used methods.
  */
 export class SpectronApplication {
-	public client: SpectronClient;
+
+	public readonly client: SpectronClient;
+	public readonly workbench: Workbench;
 
 	private spectron: Application;
 	private keybindings: any[];
@@ -30,11 +35,7 @@ export class SpectronApplication {
 	private readonly pollTrials = 50;
 	private readonly pollTimeout = 1; // in secs
 
-	constructor(electronPath: string, testName: string, private testRetry: number, args?: string[], chromeDriverArgs?: string[]) {
-		if (!args) {
-			args = [];
-		}
-
+	constructor(electronPath: string, testName: string, private testRetry: number, args: string[] = [], chromeDriverArgs: string[] = []) {
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
 
@@ -49,11 +50,21 @@ export class SpectronApplication {
 		if (!extensionDirIsSet) {
 			args.push(`--extensions-dir=${this.sampleExtensionsDir}`);
 		}
+		let userDataDirIsSet = false;
+		for (let arg of chromeDriverArgs) {
+			if (arg.startsWith('--user-data-dir')) {
+				userDataDirIsSet = true;
+				break;
+			}
+		}
+		if (!userDataDirIsSet) {
+			chromeDriverArgs.push(`--user-data-dir=${USER_DIR}/${new Date().getTime()}`);
+		}
 
 		this.spectron = new Application({
 			path: electronPath,
-			// args: ['/Users/sandy081/work/vscode', ...args],
-			args: args,
+			args: ['/Users/sandy081/work/vscode', ...args],
+			// args: args,
 			chromeDriverArgs: chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
@@ -62,6 +73,8 @@ export class SpectronApplication {
 		this.screenshot = args.indexOf('--no-screenshot') === -1 ? new NullScreenshot() : new Screenshot(this, testName, testRetry);
 		this.client = new SpectronClient(this.spectron, this.screenshot);
 		this.retrieveKeybindings();
+
+		this.workbench = new Workbench(this);
 	}
 
 	public get app(): Application {
@@ -74,6 +87,19 @@ export class SpectronApplication {
 		await this.checkWindowReady();
 	}
 
+	public async restart(): Promise<any> {
+		await this.stop();
+		await this.wait(.5);  // wait until all resources are released (e.g. locked local storage)
+		await this.start();
+	}
+
+	public async reload(): Promise<any> {
+		await this.workbench.commandPallette.runCommand('Reload Window');
+		// TODO @sandy: Find a proper condition to wait for reload
+		await this.wait(.5);
+		await this.client.waitForHTML('[id="workbench.main.container"]');
+	}
+
 	public async stop(): Promise<any> {
 		if (this.spectron && this.spectron.isRunning()) {
 			return await this.spectron.stop();
@@ -84,8 +110,8 @@ export class SpectronApplication {
 		return this.callClientAPI(func, args);
 	}
 
-	public wait(): Promise<any> {
-		return new Promise(resolve => setTimeout(resolve, this.testRetry * this.pollTimeout * 1000));
+	public wait(seconds: number = this.testRetry * this.pollTimeout): Promise<any> {
+		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
 	public focusOnWindow(index: number): Promise<any> {
@@ -93,7 +119,9 @@ export class SpectronApplication {
 	}
 
 	private async checkWindowReady(): Promise<any> {
-		await this.waitFor(this.spectron.client.getHTML, '[id="workbench.main.container"]');
+		await this.client.waitForHTML('[id="workbench.main.container"]');
+		await this.client.waitForElement('.explorer-folders-view');
+		await this.client.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}
 
 	private retrieveKeybindings() {
@@ -139,7 +167,7 @@ export class SpectronApplication {
 	public command(command: string, capture?: boolean): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
-			return Promise.reject(`Key binding for ${command} was not found.`);
+			return this.workbench.commandPallette.runCommand(command);
 		}
 
 		const keys: string = binding.key;
@@ -170,6 +198,7 @@ export class SpectronApplication {
 		};
 	}
 
+	// TODO: Sandy remove this
 	public type(text: string): Promise<any> {
 		return new Promise((res) => {
 			let textSplit = text.split(' ');

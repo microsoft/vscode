@@ -42,15 +42,15 @@ export class StatusBar {
 		}
 
 		try {
-			return this.spectron.client.click(selector);
+			return this.spectron.client.waitAndClick(selector);
 		} catch (e) {
 			return Promise.reject(`Clicking on status bar element ${selector} failed.`);
 		}
 	}
 
 	public async getProblemsView(): Promise<any> {
-		let el = await this.spectron.client.element('div[id="workbench.panel.markers"]');
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement('div[id="workbench.panel.markers"]');
+		if (el) {
 			return el;
 		}
 
@@ -58,8 +58,8 @@ export class StatusBar {
 	}
 
 	public async getFeedbackView(): Promise<any> {
-		let el = await this.spectron.client.element('.feedback-form');
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement('.feedback-form');
+		if (el) {
 			return el;
 		}
 
@@ -71,8 +71,8 @@ export class StatusBar {
 	}
 
 	public async getEditorHighlightedLine(lineNumber: number): Promise<any> {
-		let el = await this.spectron.client.element(`.monaco-editor .view-overlays>:nth-child(${lineNumber}) .current-line`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`.monaco-editor .view-overlays>:nth-child(${lineNumber}) .current-line`);
+		if (el) {
 			return el;
 		}
 

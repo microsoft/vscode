@@ -27,7 +27,7 @@ export class IntegratedTerminal {
 
 		// If no terminal panel was opened, try triggering terminal from quick open
 		try {
-			await this.spectron.client.getHTML(IntegratedTerminal.terminalSelector);
+			await this.spectron.client.waitForHTML(IntegratedTerminal.terminalSelector);
 		} catch (e) {
 			await commonActions.openQuickOpen();
 			await this.spectron.client.keys('>Toggle Integrated Terminal');
@@ -36,8 +36,8 @@ export class IntegratedTerminal {
 	}
 
 	public async commandOutputHas(result: string): Promise<boolean> {
-		const rows = await this.spectron.client.elements(`${IntegratedTerminal.terminalRowsSelector} div`);
-		for (let i = 0; i < rows.value.length; i++) {
+		const rows = await this.spectron.client.waitForElements(`${IntegratedTerminal.terminalRowsSelector} div`);
+		for (let i = 0; i < rows.length; i++) {
 			let rowText;
 			try {
 				rowText = await this.spectron.client.getText(`${IntegratedTerminal.terminalRowsSelector}>:nth-child(${i + 1})`);
