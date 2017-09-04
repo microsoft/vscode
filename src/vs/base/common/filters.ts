@@ -414,20 +414,40 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
-const _seps: { [ch: string]: boolean } = Object.create(null);
-_seps['_'] = true;
-_seps['-'] = true;
-_seps['.'] = true;
-_seps[' '] = true;
-_seps['/'] = true;
-_seps['\\'] = true;
-_seps['\''] = true;
-_seps['"'] = true;
-_seps[':'] = true;
+function isSeparatorAtPos(value: string, index: number): boolean {
+	if (index < 0 || index >= value.length) {
+		return false;
+	}
+	const code = value.charCodeAt(index);
+	switch (code) {
+		case CharCode.Underline:
+		case CharCode.Dash:
+		case CharCode.Period:
+		case CharCode.Space:
+		case CharCode.Slash:
+		case CharCode.Backslash:
+		case CharCode.SingleQuote:
+		case CharCode.DoubleQuote:
+		case CharCode.Colon:
+			return true;
+		default:
+			return false;
+	}
+}
 
-const _ws: { [ch: string]: boolean } = Object.create(null);
-_ws[' '] = true;
-_ws['\t'] = true;
+function isWhitespaceAtPos(value: string, index: number): boolean {
+	if (index < 0 || index >= value.length) {
+		return false;
+	}
+	const code = value.charCodeAt(index);
+	switch (code) {
+		case CharCode.Space:
+		case CharCode.Tab:
+			return true;
+		default:
+			return false;
+	}
+}
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
@@ -445,7 +465,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 		patternMaxWhitespaceIgnore = patternLen;
 	}
 	while (patternStartPos < patternMaxWhitespaceIgnore) {
-		if (_ws[pattern[patternStartPos]]) {
+		if (isWhitespaceAtPos(pattern, patternStartPos)) {
 			patternStartPos += 1;
 		} else {
 			break;
@@ -481,8 +501,6 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
-		let lastLowWordChar = '';
-
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
@@ -502,7 +520,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					} else {
 						score = 5;
 					}
-				} else if (_seps[lastLowWordChar]) {
+				} else if (isSeparatorAtPos(lowWord, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
 					score = 5;
 
@@ -542,8 +560,6 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					_arrows[patternPos][wordPos] = Arrow.Diag;
 				}
 			}
-
-			lastLowWordChar = lowWordChar;
 		}
 	}
 

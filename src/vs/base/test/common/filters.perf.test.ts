@@ -10,7 +10,7 @@ import { data } from './filters.perf.data';
 
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons'];
 
-const _enablePerf = false;
+const _enablePerf = true;
 
 function perfSuite(name: string, callback: (this: Mocha.ISuiteCallbackContext) => void) {
 	if (_enablePerf) {
