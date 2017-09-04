@@ -28,9 +28,11 @@ export interface ParsedArgs {
 	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
+	debugPluginHost?: string;
 	debugBrkPluginHost?: string;
 	debugId?: string;
-	debugPluginHost?: string;
+	debugSearch?: string;
+	debugBrkSearch?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
@@ -41,6 +43,15 @@ export interface ParsedArgs {
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+
+export interface IDebugParams {
+	port: number;
+	break: boolean;
+}
+
+export interface IExtensionHostDebugParams extends IDebugParams {
+	debugId: string;
+}
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
@@ -71,7 +82,8 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; debugId: string };
+	debugExtensionHost: IExtensionHostDebugParams;
+	debugSearch: IDebugParams;
 
 
 	logExtensionHostCommunication: boolean;

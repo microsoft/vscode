@@ -38,8 +38,8 @@
 			"type": "node",
 			"request": "attach",
 			"protocol": "inspector",
-			"name": "Attach to Search process",
-			"port": 7890,
+			"name": "Attach to Search Process",
+			"port": 5876,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -176,6 +176,13 @@
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process"
+			]
+		},
+		{
+			"name": "Search and Renderer processes",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Search Process"
 			]
 		}
 	]
