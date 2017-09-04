@@ -173,7 +173,6 @@ export class SpectronClient {
 			try {
 				result = await func();
 			} catch (e) {
-				// TODO: what to do?
 			}
 
 			if (accept(result)) {

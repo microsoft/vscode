@@ -21,9 +21,15 @@ describe('Search', () => {
 	it('searches only for *.js files & checks for correct result number', async function () {
 		await app.workbench.search.openSearchViewlet();
 		await app.workbench.search.searchFor('body');
+		await app.workbench.search.showQueryDetails();
 		await app.workbench.search.setFilesToIncludeTextAndSearch('*.js');
 
+		await app.workbench.search.submitSearch();
+
 		const results = await app.workbench.search.getResultText();
+		await app.workbench.search.setFilesToIncludeTextAndSearch('');
+		await app.workbench.search.hideQueryDetails();
+
 		assert.equal(results, '4 results in 1 file');
 	});
 

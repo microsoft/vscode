@@ -13,14 +13,14 @@ export class QuickOpen {
 	constructor(readonly spectron: SpectronApplication) {
 	}
 
-	public async openQuickOpen(): Promise<Element> {
+	public async openQuickOpen(): Promise<void> {
 		await this.spectron.command('workbench.action.quickOpen');
-		return this.waitForQuickOpen();
+		await this.waitForQuickOpenOpened();
 	}
 
-	public async closeQuickOpen(): Promise<Element> {
+	public async closeQuickOpen(): Promise<void> {
 		await this.spectron.command('workbench.action.closeQuickOpen');
-		return this.spectron.client.waitForElement('div.quick-open-widget[aria-hidden="true"]');
+		await this.waitForQuickOpenClosed();
 	}
 
 	public async getQuickOpenElements(): Promise<Element[]> {
@@ -37,7 +37,32 @@ export class QuickOpen {
 		await this.spectron.workbench.waitForEditorFocus(fileName);
 	}
 
-	protected waitForQuickOpen(): Promise<Element> {
+	protected waitForQuickOpenOpened(): Promise<Element> {
 		return this.spectron.client.waitForElement('div.quick-open-widget[aria-hidden="false"]');
+	}
+
+	protected waitForQuickOpenClosed(): Promise<Element> {
+		return this.spectron.client.waitForElement('div.quick-open-widget[aria-hidden="true"]');
+	}
+
+	public async isQuickOpenVisible(): Promise<boolean> {
+		await this.waitForQuickOpenOpened();
+		return true;
+	}
+
+	public async submit(text: string): Promise<void> {
+		await this.spectron.type(text);
+		await this.spectron.client.keys(['Enter', 'NULL']);
+		await this.waitForQuickOpenClosed();
+	}
+
+	public async selectQuickOpenElement(index: number): Promise<void> {
+		await this.waitForQuickOpenOpened();
+		for (let from = 0; from < index; from++) {
+			await this.spectron.client.keys(['ArrowDown', 'NULL']);
+			this.spectron.wait(3);
+		}
+		await this.spectron.client.keys(['Enter', 'NULL']);
+		await this.waitForQuickOpenClosed();
 	}
 }

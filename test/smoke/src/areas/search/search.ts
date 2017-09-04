@@ -14,8 +14,15 @@ export class Search {
 	}
 
 	public async openSearchViewlet(): Promise<any> {
-		await this.spectron.command('workbench.view.search');
-		await this.spectron.client.waitForElement(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		if (!await this.isSearchViewletFocused()) {
+			await this.spectron.command('workbench.view.search');
+			await this.spectron.client.waitForElement(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		}
+	}
+
+	public async isSearchViewletFocused(): Promise<boolean> {
+		const element = await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		return !!element;
 	}
 
 	public async searchFor(text: string): Promise<void> {
@@ -38,13 +45,30 @@ export class Search {
 	}
 
 	public async setFilesToIncludeTextAndSearch(text: string): Promise<void> {
-		await this.spectron.client.waitAndClick(`${Search.SEARCH_VIEWLET_XPATH} .query-details .more`);
 		await this.spectron.client.click(`${Search.SEARCH_VIEWLET_XPATH} .query-details .monaco-inputbox input[aria-label="Search Include Patterns"]`);
 		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .query-details .monaco-inputbox.synthetic-focus input[aria-label="Search Include Patterns"]`);
+		await this.spectron.client.clearElement(`${Search.SEARCH_VIEWLET_XPATH} .query-details .monaco-inputbox.synthetic-focus input[aria-label="Search Include Patterns"]`);
 
-		await this.spectron.client.keys(text);
+		if (text) {
+			await this.spectron.client.keys(text);
+		}
+	}
 
-		await this.submitSearch();
+	public async showQueryDetails(): Promise<void> {
+		if (!await this.areDetailsVisible()) {
+			await this.spectron.client.waitAndClick(`${Search.SEARCH_VIEWLET_XPATH} .query-details .more`);
+		}
+	}
+
+	public async hideQueryDetails(): Promise<void> {
+		if (await this.areDetailsVisible()) {
+			await this.spectron.client.waitAndClick(`${Search.SEARCH_VIEWLET_XPATH} .query-details.more .more`);
+		}
+	}
+
+	public async areDetailsVisible(): Promise<boolean> {
+		const element = await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .query-details.more`);
+		return !!element;
 	}
 
 	public async removeFileMatch(index: number): Promise<void> {

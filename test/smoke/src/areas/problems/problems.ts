@@ -12,32 +12,29 @@ export enum ProblemSeverity {
 
 export class Problems {
 
+	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
+
 	constructor(private spectron: SpectronApplication) {
 		// noop
 	}
 
 	public async showProblemsView(): Promise<any> {
-		const panelSelector = '.panel.markers-panel';
-		const result = await this.spectron.client.element(panelSelector);
-
-		if (result) {
-			return;
+		if (!await this.isVisible()) {
+			await this.spectron.command('workbench.actions.view.problems');
+			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
 		}
-
-		await this.spectron.command('workbench.actions.view.problems');
-		await this.spectron.client.waitForElement(panelSelector);
 	}
 
 	public async hideProblemsView(): Promise<any> {
-		const panelSelector = '.panel.markers-panel';
-		const result = await this.spectron.client.element(panelSelector);
-
-		if (!result) {
-			return;
+		if (await this.isVisible()) {
+			await this.spectron.command('workbench.actions.view.problems');
+			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 		}
+	}
 
-		await this.spectron.command('workbench.actions.view.problems');
-		await this.spectron.client.waitForElement(panelSelector, el => !el);
+	public async isVisible(): Promise<boolean> {
+		const element = await this.spectron.client.element(Problems.PROBLEMS_VIEW_SELECTOR);
+		return !!element;
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {

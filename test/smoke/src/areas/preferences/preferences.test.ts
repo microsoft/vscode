@@ -4,22 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
-import { ActivityBarPosition } from '../../areas/activitybar/activityBar';
-import { KeybindingsEditor } from './keybindings';
 
-describe('Keybindings Customisation', () => {
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { ActivityBarPosition } from '../activitybar/activityBar';
+
+describe('Preferences', () => {
 	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
 	before(() => app.start());
 	after(() => app.stop());
+
+	it('turns off editor line numbers and verifies the live change', async function () {
+		await app.workbench.explorer.openFile('app.js');
+		let lineNumbers = await app.client.waitForElements('.line-numbers');
+		assert.ok(!!lineNumbers.length, 'Line numbers are not present in the editor before disabling them.');
+
+		await app.workbench.settingsEditor.openUserSettings();
+		await app.workbench.settingsEditor.focusEditableSettings();
+		await app.client.keys(`"editor.lineNumbers": "off"`);
+		await app.workbench.saveOpenedFile();
+
+		await app.workbench.selectTab('app.js');
+		lineNumbers = await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
+		assert.ok(!lineNumbers.length, 'Line numbers are still present in the editor after disabling them.');
+	});
 
 	it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
 		let activityBarElement = await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT);
 		assert.ok(activityBarElement, 'Activity bar should be positioned on the left.');
 
-		const keybindingsEditor = new KeybindingsEditor(app);
-		await keybindingsEditor.openKeybindings();
-		await keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u', 'NULL'], 'Control+U');
+		await app.workbench.keybindingsEditor.openKeybindings();
+		await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u', 'NULL'], 'Control+U');
 
 		await app.client.keys(['Control', 'u', 'NULL']);
 		activityBarElement = await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT);

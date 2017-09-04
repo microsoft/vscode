@@ -15,6 +15,9 @@ describe('Extensions', () => {
 	// await Util.rimraf(EXTENSIONS_DIR);
 
 	it(`install and activate vscode-smoketest-check extension`, async function () {
+		if (app.inDevMode) {
+			return;
+		}
 		const extensionName = 'vscode-smoketest-check';
 		await app.workbench.extensions.openExtensionsViewlet();
 

@@ -23,7 +23,6 @@ export const EXTENSIONS_DIR = path.join(__dirname, 'test_data/temp_extensions_di
 export class SpectronApplication {
 
 	public readonly client: SpectronClient;
-	public readonly webclient: WebClient;
 	public readonly workbench: Workbench;
 
 	private spectron: Application;
@@ -57,7 +56,7 @@ export class SpectronApplication {
 			}
 		}
 		if (!userDataDirIsSet) {
-			chromeDriverArgs.push(`--user-data-dir=${USER_DIR}/${new Date().getTime()}`);
+			chromeDriverArgs.push(`--user-data-dir=${path.join(USER_DIR), new Date().getTime().toString()}`);
 		}
 
 		const repo = process.env.VSCODE_REPOSITORY;
@@ -75,26 +74,27 @@ export class SpectronApplication {
 		this.testRetry += 1; // avoid multiplication by 0 for wait times
 		this.screenshot = args.indexOf('--no-screenshot') === -1 ? new NullScreenshot() : new Screenshot(this, testName, testRetry);
 		this.client = new SpectronClient(this.spectron, this.screenshot);
-		this.webclient = this.spectron.client;
 		this.retrieveKeybindings();
 
 		this.workbench = new Workbench(this);
+	}
+
+	public get inDevMode(): boolean {
+		return process.env.VSCODE_DEV === '1';
 	}
 
 	public get app(): Application {
 		return this.spectron;
 	}
 
+	public get webclient(): WebClient {
+		return this.spectron.client;
+	}
+
 	public async start(): Promise<any> {
 		await this.spectron.start();
 		await this.focusOnWindow(1); // focuses on main renderer window
 		await this.checkWindowReady();
-	}
-
-	public async restart(): Promise<any> {
-		await this.stop();
-		await this.wait(.5);  // wait until all resources are released (e.g. locked local storage)
-		await this.start();
 	}
 
 	public async reload(): Promise<any> {

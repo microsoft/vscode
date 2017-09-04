@@ -36,7 +36,7 @@ function getDevElectronPath(): string {
 
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(buildPath, `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
 		case 'linux':
 			return path.join(buildPath, 'electron', `${product.applicationName}`);
 		case 'win32':
@@ -156,11 +156,11 @@ before(async () => main());
 
 import './areas/css/css.test';
 import './areas/explorer/explorer.test';
-import './areas/preferences/settings.test';
-import './areas/preferences/keybindings.test';
+import './areas/preferences/preferences.test';
 import './areas/multiroot/multiroot.test';
 import './areas/extensions/extensions.test';
 import './areas/search/search.test';
 import './areas/workbench/data-loss.test';
 import './areas/git/git.test';
+import './areas/statusbar/statusbar.test';
 // import './areas/workbench/data-migration.test';
