@@ -24,5 +24,5 @@ step "Build minified & upload source maps" \
 step "Run smoke test" \
 	pushd test/smoke
 	npm install
-	npm test -- --latest "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
+	npm run smoketest -- "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
 	popd

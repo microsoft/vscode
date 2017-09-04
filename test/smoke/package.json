@@ -7,7 +7,6 @@
     "watch": "tsc --watch"
   },
   "devDependencies": {
-    "@types/commander": "^2.9.2",
     "@types/electron": "~1.4.37",
     "@types/htmlparser2": "^3.7.29",
     "@types/mkdirp": "^0.5.1",
@@ -15,7 +14,6 @@
     "@types/node": "^8.0.26",
     "@types/rimraf": "^0.0.28",
     "@types/webdriverio": "^4.6.1",
-    "commander": "^2.9.0",
     "htmlparser2": "^3.9.2",
     "mocha": "^3.2.0",
     "rimraf": "^2.6.1",

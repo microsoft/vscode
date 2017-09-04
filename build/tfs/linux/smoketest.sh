@@ -36,7 +36,7 @@ function configureEnvironment {
 function runTest {
 	pushd test/smoke
 	npm install
-	sudo -u testuser -H xvfb-run -a -s "-screen 0 1024x768x8" npm test -- --latest "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+	sudo -u testuser -H xvfb-run -a -s "-screen 0 1024x768x8" npm run smoketest -- "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 	popd
 }
 

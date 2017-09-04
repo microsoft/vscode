@@ -5,56 +5,28 @@
 
 import * as fs from 'fs';
 import * as https from 'https';
-// import * as program from 'commander';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as mkdirp from 'mkdirp';
 
 const testDataPath = path.join(__dirname, '..', 'test_data');
-const codeWorkspacePath = path.join(testDataPath, 'smoketest.code-workspace');
+const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
-
 mkdirp.sync(testDataPath);
-
-// program
-// 	.option('-l, --latest <file path>', 'path to the latest VS Code to test')
-// 	.option('-s, --stable [file path]', 'path to the stable VS Code to be used in data migration tests');
-
-// program.on('--help', () => {
-// 	console.log('  Examples:');
-// 	console.log('');
-// 	console.log('    $ npm test -- --latest path/to/binary');
-// 	console.log('    $ npm test -- -l path/to/binary');
-// 	console.log('');
-// 	console.log('    $ npm test -- --latest path/to/latest/binary --stable path/to/stable/binary');
-// 	console.log('    $ npm test -- -l path/to/latest/binary -s path/to/stable/binary');
-// 	console.log('');
-// });
-
-// program.parse(process.argv);
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
 	process.exit(1);
 }
 
-// if (!program.latest) {
-// 	fail('You must specify the binary to run the smoke test against');
-// }
-// if (!fs.existsSync(program.latest) || (program.stable && !fs.existsSync(program.stable))) {
-// 	fail('The file path to electron binary does not exist or permissions do not allow to execute it. Please check the path provided.');
-// }
-// if (parseInt(process.version.substr(1)) < 6) {
-// 	fail('Please update your Node version to greater than 6 to run the smoke test.');
-// }
-
-// Setting up environment variables
-
+if (parseInt(process.version.substr(1)) < 6) {
+	fail('Please update your Node version to greater than 6 to run the smoke test.');
+}
 
 const repoPath = path.join(__dirname, '..', '..', '..');
 
-function getDevElectronPath() {
+function getDevElectronPath(): string {
 	const buildPath = path.join(repoPath, '.build');
 	const product = require(path.join(repoPath, 'product.json'));
 
@@ -65,23 +37,37 @@ function getDevElectronPath() {
 			return path.join(buildPath, 'electron', `${product.applicationName}`);
 		case 'win32':
 			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+		default:
+			throw new Error('Unsupported platform.');
 	}
 }
 
-// TODO@joao: make this change
-process.env.VSCODE_PATH = getDevElectronPath();
-process.env.VSCODE_REPOSITORY = repoPath;
-process.env.VSCODE_DEV = '1';
-process.env.VSCODE_CLI = '1';
+let [, , testCodePath, stableCodePath] = process.argv;
 
-// if (program.stable) {
-// 	process.env.VSCODE_STABLE_PATH = program.stable;
-// }
+if (testCodePath) {
+	process.env.VSCODE_PATH = testCodePath;
+
+	if (stableCodePath) {
+		process.env.VSCODE_STABLE_PATH = stableCodePath;
+	}
+} else {
+	testCodePath = getDevElectronPath();
+	process.env.VSCODE_PATH = testCodePath;
+	process.env.VSCODE_REPOSITORY = repoPath;
+	process.env.VSCODE_DEV = '1';
+	process.env.VSCODE_CLI = '1';
+}
+
+if (!fs.existsSync(testCodePath)) {
+	fail(`Can't find Code at ${testCodePath}.`);
+}
+
 process.env.SMOKETEST_REPO = testRepoLocalDir;
-// if (program.latest && (program.latest.indexOf('Code - Insiders') /* macOS/Windows */ || program.latest.indexOf('code-insiders') /* Linux */) >= 0) {
-// 	process.env.VSCODE_EDITION = 'insiders';
-// }
-process.env.VSCODE_WORKSPACE_PATH = codeWorkspacePath;
+process.env.VSCODE_WORKSPACE_PATH = workspacePath;
+
+if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+	process.env.VSCODE_EDITION = 'insiders';
+}
 
 function getKeybindingPlatform(): string {
 	switch (process.platform) {
@@ -113,7 +99,7 @@ async function main(): Promise<void> {
 		}).on('error', e);
 	});
 
-	if (!fs.existsSync(codeWorkspacePath)) {
+	if (!fs.existsSync(workspacePath)) {
 		console.log('Creating workspace file...');
 		const workspace = {
 			id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
@@ -124,7 +110,7 @@ async function main(): Promise<void> {
 			]
 		};
 
-		fs.writeFileSync(codeWorkspacePath, JSON.stringify(workspace, null, '\t'));
+		fs.writeFileSync(workspacePath, JSON.stringify(workspace, null, '\t'));
 	}
 
 	if (!fs.existsSync(testRepoLocalDir)) {
