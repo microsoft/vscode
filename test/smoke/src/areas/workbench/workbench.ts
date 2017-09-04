@@ -12,6 +12,7 @@ import { Extensions } from '../extensions/extensions';
 import { CommandPallette } from './commandPallette';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
+import { SCM } from '../git/scm';
 
 export class Workbench {
 
@@ -22,6 +23,7 @@ export class Workbench {
 	readonly search: Search;
 	readonly extensions: Extensions;
 	readonly editor: Editor;
+	readonly scm: SCM;
 
 	constructor(private spectron: SpectronApplication) {
 		this.explorer = new Explorer(spectron);
@@ -31,6 +33,7 @@ export class Workbench {
 		this.search = new Search(spectron);
 		this.extensions = new Extensions(spectron);
 		this.editor = new Editor(spectron);
+		this.scm = new SCM(spectron);
 	}
 
 	public async saveOpenedFile(): Promise<any> {

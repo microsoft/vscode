@@ -15,7 +15,7 @@ export class SpectronClient {
 	private readonly retryCount = 50;
 	private readonly retryDuration = 100; // in milliseconds
 
-	constructor(private spectron: Application, private shot: IScreenshot) {
+	constructor(public spectron: Application, private shot: IScreenshot) {
 	}
 
 	public windowByIndex(index: number): Promise<any> {
@@ -160,6 +160,7 @@ export class SpectronClient {
 		}
 	}
 
+	public async waitFor<T>(func: () => T | Promise<T | undefined>, accept?: (result: T) => boolean | Promise<boolean>, timeoutMessage?: string): Promise<T>;
 	public async waitFor<T>(func: () => T | Promise<T>, accept: (result: T) => boolean | Promise<boolean> = result => !!result, timeoutMessage?: string): Promise<T> {
 		let trial = 1;
 

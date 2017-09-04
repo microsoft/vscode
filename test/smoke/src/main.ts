@@ -162,4 +162,5 @@ import './areas/multiroot/multiroot.test';
 import './areas/extensions/extensions.test';
 import './areas/search/search.test';
 import './areas/workbench/data-loss.test';
+import './areas/git/git.test';
 // import './areas/workbench/data-migration.test';
