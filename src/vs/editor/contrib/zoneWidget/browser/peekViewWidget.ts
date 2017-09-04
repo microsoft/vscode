@@ -14,7 +14,7 @@ import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,18 +23,9 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Color } from 'vs/base/common/color';
 
-export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
-
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
-}
-
-export const NOT_INNER_EDITOR_CONTEXT_KEY = new RawContextKey<boolean>('inReferenceSearchEditor', true);
-
-export interface IPeekViewService {
-	_serviceBrand: any;
-	isActive: boolean;
 }
 
 export function getOuterEditor(accessor: ServicesAccessor): ICommonCodeEditor {
@@ -60,12 +51,11 @@ const defaultOptions: IPeekViewOptions = {
 	secondaryHeadingColor: Color.fromHex('#6c6c6cb3')
 };
 
-export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewService {
+export abstract class PeekViewWidget extends ZoneWidget {
 
 	public _serviceBrand: any;
 
 	private _onDidClose = new Emitter<PeekViewWidget>();
-	private _isActive = false;
 
 	protected _headElement: HTMLDivElement;
 	protected _primaryHeading: HTMLElement;
@@ -80,22 +70,12 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 	}
 
 	public dispose(): void {
-		this._isActive = false;
 		super.dispose();
 		this._onDidClose.fire(this);
 	}
 
 	public get onDidClose(): Event<PeekViewWidget> {
 		return this._onDidClose.event;
-	}
-
-	public get isActive(): boolean {
-		return this._isActive;
-	}
-
-	public show(where: any, heightInLines: number): void {
-		this._isActive = true;
-		super.show(where, heightInLines);
 	}
 
 	public style(styles: IPeekViewStyles): void {
