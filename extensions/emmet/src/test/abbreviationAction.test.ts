@@ -318,7 +318,50 @@ suite('Tests for Wrap with Abbreviations', () => {
 	});
 });
 
+suite('Tests for jsx, xml and xsl', () => {
+	teardown(closeAllEditors);
+	
+		test('Expand abbreviation with className instead of class in jsx', () => {
+			return withRandomFileEditor('ul.nav', 'javascriptreact', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({language: 'javascriptreact'}).then(() => {
+					assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
+					return Promise.resolve();
+				});
+			});
+		});
 
+		test('Expand abbreviation with self closing tags for jsx', () => {
+			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({language: 'javascriptreact'}).then(() => {
+					assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+					return Promise.resolve();
+				});
+			});
+		});
+
+		test('Expand abbreviation with self closing tags for xml', () => {
+			return withRandomFileEditor('img', 'xml', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({language: 'xml'}).then(() => {
+					assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+					return Promise.resolve();
+				});
+			});
+		});
+
+		test('Expand abbreviation with no self closing tags for html', () => {
+			return withRandomFileEditor('img', 'html', (editor, doc) => {
+				editor.selection = new Selection(0, 6, 0, 6);
+				return expandEmmetAbbreviation({language: 'html'}).then(() => {
+					assert.equal(editor.document.getText(), '<img src="" alt="">');
+					return Promise.resolve();
+				});
+			});
+		});
+
+});
 
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
