@@ -39,7 +39,7 @@ export class TaskEntry extends Model.QuickOpenEntry {
 
 	protected doRun(task: CustomTask | ContributedTask, options?: RunOptions): boolean {
 		this.taskService.run(task, options);
-		if (task.command.presentation.focus) {
+		if (!task.command || task.command.presentation.focus) {
 			this.quickOpenService.close();
 			return false;
 		}
