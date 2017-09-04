@@ -11,9 +11,6 @@ describe('Extensions', () => {
 	before(() => app.start());
 	after(() => app.stop());
 
-	// this used to run before each test
-	// await Util.rimraf(EXTENSIONS_DIR);
-
 	it(`install and activate vscode-smoketest-check extension`, async function () {
 		if (app.inDevMode) {
 			return;
@@ -29,7 +26,8 @@ describe('Extensions', () => {
 		await app.workbench.extensions.waitForExtensionsViewlet();
 		await app.workbench.commandPallette.runCommand('Smoke Test Check');
 
-		const statusbarText = await app.client.waitForText('.statusbar-item.statusbar-entry span[title="smoke test"]');
+
+		const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
 		assert.equal(statusbarText, 'VS Code Smoke Test Check');
 	});
 });

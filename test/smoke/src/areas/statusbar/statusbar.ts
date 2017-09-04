@@ -37,6 +37,10 @@ export class StatusBar {
 		return this.spectron.client.waitForText(this.getSelector(StatusBarElement.EOL_STATUS), eol);
 	}
 
+	public async getStatusbarTextByTitle(title: string): Promise<string> {
+		return await this.spectron.client.waitForText(`${this.mainSelector} span[title="smoke test"]`);
+	}
+
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
