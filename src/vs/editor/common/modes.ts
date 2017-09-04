@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -12,8 +12,10 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import Event from 'vs/base/common/event';
+import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
+import { Color } from 'vs/base/common/color';
 
 /**
  * Open ended enum at runtime
@@ -28,12 +30,21 @@ export const enum LanguageId {
  * @internal
  */
 export class LanguageIdentifier {
+
+	/**
+	 * A string identifier. Unique across languages. e.g. 'javascript'.
+	 */
 	public readonly language: string;
+
+	/**
+	 * A numeric identifier. Unique across languages. e.g. 5
+	 * Will vary at runtime based on registration order, etc.
+	 */
 	public readonly id: LanguageId;
 
-	constructor(sid: string, iid: LanguageId) {
-		this.language = sid;
-		this.id = iid;
+	constructor(language: string, id: LanguageId) {
+		this.language = language;
+		this.id = id;
 	}
 }
 
@@ -149,19 +160,19 @@ export interface Hover {
 	/**
 	 * The contents of this hover.
 	 */
-	contents: MarkedString[];
+	contents: IMarkdownString[];
 
 	/**
 	 * The range to which this hover applies. When missing, the
 	 * editor will use the range at the current position or the
 	 * current position itself.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 }
 
 /**
  * The hover provider interface defines the contract between extensions and
- * the [hover](https://code.visualstudio.com/docs/editor/editingevolved#_hover)-feature.
+ * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
 export interface HoverProvider {
 	/**
@@ -181,12 +192,17 @@ export type SuggestionType = 'method'
 	| 'field'
 	| 'variable'
 	| 'class'
+	| 'struct'
 	| 'interface'
 	| 'module'
 	| 'property'
+	| 'event'
+	| 'operator'
 	| 'unit'
 	| 'value'
+	| 'constant'
 	| 'enum'
+	| 'enum-member'
 	| 'keyword'
 	| 'snippet'
 	| 'text'
@@ -194,7 +210,8 @@ export type SuggestionType = 'method'
 	| 'file'
 	| 'reference'
 	| 'customcolor'
-	| 'folder';
+	| 'folder'
+	| 'type-parameter';
 
 /**
  * @internal
@@ -234,20 +251,13 @@ export interface ISuggestResult {
  */
 export interface ISuggestSupport {
 
-	triggerCharacters: string[];
+	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
-	resolveCompletionItem?(model: editorCommon.IReadOnlyModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
-/**
- * Interface used to quick fix typing errors while accesing member fields.
- */
-export interface CodeAction {
-	command: Command;
-	score: number;
-}
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -257,7 +267,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
 }
 
 /**
@@ -318,7 +328,7 @@ export interface SignatureHelp {
 }
 /**
  * The signature help provider interface defines the contract between extensions and
- * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
+ * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
  */
 export interface SignatureHelpProvider {
 
@@ -356,7 +366,7 @@ export interface DocumentHighlight {
 	/**
 	 * The range this highlight applies to.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
@@ -407,7 +417,7 @@ export interface Location {
 	/**
 	 * The document range of this locations.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 }
 /**
  * The definition of a symbol represented as one or many [locations](#Location).
@@ -429,7 +439,7 @@ export interface DefinitionProvider {
 }
 
 /**
- * The type definition provider interface defines the contract between extensions and
+ * The implementation provider interface defines the contract between extensions and
  * the go to implementation feature.
  */
 export interface ImplementationProvider {
@@ -437,6 +447,17 @@ export interface ImplementationProvider {
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
 	provideImplementation(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+}
+
+/**
+ * The type definition provider interface defines the contract between extensions and
+ * the go to type definition feature.
+ */
+export interface TypeDefinitionProvider {
+	/**
+	 * Provide the type definition of the symbol at the given position and document.
+	 */
+	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -463,106 +484,58 @@ export enum SymbolKind {
 	Array = 17,
 	Object = 18,
 	Key = 19,
-	Null = 20
+	Null = 20,
+	EnumMember = 21,
+	Struct = 22,
+	Event = 23,
+	Operator = 24,
+	TypeParameter = 25
 }
+
+
 /**
  * @internal
  */
-export namespace SymbolKind {
+export const symbolKindToCssClass = (function () {
 
-	/**
-	 * @internal
-	 */
-	export function from(kind: number | SymbolKind): string {
-		switch (kind) {
-			case SymbolKind.Method:
-				return 'method';
-			case SymbolKind.Function:
-				return 'function';
-			case SymbolKind.Constructor:
-				return 'constructor';
-			case SymbolKind.Variable:
-				return 'variable';
-			case SymbolKind.Class:
-				return 'class';
-			case SymbolKind.Interface:
-				return 'interface';
-			case SymbolKind.Namespace:
-				return 'namespace';
-			case SymbolKind.Package:
-				return 'package';
-			case SymbolKind.Module:
-				return 'module';
-			case SymbolKind.Property:
-				return 'property';
-			case SymbolKind.Enum:
-				return 'enum';
-			case SymbolKind.String:
-				return 'string';
-			case SymbolKind.File:
-				return 'file';
-			case SymbolKind.Array:
-				return 'array';
-			case SymbolKind.Number:
-				return 'number';
-			case SymbolKind.Boolean:
-				return 'boolean';
-			case SymbolKind.Object:
-				return 'object';
-			case SymbolKind.Key:
-				return 'key';
-			case SymbolKind.Null:
-				return 'null';
-		}
-		return 'property';
-	}
+	const _fromMapping: { [n: number]: string } = Object.create(null);
+	_fromMapping[SymbolKind.File] = 'file';
+	_fromMapping[SymbolKind.Module] = 'module';
+	_fromMapping[SymbolKind.Namespace] = 'namespace';
+	_fromMapping[SymbolKind.Package] = 'package';
+	_fromMapping[SymbolKind.Class] = 'class';
+	_fromMapping[SymbolKind.Method] = 'method';
+	_fromMapping[SymbolKind.Property] = 'property';
+	_fromMapping[SymbolKind.Field] = 'field';
+	_fromMapping[SymbolKind.Constructor] = 'constructor';
+	_fromMapping[SymbolKind.Enum] = 'enum';
+	_fromMapping[SymbolKind.Interface] = 'interface';
+	_fromMapping[SymbolKind.Function] = 'function';
+	_fromMapping[SymbolKind.Variable] = 'variable';
+	_fromMapping[SymbolKind.Constant] = 'constant';
+	_fromMapping[SymbolKind.String] = 'string';
+	_fromMapping[SymbolKind.Number] = 'number';
+	_fromMapping[SymbolKind.Boolean] = 'boolean';
+	_fromMapping[SymbolKind.Array] = 'array';
+	_fromMapping[SymbolKind.Object] = 'object';
+	_fromMapping[SymbolKind.Key] = 'key';
+	_fromMapping[SymbolKind.Null] = 'null';
+	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
+	_fromMapping[SymbolKind.Struct] = 'struct';
+	_fromMapping[SymbolKind.Event] = 'event';
+	_fromMapping[SymbolKind.Operator] = 'operator';
+	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
-	/**
-	 * @internal
-	 */
-	export function to(type: string): SymbolKind {
-		switch (type) {
-			case 'method':
-				return SymbolKind.Method;
-			case 'function':
-				return SymbolKind.Function;
-			case 'constructor':
-				return SymbolKind.Constructor;
-			case 'variable':
-				return SymbolKind.Variable;
-			case 'class':
-				return SymbolKind.Class;
-			case 'interface':
-				return SymbolKind.Interface;
-			case 'namespace':
-				return SymbolKind.Namespace;
-			case 'package':
-				return SymbolKind.Package;
-			case 'module':
-				return SymbolKind.Module;
-			case 'property':
-				return SymbolKind.Property;
-			case 'enum':
-				return SymbolKind.Enum;
-			case 'string':
-				return SymbolKind.String;
-			case 'file':
-				return SymbolKind.File;
-			case 'array':
-				return SymbolKind.Array;
-			case 'number':
-				return SymbolKind.Number;
-			case 'boolean':
-				return SymbolKind.Boolean;
-			case 'object':
-				return SymbolKind.Object;
-			case 'key':
-				return SymbolKind.Key;
-			case 'null':
-				return SymbolKind.Null;
-		}
-		return SymbolKind.Property;
-	}
+	return function toCssClassName(kind: SymbolKind): string {
+		return _fromMapping[kind] || 'property';
+	};
+})();
+
+/**
+ * @internal
+ */
+export interface IOutline {
+	entries: SymbolInformation[];
 }
 /**
  * Represents information about programming constructs like variables, classes,
@@ -597,6 +570,12 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
+export interface TextEdit {
+	range: IRange;
+	text: string;
+	eol?: editorCommon.EndOfLineSequence;
+}
+
 /**
  * Interface used to format a model
  */
@@ -618,7 +597,7 @@ export interface DocumentFormattingEditProvider {
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
-	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -632,7 +611,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -647,7 +626,7 @@ export interface OnTypeFormattingEditProvider {
 	 * what range the position to expand to, like find the matching `{`
 	 * when `}` has been entered.
 	 */
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 
 /**
@@ -655,14 +634,14 @@ export interface OnTypeFormattingEditProvider {
  */
 export interface IInplaceReplaceSupportResult {
 	value: string;
-	range: editorCommon.IRange;
+	range: IRange;
 }
 
 /**
  * A link inside the editor.
  */
 export interface ILink {
-	range: editorCommon.IRange;
+	range: IRange;
 	url: string;
 }
 /**
@@ -673,10 +652,74 @@ export interface LinkProvider {
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
+/**
+ * A color in RGBA format.
+ */
+export interface IColor {
+
+	/**
+	 * The red component in the range [0-1].
+	 */
+	readonly red: number;
+
+	/**
+	 * The green component in the range [0-1].
+	 */
+	readonly green: number;
+
+	/**
+	 * The blue component in the range [0-1].
+	 */
+	readonly blue: number;
+
+	/**
+	 * The alpha component in the range [0-1].
+	 */
+	readonly alpha: number;
+}
+
+/**
+ * A color formatter.
+ */
+export interface IColorFormatter {
+	readonly supportsTransparency: boolean;
+	format(color: IColor): string;
+}
+
+/**
+ * A color range is a range in a text model which represents a color.
+ */
+export interface IColorRange {
+
+	/**
+	 * The range within the model.
+	 */
+	range: IRange;
+
+	/**
+	 * The color represented in this range.
+	 */
+	color: IColor;
+
+	/**
+	 * The available formats for this specific color.
+	 */
+	formatters: IColorFormatter[];
+}
+
+/**
+ * A provider of colors for editor models.
+ */
+export interface DocumentColorProvider {
+	/**
+	 * Provides the color ranges for a specific model.
+	 */
+	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+}
 
 export interface IResourceEdit {
 	resource: URI;
-	range: editorCommon.IRange;
+	range: IRange;
 	newText: string;
 }
 export interface WorkspaceEdit {
@@ -691,10 +734,11 @@ export interface RenameProvider {
 export interface Command {
 	id: string;
 	title: string;
+	tooltip?: string;
 	arguments?: any[];
 }
 export interface ICodeLensSymbol {
-	range: editorCommon.IRange;
+	range: IRange;
 	id?: string;
 	command?: Command;
 }
@@ -754,6 +798,11 @@ export const ImplementationProviderRegistry = new LanguageFeatureRegistry<Implem
 /**
  * @internal
  */
+export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
+
+/**
+ * @internal
+ */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
 /**
@@ -784,61 +833,53 @@ export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
 /**
  * @internal
  */
+export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+
+/**
+ * @internal
+ */
 export interface ITokenizationSupportChangedEvent {
-	languages: string[];
+	changedLanguages: string[];
+	changedColorMap: boolean;
 }
 
 /**
  * @internal
  */
-export class TokenizationRegistryImpl {
+export interface ITokenizationRegistry {
 
-	private _map: { [language: string]: ITokenizationSupport };
-
-	private _onDidChange: Emitter<ITokenizationSupportChangedEvent> = new Emitter<ITokenizationSupportChangedEvent>();
-	public onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
-
-	private _colorMap: string[];
-
-	constructor() {
-		this._map = Object.create(null);
-		this._colorMap = null;
-	}
+	/**
+	 * An event triggered when:
+	 *  - a tokenization support is registered, unregistered or changed.
+	 *  - the color map is changed.
+	 */
+	onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	public fire(languages: string[]): void {
-		this._onDidChange.fire({ languages: languages });
-	}
+	fire(languages: string[]): void;
 
-	public register(language: string, support: ITokenizationSupport): IDisposable {
-		this._map[language] = support;
-		this.fire([language]);
-		return {
-			dispose: () => {
-				if (this._map[language] !== support) {
-					return;
-				}
-				delete this._map[language];
-				this.fire([language]);
-			}
-		};
-	}
+	/**
+	 * Register a tokenization support.
+	 */
+	register(language: string, support: ITokenizationSupport): IDisposable;
 
-	public get(language: string): ITokenizationSupport {
-		return (this._map[language] || null);
-	}
+	/**
+	 * Get the tokenization support for a language.
+	 * Returns null if not found.
+	 */
+	get(language: string): ITokenizationSupport;
 
-	public setColorMap(colorMap: string[]): void {
-		this._colorMap = colorMap;
-		this.fire(Object.keys(this._map));
-	}
+	/**
+	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
+	 */
+	setColorMap(colorMap: Color[]): void;
 
-	public getColorMap(): string[] {
-		return this._colorMap;
-	}
+	getColorMap(): Color[];
+	getDefaultForeground(): Color;
+	getDefaultBackground(): Color;
 }
 
 /**

@@ -6,9 +6,13 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Model } from 'vs/editor/common/model/model';
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('DeleteAllLeftAction', () => {
@@ -474,18 +478,130 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(2, 4, 2, 4)
 				]);
 
-				cursor.trigger('tests', Handler.Undo, {});
+				editor.trigger('tests', Handler.Undo, {});
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4)
 				]);
-				cursor.trigger('tests', Handler.Redo, {});
+				editor.trigger('tests', Handler.Redo, {});
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)
 				]);
 			});
 		});
+	});
+
+	test('InsertLineBeforeAction', function () {
+		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+			const TEXT = [
+				'First line',
+				'Second line',
+				'Third line'
+			];
+			withMockCodeEditor(TEXT, {}, (editor, cursor) => {
+				editor.setPosition(new Position(lineNumber, column));
+				let insertLineBeforeAction = new InsertLineBeforeAction();
+
+				insertLineBeforeAction.run(null, editor);
+				callback(editor.getModel(), cursor);
+			});
+		}
+
+		testInsertLineBefore(1, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 1, 1, 1));
+			assert.equal(model.getLineContent(1), '');
+			assert.equal(model.getLineContent(2), 'First line');
+			assert.equal(model.getLineContent(3), 'Second line');
+			assert.equal(model.getLineContent(4), 'Third line');
+		});
+
+		testInsertLineBefore(2, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(2, 1, 2, 1));
+			assert.equal(model.getLineContent(1), 'First line');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), 'Second line');
+			assert.equal(model.getLineContent(4), 'Third line');
+		});
+
+		testInsertLineBefore(3, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(3, 1, 3, 1));
+			assert.equal(model.getLineContent(1), 'First line');
+			assert.equal(model.getLineContent(2), 'Second line');
+			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(4), 'Third line');
+		});
+	});
+
+	test('InsertLineAfterAction', () => {
+		function testInsertLineAfter(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+			const TEXT = [
+				'First line',
+				'Second line',
+				'Third line'
+			];
+			withMockCodeEditor(TEXT, {}, (editor, cursor) => {
+				editor.setPosition(new Position(lineNumber, column));
+				let insertLineAfterAction = new InsertLineAfterAction();
+
+				insertLineAfterAction.run(null, editor);
+				callback(editor.getModel(), cursor);
+			});
+		}
+
+		testInsertLineAfter(1, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(2, 1, 2, 1));
+			assert.equal(model.getLineContent(1), 'First line');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), 'Second line');
+			assert.equal(model.getLineContent(4), 'Third line');
+		});
+
+		testInsertLineAfter(2, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(3, 1, 3, 1));
+			assert.equal(model.getLineContent(1), 'First line');
+			assert.equal(model.getLineContent(2), 'Second line');
+			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(4), 'Third line');
+		});
+
+		testInsertLineAfter(3, 3, (model, cursor) => {
+			assert.deepEqual(cursor.getSelection(), new Selection(4, 1, 4, 1));
+			assert.equal(model.getLineContent(1), 'First line');
+			assert.equal(model.getLineContent(2), 'Second line');
+			assert.equal(model.getLineContent(3), 'Third line');
+			assert.equal(model.getLineContent(4), '');
+		});
+	});
+
+	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
+
+		let model = Model.createFromString(
+			[
+				'function baz() {'
+			].join('\n'),
+			{
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			let indentLinesAction = new IndentLinesAction();
+			editor.setPosition(new Position(1, 2));
+
+			indentLinesAction.run(null, editor);
+			assert.equal(model.getLineContent(1), '\tfunction baz() {');
+			assert.deepEqual(editor.getSelection(), new Selection(1, 3, 1, 3));
+
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), '\tf\tunction baz() {');
+		});
+
+		model.dispose();
 	});
 });

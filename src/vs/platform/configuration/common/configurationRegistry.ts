@@ -7,10 +7,9 @@
 import nls = require('vs/nls');
 import Event, { Emitter } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/platform';
-import objects = require('vs/base/common/objects');
+import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
-import { ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
 export const Extensions = {
@@ -27,7 +26,9 @@ export interface IConfigurationRegistry {
 	/**
 	 * Register multiple configurations to the registry.
 	 */
-	registerConfigurations(configurations: IConfigurationNode[]): void;
+	registerConfigurations(configurations: IConfigurationNode[], validate?: boolean): void;
+
+	registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void;
 
 	/**
 	 * Event that fires whenver a configuratio has been
@@ -45,12 +46,21 @@ export interface IConfigurationRegistry {
 	 */
 	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
 
+	/**
+	 * Register the identifiers for editor configurations
+	 */
 	registerOverrideIdentifiers(identifiers: string[]): void;
+}
+
+export enum ConfigurationScope {
+	WINDOW = 1,
+	RESOURCE
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	isExecutable?: boolean;
+	scope?: ConfigurationScope;
 }
 
 export interface IConfigurationNode {
@@ -62,15 +72,26 @@ export interface IConfigurationNode {
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
+	scope?: ConfigurationScope;
 }
 
-const schemaId = 'vscode://schemas/settings';
+export interface IDefaultConfigurationExtension {
+	id: string;
+	name: string;
+	defaults: { [key: string]: {} };
+}
+
+export const schemaId = 'vscode://schemas/settings';
+export const editorConfigurationSchemaId = 'vscode://schemas/settings/editor';
+export const resourceConfigurationSchemaId = 'vscode://schemas/settings/resource';
 const contributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 class ConfigurationRegistry implements IConfigurationRegistry {
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private configurationSchema: IJSONSchema;
+	private editorConfigurationSchema: IJSONSchema;
+	private resourceConfigurationSchema: IJSONSchema;
 	private _onDidRegisterConfiguration: Emitter<IConfigurationRegistry>;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
@@ -78,25 +99,28 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	constructor() {
 		this.configurationContributors = [];
 		this.configurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown configuration setting' };
+		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
+		this.resourceConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Not a resource configuration setting' };
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 		this.configurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
-		this.registerOverrideSettingsConfiguration();
+		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+		contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 	}
 
 	public get onDidRegisterConfiguration() {
 		return this._onDidRegisterConfiguration.event;
 	}
 
-	public registerConfiguration(configuration: IConfigurationNode): void {
-		this.registerConfigurations([configuration]);
+	public registerConfiguration(configuration: IConfigurationNode, validate: boolean = true): void {
+		this.registerConfigurations([configuration], validate);
 	}
 
-	public registerConfigurations(configurations: IConfigurationNode[]): void {
+	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
 		configurations.forEach(configuration => {
-			this.registerProperties(configuration); // fills in defaults
+			this.validateAndRegisterProperties(configuration, validate); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 			this.updateSchemaForOverrideSettingsConfiguration(configuration);
@@ -110,11 +134,42 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private registerProperties(configuration: IConfigurationNode, overridable: boolean = false) {
+	public registerDefaultConfigurations(defaultConfigurations: IDefaultConfigurationExtension[]): void {
+		const configurationNode: IConfigurationNode = {
+			id: 'defaultOverrides',
+			title: nls.localize('defaultConfigurations.title', "Default Configuration Overrides"),
+			properties: {}
+		};
+		for (const defaultConfiguration of defaultConfigurations) {
+			for (const key in defaultConfiguration.defaults) {
+				const defaultValue = defaultConfiguration.defaults[key];
+				if (OVERRIDE_PROPERTY_PATTERN.test(key) && typeof defaultValue === 'object') {
+					configurationNode.properties[key] = {
+						type: 'object',
+						default: defaultValue,
+						description: nls.localize('overrideSettings.description', "Configure editor settings to be overridden for {0} language.", key),
+						$ref: editorConfigurationSchemaId
+					};
+				}
+			}
+		}
+		if (Object.keys(configurationNode.properties).length) {
+			this.registerConfiguration(configurationNode, false);
+		}
+	}
+
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false) {
+		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
 		overridable = configuration.overridable || overridable;
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
+				let message;
+				if (validate && (message = validateProperty(key))) {
+					console.warn(message);
+					delete properties[key];
+					continue;
+				}
 				// fill in default values
 				let property = properties[key];
 				let defaultValue = property.default;
@@ -125,6 +180,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (overridable) {
 					property.overridable = true;
 				}
+				if (property.scope === void 0) {
+					property.scope = scope;
+				}
 				// add to properties map
 				this.configurationProperties[key] = properties[key];
 			}
@@ -132,9 +190,13 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				this.registerProperties(node, overridable);
+				this.validateAndRegisterProperties(node, validate, scope, overridable);
 			}
 		}
+	}
+
+	validateProperty(property: string): boolean {
+		return !OVERRIDE_PROPERTY_PATTERN.test(property) && this.getConfigurationProperties()[property] !== void 0;
 	}
 
 	getConfigurations(): IConfigurationNode[] {
@@ -159,71 +221,56 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				subNodes.forEach(register);
 			}
 		};
-		if (configuration.id === SETTINGS_OVERRRIDE_NODE_ID) {
-			configurationSchema.patternProperties[this.overridePropertyPattern] = objects.clone(configuration.properties['[]']);
-		} else {
-			register(configuration);
-		}
+		register(configuration);
 		contributionRegistry.registerSchema(schemaId, configurationSchema);
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
 		if (configuration.id !== SETTINGS_OVERRRIDE_NODE_ID) {
-			let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
-			if (patternProperties) {
-				if (!patternProperties.properties) {
-					patternProperties.properties = {};
-				}
-				this.update(configuration, patternProperties);
-				contributionRegistry.registerSchema(schemaId, this.configurationSchema);
-			}
+			this.update(configuration);
+			contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+			contributionRegistry.registerSchema(resourceConfigurationSchemaId, this.resourceConfigurationSchema);
 		}
 	}
 
 	private updateOverridePropertyPatternKey(): void {
-		let patternProperties = this.configurationSchema.patternProperties[this.overridePropertyPattern];
-		if (patternProperties) {
-			delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
-			this.computeOverridePropertyPattern();
-			this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
-			contributionRegistry.registerSchema(schemaId, this.configurationSchema);
+		let patternProperties: IJSONSchema = this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		if (!patternProperties) {
+			patternProperties = {
+				type: 'object',
+				description: nls.localize('overrideSettings.defaultDescription', "Configure editor settings to be overridden for a language."),
+				errorMessage: 'Unknown Identifier. Use language identifiers',
+				$ref: editorConfigurationSchemaId
+			};
 		}
+		delete this.configurationSchema.patternProperties[this.overridePropertyPattern];
+		this.computeOverridePropertyPattern();
+		this.configurationSchema.patternProperties[this.overridePropertyPattern] = patternProperties;
+		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
 	}
 
-	private update(configuration: IConfigurationNode, overridePropertiesSchema: IJSONSchema): void {
+	private update(configuration: IConfigurationNode): void {
 		let properties = configuration.properties;
 		if (properties) {
 			for (let key in properties) {
 				if (properties[key].overridable) {
-					overridePropertiesSchema.properties[key] = this.getConfigurationProperties()[key];
+					this.editorConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
+				}
+				switch (properties[key].scope) {
+					case ConfigurationScope.RESOURCE:
+						this.resourceConfigurationSchema.properties[key] = this.getConfigurationProperties()[key];
+						break;
 				}
 			}
 		}
 		let subNodes = configuration.allOf;
 		if (subNodes) {
-			subNodes.forEach(subNode => this.update(subNode, overridePropertiesSchema));
+			subNodes.forEach(subNode => this.update(subNode));
 		}
 	}
 
 	private computeOverridePropertyPattern(): void {
-		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.join('|')) : OVERRIDE_PROPERTY;
-	}
-
-	private registerOverrideSettingsConfiguration(): void {
-		const properties = {
-			'[]': {
-				type: 'object',
-				description: nls.localize('overrideSettings.description', "Configure settings to be overridden for a set of language identifiers."),
-				additionalProperties: false,
-				errorMessage: 'Unknown Identifier. Use language identifiers'
-			}
-		};
-		this.registerConfiguration({
-			id: SETTINGS_OVERRRIDE_NODE_ID,
-			type: 'object',
-			title: nls.localize('overrideSettings.title', "Override Settings"),
-			properties
-		});
+		this.overridePropertyPattern = this.overrideIdentifiers.length ? OVERRIDE_PATTERN_WITH_SUBSTITUTION.replace('${0}', this.overrideIdentifiers.map(identifier => strings.createRegExp(identifier, false).source).join('|')) : OVERRIDE_PROPERTY;
 	}
 }
 
@@ -255,61 +302,12 @@ function getDefaultValue(type: string | string[]): any {
 const configurationRegistry = new ConfigurationRegistry();
 Registry.add(Extensions.Configuration, configurationRegistry);
 
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-	type: 'object',
-	defaultSnippets: [{ body: { title: '', properties: {} } }],
-	properties: {
-		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
-			type: 'string'
-		},
-		properties: {
-			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
-			type: 'object',
-			additionalProperties: {
-				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-04/schema#' },
-					{
-						type: 'object',
-						properties: {
-							isExecutable: {
-								type: 'boolean'
-							}
-						}
-					}
-				]
-			}
-		},
+export function validateProperty(property: string): string {
+	if (OVERRIDE_PROPERTY_PATTERN.test(property)) {
+		return nls.localize('config.property.languageDefault', "Cannot register '{0}'. This matches property pattern '\\\\[.*\\\\]$' for describing language specific editor settings. Use 'configurationDefaults' contribution.", property);
 	}
-});
-
-configurationExtPoint.setHandler(extensions => {
-	const configurations: IConfigurationNode[] = [];
-
-	for (let i = 0; i < extensions.length; i++) {
-		const configuration = <IConfigurationNode>extensions[i].value;
-		const collector = extensions[i].collector;
-
-		if (configuration.type && configuration.type !== 'object') {
-			collector.warn(nls.localize('invalid.type', "if set, 'configuration.type' must be set to 'object"));
-		} else {
-			configuration.type = 'object';
-		}
-
-		if (configuration.title && (typeof configuration.title !== 'string')) {
-			collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
-		}
-
-		if (configuration.properties && (typeof configuration.properties !== 'object')) {
-			collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
-			return;
-		}
-
-		const clonedConfiguration = objects.clone(configuration);
-		clonedConfiguration.id = extensions[i].description.id;
-		configurations.push(clonedConfiguration);
+	if (configurationRegistry.getConfigurationProperties()[property] !== void 0) {
+		return nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", property);
 	}
-
-	configurationRegistry.registerConfigurations(configurations);
-});
+	return null;
+}

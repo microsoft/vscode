@@ -1,19 +1,26 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-};
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var ts = require("typescript");
 var Lint = require("tslint");
 var path_1 = require("path");
 var Rule = (function (_super) {
     __extends(Rule, _super);
     function Rule() {
-        return _super.apply(this, arguments) || this;
+        return _super !== null && _super.apply(this, arguments) || this;
     }
     Rule.prototype.apply = function (sourceFile) {
         var parts = path_1.dirname(sourceFile.fileName).split(/\\|\//);
@@ -48,8 +55,23 @@ var LayeringRule = (function (_super) {
         _this._config = config;
         return _this;
     }
+    LayeringRule.prototype.visitImportEqualsDeclaration = function (node) {
+        if (node.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference) {
+            this._validateImport(node.moduleReference.expression.getText(), node);
+        }
+    };
     LayeringRule.prototype.visitImportDeclaration = function (node) {
-        var path = node.moduleSpecifier.getText();
+        this._validateImport(node.moduleSpecifier.getText(), node);
+    };
+    LayeringRule.prototype.visitCallExpression = function (node) {
+        _super.prototype.visitCallExpression.call(this, node);
+        // import('foo') statements inside the code
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+            var path = node.arguments[0];
+            this._validateImport(path.getText(), node);
+        }
+    };
+    LayeringRule.prototype._validateImport = function (path, node) {
         // remove quotes
         path = path.slice(1, -1);
         if (path[0] === '.') {

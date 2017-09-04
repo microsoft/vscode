@@ -35,6 +35,9 @@ export const virtualMachineHint: { value(): number } = new class {
 			this._virtualMachineOUIs.insert('00-05-69', true);
 			this._virtualMachineOUIs.insert('00-03-FF', true);
 			this._virtualMachineOUIs.insert('00-1C-42', true);
+			this._virtualMachineOUIs.insert('00-16-3E', true);
+			this._virtualMachineOUIs.insert('08-00-27', true);
+
 		}
 		return this._virtualMachineOUIs.findSubstr(mac);
 	}
@@ -47,7 +50,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			const interfaces = networkInterfaces();
 			for (let name in interfaces) {
 				if (Object.prototype.hasOwnProperty.call(interfaces, name)) {
-					for (const {mac, internal} of interfaces[name]) {
+					for (const { mac, internal } of interfaces[name]) {
 						if (!internal) {
 							interfaceCount += 1;
 							if (this._isVirtualMachineMacAdress(mac.toUpperCase())) {
@@ -66,50 +69,25 @@ export const virtualMachineHint: { value(): number } = new class {
 	}
 };
 
-
-const mac = new class {
-
-	private _value: string;
-
-	get value(): string {
-		if (this._value === void 0) {
-			this._initValue();
-		}
-		return this._value;
-	}
-
-	private _initValue(): void {
-		this._value = null;
-		const interfaces = networkInterfaces();
-		for (let key in interfaces) {
-			for (const i of interfaces[key]) {
-				if (!i.internal) {
-					this._value = crypto.createHash('sha256').update(i.mac, 'utf8').digest('hex');
-					return;
-				}
-			}
-		}
-		this._value = `missing-${uuid.generateUuid()}`;
-	}
-};
-
-export function _futureMachineIdExperiment(): string {
-	return mac.value;
+let machineId: TPromise<string>;
+export function getMachineId(): TPromise<string> {
+	return machineId || (machineId = getMacMachineId()
+		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
 }
 
-export function getMachineId(): TPromise<string> {
+function getMacMachineId(): TPromise<string> {
 	return new TPromise<string>(resolve => {
 		try {
 			getmac.getMac((error, macAddress) => {
 				if (!error) {
 					resolve(crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex'));
 				} else {
-					resolve(uuid.generateUuid()); // fallback, generate a UUID
+					resolve(undefined);
 				}
 			});
 		} catch (err) {
 			errors.onUnexpectedError(err);
-			resolve(uuid.generateUuid()); // fallback, generate a UUID
+			resolve(undefined);
 		}
 	});
 }

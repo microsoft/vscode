@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench > .editor > .content.drag {
-	background-color: #ECECEC;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.drag {
-	background-color: #2D2D2D;
-}
-
 .monaco-workbench > .editor > .content.dragging > .monaco-sash {
 	display: none; /* hide sashes while dragging editors around */
 }
@@ -25,23 +17,6 @@
 
 #monaco-workbench-editor-drop-overlay {
 	opacity: 0; /* initially not visible until moving around */
-}
-
-.vs #monaco-workbench-editor-drop-overlay,
-.vs .monaco-workbench > .editor.empty > .content.dropfeedback {
-	background-color: rgba(51,153,255, 0.18);
-}
-
-.vs-dark #monaco-workbench-editor-drop-overlay,
-.vs-dark .monaco-workbench > .editor.empty > .content.dropfeedback {
-	background-color: rgba(83, 89, 93, 0.5);
-}
-
-.hc-black #monaco-workbench-editor-drop-overlay,
-.hc-black .monaco-workbench > .editor.empty > .content.dropfeedback {
-	background: none !important;
-	outline: 2px dashed #f38518;
-	outline-offset: -2px;
 }
 
 .monaco-workbench > .editor > .content > .one-editor-silo {
@@ -67,64 +42,24 @@
 	box-sizing: content-box;
 }
 
-.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #E7E7E7;
-	border-right: 1px solid #E7E7E7;
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
+	border-left: 1px solid;
+	border-right: 1px solid;
 }
 
-.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #E7E7E7;
-	border-bottom: 1px solid #E7E7E7;
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
+	border-top: 1px solid;
+	border-bottom: 1px solid;
 }
 
-.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.vs .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #E7E7E7;
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
+.monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
+	border-left: 1px solid;
 }
 
-.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.vs .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #E7E7E7;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #444;
-	border-right: 1px solid #444;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #444;
-	border-bottom: 1px solid #444;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.vs-dark .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #444;
-}
-
-.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.vs-dark .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #444;
-}
-
-.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.dragging {
-	border-left: 1px solid #6FC3DF;
-	border-right: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.dragging {
-	border-top: 1px solid #6FC3DF;
-	border-bottom: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-two,
-.hc-black .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.editor-three {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
-.hc-black .monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
-	border-top: 1px solid #6FC3DF;
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-two,
+.monaco-workbench > .editor > .content.horizontal-layout > .one-editor-silo.editor-three {
+	border-top: 1px solid;
 }
 
 .monaco-workbench > .editor > .content.vertical-layout > .one-editor-silo.draggedunder {

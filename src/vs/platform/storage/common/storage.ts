@@ -21,15 +21,6 @@ export interface IStorageService {
 	store(key: string, value: any, scope?: StorageScope): void;
 
 	/**
-	 * Swap the value of a stored element to one of the two provided
-	 * values and use the defaultValue if no element with the given key
-	 * exists.
-	 *
-	 * The optional scope argument allows to define the scope of the operation.
-	 */
-	swap(key: string, valueA: any, valueB: any, scope?: StorageScope, defaultValue?: any): void;
-
-	/**
 	 * Delete an element stored under the provided key from local storage.
 	 *
 	 * The optional scope argument allows to define the scope of the operation.
@@ -80,7 +71,6 @@ export enum StorageScope {
 export const NullStorageService: IStorageService = {
 	_serviceBrand: undefined,
 	store() { return undefined; },
-	swap() { return undefined; },
 	remove() { return undefined; },
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },

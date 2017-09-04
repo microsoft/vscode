@@ -173,4 +173,81 @@ suite('Objects', () => {
 		someValue = 4;
 		assert.strictEqual(child.getter, 4);
 	});
+
+	test('distinct', function () {
+		let base = {
+			one: 'one',
+			two: 2,
+			three: {
+				3: true
+			},
+			four: false
+		};
+
+		let diff = objects.distinct(base, base);
+		assert.deepEqual(diff, {});
+
+		let obj = {};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			one: 'one',
+			two: 2
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			three: {
+				3: true
+			},
+			four: false
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {});
+
+		obj = {
+			one: 'two',
+			two: 2,
+			three: {
+				3: true
+			},
+			four: true
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {
+			one: 'two',
+			four: true
+		});
+
+		obj = {
+			one: null,
+			two: 2,
+			three: {
+				3: true
+			},
+			four: void 0
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, {
+			one: null,
+			four: void 0
+		});
+
+		obj = {
+			one: 'two',
+			two: 3,
+			three: { 3: false },
+			four: true
+		};
+
+		diff = objects.distinct(base, obj);
+		assert.deepEqual(diff, obj);
+	});
 });

@@ -58,7 +58,9 @@ suite('dom', () => {
 	test('removeClass should consider hyphens', function () {
 		let element = document.createElement('div');
 
-		dom.addClass(element, 'foo-bar bar');
+		dom.addClass(element, 'foo-bar');
+		dom.addClass(element, 'bar');
+
 		assert(dom.hasClass(element, 'foo-bar'));
 		assert(dom.hasClass(element, 'bar'));
 

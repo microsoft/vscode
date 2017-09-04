@@ -122,7 +122,7 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _lastCandidate: { uri: string; language: string; };
 
-	private _updateScores(model: IReadOnlyModel): boolean {
+	private _updateScores(model: IReadOnlyModel): void {
 
 		let candidate = {
 			uri: model.uri.toString(),

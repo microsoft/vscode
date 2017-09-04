@@ -10,6 +10,9 @@
   "categories": [
     "Other"
   ],
+  "scripts": {
+    "update-grammar": "node ../../build/npm/update-grammar.js textmate/git.tmbundle Syntaxes/Git%20Commit%20Message.tmLanguage ./syntaxes/git-commit.tmLanguage.json Syntaxes/Git%20Rebase%20Message.tmLanguage ./syntaxes/git-rebase.tmLanguage.json"
+  },
   "contributes": {
     "languages": [
       {
@@ -40,12 +43,12 @@
       {
         "language": "git-commit",
         "scopeName": "text.git-commit",
-        "path": "./syntaxes/git-commit.tmLanguage"
+        "path": "./syntaxes/git-commit.tmLanguage.json"
       },
       {
         "language": "git-rebase",
         "scopeName": "text.git-rebase",
-        "path": "./syntaxes/git-rebase.tmLanguage"
+        "path": "./syntaxes/git-rebase.tmLanguage.json"
       }
     ]
   }

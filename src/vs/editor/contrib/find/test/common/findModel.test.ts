@@ -9,10 +9,11 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { Handler, ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('FindModel', () => {
 
@@ -35,14 +36,14 @@ suite('FindModel', () => {
 		});
 	}
 
-	function fromRange(rng: IRange): number[] {
+	function fromRange(rng: Range): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
 	function _getFindState(editor: ICommonCodeEditor) {
 		let model = editor.getModel();
-		let currentFindMatches: IRange[] = [];
-		let allFindMatches: IRange[] = [];
+		let currentFindMatches: Range[] = [];
+		let allFindMatches: Range[] = [];
 
 		for (let dec of model.getAllDecorations()) {
 			if (dec.options.className === 'currentFindMatch') {
@@ -302,7 +303,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', Handler.MoveTo, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 
@@ -662,7 +663,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', Handler.MoveTo, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1149,7 +1150,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', Handler.MoveTo, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1310,7 +1311,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', Handler.MoveTo, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1740,7 +1741,7 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		cursor.trigger('mouse', Handler.MoveTo, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(8, 14)
 		});
 
@@ -1998,6 +1999,37 @@ suite('FindModel', () => {
 		assert.equal(editor.getModel().getLineContent(6), '    cout << " world, !" << endl;');
 		assert.equal(editor.getModel().getLineContent(7), '    cout << " world again" << endl;');
 		assert.equal(editor.getModel().getLineContent(8), '    cout << " world again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello(z)?', replaceString: 'hi$1', isRegex: true, matchCase: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '    cout << "hi world, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '    cout << "hi world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(9), '    cout << "hiworld again" << endl;');
 
 		findModel.dispose();
 		findState.dispose();

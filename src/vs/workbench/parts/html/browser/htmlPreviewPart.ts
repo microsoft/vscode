@@ -6,58 +6,55 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-import Webview from './webview';
+import Webview, { WebviewOptions } from './webview';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { WebviewEditor } from './webviewEditor';
+
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
  */
-export class HtmlPreviewPart extends BaseEditor {
+export class HtmlPreviewPart extends WebviewEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
+	static class: string = 'htmlPreviewPart';
 
-	private _textModelResolverService: ITextModelResolverService;
-	private _themeService: IThemeService;
-	private _openerService: IOpenerService;
-	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
-	private _container: HTMLDivElement;
-
-	private _baseUrl: URI;
 
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
+	private scrollYPercentage: number = 0;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IThemeService themeService: IThemeService,
-		@IOpenerService openerService: IOpenerService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private partService: IPartService,
+		@IStorageService storageService: IStorageService,
+		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(HtmlPreviewPart.ID, telemetryService);
-
-		this._textModelResolverService = textModelResolverService;
-		this._themeService = themeService;
-		this._openerService = openerService;
-		this._baseUrl = contextService.toResource('/');
+		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
 
 	dispose(): void {
@@ -74,20 +71,35 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	protected createEditor(parent: Builder): void {
-		this._container = document.createElement('div');
-		this._container.style.paddingLeft = '20px';
-		parent.getHTMLElement().appendChild(this._container);
+		this.content = document.createElement('div');
+		this.content.style.position = 'absolute';
+		this.content.classList.add(HtmlPreviewPart.class);
+		parent.getHTMLElement().appendChild(this.content);
 	}
 
 	private get webview(): Webview {
 		if (!this._webview) {
-			this._webview = new Webview(this._container, document.querySelector('.monaco-editor-background'), { nodeintegration: true });
-			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
+			let webviewOptions: WebviewOptions = {};
+			if (this.input && this.input instanceof HtmlInput) {
+				webviewOptions = this.input.options;
+			}
 
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions);
+			if (this.input && this.input instanceof HtmlInput) {
+				const state = this.loadViewState(this.input.getResource());
+				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
+				this.webview.initialScrollProgress = this.scrollYPercentage;
+
+				const resourceUri = this.input.getResource();
+				this.webview.baseUrl = resourceUri.toString(true);
+			}
+			this.onThemeChange(this.themeService.getTheme());
 			this._webviewDisposables = [
 				this._webview,
-				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
-				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats))
+				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
+				this._webview.onDidScroll(data => {
+					this.scrollYPercentage = data.scrollYPercentage;
+				}),
 			];
 		}
 		return this._webview;
@@ -114,8 +126,7 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this._themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this._themeService.getColorTheme());
+			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange.bind(this));
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
@@ -129,10 +140,12 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		const {width, height} = dimension;
-		// we take the padding we set on create into account
-		this._container.style.width = `${Math.max(width - 20, 0)}px`;
-		this._container.style.height = `${height}px`;
+		const { width, height } = dimension;
+		this.content.style.width = `${width}px`;
+		this.content.style.height = `${height}px`;
+		if (this._webview) {
+			this._webview.layout();
+		}
 	}
 
 	public focus(): void {
@@ -140,9 +153,23 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public clearInput(): void {
+		if (this.input instanceof HtmlInput) {
+			this.saveViewState(this.input.getResource(), {
+				scrollYPercentage: this.scrollYPercentage
+			});
+		}
 		dispose(this._modelRef);
 		this._modelRef = undefined;
 		super.clearInput();
+	}
+
+	public shutdown(): void {
+		if (this.input instanceof HtmlInput) {
+			this.saveViewState(this.input.getResource(), {
+				scrollYPercentage: this.scrollYPercentage
+			});
+		}
+		super.shutdown();
 	}
 
 	public sendMessage(data: any): void {
@@ -151,8 +178,17 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
-		if (this.input && this.input.matches(input) && this._hasValidModel()) {
+		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
+		}
+
+		let oldOptions: HtmlInputOptions | undefined = undefined;
+
+		if (this.input instanceof HtmlInput) {
+			oldOptions = this.input.options;
+			this.saveViewState(this.input.getResource(), {
+				scrollYPercentage: this.scrollYPercentage
+			});
 		}
 
 		if (this._modelRef) {
@@ -161,12 +197,12 @@ export class HtmlPreviewPart extends BaseEditor {
 		this._modelChangeSubscription.dispose();
 
 		if (!(input instanceof HtmlInput)) {
-			return TPromise.wrapError<void>('Invalid input');
+			return TPromise.wrapError<void>(new Error('Invalid input'));
 		}
 
 		return super.setInput(input, options).then(() => {
 			const resourceUri = input.getResource();
-			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
+			return this.textModelResolverService.createModelReference(resourceUri).then(ref => {
 				const model = ref.object;
 
 				if (model instanceof BaseTextEditorModel) {
@@ -174,12 +210,26 @@ export class HtmlPreviewPart extends BaseEditor {
 				}
 
 				if (!this.model) {
-					return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
 				}
 
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
+				if (oldOptions && !areHtmlInputOptionsEqual(oldOptions, input.options)) {
+					this._doSetVisible(false);
+				}
+
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
+					if (this.model) {
+						this.scrollYPercentage = 0;
+						this.webview.contents = this.model.getLinesContent();
+					}
+				});
+				const state = this.loadViewState(resourceUri);
+				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
+				this.webview.options = input.options;
 				this.webview.contents = this.model.getLinesContent();
+				this.webview.initialScrollProgress = this.scrollYPercentage;
+				return undefined;
 			});
 		});
 	}

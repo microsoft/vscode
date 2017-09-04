@@ -202,4 +202,67 @@ suite('Extfs', () => {
 			});
 		});
 	});
+
+	test('realcase', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+
+			// assume case insensitive file system
+			if (process.platform === 'win32' || process.platform === 'darwin') {
+				const upper = newDir.toUpperCase();
+				const real = extfs.realcaseSync(upper);
+
+				if (real) { // can be null in case of permission errors
+					assert.notEqual(real, upper);
+					assert.equal(real.toUpperCase(), upper);
+					assert.equal(real, newDir);
+				}
+			}
+
+			// linux, unix, etc. -> assume case sensitive file system
+			else {
+				const real = extfs.realcaseSync(newDir);
+				assert.equal(real, newDir);
+			}
+
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+		});
+	});
+
+	test('realpath', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+
+			extfs.realpath(newDir, (error, realpath) => {
+				assert.ok(realpath);
+				assert.ok(!error);
+
+				extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			});
+		});
+	});
+
+	test('realpathSync', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		extfs.mkdirp(newDir, 493, (error) => {
+			let realpath: string;
+			try {
+				realpath = extfs.realpathSync(newDir);
+			} catch (error) {
+				assert.ok(!error);
+			}
+			assert.ok(realpath);
+
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+		});
+	});
 });

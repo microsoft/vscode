@@ -64,6 +64,11 @@ export interface IActivityBarService {
 	_serviceBrand: any;
 
 	/**
+	 * Show activity in the activitybar for the given global activity.
+	 */
+	showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable;
+
+	/**
 	 * Show activity in the activitybar for the given viewlet.
 	 */
 	showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable;

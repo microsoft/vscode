@@ -19,11 +19,11 @@ export class ChoiceChannel implements IChoiceChannel {
 	constructor( @IChoiceService private choiceService: IChoiceService) {
 	}
 
-	call(command: string, args?: any): TPromise<any> {
+	call(command: string, args?: [Severity, string, string[], number, boolean]): TPromise<any> {
 		switch (command) {
-			case 'choose': return this.choiceService.choose(<Severity>args[0], <string>args[1], <string[]>args[2], <boolean>args[3]);
+			case 'choose': return this.choiceService.choose(args[0], args[1], args[2], args[3], args[4]);
 		}
-		return TPromise.wrapError('invalid command');
+		return TPromise.wrapError(new Error('invalid command'));
 	}
 }
 
@@ -33,7 +33,7 @@ export class ChoiceChannelClient implements IChoiceService {
 
 	constructor(private channel: IChoiceChannel) { }
 
-	choose(severity: Severity, message: string, options: string[], modal?: boolean): TPromise<number> {
-		return this.channel.call('choose', [severity, message, options, modal]);
+	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number> {
+		return this.channel.call('choose', [severity, message, options, cancelId, modal]);
 	}
 }

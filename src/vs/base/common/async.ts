@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
@@ -46,10 +46,11 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
 	const subscription = token.onCancellationRequested(() => promise.cancel());
 	if (resolveAsUndefinedWhenCancelled) {
-		promise = promise.then(undefined, err => {
+		promise = promise.then<T>(undefined, err => {
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
+			return undefined;
 		});
 	}
 	return always(promise, () => subscription.dispose());
@@ -111,14 +112,14 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new Promise((c, e, p) => {
+				this.queuedPromise = new TPromise((c, e, p) => {
 					this.activePromise.then(onComplete, onComplete, p).done(c);
 				}, () => {
 					this.activePromise.cancel();
 				});
 			}
 
-			return new Promise((c, e, p) => {
+			return new TPromise((c, e, p) => {
 				this.queuedPromise.then(c, e, p);
 			}, () => {
 				// no-op
@@ -127,7 +128,7 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.activePromise.done((result: any) => {
 				this.activePromise = null;
 				c(result);
@@ -144,7 +145,7 @@ export class Throttler {
 // TODO@Joao: can the previous throttler be replaced with this?
 export class SimpleThrottler {
 
-	private current = TPromise.as(null);
+	private current = TPromise.as<any>(null);
 
 	queue<T>(promiseTask: ITask<TPromise<T>>): TPromise<T> {
 		return this.current = this.current.then(() => promiseTask());
@@ -193,7 +194,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((c) => {
+			this.completionPromise = new TPromise((c) => {
 				this.onSuccess = c;
 			}, () => {
 				// no-op
@@ -500,6 +501,11 @@ export class Queue<T> extends Limiter<T> {
 	}
 }
 
+export function setDisposableTimeout(handler: Function, timeout: number, ...args: any[]): IDisposable {
+	const handle = setTimeout(handler, timeout, ...args);
+	return { dispose() { clearTimeout(handle); } };
+}
+
 export class TimeoutTimer extends Disposable {
 	private _token: platform.TimeoutToken;
 
@@ -634,11 +640,11 @@ export class RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): Promise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new Promise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)));
+	return new TPromise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)), () => null);
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new Promise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)));
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)), () => null);
 }

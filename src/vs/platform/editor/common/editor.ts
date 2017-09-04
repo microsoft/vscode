@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -65,6 +64,34 @@ export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The encoding of the text input if known.
+	 */
+	encoding?: string;
+}
+
+export interface IUntitledResourceInput extends IBaseResourceInput {
+
+	/**
+	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 */
+	resource?: URI;
+
+	/**
+	 * Optional file path. Using the file resource will associate the file to the untitled resource.
+	 */
+	filePath?: string;
+
+	/**
+	 * Optional language of the untitled resource.
+	 */
+	language?: string;
+
+	/**
+	 * Optional contents of the untitled resource.
+	 */
+	contents?: string;
+
+	/**
+	 * Optional encoding of the untitled resource.
 	 */
 	encoding?: string;
 }
@@ -159,6 +186,12 @@ export enum Direction {
 	RIGHT
 }
 
+export enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
 export interface IEditorInput extends IDisposable {
 
 	onDispose: Event<void>;
@@ -174,6 +207,11 @@ export interface IEditorInput extends IDisposable {
 	getDescription(verbose?: boolean): string;
 
 	/**
+	 * Returns the display title of this input.
+	 */
+	getTitle(verbosity?: Verbosity): string;
+
+	/**
 	 * Resolves the input.
 	 */
 	resolve(): TPromise<IEditorModel>;
@@ -182,6 +220,11 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this input is dirty or not.
 	 */
 	isDirty(): boolean;
+
+	/**
+	 * Reverts this input.
+	 */
+	revert(): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -208,6 +251,11 @@ export interface IEditorOptions {
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
 	revealIfVisible?: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	revealIfOpened?: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -242,7 +290,7 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor view state.
 	 */
-	viewState?: IEditorViewState;
+	viewState?: object;
 
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.

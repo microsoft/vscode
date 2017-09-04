@@ -6,8 +6,6 @@
 /* Debug actions widget */
 
 .monaco-workbench .debug-actions-widget {
-	background-color: #F3F3F3;
-	box-shadow: 0 5px 8px #A8A8A8;
 	position: absolute;
 	z-index: 200;
 	height: 32px;
@@ -20,7 +18,6 @@
 }
 
 .monaco-workbench .debug-actions-widget .monaco-action-bar .action-item .select-box {
-	background-color: initial;
 	margin-top: 6px;
 }
 
@@ -42,17 +39,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-actions-widget {
-	background-color: #333;
-	box-shadow: 0 5px 8px #000;
-}
-
-.hc-black .monaco-workbench .debug-actions-widget {
-	background-color: #000;
-	box-shadow: unset;
-	border: 1px solid #6FC3DF;
 }
 
 /* Debug actionbar actions */

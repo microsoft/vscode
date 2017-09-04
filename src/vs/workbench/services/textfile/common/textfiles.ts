@@ -7,12 +7,12 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import { IRawText } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -22,7 +22,7 @@ export interface ISaveErrorHandler {
 	/**
 	 * Called whenever a save fails.
 	 */
-	onSaveError(error: any, model: ITextFileEditorModel): void;
+	onSaveError(error: Error, model: ITextFileEditorModel): void;
 }
 
 export interface ISaveParticipant {
@@ -30,7 +30,7 @@ export interface ISaveParticipant {
 	/**
 	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
 	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<any>;
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void;
 }
 
 /**
@@ -40,7 +40,22 @@ export enum ModelState {
 	SAVED,
 	DIRTY,
 	PENDING_SAVE,
+
+	/**
+	 * A model is in conflict mode when changes cannot be saved because the
+	 * underlying file has changed. Models in conflict mode are always dirty.
+	 */
 	CONFLICT,
+
+	/**
+	 * A model is in orphan state when the underlying file has been deleted.
+	 */
+	ORPHAN,
+
+	/**
+	 * Any error that happens during a save that is not causing the CONFLICT state.
+	 * Models in error mode are always diry.
+	 */
 	ERROR
 }
 
@@ -51,7 +66,8 @@ export enum StateChange {
 	SAVED,
 	REVERTED,
 	ENCODING,
-	CONTENT_CHANGE
+	CONTENT_CHANGE,
+	ORPHANED_CHANGE
 }
 
 export class TextFileModelChangeEvent {
@@ -112,7 +128,7 @@ export interface IRawTextContent extends IBaseStat {
 	/**
 	 * The line grouped content of a text file.
 	 */
-	value: IRawText;
+	value: IRawTextSource;
 
 	/**
 	 * The line grouped logical hash of a text file.
@@ -125,6 +141,11 @@ export interface IRawTextContent extends IBaseStat {
 	encoding: string;
 }
 
+export interface IModelLoadOrCreateOptions {
+	encoding?: string;
+	reload?: boolean;
+}
+
 export interface ITextFileEditorModelManager {
 
 	onModelDisposed: Event<URI>;
@@ -135,6 +156,7 @@ export interface ITextFileEditorModelManager {
 	onModelSaveError: Event<TextFileModelChangeEvent>;
 	onModelSaved: Event<TextFileModelChangeEvent>;
 	onModelReverted: Event<TextFileModelChangeEvent>;
+	onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
 
 	onModelsDirty: Event<TextFileModelChangeEvent[]>;
 	onModelsSaveError: Event<TextFileModelChangeEvent[]>;
@@ -145,13 +167,17 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding?: string, refresh?: boolean): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
+
+	disposeModel(model: ITextFileEditorModel): void;
 }
 
-export interface IModelSaveOptions {
+export interface ISaveOptions {
+	force?: boolean;
 	reason?: SaveReason;
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
+	skipSaveParticipants?: boolean;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
@@ -163,19 +189,17 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	getResource(): URI;
 
-	getLastSaveAttemptTime(): number;
+	hasState(state: ModelState): boolean;
 
-	getLastModifiedTime(): number;
-
-	getState(): ModelState;
+	getETag(): string;
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(options?: IModelSaveOptions): TPromise<void>;
+	save(options?: ISaveOptions): TPromise<void>;
+
+	load(): TPromise<ITextFileEditorModel>;
 
 	revert(soft?: boolean): TPromise<void>;
-
-	setConflictResolutionMode(): void;
 
 	getValue(): string;
 
@@ -184,15 +208,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isResolved(): boolean;
 
 	isDisposed(): boolean;
-}
-
-export interface ISaveOptions {
-
-	/**
-	 * Save the file on disk even if not dirty. If the file is not dirty, it will be touched
-	 * so that mtime and atime are updated. This helps to trigger external file watchers.
-	 */
-	force: boolean;
 }
 
 export interface IRevertOptions {
@@ -243,7 +258,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
-	 * @return true iff the resource was saved.
+	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
@@ -251,7 +266,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the provided resource asking the user for a file name.
 	 *
 	 * @param resource the resource to save as.
-	 * @return true iff the file was saved.
+	 * @return true if the file was saved.
 	 */
 	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
@@ -261,8 +276,8 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources can be null to save all.
 	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
 	 */
-	saveAll(includeUntitled?: boolean): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[]): TPromise<ITextFileOperationResult>;
+	saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Reverts the provided resource.
@@ -270,7 +285,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resource the resource of the file to revert.
 	 * @param force to force revert even when the file is not dirty
 	 */
-	revert(resource: URI, force?: boolean): TPromise<boolean>;
+	revert(resource: URI, options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Reverts all the provided resources and returns a promise with the operation result.
@@ -284,12 +299,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
-
-	/**
-	 * Brings up an informational message about how exit now being enabled by default. This message
-	 * is temporary and will eventually be removed.
-	 */
-	showHotExitMessage(): void;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

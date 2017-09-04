@@ -57,17 +57,11 @@
 	margin-right: 0.3em;
 	height: 20px;
 	flex-shrink: 1;
-	border: 1px solid #dddddd;
 	margin-top: 7px;
 }
 
 .monaco-workbench.mac > .part > .title > .title-actions .start-debug-action-item {
 	border-radius: 4px;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item {
-	border-color: #3c3c3c;
 }
 
 .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .icon {
@@ -84,28 +78,10 @@
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
-	border-left: 1px solid #dddddd;
-}
-
-.vs-dark .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration,
-.hc-black .monaco-workbench > .part > .title > .title-actions .start-debug-action-item .configuration {
-	border-color: #3c3c3c;
-}
-
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #f3f3f3;
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
-}
-
-.vs-dark .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #252526;
-}
-
-.hc-black .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .select-box {
-	background-color: #000;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .select-box {
@@ -173,7 +149,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	white-space: nowrap;
-	padding-left: 5px;
+	margin: 0px 10px;
 }
 
 .debug-viewlet .debug-call-stack-title > .pause-message > .label {
@@ -224,6 +200,19 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 0.8em;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame.label {
+	text-align: center;
+	font-style: italic;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame.subtle {
+	font-style: italic;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame.label > .file {
+	display: none;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
@@ -339,11 +328,6 @@
 
 .vs-dark .debug-viewlet .monaco-tree-row .expression .value.changed {
 	animation-name: debugViewletValueChanged;
-}
-
-.vs-dark .debug-viewlet .monaco-inputbox > .wrapper > .input,
-.hc-black .debug-viewlet .monaco-inputbox > .wrapper > .input {
-	color: #CCC;
 }
 
 /* Breakpoints */

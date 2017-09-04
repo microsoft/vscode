@@ -9,19 +9,21 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { LegacyRenderer, ILegacyTemplateData } from 'vs/base/parts/tree/browser/treeDefaults';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
+import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { OS } from 'vs/base/common/platform';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IContext {
 	event: any;
@@ -110,6 +112,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * An optional keybinding to show for an entry.
+	 */
+	public getKeybinding(): ResolvedKeybinding {
+		return null;
+	}
+
+	/**
 	 * A resource for this entry. Resource URIs can be used to compare different kinds of entries and group
 	 * them together.
 	 */
@@ -163,11 +172,6 @@ export class QuickOpenEntry {
 	 */
 	public static compare(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string): number {
 
-		// Normalize
-		if (lookFor) {
-			lookFor = strings.stripWildcards(lookFor).toLowerCase();
-		}
-
 		// Give matches with label highlights higher priority over
 		// those with only description highlights
 		const labelHighlightsA = elementA.getHighlights()[0] || [];
@@ -213,7 +217,8 @@ export class QuickOpenEntry {
 		if (entry.getResource()) {
 
 			// Highlight entire label and description if searching for full absolute path
-			if (lookFor.toLowerCase() === entry.getResource().fsPath.toLowerCase()) {
+			const fsPath = entry.getResource().fsPath;
+			if (lookFor.length === fsPath.length && lookFor.toLowerCase() === fsPath.toLowerCase()) {
 				labelHighlights.push({ start: 0, end: label.length });
 				descriptionHighlights.push({ start: 0, end: description.length });
 			}
@@ -273,23 +278,6 @@ export class QuickOpenEntry {
 
 	public isFile(): boolean {
 		return false; // TODO@Ben debt with editor history merging
-	}
-}
-
-export class QuickOpenEntryItem extends QuickOpenEntry {
-
-	/**
-	 * Must return the height as being used by the render function.
-	 */
-	public getHeight(): number {
-		return 0;
-	}
-
-	/**
-	 * Allows to present the quick open entry in a custom way inside the tree.
-	 */
-	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		return null;
 	}
 }
 
@@ -381,25 +369,6 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 	}
 }
 
-const templateEntry = 'quickOpenEntry';
-const templateEntryGroup = 'quickOpenEntryGroup';
-const templateEntryItem = 'quickOpenEntryItem';
-
-class EntryItemRenderer extends LegacyRenderer {
-
-	public getTemplateId(tree: ITree, element: any): string {
-		return templateEntryItem;
-	}
-
-	protected render(tree: ITree, element: any, container: HTMLElement, previousCleanupFn?: IElementCallback): IElementCallback {
-		if (element instanceof QuickOpenEntryItem) {
-			return (<QuickOpenEntryItem>element).render(tree, container, previousCleanupFn);
-		}
-
-		return super.render(tree, element, container, previousCleanupFn);
-	}
-}
-
 class NoActionProvider implements IActionProvider {
 
 	public hasActions(tree: ITree, element: any): boolean {
@@ -430,6 +399,7 @@ export interface IQuickOpenEntryTemplateData {
 	label: IconLabel;
 	detail: HighlightedLabel;
 	description: HighlightedLabel;
+	keybinding: KeybindingLabel;
 	actionBar: ActionBar;
 }
 
@@ -437,33 +407,28 @@ export interface IQuickOpenEntryGroupTemplateData extends IQuickOpenEntryTemplat
 	group: HTMLDivElement;
 }
 
+const templateEntry = 'quickOpenEntry';
+const templateEntryGroup = 'quickOpenEntryGroup';
+
 class Renderer implements IRenderer<QuickOpenEntry> {
 
 	private actionProvider: IActionProvider;
 	private actionRunner: IActionRunner;
-	private entryItemRenderer: EntryItemRenderer;
 
 	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner = null) {
 		this.actionProvider = actionProvider;
 		this.actionRunner = actionRunner;
-		this.entryItemRenderer = new EntryItemRenderer();
 	}
 
 	public getHeight(entry: QuickOpenEntry): number {
-		if (entry instanceof QuickOpenEntryItem) {
-			return (<QuickOpenEntryItem>entry).getHeight();
-		}
 		if (entry.getDetail()) {
 			return 44;
 		}
+
 		return 22;
 	}
 
 	public getTemplateId(entry: QuickOpenEntry): string {
-		if (entry instanceof QuickOpenEntryItem) {
-			return templateEntryItem;
-		}
-
 		if (entry instanceof QuickOpenEntryGroup) {
 			return templateEntryGroup;
 		}
@@ -471,39 +436,14 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		return templateEntry;
 	}
 
-	public renderTemplate(templateId: string, container: HTMLElement): IQuickOpenEntryGroupTemplateData {
-
-		// Entry Item
-		if (templateId === templateEntryItem) {
-			return this.entryItemRenderer.renderTemplate(null, templateId, container);
-		}
-
-		// Entry Group
-		let group: HTMLDivElement;
-		if (templateId === templateEntryGroup) {
-			group = document.createElement('div');
-			DOM.addClass(group, 'results-group');
-			container.appendChild(group);
-		}
-
-		// Action Bar
-		DOM.addClass(container, 'actions');
-
+	public renderTemplate(templateId: string, container: HTMLElement, styles: IQuickOpenStyles): IQuickOpenEntryGroupTemplateData {
 		const entryContainer = document.createElement('div');
 		DOM.addClass(entryContainer, 'sub-content');
 		container.appendChild(entryContainer);
 
-		const actionBarContainer = document.createElement('div');
-		DOM.addClass(actionBarContainer, 'primary-action-bar');
-		container.appendChild(actionBarContainer);
-
-		const actionBar = new ActionBar(actionBarContainer, {
-			actionRunner: this.actionRunner
-		});
-
 		// Entry
-		const row1 = DOM.$('.row');
-		const row2 = DOM.$('.row');
+		const row1 = DOM.$('.quick-open-row');
+		const row2 = DOM.$('.quick-open-row');
 		const entry = DOM.$('.quick-open-entry', null, row1, row2);
 		entryContainer.appendChild(entry);
 
@@ -520,11 +460,36 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		const description = new HighlightedLabel(descriptionContainer);
 
+		// Keybinding
+		const keybindingContainer = document.createElement('span');
+		row1.appendChild(keybindingContainer);
+		DOM.addClass(keybindingContainer, 'quick-open-entry-keybinding');
+		const keybinding = new KeybindingLabel(keybindingContainer, OS);
+
 		// Detail
 		const detailContainer = document.createElement('div');
 		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
 		const detail = new HighlightedLabel(detailContainer);
+
+		// Entry Group
+		let group: HTMLDivElement;
+		if (templateId === templateEntryGroup) {
+			group = document.createElement('div');
+			DOM.addClass(group, 'results-group');
+			container.appendChild(group);
+		}
+
+		// Actions
+		DOM.addClass(container, 'actions');
+
+		const actionBarContainer = document.createElement('div');
+		DOM.addClass(actionBarContainer, 'primary-action-bar');
+		container.appendChild(actionBarContainer);
+
+		const actionBar = new ActionBar(actionBarContainer, {
+			actionRunner: this.actionRunner
+		});
 
 		return {
 			container,
@@ -533,19 +498,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			label,
 			detail,
 			description,
+			keybinding,
 			group,
 			actionBar
 		};
 	}
 
-	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any): void {
-
-		// Entry Item
-		if (templateId === templateEntryItem) {
-			this.entryItemRenderer.renderElement(null, entry, templateId, <ILegacyTemplateData>templateData);
-			return;
-		}
-
+	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any, styles: IQuickOpenStyles): void {
 		const data: IQuickOpenEntryTemplateData = templateData;
 
 		// Action Bar
@@ -567,20 +526,31 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			}
 		});
 
+		// Entry group class
+		if (entry instanceof QuickOpenEntryGroup && entry.getGroupLabel()) {
+			DOM.addClass(data.container, 'has-group-label');
+		} else {
+			DOM.removeClass(data.container, 'has-group-label');
+		}
+
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
 			const group = <QuickOpenEntryGroup>entry;
+			const groupData = <IQuickOpenEntryGroupTemplateData>templateData;
 
 			// Border
 			if (group.showBorder()) {
-				DOM.addClass(data.container, 'results-group-separator');
+				DOM.addClass(groupData.container, 'results-group-separator');
+				groupData.container.style.borderTopColor = styles.pickerGroupBorder.toString();
 			} else {
-				DOM.removeClass(data.container, 'results-group-separator');
+				DOM.removeClass(groupData.container, 'results-group-separator');
+				groupData.container.style.borderTopColor = null;
 			}
 
 			// Group Label
 			const groupLabel = group.getGroupLabel() || '';
-			(<IQuickOpenEntryGroupTemplateData>templateData).group.textContent = groupLabel;
+			groupData.group.textContent = groupLabel;
+			groupData.group.style.color = styles.pickerGroupForeground.toString();
 		}
 
 		// Normal Entry
@@ -602,27 +572,28 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Description
 			data.description.set(entry.getDescription(), descriptionHighlights || []);
 			data.description.element.title = entry.getDescription();
+
+			// Keybinding
+			data.keybinding.set(entry.getKeybinding(), null);
 		}
 	}
 
 	public disposeTemplate(templateId: string, templateData: any): void {
-		if (templateId === templateEntryItem) {
-			this.entryItemRenderer.disposeTemplate(null, templateId, templateData);
-		} else {
-			const data = templateData as IQuickOpenEntryGroupTemplateData;
-			data.actionBar.dispose();
-			data.actionBar = null;
-			data.container = null;
-			data.entry = null;
-			data.description.dispose();
-			data.description = null;
-			data.detail.dispose();
-			data.detail = null;
-			data.group = null;
-			data.icon = null;
-			data.label.dispose();
-			data.label = null;
-		}
+		const data = templateData as IQuickOpenEntryGroupTemplateData;
+		data.actionBar.dispose();
+		data.actionBar = null;
+		data.container = null;
+		data.entry = null;
+		data.description.dispose();
+		data.description = null;
+		data.keybinding.dispose();
+		data.keybinding = null;
+		data.detail.dispose();
+		data.detail = null;
+		data.group = null;
+		data.icon = null;
+		data.label.dispose();
+		data.label = null;
 	}
 }
 

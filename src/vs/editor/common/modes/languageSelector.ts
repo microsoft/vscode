@@ -20,61 +20,71 @@ export default function matches(selection: LanguageSelector, uri: URI, language:
 	return score(selection, uri, language) > 0;
 }
 
-export function score(selector: LanguageSelector, uri: URI, language: string): number {
+export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string): number {
 
 	if (Array.isArray(selector)) {
-		// for each
-		let values = (<LanguageSelector[]>selector).map(item => score(item, uri, language));
-		return Math.max(...values);
+		// array -> take max individual value
+		let ret = 0;
+		for (const filter of selector) {
+			const value = score(filter, candidateUri, candidateLanguage);
+			if (value === 10) {
+				return value; // already at the highest
+			}
+			if (value > ret) {
+				ret = value;
+			}
+		}
+		return ret;
 
 	} else if (typeof selector === 'string') {
-		// compare language id
-		if (selector === language) {
-			return 10;
-		} else if (selector === '*') {
+		// short-hand notion, desugars to
+		// 'fooLang' -> [{ language: 'fooLang', scheme: 'file' }, { language: 'fooLang', scheme: 'untitled' }]
+		// '*' -> { language: '*', scheme: '*' }
+		if (selector === '*') {
 			return 5;
+		} else if (selector === candidateLanguage) {
+			return 10;
 		} else {
 			return 0;
 		}
+
 	} else if (selector) {
-		// all must match but only highest score counts
-		const filter = <LanguageFilter>selector;
+		// filter -> select accordingly, use defaults for scheme
+		const { language, pattern, scheme } = selector;
 
-		let valueLanguage = 0;
-		let valueScheme = 0;
-		let valuePattern = 0;
+		let ret = 0;
 
-		// language id
-		if (filter.language) {
-			if (filter.language === language) {
-				valueLanguage = 10;
-			} else if (filter.language === '*') {
-				valueLanguage = 5;
+		if (scheme) {
+			if (scheme === candidateUri.scheme) {
+				ret = 10;
+			} else if (scheme === '*') {
+				ret = 5;
 			} else {
 				return 0;
 			}
 		}
 
-		// scheme
-		if (filter.scheme) {
-			if (filter.scheme === uri.scheme) {
-				valueScheme = 10;
+		if (language) {
+			if (language === candidateLanguage) {
+				ret = 10;
+			} else if (language === '*') {
+				ret = Math.max(ret, 5);
 			} else {
 				return 0;
 			}
 		}
 
-		// match fsPath with pattern
-		if (filter.pattern) {
-			if (filter.pattern === uri.fsPath) {
-				valuePattern = 10;
-			} else if (matchGlobPattern(filter.pattern, uri.fsPath)) {
-				valuePattern = 5;
+		if (pattern) {
+			if (pattern === candidateUri.fsPath || matchGlobPattern(pattern, candidateUri.fsPath)) {
+				ret = 10;
 			} else {
 				return 0;
 			}
 		}
 
-		return Math.max(valueLanguage, valueScheme, valuePattern);
+		return ret;
+
+	} else {
+		return 0;
 	}
 }

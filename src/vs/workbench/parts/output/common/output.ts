@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -48,8 +48,8 @@ export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
  * The output event informs when new output got received.
  */
 export interface IOutputEvent {
-	output: string;
-	channelId?: string;
+	channelId: string;
+	isClear: boolean;
 }
 
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
@@ -83,7 +83,7 @@ export interface IOutputService {
 	onOutput: Event<IOutputEvent>;
 
 	/**
-	 * Allows to register on a new Output channel getting filled with output.
+	 * Allows to register on a output channel being added or removed
 	 */
 	onOutputChannel: Event<string>;
 
@@ -91,6 +91,12 @@ export interface IOutputService {
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
+}
+
+export interface IOutputDelta {
+	readonly value: string;
+	readonly id: number;
+	readonly append?: boolean;
 }
 
 export interface IOutputChannel {
@@ -106,11 +112,6 @@ export interface IOutputChannel {
 	label: string;
 
 	/**
-	 * Returns the received output content.
-	 */
-	output: string;
-
-	/**
 	 * Returns the value indicating whether the channel has scroll locked.
 	 */
 	scrollLock: boolean;
@@ -121,6 +122,12 @@ export interface IOutputChannel {
 	append(output: string): void;
 
 	/**
+	 * Returns the received output content.
+	 * If a delta is passed, returns only the content that came after the passed delta.
+	 */
+	getOutput(previousDelta?: IOutputDelta): IOutputDelta;
+
+	/**
 	 * Opens the output for this channel.
 	 */
 	show(preserveFocus?: boolean): TPromise<IEditor>;
@@ -129,6 +136,11 @@ export interface IOutputChannel {
 	 * Clears all received output for this channel.
 	 */
 	clear(): void;
+
+	/**
+	 * Disposes the output channel.
+	 */
+	dispose(): void;
 }
 
 export interface IOutputChannelIdentifier {
@@ -147,23 +159,39 @@ export interface IOutputChannelRegistry {
 	 * Returns the list of channels known to the output world.
 	 */
 	getChannels(): IOutputChannelIdentifier[];
+
+	/**
+	 * Returns the channel with the passed id.
+	 */
+	getChannel(id: string): IOutputChannelIdentifier;
+
+	/**
+	 * Remove the output channel with the passed id.
+	 */
+	removeChannel(id: string): void;
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: IOutputChannelIdentifier[];
-
-	constructor() {
-		this.channels = [];
-	}
+	private channels = new Map<string, IOutputChannelIdentifier>();
 
 	public registerChannel(id: string, label: string): void {
-		if (this.channels.every(channel => channel.id !== id)) {
-			this.channels.push({ id, label });
+		if (!this.channels.has(id)) {
+			this.channels.set(id, { id, label });
 		}
 	}
 
 	public getChannels(): IOutputChannelIdentifier[] {
-		return this.channels;
+		const result: IOutputChannelIdentifier[] = [];
+		this.channels.forEach(value => result.push(value));
+		return result;
+	}
+
+	public getChannel(id: string): IOutputChannelIdentifier {
+		return this.channels.get(id);
+	}
+
+	public removeChannel(id: string): void {
+		this.channels.delete(id);
 	}
 }
 

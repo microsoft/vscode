@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/java.tmbundle Syntaxes/Java.plist ./syntaxes/java.tmLanguage.json && node ../../build/npm/update-grammar.js textmate/javadoc.tmbundle Syntaxes/JavaDoc.tmLanguage ./syntaxes/javadoc.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-java grammars/java.cson ./syntaxes/java.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -17,9 +17,6 @@
 			"language": "java",
 			"scopeName": "source.java",
 			"path": "./syntaxes/java.tmLanguage.json"
-		},{
-			"scopeName": "text.html.javadoc",
-			"path": "./syntaxes/javadoc.tmLanguage.json"
 		}]
 	}
 }

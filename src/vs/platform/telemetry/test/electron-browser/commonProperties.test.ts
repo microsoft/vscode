@@ -6,9 +6,7 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
@@ -19,10 +17,7 @@ suite('Telemetry - common properties', function () {
 	let storageService;
 
 	setup(() => {
-		let instantiationService = new TestInstantiationService();
-		let contextService = instantiationService.stub(IWorkspaceContextService, WorkspaceContextService);
-		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', TestWorkspace);
-		storageService = new StorageService(new InMemoryLocalStorage(), null, contextService);
+		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	test('default', function () {
@@ -33,6 +28,8 @@ suite('Telemetry - common properties', function () {
 			assert.ok('sessionID' in props);
 			assert.ok('timestamp' in props);
 			assert.ok('common.platform' in props);
+			assert.ok('common.nodePlatform' in props);
+			assert.ok('common.nodeArch' in props);
 			assert.ok('common.timesincesessionstart' in props);
 			assert.ok('common.sequence' in props);
 
@@ -53,7 +50,6 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
 		});
 	});
 

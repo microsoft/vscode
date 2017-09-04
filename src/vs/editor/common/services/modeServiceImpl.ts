@@ -4,94 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageExtensionPoint, IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
-
-export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
-	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
-	type: 'array',
-	items: {
-		type: 'object',
-		defaultSnippets: [{ body: { id: '${1:languageId}', aliases: ['${2:label}'], extensions: ['${3:extension}'], configuration: './language-configuration.json' } }],
-		properties: {
-			id: {
-				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
-				type: 'string'
-			},
-			aliases: {
-				description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			extensions: {
-				description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
-				default: ['.foo'],
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			filenames: {
-				description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			filenamePatterns: {
-				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			mimetypes: {
-				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
-				type: 'array',
-				items: {
-					type: 'string'
-				}
-			},
-			firstLine: {
-				description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
-				type: 'string'
-			},
-			configuration: {
-				description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
-				type: 'string',
-				default: './language-configuration.json'
-			}
-		}
-	}
-});
+import { IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
 
-	private _instantiatedModes: { [modeId: string]: IMode; };
+	private readonly _instantiatedModes: { [modeId: string]: IMode; };
+	private readonly _registry: LanguagesRegistry;
 
-	private _registry: LanguagesRegistry;
-
-	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
-	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
-
-	private _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
-	public onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
+	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
+	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
 	constructor() {
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
-		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
 	}
 
 	protected _onReady(): TPromise<boolean> {
@@ -195,6 +128,7 @@ export class ModeServiceImpl implements IModeService {
 			}).done(null, onUnexpectedError);
 			return r;
 		}
+		return null;
 	}
 
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {

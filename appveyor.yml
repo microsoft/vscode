@@ -3,14 +3,14 @@ environment:
   VSCODE_BUILD_VERBOSE: true
 
 install:
-  - ps: Install-Product node 6.6.0 x64
-  - npm install -g npm --silent
+  - ps: Install-Product node 7.4.0 x64
+  - npm install -g npm@4 --silent
   - npm install -g gulp mocha --silent
 
 build_script:
-  - .\scripts\npm.bat install --force
+  - .\scripts\npm.bat install
   - gulp electron
-  - gulp compile
+  - npm run compile
 
 test_script:
   - node --version

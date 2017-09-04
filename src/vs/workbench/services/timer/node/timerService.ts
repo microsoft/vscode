@@ -6,6 +6,7 @@
 
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 import { virtualMachineHint } from 'vs/base/node/id';
+import { ticks } from 'vs/base/node/startupTimers';
 
 import * as os from 'os';
 
@@ -13,35 +14,29 @@ export class TimerService implements ITimerService {
 
 	public _serviceBrand: any;
 
-	public readonly start: Date;
-	public readonly appReady: Date;
-	public readonly windowLoad: Date;
+	public readonly start: number;
+	public readonly appReady: number;
+	public readonly windowLoad: number;
 
-	public readonly beforeLoadWorkbenchMain: Date;
-	public readonly afterLoadWorkbenchMain: Date;
+	public readonly beforeLoadWorkbenchMain: number;
+	public readonly afterLoadWorkbenchMain: number;
 
 	public readonly isInitialStartup: boolean;
 	public readonly hasAccessibilitySupport: boolean;
 
-	public beforeDOMContentLoaded: Date;
-	public afterDOMContentLoaded: Date;
+	public beforeDOMContentLoaded: number;
+	public afterDOMContentLoaded: number;
 
-	public beforeWorkbenchOpen: Date;
-	public workbenchStarted: Date;
+	public beforeWorkbenchOpen: number;
+	public workbenchStarted: number;
 
-	public beforeExtensionLoad: Date;
-	public afterExtensionLoad: Date;
+	public beforeExtensionLoad: number;
+	public afterExtensionLoad: number;
 
 	public restoreViewletDuration: number;
 	public restoreEditorsDuration: number;
 
-	public get startupMetrics(): IStartupMetrics {
-		if (!this._startupMetrics) {
-			this.computeStartupMetrics();
-		}
 
-		return this._startupMetrics;
-	};
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
@@ -56,7 +51,14 @@ export class TimerService implements ITimerService {
 		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
 	}
 
-	public computeStartupMetrics(): void {
+	get startupMetrics(): IStartupMetrics {
+		if (!this._startupMetrics) {
+			this._computeStartupMetrics();
+		}
+		return this._startupMetrics;
+	}
+
+	public _computeStartupMetrics(): void {
 		const now = Date.now();
 		const initialStartup = !!this.isInitialStartup;
 		const start = initialStartup ? this.start : this.windowLoad;
@@ -66,6 +68,7 @@ export class TimerService implements ITimerService {
 		let cpus: { count: number; speed: number; model: string; };
 		let platform: string;
 		let release: string;
+		let arch: string;
 		let loadavg: number[];
 		let meminfo: IMemoryInfo;
 		let isVMLikelyhood: number;
@@ -75,6 +78,7 @@ export class TimerService implements ITimerService {
 			freemem = os.freemem();
 			platform = os.platform();
 			release = os.release();
+			arch = os.arch();
 			loadavg = os.loadavg();
 			meminfo = process.getProcessMemoryInfo();
 
@@ -88,21 +92,29 @@ export class TimerService implements ITimerService {
 			console.error(error); // be on the safe side with these hardware method calls
 		}
 
+		// fill in startup timers we have until now
+		const timers2: { [name: string]: number } = Object.create(null);
+		for (const tick of ticks()) {
+			timers2[tick.name] = tick.duration;
+		}
+
 		this._startupMetrics = {
 			version: 1,
-			ellapsed: Math.round(this.workbenchStarted.getTime() - start.getTime()),
+			ellapsed: this.workbenchStarted - start,
 			timers: {
-				ellapsedExtensions: Math.round(this.afterExtensionLoad.getTime() - this.beforeExtensionLoad.getTime()),
-				ellapsedExtensionsReady: Math.round(this.afterExtensionLoad.getTime() - start.getTime()),
-				ellapsedRequire: Math.round(this.afterLoadWorkbenchMain.getTime() - this.beforeLoadWorkbenchMain.getTime()),
-				ellapsedViewletRestore: Math.round(this.restoreViewletDuration),
-				ellapsedEditorRestore: Math.round(this.restoreEditorsDuration),
-				ellapsedWorkbench: Math.round(this.workbenchStarted.getTime() - this.beforeWorkbenchOpen.getTime()),
-				ellapsedWindowLoadToRequire: Math.round(this.beforeLoadWorkbenchMain.getTime() - this.windowLoad.getTime()),
+				ellapsedExtensions: this.afterExtensionLoad - this.beforeExtensionLoad,
+				ellapsedExtensionsReady: this.afterExtensionLoad - start,
+				ellapsedRequire: this.afterLoadWorkbenchMain - this.beforeLoadWorkbenchMain,
+				ellapsedViewletRestore: this.restoreViewletDuration,
+				ellapsedEditorRestore: this.restoreEditorsDuration,
+				ellapsedWorkbench: this.workbenchStarted - this.beforeWorkbenchOpen,
+				ellapsedWindowLoadToRequire: this.beforeLoadWorkbenchMain - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
+			timers2,
 			platform,
 			release,
+			arch,
 			totalmem,
 			freemem,
 			meminfo,
@@ -115,8 +127,8 @@ export class TimerService implements ITimerService {
 		};
 
 		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedAppReady = Math.round(this.appReady.getTime() - this.start.getTime());
-			this._startupMetrics.timers.ellapsedWindowLoad = Math.round(this.windowLoad.getTime() - this.appReady.getTime());
+			this._startupMetrics.timers.ellapsedAppReady = this.appReady - this.start;
+			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - this.appReady;
 		}
 	}
 }

@@ -8,21 +8,29 @@ import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, { Emitter } from 'vs/base/common/event';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
+import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { overviewRulerWarning, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -109,8 +117,8 @@ class ModelMarkerHandler {
 	private static _createDecorationOption(marker: IMarker): editorCommon.IModelDecorationOptions {
 
 		let className: string;
-		let color: string;
-		let darkColor: string;
+		let color: ThemeColor;
+		let darkColor: ThemeColor;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -118,20 +126,20 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = editorCommon.ClassName.EditorWarningDecoration;
-				color = 'rgba(18,136,18,0.7)';
-				darkColor = 'rgba(18,136,18,0.7)';
+				className = ClassName.EditorWarningDecoration;
+				color = themeColorFromId(overviewRulerWarning);
+				darkColor = themeColorFromId(overviewRulerWarning);
 				break;
 			case Severity.Error:
 			default:
-				className = editorCommon.ClassName.EditorErrorDecoration;
-				color = 'rgba(255,18,18,0.7)';
-				darkColor = 'rgba(255,18,18,0.7)';
+				className = ClassName.EditorErrorDecoration;
+				color = themeColorFromId(overviewRulerError);
+				darkColor = themeColorFromId(overviewRulerError);
 				break;
 		}
 
-		let hoverMessage: MarkedString[] = null;
-		let {message, source} = marker;
+		let hoverMessage: MarkdownString = null;
+		let { message, source } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
@@ -144,13 +152,14 @@ class ModelMarkerHandler {
 				}
 			}
 
-			hoverMessage = [{ language: '_', value: message }];
+			hoverMessage = new MarkdownString().appendCodeblock('_', message);
 		}
 
 		return {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			hoverMessage,
+			showIfCollapsed: true,
 			overviewRuler: {
 				color,
 				darkColor,
@@ -172,6 +181,8 @@ interface IRawConfig {
 	};
 }
 
+const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
+
 export class ModelServiceImpl implements IModelService {
 	public _serviceBrand: any;
 
@@ -184,7 +195,9 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
 	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
 
-	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
+	private _modelCreationOptionsByLanguageAndResource: {
+		[languageAndResource: string]: editorCommon.ITextModelCreationOptions;
+	};
 
 	/**
 	 * All the models known in the system.
@@ -195,18 +208,10 @@ export class ModelServiceImpl implements IModelService {
 		@IMarkerService markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		this._modelCreationOptions = {
-			tabSize: DEFAULT_INDENTATION.tabSize,
-			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
-			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
-			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF,
-			trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE
-		};
 		this._markerService = markerService;
 		this._configurationService = configurationService;
 		this._models = {};
-
-
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 		this._onModelAdded = new Emitter<editorCommon.IModel>();
 		this._onModelRemoved = new Emitter<editorCommon.IModel>();
 		this._onModelModeChanged = new Emitter<{ model: editorCommon.IModel; oldModeId: string; }>();
@@ -215,89 +220,99 @@ export class ModelServiceImpl implements IModelService {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
 
-		let readConfig = (config: IRawConfig) => {
-
-			let tabSize = DEFAULT_INDENTATION.tabSize;
-			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
-				let parsedTabSize = parseInt(config.editor.tabSize, 10);
-				if (!isNaN(parsedTabSize)) {
-					tabSize = parsedTabSize;
-				}
-			}
-
-			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
-			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
-				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
-			}
-
-			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
-			const eol = config.files && config.files.eol;
-			if (eol === '\r\n') {
-				newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
-			} else if (eol === '\n') {
-				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
-			}
-
-			let trimAutoWhitespace = this._modelCreationOptions.trimAutoWhitespace;
-			if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
-				trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
-			}
-
-			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
-			if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
-				detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
-			}
-
-			this._setModelOptions({
-				tabSize: tabSize,
-				insertSpaces: insertSpaces,
-				detectIndentation: detectIndentation,
-				defaultEOL: newDefaultEOL,
-				trimAutoWhitespace: trimAutoWhitespace
-			});
-		};
-
-		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => {
-			readConfig(e.config);
-		});
-		readConfig(this._configurationService.getConfiguration());
+		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => this._updateModelOptions());
+		this._updateModelOptions();
 	}
 
-	public getCreationOptions(): editorCommon.ITextModelCreationOptions {
-		return this._modelCreationOptions;
-	}
-
-	private _setModelOptions(newOpts: editorCommon.ITextModelCreationOptions): void {
-		if (
-			(this._modelCreationOptions.detectIndentation === newOpts.detectIndentation)
-			&& (this._modelCreationOptions.insertSpaces === newOpts.insertSpaces)
-			&& (this._modelCreationOptions.tabSize === newOpts.tabSize)
-			&& (this._modelCreationOptions.trimAutoWhitespace === newOpts.trimAutoWhitespace)
-		) {
-			// Same indent opts, no need to touch created models
-			this._modelCreationOptions = newOpts;
-			return;
+	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
+		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
+		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
+			let parsedTabSize = parseInt(config.editor.tabSize, 10);
+			if (!isNaN(parsedTabSize)) {
+				tabSize = parsedTabSize;
+			}
 		}
-		this._modelCreationOptions = newOpts;
+
+		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
+		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
+			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+		}
+
+		let newDefaultEOL = DEFAULT_EOL;
+		const eol = config.files && config.files.eol;
+		if (eol === '\r\n') {
+			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+		} else if (eol === '\n') {
+			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+		}
+
+		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
+		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
+			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
+		}
+
+		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
+		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
+			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
+		}
+
+		return {
+			tabSize: tabSize,
+			insertSpaces: insertSpaces,
+			detectIndentation: detectIndentation,
+			defaultEOL: newDefaultEOL,
+			trimAutoWhitespace: trimAutoWhitespace
+		};
+	}
+
+	public getCreationOptions(language: string, resource: URI): editorCommon.ITextModelCreationOptions {
+		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
+		if (!creationOptions) {
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language, resource }));
+			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
+		}
+		return creationOptions;
+	}
+
+	private _updateModelOptions(): void {
+		let oldOptionsByLanguageAndResource = this._modelCreationOptionsByLanguageAndResource;
+		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 
 		// Update options on all models
 		let keys = Object.keys(this._models);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let modelId = keys[i];
 			let modelData = this._models[modelId];
+			const language = modelData.model.getLanguageIdentifier().language;
+			const uri = modelData.model.uri;
+			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
+			const newOptions = this.getCreationOptions(language, uri);
+			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
+		}
+	}
 
-			if (this._modelCreationOptions.detectIndentation) {
-				modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
-				modelData.model.updateOptions({
-					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
-				});
-			} else {
-				modelData.model.updateOptions({
-					insertSpaces: this._modelCreationOptions.insertSpaces,
-					tabSize: this._modelCreationOptions.tabSize,
-					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
-				});
-			}
+	private static _setModelOptionsForModel(model: editorCommon.IModel, newOptions: editorCommon.ITextModelCreationOptions, currentOptions: editorCommon.ITextModelCreationOptions): void {
+		if (currentOptions
+			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
+			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
+			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+		) {
+			// Same indent opts, no need to touch the model
+			return;
+		}
+
+		if (newOptions.detectIndentation) {
+			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
+			model.updateOptions({
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
+		} else {
+			model.updateOptions({
+				insertSpaces: newOptions.insertSpaces,
+				tabSize: newOptions.tabSize,
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
 		}
 	}
 
@@ -328,18 +343,18 @@ export class ModelServiceImpl implements IModelService {
 				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
 			}
 		}
+
+		// clean up cache
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
 	}
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | editorCommon.IRawText, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
-		let model: Model;
-		if (typeof value === 'string') {
-			model = Model.createFromString(value, this._modelCreationOptions, languageIdentifier, resource);
-		} else {
-			model = new Model(value, languageIdentifier, resource);
-		}
+		const options = this.getCreationOptions(languageIdentifier.language, resource);
+		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
+		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
@@ -353,7 +368,115 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public createModel(value: string | editorCommon.IRawText, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+	public updateModel(model: editorCommon.IModel, value: string | IRawTextSource): void {
+		let options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
+		const textSource = TextSource.create(value, options.defaultEOL);
+
+		// Return early if the text is already set in that form
+		if (model.equals(textSource)) {
+			return;
+		}
+
+		// Otherwise find a diff between the values and update model
+		model.setEOL(textSource.EOL === '\r\n' ? editorCommon.EndOfLineSequence.CRLF : editorCommon.EndOfLineSequence.LF);
+		model.pushEditOperations(
+			[new Selection(1, 1, 1, 1)],
+			ModelServiceImpl._computeEdits(model, textSource),
+			(inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
+		);
+	}
+
+	/**
+	 * Compute edits to bring `model` to the state of `textSource`.
+	 */
+	public static _computeEdits(model: editorCommon.IModel, textSource: ITextSource): editorCommon.IIdentifiedSingleEditOperation[] {
+		const modelLineSequence = new class implements ISequence {
+			public getLength(): number {
+				return model.getLineCount();
+			}
+			public getElementHash(index: number): string {
+				return model.getLineContent(index + 1);
+			}
+		};
+		const textSourceLineSequence = new class implements ISequence {
+			public getLength(): number {
+				return textSource.lines.length;
+			}
+			public getElementHash(index: number): string {
+				return textSource.lines[index];
+			}
+		};
+
+		const diffResult = new LcsDiff(modelLineSequence, textSourceLineSequence).ComputeDiff(false);
+
+		let edits: editorCommon.IIdentifiedSingleEditOperation[] = [], editsLen = 0;
+		const modelLineCount = model.getLineCount();
+		for (let i = 0, len = diffResult.length; i < len; i++) {
+			const diff = diffResult[i];
+			const originalStart = diff.originalStart;
+			const originalLength = diff.originalLength;
+			const modifiedStart = diff.modifiedStart;
+			const modifiedLength = diff.modifiedLength;
+
+			let lines: string[] = [];
+			for (let j = 0; j < modifiedLength; j++) {
+				lines[j] = textSource.lines[modifiedStart + j];
+			}
+			let text = lines.join('\n');
+
+			let range: Range;
+			if (originalLength === 0) {
+				// insertion
+
+				if (originalStart === modelLineCount) {
+					// insert at the end
+					const maxLineColumn = model.getLineMaxColumn(modelLineCount);
+					range = new Range(
+						modelLineCount, maxLineColumn,
+						modelLineCount, maxLineColumn
+					);
+					text = '\n' + text;
+				} else {
+					// insert
+					range = new Range(
+						originalStart + 1, 1,
+						originalStart + 1, 1
+					);
+					text = text + '\n';
+				}
+
+			} else if (modifiedLength === 0) {
+				// deletion
+
+				if (originalStart + originalLength >= modelLineCount) {
+					// delete at the end
+					range = new Range(
+						originalStart, model.getLineMaxColumn(originalStart),
+						originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
+					);
+				} else {
+					// delete
+					range = new Range(
+						originalStart + 1, 1,
+						originalStart + originalLength + 1, 1
+					);
+				}
+
+			} else {
+				// modification
+				range = new Range(
+					originalStart + 1, 1,
+					originalStart + originalLength, model.getLineMaxColumn(originalStart + originalLength)
+				);
+			}
+
+			edits[editsLen++] = EditOperation.replace(range, text);
+		}
+
+		return edits;
+	}
+
+	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
@@ -448,7 +571,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelDispose) {
+			if (e.type === textModelEvents.TextModelEventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -458,11 +581,14 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
-				this._onModelModeChanged.fire({
-					model: modelData.model,
-					oldModeId: (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage
-				});
+			if (e.type === textModelEvents.TextModelEventType.ModelLanguageChanged) {
+				const model = modelData.model;
+				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
+				const newModeId = model.getLanguageIdentifier().language;
+				const oldOptions = this.getCreationOptions(oldModeId, model.uri);
+				const newOptions = this.getCreationOptions(newModeId, model.uri);
+				ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
+				this._onModelModeChanged.fire({ model, oldModeId });
 			}
 		}
 	}

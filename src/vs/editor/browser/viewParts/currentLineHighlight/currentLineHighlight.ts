@@ -6,37 +6,35 @@
 'use strict';
 
 import 'vs/css!./currentLineHighlight';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _layoutProvider: ILayoutProvider;
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _scrollWidth: number;
 	private _contentWidth: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
-		this._layoutProvider = layoutProvider;
-
 		this._selectionIsEmpty = true;
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
+		this._scrollWidth = 0;
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
 		this._context.addEventHandler(this);
@@ -45,51 +43,19 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._selectionIsEmpty = true;
-		this._primaryCursorLineNumber = 1;
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
-		return true;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		let hasChanged = false;
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
-		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
-			this._primaryCursorLineNumber = e.position.lineNumber;
-			hasChanged = true;
-		}
-		return hasChanged;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		let isEmpty = e.selection.isEmpty();
-		if (this._selectionIsEmpty !== isEmpty) {
-			this._selectionIsEmpty = isEmpty;
-			return true;
-		}
-		return false;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
-		if (e.viewInfo.renderLineHighlight) {
+		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 		}
 		if (e.layoutInfo) {
@@ -97,22 +63,47 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		let hasChanged = false;
+
+		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
+			this._primaryCursorIsInEditableRange = e.isInEditableRange;
+			hasChanged = true;
+		}
+
+		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
+		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
+			this._primaryCursorLineNumber = primaryCursorLineNumber;
+			hasChanged = true;
+		}
+
+		const selectionIsEmpty = e.selections[0].isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
+			hasChanged = true;
+			return true;
+		}
+
+		return hasChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
-		this._scrollWidth = e.scrollWidth;
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollWidthChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
+	public prepareRender(ctx: RenderingContext): void {
 		this._scrollWidth = ctx.scrollWidth;
 	}
 
@@ -139,3 +130,19 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 			this._primaryCursorIsInEditableRange;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let lineHighlight = theme.getColor(editorLineHighlight);
+	if (lineHighlight) {
+		collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${lineHighlight}; }`);
+	}
+	if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
+		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		if (lineHighlightBorder) {
+			collector.addRule(`.monaco-editor .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
+			if (theme.type === 'hc') {
+				collector.addRule(`.monaco-editor .view-overlays .current-line { border-width: 1px; }`);
+			}
+		}
+	}
+});

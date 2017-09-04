@@ -18,7 +18,8 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^0.3.1"
+    "jsonc-parser": "^0.3.1",
+    "vscode-nls": "^2.0.1"
   },
   "contributes": {
     "jsonValidation": [
@@ -35,8 +36,24 @@
         "url": "vscode://schemas/settings"
       },
       {
+        "fileMatch": "vscode://defaultsettings/resourceSettings.json",
+        "url": "vscode://schemas/settings/resource"
+      },
+      {
+        "fileMatch": "vscode://settings/workspaceSettings.json",
+        "url": "vscode://schemas/settings"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings"
+      },
+      {
+        "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
@@ -63,5 +80,8 @@
         "url": "vscode://schemas/extensions"
       }
     ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
   }
 }

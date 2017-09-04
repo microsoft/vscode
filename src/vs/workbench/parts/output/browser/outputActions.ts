@@ -13,6 +13,8 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -41,7 +43,7 @@ export class ClearOutputAction extends Action {
 		super(id, label, 'output-action clear-output');
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		this.outputService.getActiveChannel().clear();
 		this.panelService.getActivePanel().focus();
 
@@ -52,24 +54,32 @@ export class ClearOutputAction extends Action {
 export class ToggleOutputScrollLockAction extends Action {
 
 	public static ID = 'workbench.output.action.toggleOutputScrollLock';
-	public static LABEL = nls.localize('toggleOutputScrollLock', "Toggle Output Scroll Lock");
+	public static LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
 	private toDispose: IDisposable[] = [];
 
 	constructor(id: string, label: string,
 		@IOutputService private outputService: IOutputService) {
-		super(id, label, 'output-action toggle-output-scroll-lock');
-		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this._setChecked(this.outputService.getActiveChannel().scrollLock)));
+		super(id, label, 'output-action output-scroll-unlock');
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const activeChannel = this.outputService.getActiveChannel();
 		if (activeChannel) {
 			activeChannel.scrollLock = !activeChannel.scrollLock;
-			this._setChecked(activeChannel.scrollLock);
+			this.setClass(activeChannel.scrollLock);
 		}
 
 		return TPromise.as(true);
+	}
+
+	private setClass(locked: boolean) {
+		if (locked) {
+			this.class = 'output-action output-scroll-lock';
+		} else {
+			this.class = 'output-action output-scroll-unlock';
+		}
 	}
 
 	public dispose() {
@@ -97,11 +107,19 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannelLabels(outputService), Math.max(0, SwitchOutputActionItem.getChannelLabels(outputService).indexOf(outputService.getActiveChannel().label)));
-		this.toDispose.push(this.outputService.onOutputChannel(this.onOutputChannel, this));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(this.onOutputChannel, this));
+		super(null, action, [], 0);
+
+		this.toDispose.push(this.outputService.onOutputChannel(() => {
+			const activeChannelIndex = this.getSelected(this.outputService.getActiveChannel().id);
+			this.setOptions(this.getOptions(), activeChannelIndex);
+		}));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+
+		this.setOptions(this.getOptions(), this.getSelected(this.outputService.getActiveChannel().id));
 	}
 
 	protected getActionContext(option: string): string {
@@ -110,16 +128,15 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		return channel ? channel.id : option;
 	}
 
-	private onOutputChannel(): void {
-		let channels = SwitchOutputActionItem.getChannelLabels(this.outputService);
-		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannel().label));
-
-		this.setOptions(channels, selected);
+	private getOptions(): string[] {
+		return this.outputService.getChannels().map(c => c.label);
 	}
 
-	private static getChannelLabels(outputService: IOutputService): string[] {
-		const contributedChannels = outputService.getChannels().map(channelData => channelData.label);
+	private getSelected(outputId: string): number {
+		if (!outputId) {
+			return undefined;
+		}
 
-		return contributedChannels.sort(); // sort by name
+		return Math.max(0, this.outputService.getChannels().map(c => c.id).indexOf(outputId));
 	}
 }

@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import { MessageList, Severity as BaseSeverity } from 'vs/workbench/services/message/browser/messageList';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import Event from 'vs/base/common/event';
@@ -25,7 +25,7 @@ export class WorkbenchMessageService implements IMessageService {
 	public _serviceBrand: any;
 
 	private handler: MessageList;
-	private disposeables: IDisposable[];
+	private toDispose: IDisposable[];
 
 	private canShowMessages: boolean;
 	private messageBuffer: IBufferedMessage[];
@@ -35,10 +35,9 @@ export class WorkbenchMessageService implements IMessageService {
 		telemetryService: ITelemetryService
 	) {
 		this.handler = new MessageList(container, telemetryService);
-
 		this.messageBuffer = [];
 		this.canShowMessages = true;
-		this.disposeables = [];
+		this.toDispose = [this.handler];
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -146,8 +145,6 @@ export class WorkbenchMessageService implements IMessageService {
 	}
 
 	public dispose(): void {
-		while (this.disposeables.length) {
-			this.disposeables.pop().dispose();
-		}
+		this.toDispose = dispose(this.toDispose);
 	}
 }

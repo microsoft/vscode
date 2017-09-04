@@ -5,15 +5,16 @@
 
 'use strict';
 
-import 'vs/css!./findOptionsWidget';
 import * as dom from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
-import { CaseSensitiveCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { inputActiveOptionBorder, editorWidgetBackground, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -24,6 +25,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	private _keybindingService: IKeybindingService;
 
 	private _domNode: HTMLElement;
+	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 
@@ -31,6 +33,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		editor: ICodeEditor,
 		state: FindReplaceState,
 		keybindingService: IKeybindingService,
+		themeService: IThemeService
 	) {
 		super();
 
@@ -39,11 +42,13 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._keybindingService = keybindingService;
 
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-background findOptionsWidget';
+		this._domNode.className = 'findOptionsWidget';
 		this._domNode.style.display = 'none';
 		this._domNode.style.top = '10px';
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
+
+		let inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
@@ -52,7 +57,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 				this._state.change({
 					matchCase: this.caseSensitive.checked
 				}, false);
-			}
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
 
@@ -63,14 +69,31 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 				this._state.change({
 					wholeWord: this.wholeWords.checked
 				}, false);
-			}
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
+
+		this.regex = this._register(new RegexCheckbox({
+			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
+			isChecked: this._state.isRegex,
+			onChange: (viaKeyboard) => {
+				this._state.change({
+					isRegex: this.regex.checked
+				}, false);
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
+		}));
+		this._domNode.appendChild(this.regex.domNode);
 
 		this._editor.addOverlayWidget(this);
 
 		this._register(this._state.addChangeListener((e) => {
 			let somethingChanged = false;
+			if (e.isRegex) {
+				this.regex.checked = this._state.isRegex;
+				somethingChanged = true;
+			}
 			if (e.wholeWord) {
 				this.wholeWords.checked = this._state.wholeWord;
 				somethingChanged = true;
@@ -86,14 +109,17 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
+
+		this._applyTheme(themeService.getTheme());
+		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
-		let keybindings = this._keybindingService.lookupKeybindings(actionId);
-		if (keybindings.length === 0) {
+		let kb = this._keybindingService.lookupKeybinding(actionId);
+		if (!kb) {
 			return '';
 		}
-		return ' (' + this._keybindingService.getLabelFor(keybindings[0]) + ')';
+		return ` (${kb.getLabel()})`;
 	}
 
 	public dispose(): void {
@@ -153,4 +179,29 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._isVisible = false;
 		this._domNode.style.display = 'none';
 	}
+
+	private _applyTheme(theme: ITheme) {
+		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		this.caseSensitive.style(inputStyles);
+		this.wholeWords.style(inputStyles);
+		this.regex.style(inputStyles);
+	}
 }
+
+
+registerThemingParticipant((theme, collector) => {
+	let widgetBackground = theme.getColor(editorWidgetBackground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor .findOptionsWidget { background-color: ${widgetBackground}; }`);
+	}
+
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+	}
+
+	let hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
+	}
+});

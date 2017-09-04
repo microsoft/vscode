@@ -3,16 +3,19 @@
 		"module": "commonjs",
 		"target": "es5",
 		"lib": [
-			"es5",
-			"es2015.promise"
+			"es6",
+			"es2015.promise",
+			"dom"
 		],
 		"outDir": "./out",
 		"sourceMap": true,
 		"strictNullChecks": true,
 		"noImplicitAny": true,
-		"noImplicitReturns": true
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

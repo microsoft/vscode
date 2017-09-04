@@ -6,8 +6,11 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType
+	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
+
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import path = require('path');
@@ -16,9 +19,6 @@ import URI from './utils/uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
-import { ProjectJSONContribution } from './jsoncontributions/projectJSONContribution';
-import { GlobPatternContribution } from './jsoncontributions/globPatternContribution';
-import { FileAssociationContribution } from './jsoncontributions/fileAssociationContribution';
 import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
@@ -49,27 +49,36 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-const filesAssociationContribution = new FileAssociationContribution();
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
-	if (params.initializationOptions) {
-		filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
-	}
-	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: snippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			documentRangeFormattingProvider: !params.initializationOptions || params.initializationOptions['format.enable']
+
+	function hasClientCapability(...keys: string[]) {
+		let c = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
 		}
+		return !!c;
+	}
+
+	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
+	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : null,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		documentRangeFormattingProvider: false,
+		colorProvider: true
 	};
+
+	return { capabilities };
 });
 
 let workspaceContext = {
@@ -101,7 +110,8 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 			}
 		});
 	}
-	return xhr({ url: uri, followRedirects: 5 }).then(response => {
+	let headers = { 'Accept-Encoding': 'gzip, deflate' };
+	return xhr({ url: uri, followRedirects: 5, headers }).then(response => {
 		return response.responseText;
 	}, (error: XHRResponse) => {
 		return Promise.reject(error.responseText || getErrorStatusDescription(error.status) || error.toString());
@@ -112,17 +122,14 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: [
-		new ProjectJSONContribution(),
-		new GlobPatternContribution(),
-		filesAssociationContribution
-	]
+	contributions: []
 });
 
 // The settings interface describes the server relevant settings part
 interface Settings {
 	json: {
 		schemas: JSONSchemaSettings[];
+		format: { enable: boolean; };
 	};
 	http: {
 		proxy: string;
@@ -138,6 +145,7 @@ interface JSONSchemaSettings {
 
 let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
 let schemaAssociations: ISchemaAssociations = void 0;
+let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -146,6 +154,19 @@ connection.onDidChangeConfiguration((change) => {
 
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
+
+	// dynamically enable & disable the formatter
+	if (clientDynamicRegisterSupport) {
+		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
+		if (enableFormatter) {
+			if (!formatterRegistration) {
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }] });
+			}
+		} else if (formatterRegistration) {
+			formatterRegistration.then(r => r.dispose());
+			formatterRegistration = null;
+		}
+	}
 });
 
 // The jsonValidation extension configuration has changed
@@ -253,6 +274,12 @@ connection.onDidChangeWatchedFiles((change) => {
 });
 
 let jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
+documents.onDidClose(e => {
+	jsonDocuments.onDocumentRemoved(e.document);
+});
+connection.onShutdown(() => {
+	jsonDocuments.dispose();
+});
 
 function getJSONDocument(document: TextDocument): JSONDocument {
 	return jsonDocuments.get(document);
@@ -283,6 +310,15 @@ connection.onDocumentSymbol(documentSymbolParams => {
 connection.onDocumentRangeFormatting(formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
 	return languageService.format(document, formatParams.range, formatParams.options);
+});
+
+connection.onRequest(DocumentColorRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let jsonDocument = getJSONDocument(document);
+		return languageService.findDocumentColors(document, jsonDocument);
+	}
+	return [];
 });
 
 // Listen on the connection

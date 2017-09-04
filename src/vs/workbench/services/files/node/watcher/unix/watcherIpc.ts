@@ -22,6 +22,7 @@ export class WatcherChannel implements IWatcherChannel {
 		switch (command) {
 			case 'watch': return this.service.watch(arg);
 		}
+		return undefined;
 	}
 }
 

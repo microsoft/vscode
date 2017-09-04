@@ -6,12 +6,20 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IDecorationsViewportData, InlineDecoration, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
-export interface IModelRangeToViewRangeConverter {
-	convertModelRangeToViewRange(modelRange: Range, isWholeLine: boolean): Range;
-	convertViewRangeToModelRange(viewRange: Range): Range;
+export interface IDecorationsViewportData {
+	/**
+	 * decorations in the viewport.
+	 */
+	readonly decorations: ViewModelDecoration[];
+	/**
+	 * inline decorations grouped by each line in the viewport.
+	 */
+	readonly inlineDecorations: InlineDecoration[][];
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -19,20 +27,19 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly editorId: number;
 	private readonly model: editorCommon.IModel;
 	private readonly configuration: editorCommon.IConfiguration;
-	private readonly converter: IModelRangeToViewRangeConverter;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
 	private _cachedModelDecorationsResolverViewRange: Range;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, converter: IModelRangeToViewRangeConverter) {
+	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
-		this.converter = converter;
+		this._coordinatesConverter = coordinatesConverter;
 		this._decorationsCache = Object.create(null);
-
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -51,7 +58,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public onModelDecorationsChanged(e: editorCommon.IModelDecorationsChangedEvent, emit: (eventType: string, payload: any) => void): void {
+	public onModelDecorationsChanged(e: IModelDecorationsChangedEvent): void {
 		let changedDecorations = e.changedDecorations;
 		for (let i = 0, len = changedDecorations.length; i < len; i++) {
 			let changedDecoration = changedDecorations[i];
@@ -64,20 +71,20 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		let removedDecorations = e.removedDecorations;
-		for (let i = 0, len = removedDecorations.length; i < len; i++) {
-			let removedDecoration = removedDecorations[i];
-			delete this._decorationsCache[removedDecoration];
+		if (this._decorationsCache !== null && this._decorationsCache !== undefined) {
+			for (let i = 0, len = removedDecorations.length; i < len; i++) {
+				let removedDecoration = removedDecorations[i];
+				delete this._decorationsCache[removedDecoration];
+			}
 		}
 
 		this._clearCachedModelDecorationsResolver();
-		emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
 	}
 
-	public onLineMappingChanged(emit: (eventType: string, payload: any) => void): void {
+	public onLineMappingChanged(): void {
 		this._decorationsCache = Object.create(null);
 
 		this._clearCachedModelDecorationsResolver();
-		emit(editorCommon.ViewEventNames.DecorationsChangedEvent, {});
 	}
 
 	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
@@ -88,7 +95,14 @@ export class ViewModelDecorations implements IDisposable {
 			this._decorationsCache[id] = r;
 		}
 		if (r.range === null) {
-			r.range = this.converter.convertModelRangeToViewRange(modelDecoration.range, modelDecoration.options.isWholeLine);
+			const modelRange = modelDecoration.range;
+			if (modelDecoration.options.isWholeLine) {
+				let start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
+				let end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
+				r.range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+			} else {
+				r.range = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+			}
 		}
 		return r;
 	}
@@ -122,7 +136,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	private _getDecorationsViewportData(viewportRange: Range): IDecorationsViewportData {
-		let viewportModelRange = this.converter.convertViewRangeToModelRange(viewportRange);
+		let viewportModelRange = this._coordinatesConverter.convertViewRangeToModelRange(viewportRange);
 		let startLineNumber = viewportRange.startLineNumber;
 		let endLineNumber = viewportRange.endLineNumber;
 		let modelDecorations = this.model.getDecorationsInRange(viewportModelRange, this.editorId, this.configuration.editor.readOnly);

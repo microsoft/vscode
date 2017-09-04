@@ -7,143 +7,208 @@
 
 declare module 'vscode' {
 
-	/**
-	 * Defines a generalized way of reporing progress updates.
-	 */
-	export interface Progress<T> {
-
-		/**
-		 * Report a progress update.
-		 * @param value A progress item, like a message or an updated percentage value
-		 */
-		report(value: T): void
+	export interface OpenDialogOptions {
+		uri?: Uri;
+		openFiles?: boolean;
+		openFolders?: boolean;
+		openMany?: boolean;
 	}
 
 	export namespace window {
 
-		/**
-		 * Show window-wide progress, e.g. in the status bar, for the provided task. The task is
-		 * considering running as long as the promise it returned isn't resolved or rejected.
-		 *
-		 * @param task A function callback that represents a long running operation.
-		 */
-		export function withWindowProgress<R>(title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
+	}
 
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+	// todo@joh discover files etc
+	export interface FileSystemProvider {
+		// todo@joh -> added, deleted, renamed, changed
+		onDidChange: Event<Uri>;
+
+		resolveContents(resource: Uri): string | Thenable<string>;
+		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+
+		// -- search
+		// todo@joh - extract into its own provider?
+		findFiles(query: string, progress: Progress<Uri>, token?: CancellationToken): Thenable<void>;
+	}
+
+	export namespace workspace {
+		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+	}
+
+	export namespace window {
 
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	export namespace window {
+	/**
+	 * The contiguous set of modified lines in a diff.
+	 */
+	export interface LineChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	export namespace commands {
 
 		/**
-		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
+		 * Registers a diff information command that can be invoked via a keyboard shortcut,
+		 * a menu item, an action, or directly.
 		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * Diff information commands are different from ordinary [commands](#commands.registerCommand) as
+		 * they only execute when there is an active diff editor when the command is called, and the diff
+		 * information has been computed. Also, the command handler of an editor command has access to
+		 * the diff information.
+		 *
+		 * @param command A unique identifier for the command.
+		 * @param callback A command handler function with access to the [diff information](#LineChange).
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @return Disposable which unregisters this command on disposal.
 		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
+		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
 	/**
-	 * A node provider for a tree explorer contribution.
-	 *
-	 * Providers are registered through (#window.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
-	 * `contributes.explorer` section.
-	 *
-	 * The contributed tree explorer will ask the corresponding provider to provide the root
-	 * node and resolve children for each node. In addition, the provider could **optionally**
-	 * provide the following information for each node:
-	 * - label: A human-readable label used for rendering the node.
-	 * - hasChildren: Whether the node has children and is expandable.
-	 * - clickCommand: A command to execute when the node is clicked.
+	 * Represents a color in RGBA space.
 	 */
-	export interface TreeExplorerNodeProvider<T> {
+	export class Color {
 
 		/**
-		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
-		 * the tree explorer.
-		 *
-		 * @return The root node.
+		 * The red component of this color in the range [0-1].
 		 */
-		provideRootNode(): T | Thenable<T>;
+		readonly red: number;
 
 		/**
-		 * Resolve the children of `node`.
-		 *
-		 * @param node The node from which the provider resolves children.
-		 * @return Children of `node`.
+		 * The green component of this color in the range [0-1].
 		 */
-		resolveChildren(node: T): T[] | Thenable<T[]>;
+		readonly green: number;
 
 		/**
-		 * Provide a human-readable string that will be used for rendering the node. Default to use
-		 * `node.toString()` if not provided.
-		 *
-		 * @param node The node from which the provider computes label.
-		 * @return A human-readable label.
+		 * The blue component of this color in the range [0-1].
 		 */
-		getLabel?(node: T): string;
+		readonly blue: number;
 
 		/**
-		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
-		 *
-		 * @param node The node to determine if it has children and is expandable.
-		 * @return A boolean that determines if `node` has children and is expandable.
+		 * The alpha component of this color in the range [0-1].
 		 */
-		getHasChildren?(node: T): boolean;
+		readonly alpha: number;
+
+		constructor(red: number, green: number, blue: number, alpha: number);
 
 		/**
-		 * Get the command to execute when `node` is clicked.
+		 * Creates a color from the HSLA space.
 		 *
-		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
-		 * as the first argument to the command's callback function.
-		 *
-		 * @param node The node that the command is associated with.
-		 * @return The command to execute when `node` is clicked.
+		 * @param hue The hue component in the range [0-1].
+		 * @param saturation The saturation component in the range [0-1].
+		 * @param luminance The luminance component in the range [0-1].
+		 * @param alpha The alpha component in the range [0-1].
 		 */
-		getClickCommand?(node: T): string;
+		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
+
+		/**
+		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
+		 * <code>null</code> is returned if the string does not match one of the supported formats.
+		 * @param hex a string to parse
+		 */
+		static fromHex(hex: string): Color | null;
 	}
 
-	export interface SCMResourceThemableDecorations {
-		readonly iconPath?: string | Uri;
+	/**
+	 * A color format is either a single format or a combination of two
+	 * formats: an opaque one and a transparent one. The format itself
+	 * is a string representation of how the color can be formatted. It
+	 * supports the use of placeholders, similar to how snippets work.
+	 * Each placeholder, surrounded by curly braces `{}`, requires a
+	 * variable name and can optionally specify a number format and range
+	 * for that variable's value.
+	 *
+	 * Supported variables:
+	 *  - `red`
+	 *  - `green`
+	 *  - `blue`
+	 *  - `hue`
+	 *  - `saturation`
+	 *  - `luminance`
+	 *  - `alpha`
+	 *
+	 * Supported number formats:
+	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
+	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
+	 *  - `d`, decimal. Default range is `[0-255]`.
+	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
+	 *
+	 * The default number format is float. The default number range is `[0-1]`.
+	 *
+	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
+	 * different formats would format it:
+	 *
+	 *  - CSS RGB
+	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
+	 *   - Output: `rgb(255, 127, 0)`
+	 *
+	 *  - CSS RGBA
+	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
+	 *   - Output: `rgba(255, 127, 0, 1)`
+	 *
+	 *  - CSS Hexadecimal
+	 *   - Format: `#{red:X}{green:X}{blue:X}`
+	 *   - Output: `#FF7F00`
+	 *
+	 *  - CSS HSLA
+	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
+	 *   - Output: `hsla(30, 100%, 50%, 1)`
+	 */
+	export type ColorFormat = string | { opaque: string, transparent: string };
+
+	/**
+	 * Represents a color range from a document.
+	 */
+	export class ColorRange {
+
+		/**
+		 * The range in the document where this color appers.
+		 */
+		range: Range;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		color: Color;
+
+		/**
+		 * The other formats this color range supports the color to be formatted in.
+		 */
+		availableFormats: ColorFormat[];
+
+		/**
+		 * Creates a new color range.
+		 *
+		 * @param range The range the color appears in. Must not be empty.
+		 * @param color The value of the color.
+		 * @param format The format in which this color is currently formatted.
+		 */
+		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
 	}
 
-	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
-		readonly strikeThrough?: boolean;
-		readonly light?: SCMResourceThemableDecorations;
-		readonly dark?: SCMResourceThemableDecorations;
+	/**
+	 * The document color provider defines the contract between extensions and feature of
+	 * picking and modifying colors in the editor.
+	 */
+	export interface DocumentColorProvider {
+		/**
+		 * Provide colors for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of [color ranges](#ColorRange) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
 	}
 
-	export interface SCMResource {
-		readonly uri: Uri;
-		readonly decorations?: SCMResourceDecorations;
-	}
-
-	export interface SCMResourceGroup {
-		readonly id: string;
-		readonly label: string;
-		readonly resources: SCMResource[];
-	}
-
-	export interface SCMProvider {
-		readonly label: string;
-		readonly resources: SCMResourceGroup[];
-		readonly onDidChange: Event<SCMResourceGroup[]>;
-		getOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
-
-		commit?(message: string, token: CancellationToken): ProviderResult<void>;
-		open?(resource: SCMResource, token: CancellationToken): ProviderResult<void>;
-		drag?(resource: SCMResource, resourceGroup: SCMResourceGroup, token: CancellationToken): ProviderResult<void>;
-	}
-
-	export namespace scm {
-		export const onDidChangeActiveProvider: Event<SCMProvider>;
-		export let activeProvider: SCMProvider | undefined;
-		export function getResourceFromURI(uri: Uri): SCMResource | SCMResourceGroup | undefined;
-		export function registerSCMProvider(id: string, provider: SCMProvider): Disposable;
+	export namespace languages {
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
 	}
 }

@@ -33,10 +33,11 @@ export const DEFAULT_TERMINAL_LINUX_READY = new TPromise<string>(c => {
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
 
-export const DEFAULT_TERMINAL_WINDOWS = '%COMSPEC%';
+export const DEFAULT_TERMINAL_WINDOWS = `${process.env.windir}\\${process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') ? 'Sysnative' : 'System32'}\\cmd.exe`;
 
 export interface ITerminalConfiguration {
 	terminal: {
+		explorerKind: 'integrated' | 'external',
 		external: {
 			linuxExec: string,
 			osxExec: string,

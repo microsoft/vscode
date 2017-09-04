@@ -10,32 +10,30 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 suite('Debug - Source', () => {
 
 	test('from raw source', () => {
-		const rawSource = {
+		const source = new Source({
 			name: 'zz',
 			path: '/xx/yy/zz',
-			sourceReference: 0
-		};
-		const source = new Source(rawSource, false);
+			sourceReference: 0,
+			presentationHint: 'emphasize'
+		});
 
-		assert.equal(source.deemphasize, false);
-		assert.equal(source.name, rawSource.name);
+		assert.equal(source.presentationHint, 'emphasize');
+		assert.equal(source.name, 'zz');
 		assert.equal(source.inMemory, false);
-		assert.equal(source.reference, rawSource.sourceReference);
-		assert.equal(source.uri.toString(), uri.file(rawSource.path).toString());
-		assert.equal(Source.getSourceReference(source.uri), 0);
+		assert.equal(source.reference, 0);
+		assert.equal(source.uri.toString(), uri.file('/xx/yy/zz').toString());
 	});
 
 	test('from raw internal source', () => {
-		const rawSource = {
+		const source = new Source({
 			name: 'internalModule.js',
-			sourceReference: 11
-		};
-		const source = new Source(rawSource, true);
+			sourceReference: 11,
+			presentationHint: 'deemphasize'
+		});
 
-		assert.equal(source.deemphasize, true);
-		assert.equal(source.name, rawSource.name);
+		assert.equal(source.presentationHint, 'deemphasize');
+		assert.equal(source.name, 'internalModule.js');
 		assert.equal(source.inMemory, true);
-		assert.equal(source.reference, rawSource.sourceReference);
-		assert.equal(Source.getSourceReference(source.uri), 11);
+		assert.equal(source.reference, 11);
 	});
 });

@@ -41,7 +41,9 @@
         ],
         "extensions": [
           ".js",
-          ".es6"
+          ".es6",
+          ".mjs",
+          ".pac"
         ],
         "filenames": [
           "jakefile"
@@ -102,21 +104,32 @@
         "url": "http://json.schemastore.org/bower"
       },
       {
-        "fileMatch": ".bower.json",
-        "url": "http://json.schemastore.org/bower"
-      },
-      {
         "fileMatch": ".bowerrc",
         "url": "http://json.schemastore.org/bowerrc"
+      },
+      {
+        "fileMatch": ".babelrc",
+        "url": "http://json.schemastore.org/babelrc"
+      },
+      {
+        "fileMatch": "jsconfig.json",
+        "url": "http://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
         "url": "./schemas/jsconfig.schema.json"
       },
       {
-        "fileMatch": "jsconfig.json",
+        "fileMatch": "jsconfig.*.json",
         "url": "http://json.schemastore.org/jsconfig"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "./schemas/jsconfig.schema.json"
       }
     ]
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
   }
 }

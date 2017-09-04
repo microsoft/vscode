@@ -100,8 +100,8 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 
 		mkdirp(target, stat.mode & 511, (err) => {
 			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), clb, copiedSources);
+				loop(files, (file: string, clb: (error: Error, _result) => void) => {
+					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, undefined), copiedSources);
 				}, callback);
 			});
 		});
@@ -332,15 +332,13 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { encoding?: string; mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { mode?: number; flag?: string; }, callback: (error: Error) => void): void {
 	if (!canFlush) {
 		return fs.writeFile(path, data, options, callback);
 	}
 
 	if (!options) {
-		options = { encoding: 'utf8', mode: 0o666, flag: 'w' };
-	} else if (typeof options === 'string') {
-		options = { encoding: <string>options, mode: 0o666, flag: 'w' };
+		options = { mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -350,7 +348,7 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 		}
 
 		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
-		fs.writeFile(fd, data, options.encoding, (writeError) => {
+		fs.writeFile(fd, data, (writeError) => {
 			if (writeError) {
 				return fs.close(fd, () => callback(writeError)); // still need to close the handle on error!
 			}
@@ -369,4 +367,86 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 			});
 		});
 	});
+}
+
+/**
+ * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
+ *
+ * Given an absolute, normalized, and existing file path 'realcase' returns the exact path that the file has on disk.
+ * On a case insensitive file system, the returned path might differ from the original path by character casing.
+ * On a case sensitive file system, the returned path will always be identical to the original path.
+ * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
+ * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ */
+export function realcaseSync(path: string): string {
+	const dir = paths.dirname(path);
+	if (path === dir) {	// end recursion
+		return path;
+	}
+
+	const name = paths.basename(path).toLowerCase();
+	try {
+		const entries = readdirSync(dir);
+		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
+		if (found.length === 1) {
+			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
+			const prefix = realcaseSync(dir);   // recurse
+			if (prefix) {
+				return paths.join(prefix, found[0]);
+			}
+		} else if (found.length > 1) {
+			// must be a case sensitive $filesystem
+			const ix = found.indexOf(name);
+			if (ix >= 0) {	// case sensitive
+				const prefix = realcaseSync(dir);   // recurse
+				if (prefix) {
+					return paths.join(prefix, found[ix]);
+				}
+			}
+		}
+	} catch (error) {
+		// silently ignore error
+	}
+
+	return null;
+}
+
+export function realpathSync(path: string): string {
+	try {
+		return fs.realpathSync(path);
+	} catch (error) {
+
+		// We hit an error calling fs.realpathSync(). Since fs.realpathSync() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
+
+		return normalizedPath;
+	}
+}
+
+export function realpath(path: string, callback: (error: Error, realpath: string) => void): void {
+	return fs.realpath(path, (error, realpath) => {
+		if (!error) {
+			return callback(null, realpath);
+		}
+
+		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
+		// we now do a similar normalization and then try again if we can access the path with read
+		// permissions at least. If that succeeds, we return that path.
+		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
+		// to not resolve links but to simply see if the path is read accessible or not.
+		const normalizedPath = normalizePath(path);
+
+		return fs.access(normalizedPath, fs.constants.R_OK, error => {
+			return callback(error, normalizedPath);
+		});
+	});
+}
+
+function normalizePath(path: string): string {
+	return strings.rtrim(paths.normalize(path), paths.sep);
 }

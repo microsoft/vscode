@@ -9,7 +9,7 @@
 		"strictNullChecks": true,
 		"experimentalDecorators": true
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

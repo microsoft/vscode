@@ -27,6 +27,18 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
+/**  A context key that is set when the find widget in integrated terminal is visible. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', undefined);
+/**  A context key that is set when the find widget in integrated terminal is not visible. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+/**  A context key that is set when the find widget find input in integrated terminal is focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in integrated terminal is not focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
+
+export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
+export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {
@@ -36,44 +48,45 @@ export const TerminalCursorStyle = {
 };
 
 export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				linux: string,
-				osx: string,
-				windows: string
-			},
-			shellArgs: {
-				linux: string[],
-				osx: string[],
-				windows: string[]
-			},
-			rightClickCopyPaste: boolean,
-			cursorBlinking: boolean,
-			cursorStyle: string,
-			fontFamily: string,
-			fontLigatures: boolean,
-			fontSize: number,
-			lineHeight: number,
-			setLocaleVariables: boolean,
-			scrollback: number,
-			commandsToSkipShell: string[],
-			cwd: string,
-			flowControl: boolean
-		}
+	shell: {
+		linux: string;
+		osx: string;
+		windows: string;
+	};
+	shellArgs: {
+		linux: string[];
+		osx: string[];
+		windows: string[];
+	};
+	enableBold: boolean;
+	rightClickCopyPaste: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: string;
+	fontFamily: string;
+	fontLigatures: boolean;
+	fontSize: number;
+	lineHeight: number;
+	setLocaleVariables: boolean;
+	scrollback: number;
+	commandsToSkipShell: string[];
+	cwd: string;
+	confirmOnExit: boolean;
+	env: {
+		linux: { [key: string]: string };
+		osx: { [key: string]: string };
+		windows: { [key: string]: string };
 	};
 }
 
 export interface ITerminalConfigHelper {
-	getTheme(baseThemeId: string): string[];
+	config: ITerminalConfiguration;
 	getFont(): ITerminalFont;
-	getFontLigaturesEnabled(): boolean;
-	getFlowControl(): boolean;
-	getCursorBlink(): boolean;
-	getRightClickCopyPaste(): boolean;
-	getCommandsToSkipShell(): string[];
-	getScrollback(): number;
-	getCwd(): string;
+	/**
+	 * Merges the default shell path and args into the provided launch configuration
+	 */
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	/** Sets whether a workspace shell configuration is allowed or not */
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalFont {
@@ -89,8 +102,12 @@ export interface IShellLaunchConfig {
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
-	/** The CLI arguments to use with executable. */
-	args?: string[];
+	/**
+	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
+	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
+	 * only supported on Windows and will throw an exception if used on macOS or Linux.
+	 */
+	args?: string[] | string;
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
@@ -106,8 +123,17 @@ export interface IShellLaunchConfig {
 	 * shell is being launched by an extension).
 	 */
 	ignoreConfigurationCwd?: boolean;
+
 	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean;
+	waitOnExit?: boolean | string;
+
+	/**
+	 * A string including ANSI escape sequences that will be written to the terminal emulator
+	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
+	 * This allows for example the terminal instance to display a styled message as the first line
+	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 */
+	initialText?: string;
 }
 
 export interface ITerminalService {
@@ -118,23 +144,33 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
+	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
+	focusFindWidget(): TPromise<void>;
+	hideFindWidget(): void;
+	showNextFindTermFindWidget(): void;
+	showPreviousFindTermFindWidget(): void;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
+	selectDefaultWindowsShell(): TPromise<string>;
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalInstance {
@@ -175,9 +211,35 @@ export interface ITerminalInstance {
 	hadFocusOnExit: boolean;
 
 	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
+
+	/**
+	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
+	 * @param regex The regular expression the search for, specifically this searches the
+	 * textContent of the rows. You will want to use \s to match a space ' ' character for example.
+	 * @param handler The callback when the link is called.
+	 * @param matchIndex The index of the link from the regex.match(html) call. This defaults to 0
+	 * (for regular expressions without capture groups).
+	 * @param validationCallback A callback which can be used to validate the link after it has been
+	 * added to the DOM.
+	 * @return The ID of the new matcher, this can be used to deregister.
+	 */
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
+
+	/**
+	 * Deregisters a link matcher if it has been registered.
+	 * @param matcherId The link matcher's ID (returned after register)
+	 * @return Whether a link matcher was found and deregistered.
+	 */
+	deregisterLinkMatcher(matcherId: number): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -190,9 +252,34 @@ export interface ITerminalInstance {
 	copySelection(): void;
 
 	/**
+	 * Current selection in the terminal.
+	 */
+	readonly selection: string | undefined;
+
+	/**
 	 * Clear current selection.
 	 */
 	clearSelection(): void;
+
+	/**
+	 * Select all text in the terminal.
+	 */
+	selectAll(): void;
+
+	/**
+	 * Find the next instance of the term
+	*/
+	findNext(term: string): boolean;
+
+	/**
+	 * Find the previous instance of the term
+	 */
+	findPrevious(term: string): boolean;
+
+	/**
+	 * Notifies the terminal that the find widget's focus state has been changed.
+	 */
+	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
 	 * Focuses the terminal instance.
@@ -284,4 +371,9 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
+
+	/**
+	 * Sets the title of the terminal instance.
+	 */
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

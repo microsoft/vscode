@@ -48,7 +48,7 @@ export class DeleteLinesCommand implements ICommand {
 			startColumn = model.getLineMaxColumn(startLineNumber);
 		}
 
-		builder.addEditOperation(new Range(startLineNumber, startColumn, endLineNumber, endColumn), null);
+		builder.addTrackedEditOperation(new Range(startLineNumber, startColumn, endLineNumber, endColumn), null);
 	}
 
 	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {

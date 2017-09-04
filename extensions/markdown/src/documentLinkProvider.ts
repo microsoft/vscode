@@ -8,34 +8,70 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { MarkdownEngine } from './markdownEngine';
-import { TableOfContentProvider } from './tableOfContentsProvider';
+function normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
+	const uri = vscode.Uri.parse(link);
+	if (uri.scheme) {
+		return uri;
+	}
 
-export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
+	// assume it must be a file
+	let resourcePath = uri.path;
+	if (!uri.path) {
+		resourcePath = document.uri.path;
+	} else if (uri.path[0] === '/') {
+		const root = vscode.workspace.getWorkspaceFolder(document.uri);
+		if (root) {
+			resourcePath = path.join(root.uri.fsPath, uri.path);
+		}
+	} else {
+		resourcePath = path.join(base, uri.path);
+	}
 
-	private _linkPattern = /(\[[^\]]*\]\(\s*?)(\S+?)(\s+[^\)]*)?\)/g;
+	return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+}
 
-	constructor(private engine: MarkdownEngine) { }
+function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {
+	const out: RegExpMatchArray[] = [];
+	pattern.lastIndex = 0;
+	let match: RegExpMatchArray | null;
+	while ((match = pattern.exec(text))) {
+		out.push(match);
+	}
+	return out;
+}
 
-	public provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const results: vscode.DocumentLink[] = [];
+export default class LinkProvider implements vscode.DocumentLinkProvider {
+	private linkPattern = /(\[[^\]]*\]\(\s*?)(((((?=.*\)\)+)|(?=.*\)\]+))[^\s\)]+?)|([^\s]+)))\)/g;
+	private referenceLinkPattern = /(\[([^\]]+)\]\[\s*?)(\w*)\]/g;
+	private definitionPattern = /^([\t ]*\[(\w+)\]:\s*)(\S+)/gm;
+
+	public provideDocumentLinks(
+		document: vscode.TextDocument,
+		_token: vscode.CancellationToken
+	): vscode.DocumentLink[] {
 		const base = path.dirname(document.uri.fsPath);
 		const text = document.getText();
 
-		const toc = new TableOfContentProvider(this.engine, document);
+		return this.privateInlineLinks(text, document, base)
+			.concat(this.provideReferenceLinks(text, document, base));
+	}
 
-		this._linkPattern.lastIndex = 0;
-		let match: RegExpMatchArray | null;
-		while ((match = this._linkPattern.exec(text))) {
+	private privateInlineLinks(
+		text: string,
+		document: vscode.TextDocument,
+		base: string
+	): vscode.DocumentLink[] {
+		const results: vscode.DocumentLink[] = [];
+		for (const match of matchAll(this.linkPattern, text)) {
 			const pre = match[1];
 			const link = match[2];
-			const offset = match.index + pre.length;
+			const offset = (match.index || 0) + pre.length;
 			const linkStart = document.positionAt(offset);
 			const linkEnd = document.positionAt(offset + link.length);
 			try {
 				results.push(new vscode.DocumentLink(
 					new vscode.Range(linkStart, linkEnd),
-					this.normalizeLink(link, base, toc)));
+					normalizeLink(document, link, base)));
 			} catch (e) {
 				// noop
 			}
@@ -44,26 +80,70 @@ export default class MarkdownDocumentLinkProvider implements vscode.DocumentLink
 		return results;
 	}
 
-	private normalizeLink(link: string, base: string, toc: TableOfContentProvider): vscode.Uri {
-		let uri = vscode.Uri.parse(link);
-		if (!uri.scheme) {
-			if (uri.fragment && !uri.path) {
-				// local link
-				const line = toc.lookup(uri.fragment);
-				if (!isNaN(line)) {
-					return vscode.Uri.parse(`command:revealLine?${encodeURIComponent(JSON.stringify({ lineNumber: line, at: 'top' }))}`);
-				}
+	private provideReferenceLinks(
+		text: string,
+		document: vscode.TextDocument,
+		base: string
+	): vscode.DocumentLink[] {
+		const results: vscode.DocumentLink[] = [];
+
+		const definitions = this.getDefinitions(text, document);
+		for (const match of matchAll(this.referenceLinkPattern, text)) {
+			let linkStart: vscode.Position;
+			let linkEnd: vscode.Position;
+			const reference = match[3];
+			if (reference) { // [text][ref]
+				const pre = match[1];
+				const offset = (match.index || 0) + pre.length;
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + reference.length);
+			} else { // [ref][]
+				const offset = (match.index || 0) + 1;
+				linkStart = document.positionAt(offset + 1);
+				linkEnd = document.positionAt(offset + match[2].length);
 			}
 
-			// assume it must be a file
-			let file;
-			if (uri.path[0] === '/') {
-				file = path.join(vscode.workspace.rootPath, uri.path);
-			} else {
-				file = path.join(base, uri.path);
+			try {
+				const link = definitions.get(reference);
+				if (link) {
+					results.push(new vscode.DocumentLink(
+						new vscode.Range(linkStart, linkEnd),
+						normalizeLink(document, link.link, base)));
+				}
+			} catch (e) {
+				// noop
 			}
-			uri = vscode.Uri.file(file);
 		}
-		return uri;
+
+		for (const definition of Array.from(definitions.values())) {
+			try {
+				results.push(new vscode.DocumentLink(
+					definition.linkRange,
+					normalizeLink(document, definition.link, base)));
+			} catch (e) {
+				// noop
+			}
+		}
+
+		return results;
+	}
+
+	private getDefinitions(text: string, document: vscode.TextDocument) {
+		const out = new Map<string, { link: string, linkRange: vscode.Range }>();
+		for (const match of matchAll(this.definitionPattern, text)) {
+			const pre = match[1];
+			const reference = match[2];
+			const link = match[3].trim();
+
+			const offset = (match.index || 0) + pre.length;
+			const linkStart = document.positionAt(offset);
+			const linkEnd = document.positionAt(offset + link.length);
+
+			out.set(reference, {
+				link: link,
+				linkRange: new vscode.Range(linkStart, linkEnd)
+			});
+		}
+		return out;
 	}
 }

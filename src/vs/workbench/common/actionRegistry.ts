@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import collections = require('vs/base/common/collections');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IAction } from 'vs/base/common/actions';
 import { KeybindingsRegistry, ICommandAndKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -49,12 +49,12 @@ export interface IWorkbenchActionRegistry {
 	getWorkbenchActions(): SyncActionDescriptor[];
 
 	/**
-	 * Returns the alias associated with the given action or null iff none.
+	 * Returns the alias associated with the given action or null if none.
 	 */
 	getAlias(actionId: string): string;
 
 	/**
-	 * Returns the category for the given action or null iff none.
+	 * Returns the category for the given action or null if none.
 	 */
 	getCategory(actionId: string): string;
 }
@@ -165,17 +165,19 @@ export function triggerAndDisposeAction(instantitationService: IInstantiationSer
 	// don't run the action when not enabled
 	if (!actionInstance.enabled) {
 		actionInstance.dispose();
-		return;
+
+		return void 0;
 	}
 
+	const from = args && args.from || 'keybinding';
 	if (telemetryService) {
-		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from: args && args.from || 'keybinding' });
+		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from });
 	}
 
 	// run action when workbench is created
 	return partService.joinCreation().then(() => {
 		try {
-			return TPromise.as(actionInstance.run()).then(() => {
+			return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
 				actionInstance.dispose();
 			}, (err) => {
 				actionInstance.dispose();

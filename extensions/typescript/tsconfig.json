@@ -8,12 +8,14 @@
 		],
 		"outDir": "./out",
 		"strictNullChecks": true,
-		"noImplicitAny": true
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"strict": true,
+		"alwaysStrict": true
 	},
-	"exclude": [
-		"node_modules",
-		"server",
-		"out",
-		"test/colorize-fixtures"
+	"include": [
+		"src/**/*"
 	]
 }

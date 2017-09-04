@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "ini",
@@ -19,12 +22,12 @@
 		}],
 		"grammars": [{
 			"language": "ini",
-			"scopeName": "source.properties",
-			"path": "./syntaxes/properties.plist"
+			"scopeName": "source.ini",
+			"path": "./syntaxes/ini.tmLanguage.json"
 		},{
 			"language": "properties",
-			"scopeName": "source.properties",
-			"path": "./syntaxes/properties.plist"
+			"scopeName": "source.ini",
+			"path": "./syntaxes/ini.tmLanguage.json"
 		}]
 	}
 }

@@ -6,12 +6,14 @@
 'use strict';
 
 import 'vs/css!./selections';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorSelectionBackground, editorInactiveSelection, editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { HorizontalRange, LineVisibleRanges, IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Range } from 'vs/editor/common/core/range';
 import * as browser from 'vs/base/browser/browser';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 const enum CornerStyle {
 	EXTERN,
@@ -94,53 +96,44 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		this._context = null;
 		this._selections = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		return true;
-	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		this._selections = [e.selection];
-		this._selections = this._selections.concat(e.secondarySelections);
-		return true;
-	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
-		return false;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.roundedSelection) {
+		if (e.viewInfo) {
 			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections.slice(0);
 		return true;
 	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;//e.inlineDecorationsChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -253,7 +246,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _getVisibleRangesWithStyle(selection: Range, ctx: IRenderingContext, previousFrame: LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
+	private _getVisibleRangesWithStyle(selection: Range, ctx: RenderingContext, previousFrame: LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
 		let _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
 		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
@@ -361,10 +354,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 
 	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
-	public prepareRender(ctx: IRenderingContext): void {
-		if (!this.shouldRender()) {
-			throw new Error('I did not ask to render!');
-		}
+	public prepareRender(ctx: RenderingContext): void {
 
 		let output: string[] = [];
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
@@ -378,12 +368,12 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		for (let i = 0, len = this._selections.length; i < len; i++) {
 			let selection = this._selections[i];
 			if (selection.isEmpty()) {
-				thisFrameVisibleRangesWithStyle.push(null);
+				thisFrameVisibleRangesWithStyle[i] = null;
 				continue;
 			}
 
 			let visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
-			thisFrameVisibleRangesWithStyle.push(visibleRangesWithStyle);
+			thisFrameVisibleRangesWithStyle[i] = visibleRangesWithStyle;
 			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
 		}
 
@@ -402,3 +392,18 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorSelectionColor = theme.getColor(editorSelectionBackground);
+	if (editorSelectionColor) {
+		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+	}
+	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
+	if (editorInactiveSelectionColor) {
+		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+	}
+	let editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
+	if (editorSelectionForegroundColor) {
+		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
+	}
+});

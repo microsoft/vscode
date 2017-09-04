@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
@@ -12,26 +10,19 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
-
-	private client: ITypescriptServiceClient;
-
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
 	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return Promise.resolve<DocumentHighlight[]>([]);
 		}
-		let args: Proto.FileLocationRequestArgs = {
+		const args: Proto.FileLocationRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<DocumentHighlight[]>([]);
-		}
 		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
 			let data = response.body;
 			if (data && data.length) {
@@ -52,8 +43,7 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				});
 			}
 			return [];
-		}, (err) => {
-			this.client.error(`'occurrences' request failed with error.`, err);
+		}, () => {
 			return [];
 		});
 	}

@@ -6,26 +6,25 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { Memento, Scope } from 'vs/workbench/common/memento';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workbench Memento', () => {
 	let context;
 	let storage;
 
 	setup(() => {
-		context = new WorkspaceContextService(TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	test('Loading and Saving Memento with Scopes', () => {
 		let myMemento = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage);
+		let memento: any = myMemento.getMemento(storage);
 		memento.foo = [1, 2, 3];
 		let globalMemento = myMemento.getMemento(storage, Scope.GLOBAL);
 		assert.deepEqual(globalMemento, memento);
@@ -80,7 +79,7 @@ suite('Workbench Memento', () => {
 		let myMemento = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage, context);
+		let memento: any = myMemento.getMemento(storage, context);
 		memento.foo = [1, 2, 3];
 
 		// Workspace
@@ -145,7 +144,7 @@ suite('Workbench Memento', () => {
 		let myMemento2 = new Memento('memento.test');
 
 		// Global
-		let memento = myMemento.getMemento(storage, context);
+		let memento: any = myMemento.getMemento(storage, context);
 		memento.foo = [1, 2, 3];
 
 		memento = myMemento2.getMemento(storage, context);

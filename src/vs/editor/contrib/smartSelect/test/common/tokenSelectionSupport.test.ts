@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
@@ -82,10 +83,7 @@ suite('TokenSelectionSupport', () => {
 		let uri = URI.file('test.js');
 		modelService.createModel(text.join('\n'), mode, uri);
 
-		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, {
-			lineNumber: lineNumber,
-			column: column
-		});
+		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, new Position(lineNumber, column));
 
 		let actualStr = actual.map(r => new Range(r.range.startLineNumber, r.range.startColumn, r.range.endLineNumber, r.range.endColumn).toString());
 		let desiredStr = ranges.map(r => String(r));

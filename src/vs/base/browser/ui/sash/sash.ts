@@ -298,10 +298,10 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 		this.ratio = 0.5;
 		this.sash = new Sash(container, this);
 
-		this._register(this.sash.addListener2('start', () => this.onSashDragStart()));
-		this._register(this.sash.addListener2('change', (e: ISashEvent) => this.onSashDrag(e)));
-		this._register(this.sash.addListener2('end', () => this.onSashDragEnd()));
-		this._register(this.sash.addListener2('reset', () => this.onSashReset()));
+		this._register(this.sash.addListener('start', () => this.onSashDragStart()));
+		this._register(this.sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e)));
+		this._register(this.sash.addListener('end', () => this.onSashDragEnd()));
+		this._register(this.sash.addListener('reset', () => this.onSashReset()));
 	}
 
 	public getVerticalSashTop(): number {

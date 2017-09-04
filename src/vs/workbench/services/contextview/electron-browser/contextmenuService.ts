@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
 import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
@@ -16,6 +16,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
+import { unmnemonicLabel } from 'vs/base/common/labels';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -64,6 +65,7 @@ export class ContextMenuService implements IContextMenuService {
 
 	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
 		const menu = new remote.Menu();
+		const actionRunner = delegate.actionRunner || new ActionRunner();
 
 		entries.forEach(e => {
 			if (e instanceof Separator) {
@@ -71,24 +73,35 @@ export class ContextMenuService implements IContextMenuService {
 			} else if (e instanceof ContextSubMenu) {
 				const submenu = new remote.MenuItem({
 					submenu: this.createMenu(delegate, e.entries),
-					label: e.label
+					label: unmnemonicLabel(e.label)
 				});
 
 				menu.append(submenu);
 			} else {
-				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : undefined;
-				const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
-
-				const item = new remote.MenuItem({
-					label: e.label,
+				const options: Electron.MenuItemOptions = {
+					label: unmnemonicLabel(e.label),
 					checked: !!e.checked || !!e.radio,
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
-					accelerator,
 					enabled: !!e.enabled,
 					click: (menuItem, win, event) => {
-						this.runAction(e, delegate, event);
+						this.runAction(actionRunner, e, delegate, event);
 					}
-				});
+				};
+
+				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : this.keybindingService.lookupKeybinding(e.id);
+				if (keybinding) {
+					const electronAccelerator = keybinding.getElectronAccelerator();
+					if (electronAccelerator) {
+						options.accelerator = electronAccelerator;
+					} else {
+						const label = keybinding.getLabel();
+						if (label) {
+							options.label = `${options.label} [${label}]`;
+						}
+					}
+				}
+
+				const item = new remote.MenuItem(options);
 
 				menu.append(item);
 			}
@@ -97,11 +110,11 @@ export class ContextMenuService implements IContextMenuService {
 		return menu;
 	}
 
-	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
+	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
-		const res = actionToRun.run(context) || TPromise.as(null);
+		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
 
 		res.done(null, e => this.messageService.show(severity.Error, e));
 	}

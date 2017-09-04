@@ -21,7 +21,7 @@ export class InPlaceReplaceCommand implements editorCommon.ICommand {
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		builder.addEditOperation(this._editRange, this._text);
+		builder.addTrackedEditOperation(this._editRange, this._text);
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {

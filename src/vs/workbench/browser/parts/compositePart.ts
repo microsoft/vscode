@@ -7,9 +7,9 @@
 
 import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
-import uuid = require('vs/base/common/uuid');
+import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import events = require('vs/base/common/events');
@@ -17,10 +17,12 @@ import strings = require('vs/base/common/strings');
 import { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
+import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -35,6 +37,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 
 export interface ICompositeTitleLabel {
 
@@ -42,6 +46,11 @@ export interface ICompositeTitleLabel {
 	 * Asks to update the title for the composite with the given ID.
 	 */
 	updateTitle(id: string, title: string, keybinding?: string): void;
+
+	/**
+	 * Called when theming information changes.
+	 */
+	updateStyles(): void;
 }
 
 export abstract class CompositePart<T extends Composite> extends Part {
@@ -70,15 +79,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
+		themeService: IThemeService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
+		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
 		private actionContributionScope: string,
+		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
 	) {
-		super(id, options);
+		super(id, options, themeService);
 
 		this.instantiatedCompositeListeners = [];
 		this.mapCompositeToCompositeContainer = {};
@@ -87,7 +99,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedComposites = [];
 		this.compositeLoaderPromises = {};
-		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE);
+		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
@@ -108,7 +120,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private doOpenComposite(id: string, focus?: boolean): TPromise<Composite> {
 
 		// Use a generated token to avoid race conditions from long running promises
-		let currentCompositeOpenToken = uuid.generateUuid();
+		let currentCompositeOpenToken = defaultGenerator.nextId();
 		this.currentCompositeOpenToken = currentCompositeOpenToken;
 
 		// Hide current
@@ -125,7 +137,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.updateTitle(id);
 
 			// Create composite
-			return this.createComposite(id, true).then((composite: Composite) => {
+			return this.createComposite(id, true).then(composite => {
 
 				// Check if another composite opened meanwhile and return in that case
 				if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
@@ -212,7 +224,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = composite;
 
 		// Store in preferences
-		this.storageService.store(this.activeCompositeSettingsKey, this.activeComposite.getId(), StorageScope.WORKSPACE);
+		const id = this.activeComposite.getId();
+		if (id !== this.defaultCompositeId) {
+			this.storageService.store(this.activeCompositeSettingsKey, id, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(this.activeCompositeSettingsKey, StorageScope.WORKSPACE);
+		}
 
 		// Remember
 		this.lastActiveCompositeId = this.activeComposite.getId();
@@ -228,7 +245,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, (div: Builder) => {
-				createCompositePromise = composite.create(div);
+				createCompositePromise = composite.create(div).then(() => {
+					composite.updateStyles();
+				});
 			});
 
 			// Remember composite container
@@ -251,7 +270,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Make sure that the user meanwhile did not open another composite or closed the part containing the composite
 			if (!this.activeComposite || composite.getId() !== this.activeComposite.getId()) {
-				return;
+				return void 0;
 			}
 
 			// Take Composite on-DOM and show
@@ -281,7 +300,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
+			this.telemetryActionsListener = this.toolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -340,13 +359,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			compositeTitle = compositeDescriptor.name;
 		}
 
-		let keybinding: string = null;
-		let keys = this.keybindingService.lookupKeybindings(compositeId).map(k => this.keybindingService.getLabelFor(k));
-		if (keys && keys.length) {
-			keybinding = keys[0];
-		}
+		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding);
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding ? keybinding.getLabel() : undefined);
 
 		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
@@ -413,6 +428,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
+		$(titleArea).on(DOM.EventType.CONTEXT_MENU, (e: MouseEvent) => this.onTitleAreaContextMenu(new StandardMouseEvent(e)));
+
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
 
@@ -425,15 +442,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			this.toolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL,
-				getKeyBinding: (action) => {
-					const opts = this.keybindingService.lookupKeybindings(action.id);
-					if (opts.length > 0) {
-						return opts[0]; // only take the first one
-					}
-
-					return null;
-				},
-				getKeyBindingLabel: (key) => this.keybindingService.getLabelFor(key)
+				getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 			});
 		});
 
@@ -448,12 +457,43 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			titleLabel = div.span();
 		});
 
+		const $this = this;
 		return {
 			updateTitle: (id, title, keybinding) => {
 				titleLabel.safeInnerHtml(title);
 				titleLabel.title(keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
+			},
+			updateStyles: () => {
+				titleLabel.style('color', $this.getColor($this.titleForegroundColor));
 			}
 		};
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Forward to title label
+		this.titleLabel.updateStyles();
+	}
+
+	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
+		if (this.activeComposite) {
+			const contextMenuActions = this.getTitleAreaContextMenuActions();
+			if (contextMenuActions.length) {
+				let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => TPromise.as(contextMenuActions),
+					getActionItem: (action: Action) => this.actionItemProvider(action),
+					actionRunner: this.activeComposite.getActionRunner(),
+					getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
+				});
+			}
+		}
+	}
+
+	protected getTitleAreaContextMenuActions(): IAction[] {
+		return this.activeComposite ? this.activeComposite.getContextMenuActions() : [];
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
@@ -478,6 +518,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': 'content'
 		}, (div: Builder) => {
 			this.progressBar = new ProgressBar(div);
+			this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
 			this.progressBar.getContainer().hide();
 		});
 	}

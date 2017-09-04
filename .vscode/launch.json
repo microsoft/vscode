@@ -1,26 +1,7 @@
 {
 	"version": "0.1.0",
 	"configurations": [
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Unit Tests",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${execPath}",
-			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"999999"
-			],
-			"cwd": "${workspaceRoot}",
-			"env": {
-				"ELECTRON_RUN_AS_NODE": "true"
-			},
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			]
-		},
+
 		{
 			"type": "node",
 			"request": "launch",
@@ -36,8 +17,9 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
+			"protocol": "inspector",
 			"port": 5870,
-			"sourceMaps": true,
+			"restart": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -46,8 +28,18 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Shared Process",
+			"protocol": "inspector",
 			"port": 5871,
-			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"protocol": "inspector",
+			"name": "Attach to Search process",
+			"port": 7890,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -56,8 +48,32 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
+			"protocol": "inspector",
 			"port": 5874,
-			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
+			"name": "Attach to Main Process",
+			"protocol": "inspector",
+			"port": 5875,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Emmet Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/emmet/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/emmet",
+				"--extensionTestsPath=${workspaceRoot}/extensions/emmet/out/test"
+			],
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -72,7 +88,6 @@
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-api-tests/out"
 			],
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -87,7 +102,6 @@
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
 				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
 			],
-			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -96,8 +110,7 @@
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222,
-			"sourceMaps": true
+			"port": 9222
 		},
 		{
 			"type": "chrome",
@@ -112,18 +125,58 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceRoot}/scripts/code.sh"
 			},
-			"sourceMaps": true
+			"urlFilter": "*index.html*",
+			"runtimeArgs": [
+				"--inspect=5875"
+			],
+			"webRoot": "${workspaceRoot}"
 		},
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Debug Monaco",
-			"program": "${workspaceRoot}/build/lib/monaco.js",
-			"cwd": "${workspaceRoot}/build/lib"
-			// ,
-			// "port": 5870,
-			// "sourceMaps": true,
-			// "outFiles": [ "${workspaceRoot}/out/**/*.js" ]
+			"name": "Git Unit Tests",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceRoot}/extensions/git",
+			"outFiles": [
+				"${workspaceRoot}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Unit Tests",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
+			},
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"2000"
+			],
+			"cwd": "${workspaceRoot}",
+			"env": {
+				"ELECTRON_RUN_AS_NODE": "true"
+			},
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug VS Code Main and Renderer",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Main Process"
+			]
 		}
 	]
 }

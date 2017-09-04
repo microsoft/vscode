@@ -8,8 +8,8 @@
 import Uri from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IResolveContentOptions, IUpdateContentOptions } from 'vs/platform/files/common/files';
+import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
@@ -21,6 +21,11 @@ export const BACKUP_FILE_UPDATE_OPTIONS: IUpdateContentOptions = { encoding: 'ut
  */
 export interface IBackupFileService {
 	_serviceBrand: any;
+
+	/**
+	 * If backups are enabled.
+	 */
+	backupEnabled: boolean;
 
 	/**
 	 * Finds out if there are any backups stored.
@@ -55,10 +60,10 @@ export interface IBackupFileService {
 	 * Parses backup raw text content into the content, removing the metadata that is also stored
 	 * in the file.
 	 *
-	 * @param rawText The IRawTextContent from a backup resource.
+	 * @param rawText The IRawTextProvider from a backup resource.
 	 * @return The backup file's backed up content.
 	 */
-	parseBackupContent(rawText: IRawTextContent): string;
+	parseBackupContent(textSource: IRawTextSource): string;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..

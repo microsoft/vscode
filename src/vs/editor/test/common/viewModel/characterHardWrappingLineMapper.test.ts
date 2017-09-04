@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WrappingIndent } from 'vs/editor/common/editorCommon';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ILineMapperFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 
@@ -100,5 +100,10 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('CharacterHardWrappingLineMapper - WrappingIndent.Same', () => {
 		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
 		assertLineMapping(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
+	});
+
+	test('issue #16332: Scroll bar overlaying on top of text', () => {
+		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
+		assertLineMapping(factory, 4, 24, 'a/ very/long/line/of/tex|t/that/expands/beyon|d/your/typical/line/|of/code/', WrappingIndent.Indent);
 	});
 });

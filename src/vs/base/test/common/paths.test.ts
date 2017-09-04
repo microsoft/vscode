@@ -48,6 +48,10 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		if (platform.isWindows) {
+			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
+			assert.equal(paths.dirname('c:\\some'), 'c:\\');
+		}
 	});
 
 	test('normalize', () => {
@@ -113,15 +117,6 @@ suite('Paths', () => {
 
 	});
 
-	test('makeAbsolute', () => {
-		assert.equal(paths.makePosixAbsolute('foo'), '/foo');
-		assert.equal(paths.makePosixAbsolute('foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('foo/bar/'), '/foo/bar/');
-		assert.equal(paths.makePosixAbsolute('/foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('/'), '/');
-		assert.equal(paths.makePosixAbsolute(''), '/');
-	});
-
 	test('basename', () => {
 		assert.equal(paths.basename('foo/bar'), 'bar');
 		assert.equal(paths.basename('foo\\bar'), 'bar');
@@ -165,32 +160,6 @@ suite('Paths', () => {
 		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
 	});
 
-	test('isEqualOrParent', () => {
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo'));
-		assert(paths.isEqualOrParent('/', '/'));
-		assert(paths.isEqualOrParent('/foo', '/'));
-		assert(paths.isEqualOrParent('/foo', '/foo/'));
-		assert(!paths.isEqualOrParent('/foo', '/f'));
-		assert(!paths.isEqualOrParent('/foo', '/foo/b'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', '/foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/barr'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/xxx/../bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/./bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo\\bar\\'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.ts'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.'));
-
-		if (!platform.isLinux) {
-			assert(paths.isEqualOrParent('/foo', '/fOO/'));
-			assert(paths.isEqualOrParent('/fOO', '/foo/'));
-			assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.ts'));
-			assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.'));
-		}
-	});
-
 	test('extname', () => {
 		assert.equal(paths.extname('far.boo'), '.boo');
 		assert.equal(paths.extname('far.b'), '.b');
@@ -231,5 +200,58 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes:t.txt'));
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
+	});
+
+	test('isAbsolute_win', () => {
+		// Absolute paths
+		[
+			'C:/',
+			'C:\\',
+			'C:/foo',
+			'C:\\foo',
+			'z:/foo/bar.txt',
+			'z:\\foo\\bar.txt',
+
+			'\\\\localhost\\c$\\foo',
+
+			'/',
+			'/foo'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_win32(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar'
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_win32(nonAbsolutePath), nonAbsolutePath);
+		});
+	});
+
+	test('isAbsolute_posix', () => {
+		// Absolute paths
+		[
+			'/',
+			'/foo',
+			'/foo/bar.txt'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_posix(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar',
+			'z:/foo/bar.txt',
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_posix(nonAbsolutePath), nonAbsolutePath);
+		});
 	});
 });

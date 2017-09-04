@@ -19,17 +19,27 @@ import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/servic
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
+
+const REPLACE_PREVIEW = 'replacePreview';
+
+const toReplaceResource = (fileResource: URI): URI => {
+	return fileResource.with({ scheme: network.Schemas.internal, fragment: REPLACE_PREVIEW, query: JSON.stringify({ scheme: fileResource.scheme }) });
+};
+
+const toFileResource = (replaceResource: URI): URI => {
+	return replaceResource.with({ scheme: JSON.parse(replaceResource.query)['scheme'], fragment: '', query: '' });
+};
 
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
@@ -39,7 +49,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 	}
 
 	public provideTextContent(uri: URI): TPromise<IModel> {
-		if (uri.fragment === 'preview') {
+		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
 		return null;
@@ -50,7 +60,7 @@ class ReplacePreviewModel extends Disposable {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@IReplaceService private replaceService: IReplaceService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
 	) {
@@ -58,7 +68,7 @@ class ReplacePreviewModel extends Disposable {
 	}
 
 	resolve(replacePreviewUri: URI): TPromise<IModel> {
-		const fileResource = replacePreviewUri.with({ scheme: network.Schemas.file, fragment: '' });
+		const fileResource = toFileResource(replacePreviewUri);
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
 			ref = this._register(ref);
@@ -67,7 +77,7 @@ class ReplacePreviewModel extends Disposable {
 			const replacePreviewModel = this.modelService.createModel(sourceModel.getValue(), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
 			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
 			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
-			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose()));
+			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
 			this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
 			this._register(sourceModel.onWillDispose(() => this.dispose()));
 			return replacePreviewModel;
@@ -90,7 +100,7 @@ export class ReplaceService implements IReplaceService {
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
 	) {
 	}
@@ -132,7 +142,7 @@ export class ReplaceService implements IReplaceService {
 
 		return this.editorService.openEditor({
 			leftResource: fileMatch.resource(),
-			rightResource: this.getReplacePreviewUri(fileMatch),
+			rightResource: toReplaceResource(fileMatch.resource()),
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			options: {
 				preserveFocus,
@@ -143,14 +153,14 @@ export class ReplaceService implements IReplaceService {
 			this.updateReplacePreview(fileMatch).then(() => {
 				let editorControl = (<IDiffEditor>editor.getControl());
 				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber);
+					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 				}
 			});
 		}, errors.onUnexpectedError);
 	}
 
 	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): TPromise<void> {
-		const replacePreviewUri = this.getReplacePreviewUri(fileMatch);
+		const replacePreviewUri = toReplaceResource(fileMatch.resource());
 		return TPromise.join([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
 			.then(([sourceModelRef, replaceModelRef]) => {
 				const sourceModel = sourceModelRef.object.textEditorModel;
@@ -180,9 +190,5 @@ export class ReplaceService implements IReplaceService {
 			newText: text
 		};
 		return resourceEdit;
-	}
-
-	private getReplacePreviewUri(fileMatch: FileMatch): URI {
-		return fileMatch.resource().with({ scheme: network.Schemas.internal, fragment: 'preview' });
 	}
 }

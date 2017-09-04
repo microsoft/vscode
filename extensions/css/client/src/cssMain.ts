@@ -6,16 +6,26 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, ExtensionContext } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
-import { activateColorDecorations } from './colorDecorators';
+import { languages, window, commands, ExtensionContext, TextDocument, ColorRange, Color } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, TextEdit } from 'vscode-languageclient';
+
+import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
+import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
-}
+const CSSColorFormats = {
+	Hex: '#{red:X}{green:X}{blue:X}',
+	RGB: {
+		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
+		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
+	},
+	HSL: {
+		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
+		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
+	}
+};
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -23,7 +33,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'cssServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -32,9 +42,11 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
+	let documentSelector = ['css', 'scss', 'less'];
+
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
-		documentSelector: ['css', 'less', 'scss'],
+		documentSelector,
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
 		},
@@ -44,6 +56,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
+	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the
@@ -51,23 +64,39 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	client.onReady().then(_ => {
-		let colorRequestor = (uri: string) => {
-			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
-		};
-		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true });
-		context.subscriptions.push(disposable);
+		// register color provider
+		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
+			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
+				let params = client.code2ProtocolConverter.asDocumentSymbolParams(document);
+				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
+					return symbols.map(symbol => {
+						let range = client.protocol2CodeConverter.asRange(symbol.range);
+						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
+						return new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]);
+					});
+				});
+			}
+		}));
 	});
 
+	let indentationRules = {
+		increaseIndentPattern: /(^.*\{[^}]*$)/,
+		decreaseIndentPattern: /^\s*\}/
+	};
+
 	languages.setLanguageConfiguration('css', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
+		indentationRules: indentationRules
 	});
 
 	languages.setLanguageConfiguration('less', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
+		indentationRules: indentationRules
 	});
 
 	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g
+		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
+		indentationRules: indentationRules
 	});
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);

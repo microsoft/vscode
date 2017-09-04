@@ -1,0 +1,6 @@
+{
+    daysUntilClose: 7,
+    needsMoreInfoLabel: 'needs more info',
+    perform: true,
+    closeComment: 'This issue has been closed automatically because it needs more information and has not had recent activity. Please refer to our [guidelines](https://github.com/Microsoft/vscode/blob/master/CONTRIBUTING.md) for filing issues. Thank you for your contributions.'
+}

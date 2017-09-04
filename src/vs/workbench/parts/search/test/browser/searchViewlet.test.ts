@@ -25,7 +25,8 @@ suite('Search - Viewlet', () => {
 
 	test('Data Source', function () {
 		let ds = new SearchDataSource();
-		let result = instantiation.createInstance(SearchResult, null);
+		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		result.query = { type: 1, folderQueries: [{ folder: uri.parse('file://c:/') }] };
 		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
@@ -69,7 +70,7 @@ suite('Search - Viewlet', () => {
 			resource: uri.file('C:\\' + path),
 			lineMatches: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+		return instantiation.createInstance(FileMatch, null, null, searchResult, rawMatch);
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

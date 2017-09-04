@@ -7,20 +7,24 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
-import { IPosition, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
+import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { containsCommandLink } from 'vs/base/common/htmlContent';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { once } from 'vs/base/common/functional';
 
 // --- adapter
 
@@ -38,8 +42,9 @@ class OutlineAdapter {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.SymbolInformation.toOutlineEntry);
+				return value.map(TypeConverters.fromSymbolInformation);
 			}
+			return undefined;
 		});
 	}
 }
@@ -64,7 +69,6 @@ class CodeLensAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(lenses => {
-
 			if (Array.isArray(lenses)) {
 				return lenses.map(lens => {
 					const id = this._heapService.keep(lens);
@@ -74,6 +78,7 @@ class CodeLensAdapter {
 					}, id);
 				});
 			}
+			return undefined;
 		});
 	}
 
@@ -81,7 +86,7 @@ class CodeLensAdapter {
 
 		const lens = this._heapService.get<vscode.CodeLens>(ObjectIdentifier.of(symbol));
 		if (!lens) {
-			return;
+			return undefined;
 		}
 
 		let resolve: TPromise<vscode.CodeLens>;
@@ -100,7 +105,6 @@ class CodeLensAdapter {
 }
 
 class DefinitionAdapter {
-
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.DefinitionProvider;
 
@@ -118,12 +122,12 @@ class DefinitionAdapter {
 			} else if (value) {
 				return TypeConverters.location.from(value);
 			}
+			return undefined;
 		});
 	}
 }
 
 class ImplementationAdapter {
-
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.ImplementationProvider;
 
@@ -141,18 +145,43 @@ class ImplementationAdapter {
 			} else if (value) {
 				return TypeConverters.location.from(value);
 			}
+			return undefined;
 		});
 	}
 }
 
-class HoverAdapter {
-
+class TypeDefinitionAdapter {
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.HoverProvider;
+	private _provider: vscode.TypeDefinitionProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.HoverProvider) {
+	constructor(documents: ExtHostDocuments, provider: vscode.TypeDefinitionProvider) {
 		this._documents = documents;
 		this._provider = provider;
+	}
+
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+		const doc = this._documents.getDocumentData(resource).document;
+		const pos = TypeConverters.toPosition(position);
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return value.map(TypeConverters.location.from);
+			} else if (value) {
+				return TypeConverters.location.from(value);
+			}
+			return undefined;
+		});
+	}
+}
+
+
+class HoverAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.HoverProvider,
+		private readonly _telemetryLog: (name: string, data: object) => void,
+	) {
+		//
 	}
 
 	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
@@ -161,8 +190,8 @@ class HoverAdapter {
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
-			if (!value) {
-				return;
+			if (!value || isFalsyOrEmpty(value.contents)) {
+				return undefined;
 			}
 			if (!value.range) {
 				value.range = doc.getWordRangeAtPosition(pos);
@@ -171,7 +200,14 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			return TypeConverters.fromHover(value);
+			const result = TypeConverters.fromHover(value);
+
+			// we wanna know which extension uses command links
+			// because that is a potential trick-attack on users
+			if (result.contents.some(h => containsCommandLink(h.value))) {
+				this._telemetryLog('usesCommandLink', { from: 'hover' });
+			}
+			return result;
 		});
 	}
 }
@@ -195,6 +231,7 @@ class DocumentHighlightAdapter {
 			if (Array.isArray(value)) {
 				return value.map(DocumentHighlightAdapter._convertDocumentHighlight);
 			}
+			return undefined;
 		});
 	}
 
@@ -224,6 +261,7 @@ class ReferenceAdapter {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
 			}
+			return undefined;
 		});
 	}
 }
@@ -242,7 +280,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
@@ -260,14 +298,9 @@ class QuickFixAdapter {
 
 		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
 			if (!Array.isArray(commands)) {
-				return;
+				return undefined;
 			}
-			return commands.map((command, i) => {
-				return <modes.CodeAction>{
-					command: this._commands.toInternal(command),
-					score: i
-				};
-			});
+			return commands.map(command => this._commands.toInternal(command));
 		});
 	}
 }
@@ -284,12 +317,13 @@ class DocumentFormattingAdapter {
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document} = this._documents.getDocumentData(resource);
+		const { document } = this._documents.getDocumentData(resource);
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.TextEdit.from);
 			}
+			return undefined;
 		});
 	}
 }
@@ -306,13 +340,14 @@ class RangeFormattingAdapter {
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document} = this._documents.getDocumentData(resource);
+		const { document } = this._documents.getDocumentData(resource);
 		const ran = TypeConverters.toRange(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.TextEdit.from);
 			}
+			return undefined;
 		});
 	}
 }
@@ -331,13 +366,14 @@ class OnTypeFormattingAdapter {
 
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
-		const {document} = this._documents.getDocumentData(resource);
+		const { document } = this._documents.getDocumentData(resource);
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.TextEdit.from);
 			}
+			return undefined;
 		});
 	}
 }
@@ -353,7 +389,7 @@ class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 		this._heapService = heapService;
 	}
 
-	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbol[]> {
+	provideWorkspaceSymbols(search: string): TPromise<modes.SymbolInformation[]> {
 
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -363,10 +399,11 @@ class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 					return ObjectIdentifier.mixin(result, id);
 				});
 			}
+			return undefined;
 		});
 	}
 
-	resolveWorkspaceSymbol(item: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+	resolveWorkspaceSymbol(item: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
 			return TPromise.as(item);
@@ -378,6 +415,7 @@ class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
 				return value && TypeConverters.fromSymbolInformation(value);
 			});
 		}
+		return undefined;
 	}
 }
 
@@ -397,9 +435,8 @@ class RenameAdapter {
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
-
 			if (!value) {
-				return;
+				return undefined;
 			}
 
 			let result = <modes.WorkspaceEdit>{
@@ -424,7 +461,7 @@ class RenameAdapter {
 					rejectReason: err
 				};
 			}
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }
@@ -458,7 +495,7 @@ class SuggestAdapter {
 			let list: CompletionList;
 			if (!value) {
 				// undefined and null are valid results
-				return;
+				return undefined;
 
 			} else if (Array.isArray(value)) {
 				list = new CompletionList(value);
@@ -521,9 +558,9 @@ class SuggestAdapter {
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
-		if (!item.label) {
+		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
-			return;
+			return undefined;
 		}
 
 		const result: modes.ISuggestion = {
@@ -573,7 +610,7 @@ class SuggestAdapter {
 
 		if (!range.isSingleLine || range.start.line !== position.line) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
-			return;
+			return undefined;
 		}
 
 		return result;
@@ -599,6 +636,7 @@ class SignatureHelpAdapter {
 			if (value) {
 				return TypeConverters.SignatureHelp.from(value);
 			}
+			return undefined;
 		});
 	}
 }
@@ -606,10 +644,12 @@ class SignatureHelpAdapter {
 class LinkProviderAdapter {
 
 	private _documents: ExtHostDocuments;
+	private _heapService: ExtHostHeapService;
 	private _provider: vscode.DocumentLinkProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentLinkProvider) {
+	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.DocumentLinkProvider) {
 		this._documents = documents;
+		this._heapService = heapService;
 		this._provider = provider;
 	}
 
@@ -617,48 +657,120 @@ class LinkProviderAdapter {
 		const doc = this._documents.getDocumentData(resource).document;
 
 		return asWinJsPromise(token => this._provider.provideDocumentLinks(doc, token)).then(links => {
-			if (Array.isArray(links)) {
-				return links.map(TypeConverters.DocumentLink.from);
+			if (!Array.isArray(links)) {
+				return undefined;
 			}
+			const result: modes.ILink[] = [];
+			for (const link of links) {
+				let data = TypeConverters.DocumentLink.from(link);
+				let id = this._heapService.keep(link);
+				ObjectIdentifier.mixin(data, id);
+				result.push(data);
+			}
+			return result;
 		});
 	}
 
 	resolveLink(link: modes.ILink): TPromise<modes.ILink> {
-		if (typeof this._provider.resolveDocumentLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveDocumentLink(TypeConverters.DocumentLink.to(link), token)).then(value => {
-				if (value) {
-					return TypeConverters.DocumentLink.from(value);
-				}
-			});
+		if (typeof this._provider.resolveDocumentLink !== 'function') {
+			return undefined;
 		}
+
+		const id = ObjectIdentifier.of(link);
+		const item = this._heapService.get<vscode.DocumentLink>(id);
+		if (!item) {
+			return undefined;
+		}
+
+		return asWinJsPromise(token => this._provider.resolveDocumentLink(item, token)).then(value => {
+			if (value) {
+				return TypeConverters.DocumentLink.from(value);
+			}
+			return undefined;
+		});
+	}
+}
+
+class ColorProviderAdapter {
+
+	private static _colorFormatHandlePool: number = 0;
+
+	constructor(
+		private _proxy: MainThreadLanguageFeaturesShape,
+		private _documents: ExtHostDocuments,
+		private _colorFormatCache: Map<string, number>,
+		private _provider: vscode.DocumentColorProvider
+	) { }
+
+	provideColors(resource: URI): TPromise<IRawColorInfo[]> {
+		const doc = this._documents.getDocumentData(resource).document;
+		return asWinJsPromise(token => this._provider.provideDocumentColors(doc, token)).then(colors => {
+			if (!Array.isArray(colors)) {
+				return [];
+			}
+
+			const newRawColorFormats: IRawColorFormatMap = [];
+			const getFormatId = (format: string) => {
+				let id = this._colorFormatCache.get(format);
+
+				if (typeof id !== 'number') {
+					id = ColorProviderAdapter._colorFormatHandlePool++;
+					this._colorFormatCache.set(format, id);
+					newRawColorFormats.push([id, format]);
+				}
+
+				return id;
+			};
+
+			const colorInfos: IRawColorInfo[] = colors.map(ci => {
+				const availableFormats = ci.availableFormats.map(format => {
+					if (typeof format === 'string') {
+						return getFormatId(format);
+					} else {
+						return [getFormatId(format.opaque), getFormatId(format.transparent)] as [number, number];
+					}
+				});
+
+				return {
+					color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] as [number, number, number, number],
+					availableFormats: availableFormats,
+					range: TypeConverters.fromRange(ci.range)
+				};
+			});
+
+			this._proxy.$registerColorFormats(newRawColorFormats);
+			return colorInfos;
+		});
 	}
 }
 
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter;
+	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
-export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
+export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadLanguageFeaturesShape;
+	private _telemetry: MainThreadTelemetryShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
+	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadLanguageFeatures);
+		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
+		this._telemetry = mainContext.get(MainContext.MainThreadTelemetry);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;
@@ -676,10 +788,10 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return ExtHostLanguageFeatures._handlePool++;
 	}
 
-	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
+	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError(new Error('no adapter found'));
+			return TPromise.wrapError<R>(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}
@@ -747,11 +859,25 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(resource, position));
 	}
 
+	registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new TypeDefinitionAdapter(this._documents, provider));
+		this._proxy.$registerTypeDefinitionSupport(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(resource, position));
+	}
+
 	// --- extra info
 
-	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
+	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new HoverAdapter(this._documents, provider));
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name, data) => {
+			data['extension'] = extensionId;
+			this._telemetry.$publicLog(name, data);
+		})));
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -795,7 +921,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 
@@ -843,11 +969,11 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbol[]> {
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 
@@ -898,7 +1024,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 
 	registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new LinkProviderAdapter(this._documents, provider));
+		this._adapter.set(handle, new LinkProviderAdapter(this._documents, this._heapService, provider));
 		this._proxy.$registerDocumentLinkProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
@@ -911,10 +1037,21 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, LinkProviderAdapter, adapter => adapter.resolveLink(link));
 	}
 
+	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
+		const handle = this._nextHandle();
+		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
+		this._proxy.$registerDocumentColorProvider(handle, selector);
+		return this._createDisposable(handle);
+	}
+
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]> {
+		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
+	}
+
 	// --- configuration
 
 	setLanguageConfiguration(languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
-		let {wordPattern} = configuration;
+		let { wordPattern } = configuration;
 
 		// check for a valid word pattern
 		if (wordPattern && regExpLeadsToEndlessLoop(wordPattern)) {

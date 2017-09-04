@@ -12,7 +12,7 @@ import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/refer
 
 suite('references', function () {
 
-	test('neartestReference', function () {
+	test('nearestReference', function () {
 		const model = new ReferencesModel([{
 			uri: URI.file('/out/obj/can'),
 			range: new Range(1, 1, 1, 1)

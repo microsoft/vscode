@@ -5,30 +5,29 @@
 'use strict';
 
 import 'vs/css!./watermark';
-import { $ } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { GlobalQuickOpenAction } from 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
-import { KeybindingsReferenceAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { ShowRecommendedKeymapExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { OpenFileAction } from 'vs/workbench/parts/files/electron-browser/electronFileActions';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
-import { OpenGlobalKeybindingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import { SelectColorThemeAction } from 'vs/workbench/parts/themes/electron-browser/themes.contribution';
+import { escape } from 'vs/base/common/strings';
+import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 interface WatermarkEntry {
 	text: string;
@@ -42,7 +41,7 @@ const showCommands: WatermarkEntry = {
 };
 const quickOpen: WatermarkEntry = {
 	text: nls.localize('watermark.quickOpen', "Go to File"),
-	ids: [GlobalQuickOpenAction.ID]
+	ids: [QUICKOPEN_ACTION_ID]
 };
 const openFileNonMacOnly: WatermarkEntry = {
 	text: nls.localize('watermark.openFile', "Open File"),
@@ -82,32 +81,6 @@ const startDebugging: WatermarkEntry = {
 	ids: [StartAction.ID]
 };
 
-const selectTheme: WatermarkEntry = {
-	text: nls.localize('watermark.selectTheme', "Change Theme"),
-	ids: [SelectColorThemeAction.ID]
-};
-const selectKeymap: WatermarkEntry = {
-	text: nls.localize('watermark.selectKeymap', "Change Keymap"),
-	ids: [ShowRecommendedKeymapExtensionsAction.ID]
-};
-const keybindingsReference: WatermarkEntry = {
-	text: nls.localize('watermark.keybindingsReference', "Keyboard Reference"),
-	ids: [KeybindingsReferenceAction.ID]
-};
-const openGlobalKeybindings: WatermarkEntry = {
-	text: nls.localize('watermark.openGlobalKeybindings', "Keyboard Shortcuts"),
-	ids: [OpenGlobalKeybindingsAction.ID]
-};
-
-const newUserEntries = [
-	showCommands,
-	selectTheme,
-	selectKeymap,
-	openFolderNonMacOnly,
-	openFileOrFolderMacOnly,
-	KeybindingsReferenceAction.AVAILABLE ? keybindingsReference : openGlobalKeybindings
-];
-
 const noFolderEntries = [
 	showCommands,
 	openFileNonMacOnly,
@@ -131,17 +104,34 @@ const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
 export class WatermarkContribution implements IWorkbenchContribution {
 
 	private toDispose: IDisposable[] = [];
+	private watermark: Builder;
+	private enabled: boolean;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.partService.joinCreation().then(() => {
-			this.create();
+			this.enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			if (this.enabled) {
+				this.create();
+			}
+		});
+		this.configurationService.onDidUpdateConfiguration(e => {
+			const enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
+			if (enabled !== this.enabled) {
+				this.enabled = enabled;
+				if (this.enabled) {
+					this.create();
+				} else {
+					this.destroy();
+				}
+			}
 		});
 	}
 
@@ -151,14 +141,14 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
+		container.classList.add('has-watermark');
 
-		const watermark = $()
+		this.watermark = $()
 			.div({ 'class': 'watermark' });
-		const box = $(watermark)
+		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
 		const folder = this.contextService.hasWorkspace();
-		const newUser = this.telemetryService.getExperiments().showNewUserWatermark;
-		const selected = (newUser ? newUserEntries : (folder ? folderEntries : noFolderEntries))
+		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
 			const builder = $(box);
@@ -168,17 +158,35 @@ export class WatermarkContribution implements IWorkbenchContribution {
 					dl.element('dt', {}, dt => dt.text(entry.text));
 					dl.element('dd', {}, dd => dd.innerHtml(
 						entry.ids
-							.map(id => this.keybindingService.lookupKeybindings(id).slice(0, 1)
-								.map(k => `<span class="shortcuts">${this.keybindingService.getLabelFor(k)}</span>`)
-								.join('') || `<span class="unbound">${UNBOUND}</span>`)
+							.map(id => {
+								let k = this.keybindingService.lookupKeybinding(id);
+								if (k) {
+									return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
+								}
+								return `<span class="unbound">${escape(UNBOUND)}</span>`;
+							})
 							.join(' / ')
 					));
 				});
 			});
 		};
+		const layout = () => {
+			const { height } = container.getBoundingClientRect();
+			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
+		};
 		update();
-		watermark.build(container.firstChild as HTMLElement, 0);
+		this.watermark.build(container.firstElementChild as HTMLElement, 0);
+		layout();
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
+		this.toDispose.push(this.partService.onEditorLayout(layout));
+	}
+
+	private destroy(): void {
+		if (this.watermark) {
+			this.watermark.destroy();
+			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
+			this.dispose();
+		}
 	}
 
 	public dispose(): void {
@@ -188,3 +196,17 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WatermarkContribution);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		'id': 'workbench',
+		'order': 7,
+		'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
+		'properties': {
+			'workbench.tips.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+			},
+		}
+	});

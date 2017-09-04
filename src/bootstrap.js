@@ -103,13 +103,15 @@ if (!process.env['VSCODE_ALLOW_IO']) {
 	process.__defineGetter__('stdin', function () { return writable; });
 }
 
-// Handle uncaught exceptions
-process.on('uncaughtException', function (err) {
-	console.error('Uncaught Exception: ', err.toString());
-	if (err.stack) {
-		console.error(err.stack);
-	}
-});
+if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
+	// Handle uncaught exceptions
+	process.on('uncaughtException', function (err) {
+		console.error('Uncaught Exception: ', err.toString());
+		if (err.stack) {
+			console.error(err.stack);
+		}
+	});
+}
 
 // Kill oneself if one's parent dies. Much drama.
 if (process.env['VSCODE_PARENT_PID']) {
@@ -123,6 +125,18 @@ if (process.env['VSCODE_PARENT_PID']) {
 				process.exit();
 			}
 		}, 5000);
+	}
+}
+
+const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+if (typeof crashReporterOptionsRaw === 'string') {
+	try {
+		const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
+		if (crashReporterOptions) {
+			process.crashReporter.start(crashReporterOptions);
+		}
+	} catch (error) {
+		console.error(error);
 	}
 }
 

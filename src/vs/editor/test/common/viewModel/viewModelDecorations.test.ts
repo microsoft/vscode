@@ -5,66 +5,20 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Model } from 'vs/editor/common/model/model';
 import { Range } from 'vs/editor/common/core/range';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+import { MockCodeEditorCreationOptions } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 suite('ViewModelDecorations', () => {
-
-	interface ITestViewModelOpts {
-		wrappingColumn: number;
-		text: string;
-	}
-
-	function withTestViewModel(opts: ITestViewModelOpts, callback: (viewModel: ViewModel, model: Model) => void): void {
-		const EDITOR_ID = 1;
-
-		let configuration = new MockConfiguration({
-			wrappingColumn: opts.wrappingColumn
-		});
-
-		let model = Model.createFromString(opts.text);
-
-		let factory = new CharacterHardWrappingLineMapperFactory(
-			configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
-			configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
-			configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
-		);
-
-		let linesCollection = new SplitLinesCollection(
-			model,
-			factory,
-			model.getOptions().tabSize,
-			configuration.editor.wrappingInfo.wrappingColumn,
-			configuration.editor.fontInfo.typicalFullwidthCharacterWidth / configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-			configuration.editor.wrappingInfo.wrappingIndent
-		);
-
-		let viewModel = new ViewModel(
-			linesCollection,
-			EDITOR_ID,
-			configuration,
-			model,
-			() => {
-				return new Range(1, 1, 1, 1);
-			}
-		);
-
-		callback(viewModel, model);
-
-		viewModel.dispose();
-		model.dispose();
-		configuration.dispose();
-	}
-
 	test('getDecorationsViewportData', () => {
-		withTestViewModel({
-			text: 'hello world, this is a buffer that will be wrapped',
-			wrappingColumn: 13
-		}, (viewModel, model) => {
+		const text = [
+			'hello world, this is a buffer that will be wrapped'
+		];
+		const opts: MockCodeEditorCreationOptions = {
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 13
+		};
+		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
 			assert.equal(viewModel.getLineContent(2), 'this is a ');
 			assert.equal(viewModel.getLineContent(3), 'buffer that ');
@@ -134,9 +88,9 @@ suite('ViewModelDecorations', () => {
 				dec15 = accessor.addDecoration(new Range(1, 40, 1, 51), createOpts('dec15'));
 			});
 
-			let decorationsViewportData = viewModel.getDecorationsViewportData(2, 3);
-
-			let actualDecorations = decorationsViewportData.decorations.map((dec) => {
+			let actualDecorations = viewModel.getDecorationsInViewport(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
+			).map((dec) => {
 				return dec.source.id;
 			});
 
@@ -156,7 +110,10 @@ suite('ViewModelDecorations', () => {
 				dec14,
 			]);
 
-			let inlineDecorations1 = decorationsViewportData.inlineDecorations[0];
+			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				2
+			).inlineDecorations;
 
 			// view line 2: (1,14 -> 1,24)
 			assert.deepEqual(inlineDecorations1, [
@@ -267,7 +224,10 @@ suite('ViewModelDecorations', () => {
 				},
 			]);
 
-			let inlineDecorations2 = decorationsViewportData.inlineDecorations[1];
+			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				3
+			).inlineDecorations;
 
 			// view line 3 (24 -> 36)
 			assert.deepEqual(inlineDecorations2, [
@@ -306,10 +266,14 @@ suite('ViewModelDecorations', () => {
 	});
 
 	test('issue #17208: Problem scrolling in 1.8.0', () => {
-		withTestViewModel({
-			text: 'hello world, this is a buffer that will be wrapped',
-			wrappingColumn: 13
-		}, (viewModel, model) => {
+		const text = [
+			'hello world, this is a buffer that will be wrapped'
+		];
+		const opts: MockCodeEditorCreationOptions = {
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 13
+		};
+		testViewModel(text, opts, (viewModel, model) => {
 			assert.equal(viewModel.getLineContent(1), 'hello world, ');
 			assert.equal(viewModel.getLineContent(2), 'this is a ');
 			assert.equal(viewModel.getLineContent(3), 'buffer that ');
@@ -326,10 +290,22 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let decorationsViewportData = viewModel.getDecorationsViewportData(2, 3);
-			assert.deepEqual(decorationsViewportData.decorations, []);
-			assert.deepEqual(decorationsViewportData.inlineDecorations, [[], []]);
+			let decorations = viewModel.getDecorationsInViewport(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
+			);
+			assert.deepEqual(decorations, []);
+
+			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				2
+			).inlineDecorations;
+			assert.deepEqual(inlineDecorations1, []);
+
+			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+				3
+			).inlineDecorations;
+			assert.deepEqual(inlineDecorations2, []);
 		});
 	});
-
 });

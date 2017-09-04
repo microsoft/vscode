@@ -5,16 +5,8 @@
 
 /* Title Container */
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background: #F3F3F3;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	background: #252526;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs.shows-tabs {
-	border-bottom: 1px solid #6FC3DF;
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.empty {
+	background: inherit !important; /* prevents some ugly flickering when opening first tab */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.tabs > .monaco-scrollable-element {
@@ -61,71 +53,6 @@
 	padding-right: 10px;
 }
 
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
-	background-color: #ECECEC;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(.active) {
-	background-color: #2D2D2D;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #F3F3F3;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #F3F3F3;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab  {
-	border-left-color: #252526;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:last-child  {
-	border-right-color: #252526;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:first-child {
-	border-left-color: transparent;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:not(:first-child) {
-	border-left-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:last-child {
-	border-right-color: #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
-	outline: 1px solid #f38518;
-	outline-offset: -5px;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover  {
-	outline: 1px dashed #f38518;
-	outline-offset: -5px;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #DDECFF;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background-color: #383B3D;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container.dropfeedback,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback {
-	background: none !important;
-	outline: 2px dashed #f38518;
-	outline-offset: -5px;
-}
-
 /* Tab Label */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
@@ -133,25 +60,12 @@
 	margin-bottom: auto;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label {
+	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {
 	height: 16px; /* tweak the icon size of the editor labels when icons are enabled */
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
-	opacity: 0.7 !important;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
-	opacity: 0.5 !important;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active .tab-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dropfeedback .tab-label {
-	opacity: 1 !important;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
-	opacity: 1 !important;
 }
 
 /* Tab Close */
@@ -210,23 +124,18 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active > .tab-close .action-label,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {
-	opacity: 1 !important;
-}
-
 /* No Tab Close Button */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
-	padding-right: 28px; /* make room for dirty indication when we are running without close button */
+	padding-right: 12px;
+	transition: padding-right ease-in-out 100ms;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
 	background-repeat: no-repeat;
 	background-position-y: center;
 	background-position-x: calc(100% - 6px); /* to the right of the tab label */
+	padding-right: 28px; /* make room for dirty indication when we are running without close button */
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {

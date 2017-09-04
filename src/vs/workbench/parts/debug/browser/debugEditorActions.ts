@@ -7,10 +7,11 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, editorAction, EditorAction, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -23,31 +24,92 @@ class ToggleBreakpointAction extends EditorAction {
 			alias: 'Debug: Toggle Breakpoint',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.F9
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
 		const modelUri = editor.getModel().uri;
-		const bp = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString()).pop();
+		const bps = debugService.getModel().getBreakpoints()
+			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString());
 
-		if (bp) {
-			return debugService.removeBreakpoints(bp.getId());
+		if (bps.length) {
+			return TPromise.join(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
+			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }]);
 		}
+
+		return TPromise.as(null);
+	}
+}
+
+function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICommonCodeEditor, remove: boolean): TPromise<any> {
+	const debugService = accessor.get(IDebugService);
+
+	const position = editor.getPosition();
+	const modelUri = editor.getModel().uri;
+	const bp = debugService.getModel().getBreakpoints()
+		.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+
+	if (bp) {
+		return remove ? debugService.removeBreakpoints(bp.getId()) : TPromise.as(null);
+	}
+	if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
+		return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
+	}
+
+	return TPromise.as(null);
+}
+
+@editorAction
+class ToggleColumnBreakpointAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.toggleColumnBreakpoint',
+			label: nls.localize('columnBreakpointAction', "Debug: Column Breakpoint"),
+			alias: 'Debug: Column Breakpoint',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyMod.Shift | KeyCode.F9
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		return addColumnBreakpoint(accessor, editor, true);
+	}
+}
+
+// TODO@Isidor merge two column breakpoints actions together
+@editorAction
+class ToggleColumnBreakpointContextMenuAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
+			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
+			alias: 'Toggle Column Breakpoint',
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
+			menuOpts: {
+				group: 'debug',
+				order: 1
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<any> {
+		return addColumnBreakpoint(accessor, editor, false);
 	}
 }
 
 @editorAction
-class EditorConditionalBreakpointAction extends EditorAction {
+class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -61,9 +123,9 @@ class EditorConditionalBreakpointAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const debugService = accessor.get(IDebugService);
 
-		const lineNumber = editor.getPosition().lineNumber;
+		const { lineNumber, column } = editor.getPosition();
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber);
+			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, column);
 		}
 	}
 }
@@ -75,9 +137,9 @@ class RunToCursorAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.runToCursor',
-			label: nls.localize('runToCursor', "Debug: Run to Cursor"),
+			label: nls.localize('runToCursor', "Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
 			menuOpts: {
 				group: 'debug',
 				order: 2
@@ -120,7 +182,7 @@ class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
+			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 0
@@ -147,7 +209,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 			id: 'editor.debug.action.selectionToWatch',
 			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
+			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 1
@@ -174,7 +236,7 @@ class ShowDebugHoverAction extends EditorAction {
 			alias: 'Debug: Show Hover',
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
@@ -200,14 +262,14 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(8),
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape]
 			}
 		});
 	}
 
-	protected runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).closeBreakpointWidget();
 	}
 }

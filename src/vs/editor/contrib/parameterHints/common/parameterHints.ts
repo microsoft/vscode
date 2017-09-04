@@ -28,7 +28,7 @@ export function provideSignatureHelp(model: IReadOnlyModel, position: Position):
 
 		if (result) {
 			// stop when there is a result
-			return;
+			return undefined;
 		}
 
 		return asWinJsPromise(token => support.provideSignatureHelp(model, position, token)).then(thisResult => {

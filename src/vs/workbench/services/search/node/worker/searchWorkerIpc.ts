@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISerializedFileMatch } from '../search';
 import { IPatternInfo } from 'vs/platform/search/common/search';
-import { SearchWorkerManager } from './searchWorker';
+import { SearchWorker } from './searchWorker';
 
 export interface ISearchWorkerSearchArgs {
 	pattern: IPatternInfo;
@@ -38,7 +38,7 @@ export interface ISearchWorkerChannel extends IChannel {
 }
 
 export class SearchWorkerChannel implements ISearchWorkerChannel {
-	constructor(private worker: SearchWorkerManager) {
+	constructor(private worker: SearchWorker) {
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -47,6 +47,7 @@ export class SearchWorkerChannel implements ISearchWorkerChannel {
 			case 'search': return this.worker.search(arg);
 			case 'cancel': return this.worker.cancel();
 		}
+		return undefined;
 	}
 }
 

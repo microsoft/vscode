@@ -7,15 +7,9 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 22px;
-	background: #007ACC;
-	color: white;
 	font-size: 12px;
 	padding: 0 10px;
 	overflow: hidden;
-}
-
-.monaco-workbench.no-workspace > .part.statusbar {
-	background: #68217A;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item {
@@ -60,18 +54,5 @@
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.12);
 	text-decoration: none;
-	color: inherit;
-}
-
-.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.18);
-}
-
-/* High Contrast Black */
-
-.hc-black .monaco-workbench > .part.statusbar {
-	border-top: 1px solid #6FC3DF;
-	background-color: #000;
 }

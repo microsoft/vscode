@@ -15,16 +15,3 @@
 	flex: 1;
 	padding-left: 5px;
 }
-
-.monaco-workbench > .part > .composite.title > .title-label span {
-	color: #6f6f6f;
-	text-transform: uppercase;
-}
-
-.vs-dark .monaco-workbench > .part > .composite.title > .title-label span  {
-	color: #bbbbbb;
-}
-
-.hc-black .monaco-workbench > .part > .composite.title > .title-label span  {
-	color: #fff;
-}

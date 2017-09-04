@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/asp.vb.net.tmbundle/blob/master/Syntaxes/ASP%20VB.net.plist",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/textmate/asp.vb.net.tmbundle/commit/72d44550b3286d0382d7be0624140cf97857ff69",
 	"comment": "Modified from the original ASP bundle. Originally modified by Thomas Aylott subtleGradient.com",
 	"fileTypes": [
 		"vb"
@@ -233,6 +239,5 @@
 		}
 	},
 	"scopeName": "source.asp.vb.net",
-	"uuid": "7F9C9343-D48E-4E7D-BFE8-F680714DCD3E",
-	"version": "https://github.com/textmate/asp.vb.net.tmbundle/commit/72d44550b3286d0382d7be0624140cf97857ff69"
+	"uuid": "7F9C9343-D48E-4E7D-BFE8-F680714DCD3E"
 }

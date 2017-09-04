@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/MagicStack/MagicPython/blob/master/grammars/MagicRegExp.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/MagicStack/MagicPython/commit/361a4964a559481330764a447e7bab88d4f1b01b",
 	"name": "MagicRegExp",
 	"scopeName": "source.regexp.python",
 	"fileTypes": [
@@ -12,6 +18,55 @@
 	],
 	"repository": {
 		"regexp-base-expression": {
+			"patterns": [
+				{
+					"include": "#regexp-quantifier"
+				},
+				{
+					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"fregexp-base-expression": {
+			"patterns": [
+				{
+					"include": "#fregexp-quantifier"
+				},
+				{
+					"include": "#fstring-formatting-braces"
+				},
+				{
+					"match": "\\{.*?\\}"
+				},
+				{
+					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"fstring-formatting-braces": {
+			"patterns": [
+				{
+					"comment": "empty braces are illegal",
+					"match": "({)(\\s*?)(})",
+					"captures": {
+						"1": {
+							"name": "constant.character.format.placeholder.other.python"
+						},
+						"2": {
+							"name": "invalid.illegal.brace.python"
+						},
+						"3": {
+							"name": "constant.character.format.placeholder.other.python"
+						}
+					}
+				},
+				{
+					"name": "constant.character.escape.python",
+					"match": "({{|}})"
+				}
+			]
+		},
+		"regexp-base-common": {
 			"patterns": [
 				{
 					"name": "support.other.match.any.regexp",
@@ -34,13 +89,17 @@
 					"match": "\\|"
 				},
 				{
-					"name": "keyword.operator.quantifier.regexp",
-					"match": "(?x)\n  \\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\n"
-				},
-				{
 					"include": "#regexp-escape-sequence"
 				}
 			]
+		},
+		"regexp-quantifier": {
+			"name": "keyword.operator.quantifier.regexp",
+			"match": "(?x)\n  \\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\n"
+		},
+		"fregexp-quantifier": {
+			"name": "keyword.operator.quantifier.regexp",
+			"match": "(?x)\n  \\{\\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\\}\n"
 		},
 		"regexp-backreference-number": {
 			"name": "meta.backreference.regexp",
@@ -56,13 +115,13 @@
 			"match": "(?x)\n  (\\()  (\\?P= \\w+(?:\\s+[[:alnum:]]+)?)  (\\))\n",
 			"captures": {
 				"1": {
-					"name": "punctuation.parenthesis.backreference.named.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.begin.regexp"
 				},
 				"2": {
 					"name": "entity.name.tag.named.backreference.regexp"
 				},
 				"3": {
-					"name": "punctuation.parenthesis.backreference.named.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.end.regexp"
 				}
 			}
 		},
@@ -129,6 +188,14 @@
 				}
 			]
 		},
+		"codetags": {
+			"match": "(?:\\b(NOTE|XXX|HACK|FIXME|BUG|TODO)\\b)",
+			"captures": {
+				"1": {
+					"name": "keyword.codetag.notation.python"
+				}
+			}
+		},
 		"regexp-expression": {
 			"patterns": [
 				{
@@ -183,7 +250,7 @@
 					"end": "(\\])",
 					"beginCaptures": {
 						"1": {
-							"name": "constant.other.set.regexp punctuation.character.set.begin.regexp"
+							"name": "punctuation.character.set.begin.regexp constant.other.set.regexp"
 						},
 						"2": {
 							"name": "keyword.operator.negation.regexp"
@@ -194,7 +261,7 @@
 					},
 					"endCaptures": {
 						"1": {
-							"name": "constant.other.set.regexp punctuation.character.set.end.regexp"
+							"name": "punctuation.character.set.end.regexp constant.other.set.regexp"
 						},
 						"2": {
 							"name": "invalid.illegal.newline.python"
@@ -218,7 +285,7 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.named.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.begin.regexp"
 				},
 				"2": {
 					"name": "entity.name.tag.named.group.regexp"
@@ -226,7 +293,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.named.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -274,7 +341,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.end.regexp keyword.operator.lookahead.regexp"
+					"name": "keyword.operator.lookahead.regexp punctuation.parenthesis.lookahead.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -299,7 +366,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.end.regexp keyword.operator.lookahead.negative.regexp"
+					"name": "keyword.operator.lookahead.negative.regexp punctuation.parenthesis.lookahead.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -324,7 +391,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.end.regexp keyword.operator.lookbehind.regexp"
+					"name": "keyword.operator.lookbehind.regexp punctuation.parenthesis.lookbehind.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -349,7 +416,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.end.regexp keyword.operator.lookbehind.negative.regexp"
+					"name": "keyword.operator.lookbehind.negative.regexp punctuation.parenthesis.lookbehind.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -374,7 +441,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.conditional.end.regexp keyword.operator.conditional.negative.regexp"
+					"name": "keyword.operator.conditional.negative.regexp punctuation.parenthesis.conditional.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -391,12 +458,12 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.parenthesis.non-capturing.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.begin.regexp"
 				}
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.non-capturing.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -413,12 +480,12 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.parenthesis.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp"
 				}
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -430,6 +497,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/MagicStack/MagicPython/commit/a45287d159f82256c768ad2e1114ca9751d28670"
+	}
 }

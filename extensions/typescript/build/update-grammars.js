@@ -8,7 +8,7 @@ var updateGrammar = require('../../../build/npm/update-grammar');
 
 function adaptToJavaScript(grammar) {
 	grammar.name = 'JavaScript (with React support)';
-	grammar.fileTypes = ['.js', '.jsx' ];
+	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs' ];
 	grammar.scopeName = 'source.js';
 
 	var fixScopeNames = function(rule) {

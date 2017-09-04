@@ -9,15 +9,15 @@ import * as assert from 'assert';
 import { Build, Builder } from 'vs/base/browser/builder';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
-import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 class MyPart extends Part {
 
 	constructor(private expectedParent: Builder) {
-		super('myPart', { hasTitle: true });
+		super('myPart', { hasTitle: true }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -38,7 +38,7 @@ class MyPart extends Part {
 class MyPart2 extends Part {
 
 	constructor() {
-		super('myPart2', { hasTitle: true });
+		super('myPart2', { hasTitle: true }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -63,7 +63,7 @@ class MyPart2 extends Part {
 class MyPart3 extends Part {
 
 	constructor() {
-		super('myPart2', { hasTitle: false });
+		super('myPart2', { hasTitle: false }, new TestThemeService());
 	}
 
 	public createTitleArea(parent: Builder): Builder {
@@ -83,15 +83,13 @@ class MyPart3 extends Part {
 suite('Workbench Part', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'workbench-part-fixture';
-	let context: IWorkspaceContextService;
 	let storage: IStorageService;
 
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
 		document.body.appendChild(fixture);
-		context = new WorkspaceContextService(TestWorkspace);
-		storage = new StorageService(new InMemoryLocalStorage(), null, context);
+		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
 	});
 
 	teardown(() => {

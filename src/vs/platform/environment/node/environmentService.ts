@@ -8,7 +8,9 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
+import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -29,25 +31,28 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
-function getIPCHandlePrefix(): string {
-	let name = pkg.name;
-
-	// Support to run VS Code multiple times as different user
-	// by making the socket unique over the logged in user
-	let userId = getUniqueUserId();
-	if (userId) {
-		name += `-${userId}`;
+function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (process.env['XDG_RUNTIME_DIR']) {
+		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
 	}
-
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${name}`;
-	}
-
-	return path.join(os.tmpdir(), name);
+	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
-function getIPCHandleSuffix(): string {
-	return process.platform === 'win32' ? '-sock' : '.sock';
+function getWin32IPCHandle(type: string): string {
+	// Support to run VS Code multiple times as different user
+	// by making the socket unique over the logged in user
+	const userId = getUniqueUserId();
+	const name = product.applicationName + (userId ? `-${userId}` : '');
+
+	return `\\\\.\\pipe\\${name}-${pkg.version}-${type}-sock`;
+}
+
+function getIPCHandle(userDataPath: string, type: string): string {
+	if (process.platform === 'win32') {
+		return getWin32IPCHandle(type);
+	} else {
+		return getNixIPCHandle(userDataPath, type);
+	}
 }
 
 export class EnvironmentService implements IEnvironmentService {
@@ -63,9 +68,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get userHome(): string { return os.homedir(); }
-
-	@memoize
-	get userProductHome(): string { return path.join(this.userHome, product.dataFolderName); }
 
 	@memoize
 	get userDataPath(): string { return parseUserDataDir(this._args, process); }
@@ -93,7 +95,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userProductHome, 'extensions'); }
+	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
+
+	@memoize
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
@@ -103,37 +108,68 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
+	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
+
 	@memoize
-	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugExtensionHost(): { port: number; break: boolean; debugId: string } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
 	get wait(): boolean { return this._args.wait; }
-	get performance(): boolean { return this._args.performance; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
-	@memoize
-	get mainIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}${getIPCHandleSuffix()}`; }
+	get performance(): boolean { return this._args.performance; }
 
 	@memoize
-	get sharedIPCHandle(): string { return `${getIPCHandlePrefix()}-${pkg.version}-shared${getIPCHandleSuffix()}`; }
+	get profileStartup(): { prefix: string, dir: string } | undefined {
+		if (this._args['prof-startup']) {
+			return {
+				prefix: process.env.VSCODE_PROFILES_PREFIX,
+				dir: os.homedir()
+			};
+		} else {
+			return undefined;
+		}
+	}
 
 	@memoize
-	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }
+	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) { }
+	@memoize
+	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
+
+	@memoize
+	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit) : undefined; }
+
+	readonly machineUUID: string;
+
+	constructor(private _args: ParsedArgs, private _execPath: string) {
+		const machineIdPath = path.join(this.userDataPath, 'machineid');
+
+		try {
+			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
+		} catch (err) {
+			this.machineUUID = generateUuid();
+
+			try {
+				fs.writeFileSync(machineIdPath, this.machineUUID);
+			} catch (err) {
+				console.warn('Could not store machine ID');
+			}
+		}
+	}
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; } {
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; debugId: string } {
 	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
 	const port = Number(portStr) || (!isBuild ? 5870 : null);
 	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
-	return { port, break: brk };
+	return { port, break: brk, debugId: args.debugId };
 }
 
 function parsePathArg(arg: string, process: NodeJS.Process): string {
 	if (!arg) {
-		return;
+		return undefined;
 	}
 
 	// Determine if the arg is relative or absolute, if relative use the original CWD

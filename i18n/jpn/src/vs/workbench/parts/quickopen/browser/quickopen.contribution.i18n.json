@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "行へ移動",
 	"gotoSymbolDescription": "ファイル内のシンボルへ移動",
 	"gotoSymbolDescriptionScoped": "カテゴリを指定してファイル内のシンボルへ移動",
-	"helpDescription": "ヘルプの表示"
+	"helpDescription": "ヘルプの表示",
+	"viewPickerDescription": "ビューを開く"
 }

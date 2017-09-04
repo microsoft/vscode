@@ -1,13 +1,4 @@
 {
-	"jsdoc snippet": {
-		"prefix": "jsdoc comment",
-		"body": [
-			"/**",
-			" * $0",
-			" */"
-		],
-		"description": "jsdoc snippet"
-	},
 	"Constructor": {
 		"prefix": "ctor",
 		"body": [

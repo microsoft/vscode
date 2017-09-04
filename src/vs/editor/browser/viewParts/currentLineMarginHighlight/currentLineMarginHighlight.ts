@@ -6,28 +6,26 @@
 'use strict';
 
 import 'vs/css!./currentLineMarginHighlight';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ILayoutProvider } from 'vs/editor/browser/viewLayout/layoutProvider';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _layoutProvider: ILayoutProvider;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
-	constructor(context: ViewContext, layoutProvider: ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
-
-		this._layoutProvider = layoutProvider;
 
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
@@ -39,38 +37,16 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._primaryCursorLineNumber = 1;
-		return true;
-	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		let hasChanged = false;
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
-		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
-			this._primaryCursorLineNumber = e.position.lineNumber;
-			hasChanged = true;
-		}
-		return hasChanged;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.renderLineHighlight) {
+		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 		}
 		if (e.layoutInfo) {
@@ -78,15 +54,37 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		let hasChanged = false;
+
+		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
+			this._primaryCursorIsInEditableRange = e.isInEditableRange;
+			hasChanged = true;
+		}
+
+		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
+		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
+			this._primaryCursorLineNumber = primaryCursorLineNumber;
+			hasChanged = true;
+		}
+
+		return hasChanged;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onZonesChanged(): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 	// --- end event handlers
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
@@ -110,3 +108,18 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let lineHighlight = theme.getColor(editorLineHighlight);
+	if (lineHighlight) {
+		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
+	} else {
+		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		if (lineHighlightBorder) {
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+		}
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
+		}
+	}
+});

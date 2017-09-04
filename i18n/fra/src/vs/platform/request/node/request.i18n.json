@@ -6,6 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP",
 	"proxy": "Paramètre de proxy à utiliser. S'il n'est pas défini, il est récupéré à partir des variables d'environnement http_proxy et https_proxy",
-	"proxyAuthorization": "Valeur à envoyer en tant qu'en-tête 'Proxy-Authorization' pour chaque requête réseau.",
-	"strictSSL": "Spécifie si le certificat de serveur proxy doit être vérifié par rapport à la liste des autorités de certification fournies."
+	"strictSSL": "Spécifie si le certificat de serveur proxy doit être vérifié par rapport à la liste des autorités de certification fournies.",
+	"proxyAuthorization": "Valeur à envoyer en tant qu'en-tête 'Proxy-Authorization' pour chaque requête réseau."
 }

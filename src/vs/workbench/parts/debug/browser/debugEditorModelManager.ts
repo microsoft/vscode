@@ -7,11 +7,14 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
+import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IRange, IModelDeltaDecoration, IModelDecorationsChangedEvent, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IDebugEditorModelData {
 	model: IModel;
@@ -20,8 +23,8 @@ interface IDebugEditorModelData {
 	breakpointLines: number[];
 	breakpointDecorationsAsMap: Map<string, boolean>;
 	currentStackDecorations: string[];
-	topStackFrameRange: IRange;
 	dirty: boolean;
+	topStackFrameRange: Range;
 }
 
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
@@ -63,9 +66,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			if (this.debugService.state === State.Inactive) {
-				this.modelDataMap.forEach(modelData => modelData.dirty = false);
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			if (state === State.Inactive) {
+				this.modelDataMap.forEach(modelData => {
+					modelData.dirty = false;
+					modelData.topStackFrameRange = undefined;
+				});
 			}
 		}));
 	}
@@ -88,8 +94,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
 			breakpointDecorationsAsMap,
 			currentStackDecorations: currentStackDecorations,
-			topStackFrameRange: null,
-			dirty: false
+			dirty: false,
+			topStackFrameRange: undefined
 		});
 	}
 
@@ -116,13 +122,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return result;
 		}
 
-		// only show decorations for the currently focussed thread.
-		const wholeLineRange = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, Number.MAX_VALUE);
-		const range = new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column + 1);
+		// only show decorations for the currently focused thread.
+		const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		const range = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1);
 
-		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focussed stack frame,
+		// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focused stack frame,
 		// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-		if (stackFrame === stackFrame.thread.getCallStack()[0]) {
+		const callStack = stackFrame.thread.getCallStack();
+		if (callStack && callStack.length && stackFrame === callStack[0]) {
 			result.push({
 				options: DebugEditorModelManager.TOP_STACK_FRAME_MARGIN,
 				range
@@ -131,24 +138,29 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			if (stackFrame.thread.stoppedDetails && stackFrame.thread.stoppedDetails.reason === 'exception') {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
-					range: wholeLineRange
+					range: columnUntilEOLRange
 				});
 			} else {
 				result.push({
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
-					range: wholeLineRange
+					range: columnUntilEOLRange
 				});
+				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+					result.push({
+						options: { className: 'debug-top-stack-frame-range' },
+						range: stackFrame.range
+					});
+				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
-					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === wholeLineRange.startLineNumber &&
-						modelData.topStackFrameRange.startColumn !== wholeLineRange.startColumn) {
+					if (modelData.topStackFrameRange && modelData.topStackFrameRange.startLineNumber === stackFrame.range.startLineNumber && modelData.topStackFrameRange.startColumn !== stackFrame.range.startColumn) {
 						result.push({
-							options: DebugEditorModelManager.TOP_STACK_FRAME_COLUMN_DECORATION,
-							range: wholeLineRange
+							options: DebugEditorModelManager.TOP_STACK_FRAME_INLINE_DECORATION,
+							range: columnUntilEOLRange
 						});
 					}
-					modelData.topStackFrameRange = wholeLineRange;
+					modelData.topStackFrameRange = columnUntilEOLRange;
 				}
 			}
 		} else {
@@ -156,10 +168,16 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
+			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+				result.push({
+					options: { className: 'debug-focused-stack-frame-range' },
+					range: stackFrame.range
+				});
+			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
-				range: wholeLineRange
+				range: columnUntilEOLRange
 			});
 		}
 
@@ -198,7 +216,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					enabled: breakpoint.enabled,
 					condition: breakpoint.condition,
 					hitCondition: breakpoint.hitCondition,
-					column: breakpoint.column
+					column: breakpoint.column ? decorationRange.startColumn : undefined
 				});
 			}
 		}
@@ -244,9 +262,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(breakpoints: IBreakpoint[]): IModelDeltaDecoration[] {
 		return breakpoints.map((breakpoint) => {
+			const range = breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+				: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Constants.MAX_SAFE_SMALL_INTEGER); // Decoration has to have a width #20688
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),
-				range: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Number.MAX_VALUE)
+				range
 			};
 		});
 	}
@@ -262,17 +282,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 					!breakpoint.condition && !breakpoint.hitCondition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
-		if (result && breakpoint.message) {
-			result = objects.clone(result);
-			result.glyphMarginHoverMessage = breakpoint.message;
-		}
-
 		if (result) {
+			result = objects.clone(result);
+			if (breakpoint.message) {
+				result.glyphMarginHoverMessage = new MarkdownString().appendText(breakpoint.message);
+			}
+			if (breakpoint.column) {
+				result.beforeContentClassName = `debug-breakpoint-column ${result.glyphMarginClassName}-column`;
+			}
+
 			return result;
 		}
 
 		const process = this.debugService.getViewModel().focusedProcess;
-		if (process && !process.session.configuration.capabilities.supportsConditionalBreakpoints) {
+		if (process && !process.session.capabilities.supportsConditionalBreakpoints) {
 			return DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 		}
 
@@ -283,12 +306,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		} else {
 			condition = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
 		}
-		const glyphMarginHoverMessage = `\`\`\`${modeId}\n${condition}\`\`\``;
+		const glyphMarginHoverMessage = new MarkdownString().appendCodeblock(modeId, condition);
+		const glyphMarginClassName = 'debug-breakpoint-conditional-glyph';
+		const beforeContentClassName = breakpoint.column ? `debug-breakpoint-column ${glyphMarginClassName}-column` : undefined;
 
 		return {
-			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+			glyphMarginClassName,
 			glyphMarginHoverMessage,
-			stickiness
+			stickiness,
+			beforeContentClassName
 		};
 	}
 
@@ -296,31 +322,30 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static BREAKPOINT_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointHover', "Breakpoint"),
 		stickiness
 	};
 
 	private static BREAKPOINT_DISABLED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-disabled-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointDisabledHover', "Disabled Breakpoint")),
 		stickiness
 	};
 
 	private static BREAKPOINT_UNVERIFIED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint")),
 		stickiness
 	};
 
 	private static BREAKPOINT_DIRTY_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session."),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
 		stickiness
 	};
 
 	private static BREAKPOINT_UNSUPPORTED_DECORATION: IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-breakpoint-unsupported-glyph',
-		glyphMarginHoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
+		glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type")),
 		stickiness
 	};
 
@@ -337,24 +362,25 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private static TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-line',
 		stickiness
 	};
 
 	private static TOP_STACK_FRAME_EXCEPTION_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-top-stack-frame-exception-line',
 		stickiness
 	};
 
-	private static TOP_STACK_FRAME_COLUMN_DECORATION: IModelDecorationOptions = {
-		isWholeLine: false,
-		className: 'debug-top-stack-frame-column',
-		stickiness
+	private static TOP_STACK_FRAME_INLINE_DECORATION: IModelDecorationOptions = {
+		beforeContentClassName: 'debug-top-stack-frame-column'
 	};
 
 	private static FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 		isWholeLine: true,
+		inlineClassName: 'debug-remove-token-colors',
 		className: 'debug-focused-stack-frame-line',
 		stickiness
 	};

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-toolbar .dropdown > .dropdown-label:not(:empty):not(.tick) {
+.monaco-toolbar .dropdown > .dropdown-label:not(:empty) {
 	padding: 0;
 }
 

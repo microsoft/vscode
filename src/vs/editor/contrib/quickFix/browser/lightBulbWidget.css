@@ -20,14 +20,11 @@
 	cursor: pointer;
 }
 
-.monaco-editor.vs .lightbulb-glyph,
-.monaco-editor.vs .lightbulb-glyph[data-severity="high"] {
+.monaco-editor.vs .lightbulb-glyph {
 	background: url('lightbulb.svg') center center no-repeat;
 }
 
 .monaco-editor.vs-dark .lightbulb-glyph,
-.monaco-editor.hc-black .lightbulb-glyph,
-.monaco-editor.vs-dark .lightbulb-glyph[data-severity="high"],
-.monaco-editor.hc-black .lightbulb-glyph[data-severity="high"] {
+.monaco-editor.hc-black .lightbulb-glyph {
 	background: url('lightbulb-dark.svg') center center no-repeat;
 }

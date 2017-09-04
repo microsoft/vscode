@@ -6,10 +6,10 @@
 'use strict';
 
 import 'vs/css!./linesDecorations';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
@@ -22,8 +22,8 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._decorationsLeft = 0;
-		this._decorationsWidth = 0;
+		this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+		this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -32,65 +32,56 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.layoutInfo) {
+			this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
+			this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
+		}
 		return true;
 	}
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorRevealRange(e: editorCommon.IViewRevealRangeEvent): boolean {
-		return false;
-	}
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._decorationsLeft = layoutInfo.decorationsLeft;
-		this._decorationsWidth = layoutInfo.decorationsWidth;
-		return true;
-	}
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
-	public onZonesChanged(): boolean {
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
 	// --- end event handlers
 
-	protected _getDecorations(ctx: IRenderingContext): DecorationToRender[] {
+	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		let decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [];
+		let r: DecorationToRender[] = [], rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
 			let linesDecorationsClassName = d.source.options.linesDecorationsClassName;
 			if (linesDecorationsClassName) {
-				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName));
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
 			}
 		}
 		return r;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));

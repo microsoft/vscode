@@ -15,26 +15,25 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, GlobalActivityActionItem, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem, GlobalActivityAction, IViewletActivity } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
-
-interface IViewletActivity {
-	badge: IBadge;
-	clazz: string;
-}
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
@@ -45,6 +44,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private dimension: Dimension;
 
+	private globalActionBar: ActionBar;
+	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
+
 	private viewletSwitcherBar: ActionBar;
 	private viewletOverflowAction: ViewletOverflowActivityAction;
 	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
@@ -53,7 +55,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
 	private viewletIdToActivityStack: { [viewletId: string]: IViewletActivity[]; };
 
-	private memento: any;
+	private memento: object;
 	private pinnedViewlets: string[];
 	private activeUnpinnedViewlet: ViewletDescriptor;
 
@@ -64,9 +66,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
+
+		this.globalActivityIdToActions = Object.create(null);
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
@@ -77,22 +82,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			// TODO@Ben: Migrate git => scm viewlet
-
-			const map = SCMPreview.enabled
-				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
-				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
-
 			this.pinnedViewlets = pinnedViewlets
-				.map(map)
+				// TODO@Ben: Migrate git => scm viewlet
+				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
 				.filter(arrays.uniqueFilter<string>(str => str));
-
 		} else {
 			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
 		}
-
-		// Update viewlet switcher when external viewlets become ready
-		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 
 		this.registerListeners();
 	}
@@ -126,6 +122,21 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.viewletIdToActions[id]) {
 			this.viewletIdToActions[id].deactivate();
 		}
+	}
+
+	public showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+		if (!badge) {
+			throw illegalArgument('badge');
+		}
+
+		const action = this.globalActivityIdToActions[globalActivityId];
+		if (!action) {
+			throw illegalArgument('globalActivityId');
+		}
+
+		action.setBadge(badge);
+
+		return toDisposable(() => action.setBadge(undefined));
 	}
 
 	public showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
@@ -170,7 +181,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		} else {
 			// update
-			const [{badge, clazz}] = stack;
+			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
@@ -185,6 +196,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Top Actionbar with action items for each viewlet action
 		this.createViewletSwitcher($result.clone());
 
+		// Top Actionbar with action items for each viewlet action
+		this.createGlobalActivityActionBar($result.getHTMLElement());
+
 		// Contextmenu for viewlets
 		$(parent).on('contextmenu', (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
@@ -194,11 +208,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Allow to drop at the end to move viewlet to the end
 		$(parent).on(DOM.EventType.DROP, (e: DragEvent) => {
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				DOM.EventHelper.stop(e, true);
 
-				ActivityActionItem.clearDraggedViewlet();
+				ViewletActionItem.clearDraggedViewlet();
 
 				const targetId = this.pinnedViewlets[this.pinnedViewlets.length - 1];
 				if (targetId !== draggedViewlet.id) {
@@ -208,6 +222,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		return $result;
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
+
+		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('box-sizing', borderColor && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -233,9 +266,36 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		this.updateViewletSwitcher();
+
+		// Update viewlet switcher when external viewlets become ready
+		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
+	}
+
+	private createGlobalActivityActionBar(container: HTMLElement): void {
+		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
+		const descriptors = activityRegistry.getActivities();
+		const actions = descriptors
+			.map(d => this.instantiationService.createInstance(d))
+			.map(a => new GlobalActivityAction(a));
+
+		this.globalActionBar = new ActionBar(container, {
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a),
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			animated: false
+		});
+
+		actions.forEach(a => {
+			this.globalActivityIdToActions[a.id] = a;
+			this.globalActionBar.push(a);
+		});
 	}
 
 	private updateViewletSwitcher() {
+		if (!this.viewletSwitcherBar) {
+			return; // We have not been rendered yet so there is nothing to update.
+		}
+
 		let viewletsToShow = this.getPinnedViewlets();
 
 		// Always show the active viewlet even if it is marked to be hidden
@@ -250,7 +310,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
 		if (this.dimension) {
-			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			let availableHeight = this.dimension.height;
+			if (this.globalActionBar) {
+				availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTIVITY_ACTION_HEIGHT); // adjust for global actions showing
+			}
+
+			const maxVisible = Math.floor(availableHeight / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
 			overflows = viewletsToShow.length > maxVisible;
 
 			if (overflows) {
@@ -354,7 +419,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet);
 
-		this.viewletIdToActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
+		this.viewletIdToActionItems[action.id] = this.instantiationService.createInstance(ViewletActionItem, action);
 		this.viewletIdToActions[viewlet.id] = action;
 
 		return action;
@@ -476,6 +541,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.viewletSwitcherBar) {
 			this.viewletSwitcherBar.dispose();
 			this.viewletSwitcherBar = null;
+		}
+
+		if (this.globalActionBar) {
+			this.globalActionBar.dispose();
+			this.globalActionBar = null;
 		}
 
 		super.dispose();

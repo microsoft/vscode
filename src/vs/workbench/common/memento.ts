@@ -46,7 +46,7 @@ export class Memento {
 	 * provided, the scope will be global, Memento.Scope.WORKSPACE can be used to
 	 * scope the memento to the workspace.
 	 */
-	public getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): any {
+	public getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): object {
 
 		// Scope by Workspace
 		if (scope === Scope.WORKSPACE) {
@@ -89,7 +89,7 @@ export class Memento {
 
 class ScopedMemento {
 	private id: string;
-	private mementoObj: any;
+	private mementoObj: object;
 	private scope: Scope;
 
 	constructor(id: string, scope: Scope, private storageService: IStorageService) {
@@ -98,11 +98,11 @@ class ScopedMemento {
 		this.mementoObj = this.loadMemento();
 	}
 
-	public getMemento(): any {
+	public getMemento(): object {
 		return this.mementoObj;
 	}
 
-	private loadMemento(): any {
+	private loadMemento(): object {
 		let storageScope = this.scope === Scope.GLOBAL ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 		let memento = this.storageService.get(this.id, storageScope);
 		if (memento) {

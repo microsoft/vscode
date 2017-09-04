@@ -6,10 +6,11 @@
 
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { Position } from 'vs/editor/common/core/position';
-import { IRawText, ITextModelWithMarkers } from 'vs/editor/common/editorCommon';
+import { ITextModelWithMarkers, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { LineMarker } from 'vs/editor/common/model/modelLine';
 import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export interface IMarkerIdToMarkerMap {
 	[key: string]: LineMarker;
@@ -28,8 +29,8 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
 
-	constructor(allowedEventTypes: string[], rawText: IRawText, languageIdentifier: LanguageIdentifier) {
-		super(allowedEventTypes, rawText, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = Object.create(null);
 	}
@@ -39,7 +40,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	protected _resetValue(newValue: IRawText): void {
+	protected _resetValue(newValue: ITextSource): void {
 		super._resetValue(newValue);
 
 		// Destroy all my markers
@@ -135,14 +136,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 
 	_getMarkersCount(): number {
 		return Object.keys(this._markerIdToMarker).length;
-	}
-
-	protected _getLineMarkers(lineNumber: number): LineMarker[] {
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		return this._lines[lineNumber - 1].getMarkers();
 	}
 
 	_removeMarker(id: string): void {

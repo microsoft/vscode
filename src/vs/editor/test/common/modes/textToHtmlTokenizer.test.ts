@@ -5,10 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, MetadataConsts } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
+import { tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	function toStr(pieces: { className: string; text: string }[]): string {
@@ -62,6 +63,134 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		assert.equal(actual, expectedStr);
 
 		mode.dispose();
+	});
+
+	test('tokenizeLineToHTML', () => {
+		const text = 'Ciao hello world!';
+		const lineTokens = [
+			new ViewLineToken(
+				4,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				5,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				10,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				11,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				17,
+				(
+					(5 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			)
+		];
+		const colorMap = [null, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 12, 4),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 11, 4),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 1, 11, 4),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4),
+			[
+				'<div>',
+				'<span style="color: #000000;"> </span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 11, 4),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;"> </span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 10, 4),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">hello</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 6, 9, 4),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">ell</span>',
+				'</div>'
+			].join('')
+		);
 	});
 
 });

@@ -5,51 +5,85 @@
 'use strict';
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
-	public _serviceBrand: any;
+
+	_serviceBrand: any;
+
 	private _onCodeEditorAdd: Emitter<ICommonCodeEditor>;
 	private _onCodeEditorRemove: Emitter<ICommonCodeEditor>;
-	private _codeEditors: {
-		[editorId: string]: ICommonCodeEditor;
-	};
+	private _codeEditors: { [editorId: string]: ICommonCodeEditor; };
+
+	private _onDiffEditorAdd: Emitter<ICommonDiffEditor>;
+	private _onDiffEditorRemove: Emitter<ICommonDiffEditor>;
+	private _diffEditors: { [editorId: string]: ICommonDiffEditor; };
 
 	constructor() {
 		this._codeEditors = Object.create(null);
+		this._diffEditors = Object.create(null);
 		this._onCodeEditorAdd = new Emitter<ICommonCodeEditor>();
 		this._onCodeEditorRemove = new Emitter<ICommonCodeEditor>();
+		this._onDiffEditorAdd = new Emitter<ICommonDiffEditor>();
+		this._onDiffEditorRemove = new Emitter<ICommonDiffEditor>();
 	}
 
-	public addCodeEditor(editor: ICommonCodeEditor): void {
+	addCodeEditor(editor: ICommonCodeEditor): void {
 		this._codeEditors[editor.getId()] = editor;
 		this._onCodeEditorAdd.fire(editor);
 	}
 
-	public get onCodeEditorAdd(): Event<ICommonCodeEditor> {
+	get onCodeEditorAdd(): Event<ICommonCodeEditor> {
 		return this._onCodeEditorAdd.event;
 	}
 
-	public removeCodeEditor(editor: ICommonCodeEditor): void {
+	removeCodeEditor(editor: ICommonCodeEditor): void {
 		if (delete this._codeEditors[editor.getId()]) {
 			this._onCodeEditorRemove.fire(editor);
 		}
 	}
 
-	public get onCodeEditorRemove(): Event<ICommonCodeEditor> {
+	get onCodeEditorRemove(): Event<ICommonCodeEditor> {
 		return this._onCodeEditorRemove.event;
 	}
 
-	public getCodeEditor(editorId: string): ICommonCodeEditor {
+	getCodeEditor(editorId: string): ICommonCodeEditor {
 		return this._codeEditors[editorId] || null;
 	}
 
-	public listCodeEditors(): ICommonCodeEditor[] {
+	listCodeEditors(): ICommonCodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
 
-	public getFocusedCodeEditor(): ICommonCodeEditor {
+	addDiffEditor(editor: ICommonDiffEditor): void {
+		this._diffEditors[editor.getId()] = editor;
+		this._onDiffEditorAdd.fire(editor);
+	}
+
+	get onDiffEditorAdd(): Event<ICommonDiffEditor> {
+		return this._onDiffEditorAdd.event;
+	}
+
+	removeDiffEditor(editor: ICommonDiffEditor): void {
+		if (delete this._diffEditors[editor.getId()]) {
+			this._onDiffEditorRemove.fire(editor);
+		}
+	}
+
+	get onDiffEditorRemove(): Event<ICommonDiffEditor> {
+		return this._onDiffEditorRemove.event;
+	}
+
+	getDiffEditor(editorId: string): ICommonDiffEditor {
+		return this._diffEditors[editorId] || null;
+	}
+
+	listDiffEditors(): ICommonDiffEditor[] {
+		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
+	}
+
+	getFocusedCodeEditor(): ICommonCodeEditor {
 		let editorWithWidgetFocus: ICommonCodeEditor = null;
 
 		let editors = this.listCodeEditors();
@@ -69,7 +103,56 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return editorWithWidgetFocus;
 	}
 
-	public abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
-	public abstract removeDecorationType(key: string): void;
-	public abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
+	abstract registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
+	abstract removeDecorationType(key: string): void;
+	abstract resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions;
+
+	private _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+
+	public setTransientModelProperty(model: IModel, key: string, value: any): void {
+		const uri = model.uri.toString();
+
+		let w: ModelTransientSettingWatcher;
+		if (this._transientWatchers.hasOwnProperty(uri)) {
+			w = this._transientWatchers[uri];
+		} else {
+			w = new ModelTransientSettingWatcher(uri, model, this);
+			this._transientWatchers[uri] = w;
+		}
+
+		w.set(key, value);
+	}
+
+	public getTransientModelProperty(model: IModel, key: string): any {
+		const uri = model.uri.toString();
+
+		if (!this._transientWatchers.hasOwnProperty(uri)) {
+			return undefined;
+		}
+
+		return this._transientWatchers[uri].get(key);
+	}
+
+	_removeWatcher(w: ModelTransientSettingWatcher): void {
+		delete this._transientWatchers[w.uri];
+	}
+}
+
+export class ModelTransientSettingWatcher {
+	public readonly uri: string;
+	private readonly _values: { [key: string]: any; };
+
+	constructor(uri: string, model: IModel, owner: AbstractCodeEditorService) {
+		this.uri = uri;
+		this._values = {};
+		model.onWillDispose(() => owner._removeWatcher(this));
+	}
+
+	public set(key: string, value: any): void {
+		this._values[key] = value;
+	}
+
+	public get(key: string): any {
+		return this._values[key];
+	}
 }

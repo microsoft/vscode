@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js docker/docker contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js moby/moby contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{

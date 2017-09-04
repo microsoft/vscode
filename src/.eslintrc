@@ -1,14 +1,19 @@
 {
+	"parserOptions": {
+		"ecmaVersion": 6
+	},
 	"env": {
 		"node": true,
-		"es6": false
+		"es6": true,
+		"browser": true,
+		"amd": true
 	},
 	"rules": {
 		"no-console": 0,
 		"no-cond-assign": 0,
-		"no-unused-vars": 1,
-		"no-extra-semi": "warn",
-		"semi": "warn"
-	},
-	"extends": "eslint:recommended"
+		"no-unused-vars": "error",
+		"no-extra-semi": "error",
+		"semi": "error",
+		"no-inner-declarations": 0
+	}
 }

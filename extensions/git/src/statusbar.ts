@@ -5,48 +5,46 @@
 
 'use strict';
 
-import { window, Disposable, StatusBarItem, StatusBarAlignment } from 'vscode';
-import { RefType, IBranch } from './git';
-import { Model, Operation } from './model';
+import { Disposable, Command, EventEmitter, Event } from 'vscode';
+import { RefType, Branch } from './git';
+import { Repository, Operation } from './repository';
+import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-export class CheckoutStatusBar {
+class CheckoutStatusBar {
 
-	private raw: StatusBarItem;
+	private _onDidChange = new EventEmitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
-	constructor(private model: Model) {
-		this.raw = window.createStatusBarItem(StatusBarAlignment.Left, Number.MAX_VALUE - 1);
-		this.raw.show();
-
-		this.disposables.push(this.raw);
-		model.onDidChange(this.update, this, this.disposables);
-		this.update();
+	constructor(private repository: Repository) {
+		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
-	private update(): void {
-		const HEAD = this.model.HEAD;
+	get command(): Command | undefined {
+		const HEAD = this.repository.HEAD;
 
 		if (!HEAD) {
-			this.raw.command = '';
-			this.raw.color = 'rgb(100, 100, 100)';
-			this.raw.text = 'unknown';
-			return;
+			return undefined;
 		}
 
-		const tag = this.model.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tag = this.repository.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
 		const tagName = tag && tag.name;
 		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+		const title = '$(git-branch) '
+			+ head
+			+ (this.repository.workingTreeGroup.resourceStates.length > 0 ? '*' : '')
+			+ (this.repository.indexGroup.resourceStates.length > 0 ? '+' : '')
+			+ (this.repository.mergeGroup.resourceStates.length > 0 ? '!' : '');
 
-		this.raw.command = 'git.checkout';
-		this.raw.color = 'rgb(255, 255, 255)';
-		this.raw.text = '$(git-branch) ' +
-			head +
-			(this.model.workingTreeGroup.resources.length > 0 ? '*' : '') +
-			(this.model.indexGroup.resources.length > 0 ? '+' : '') +
-			(this.model.mergeGroup.resources.length > 0 ? '!' : '');
+		return {
+			command: 'git.checkout',
+			tooltip: localize('checkout', 'Checkout...'),
+			title,
+			arguments: [this.repository.sourceControl]
+		};
 	}
 
 	dispose(): void {
@@ -57,10 +55,10 @@ export class CheckoutStatusBar {
 interface SyncStatusBarState {
 	isSyncRunning: boolean;
 	hasRemotes: boolean;
-	HEAD: IBranch | undefined;
+	HEAD: Branch | undefined;
 }
 
-export class SyncStatusBar {
+class SyncStatusBar {
 
 	private static StartState: SyncStatusBarState = {
 		isSyncRunning: false,
@@ -68,43 +66,41 @@ export class SyncStatusBar {
 		HEAD: undefined
 	};
 
-	private raw: StatusBarItem;
+	private _onDidChange = new EventEmitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
 	private _state: SyncStatusBarState = SyncStatusBar.StartState;
 	private get state() { return this._state; }
 	private set state(state: SyncStatusBarState) {
 		this._state = state;
-		this.render();
+		this._onDidChange.fire();
 	}
 
-	constructor(private model: Model) {
-		this.raw = window.createStatusBarItem(StatusBarAlignment.Left, Number.MAX_VALUE);
-		this.disposables.push(this.raw);
-		model.onDidChange(this.onModelChange, this, this.disposables);
-		model.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
-		this.render();
+	constructor(private repository: Repository) {
+		repository.onDidChangeStatus(this.onModelChange, this, this.disposables);
+		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+		this._onDidChange.fire();
 	}
 
 	private onOperationsChange(): void {
 		this.state = {
 			...this.state,
-			isSyncRunning: this.model.operations.isRunning(Operation.Sync)
+			isSyncRunning: this.repository.operations.isRunning(Operation.Sync)
 		};
 	}
 
 	private onModelChange(): void {
 		this.state = {
 			...this.state,
-			hasRemotes: this.model.remotes.length > 0,
-			HEAD: this.model.HEAD
+			hasRemotes: this.repository.remotes.length > 0,
+			HEAD: this.repository.HEAD
 		};
 	}
 
-	private render(): void {
+	get command(): Command | undefined {
 		if (!this.state.hasRemotes) {
-			this.raw.hide();
-			return;
+			return undefined;
 		}
 
 		const HEAD = this.state.HEAD;
@@ -119,11 +115,11 @@ export class SyncStatusBar {
 					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
 				}
 				command = 'git.sync';
-				tooltip = localize('sync changes', "Synchronize changes");
+				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
-				tooltip = localize('publish changes', "Publish changes");
+				tooltip = localize('publish changes', "Publish Changes");
 			}
 		} else {
 			command = '';
@@ -131,25 +127,63 @@ export class SyncStatusBar {
 		}
 
 		if (this.state.isSyncRunning) {
-			text = '';
+			icon = '$(sync~spin)';
 			command = '';
-			tooltip = localize('syncing changes', "Synchronizing changes...");
+			tooltip = localize('syncing changes', "Synchronizing Changes...");
 		}
 
-		this.raw.text = [icon, text].join(' ').trim();
-		this.raw.command = command;
-		this.raw.tooltip = tooltip;
-
-		if (command) {
-			this.raw.color = '';
-		} else {
-			this.raw.color = 'rgba(255,255,255,0.7)';
-		}
-
-		this.raw.show();
+		return {
+			command,
+			title: [icon, text].join(' ').trim(),
+			tooltip,
+			arguments: [this.repository.sourceControl]
+		};
 	}
 
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
+	}
+}
+
+export class StatusBarCommands {
+
+	private syncStatusBar: SyncStatusBar;
+	private checkoutStatusBar: CheckoutStatusBar;
+	private disposables: Disposable[] = [];
+
+	constructor(repository: Repository) {
+		this.syncStatusBar = new SyncStatusBar(repository);
+		this.checkoutStatusBar = new CheckoutStatusBar(repository);
+	}
+
+	get onDidChange(): Event<void> {
+		return anyEvent(
+			this.syncStatusBar.onDidChange,
+			this.checkoutStatusBar.onDidChange
+		);
+	}
+
+	get commands(): Command[] {
+		const result: Command[] = [];
+
+		const checkout = this.checkoutStatusBar.command;
+
+		if (checkout) {
+			result.push(checkout);
+		}
+
+		const sync = this.syncStatusBar.command;
+
+		if (sync) {
+			result.push(sync);
+		}
+
+		return result;
+	}
+
+	dispose(): void {
+		this.syncStatusBar.dispose();
+		this.checkoutStatusBar.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }

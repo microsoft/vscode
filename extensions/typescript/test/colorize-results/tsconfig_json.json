@@ -23,34 +23,34 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "compilerOptions",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.end.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
@@ -100,34 +100,34 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "target",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.end.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #0451A5",
+			"light_plus": "support.type.property-name.json: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #0451A5",
+			"light_vs": "support.type.property-name.json: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},

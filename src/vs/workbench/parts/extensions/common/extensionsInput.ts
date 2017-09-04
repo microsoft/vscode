@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import URI from 'vs/base/common/uri';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -44,5 +45,12 @@ export class ExtensionsInput extends EditorInput {
 
 	supportsSplitEditor(): boolean {
 		return false;
+	}
+
+	getResource(): URI {
+		return URI.from({
+			scheme: 'extension',
+			path: this.extension.id
+		});
 	}
 }

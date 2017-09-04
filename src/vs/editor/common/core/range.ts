@@ -5,8 +5,29 @@
 
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+
+/**
+ * A range in the editor. This interface is suitable for serialization.
+ */
+export interface IRange {
+	/**
+	 * Line number on which the range starts (starts at 1).
+	 */
+	readonly startLineNumber: number;
+	/**
+	 * Column on which the range starts in line `startLineNumber` (starts at 1).
+	 */
+	readonly startColumn: number;
+	/**
+	 * Line number on which the range ends.
+	 */
+	readonly endLineNumber: number;
+	/**
+	 * Column on which the range ends in line `endLineNumber`.
+	 */
+	readonly endColumn: number;
+}
 
 /**
  * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)
@@ -268,6 +289,10 @@ export class Range {
 	}
 
 	// ---
+
+	public static fromPositions(start: IPosition, end: IPosition = start): Range {
+		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
 
 	/**
 	 * Create a `Range` from an `IRange`.

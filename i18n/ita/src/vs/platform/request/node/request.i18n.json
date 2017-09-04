@@ -6,6 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP",
 	"proxy": "Impostazione proxy da usare. Se non è impostata, verrà ottenuta dalle variabili di ambiente http_proxy e https_proxy",
-	"proxyAuthorization": "Valore da inviare come intestazione 'Proxy-Authorization' per ogni richiesta di rete.",
-	"strictSSL": "Indica se il certificato del server proxy deve essere verificato in base all'elenco di CA specificate."
+	"strictSSL": "Indica se il certificato del server proxy deve essere verificato in base all'elenco di CA specificate.",
+	"proxyAuthorization": "Valore da inviare come intestazione 'Proxy-Authorization' per ogni richiesta di rete."
 }

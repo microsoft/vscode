@@ -12,7 +12,7 @@
 		{ "open": "{", "close": "}", "notIn": ["string"] },
 		{ "open": "[", "close": "]", "notIn": ["string"] },
 		{ "open": "(", "close": ")", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string"] },
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
 		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
 		{ "open": "/**", "close": " */", "notIn": ["string"] }
 	],
@@ -22,6 +22,9 @@
 		["(", ")"],
 		["'", "'"],
 		["\"", "\""]
-	]
-
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "({(?!.+}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch).*:)\\s*(/[/*].*)?$",
+    "decreaseIndentPattern": "^(.*\\*\\/)?\\s*((\\})|(\\)+[;,])|(\\][;,])|\\b(else:)|\\b((end(if|for(each)?|while|switch));))"
+  }
 }

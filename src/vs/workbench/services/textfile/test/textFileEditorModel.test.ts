@@ -11,30 +11,39 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel, SaveSequentializer } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
-import { workbenchInstantiationService, TestTextFileService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
-	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
+	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService, @IFileService public fileService: TestFileService) {
 	}
+}
+
+function getLastModifiedTime(model: TextFileEditorModel): number {
+	const stat = model.getStat();
+
+	return stat ? stat.mtime : -1;
 }
 
 suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
+	let content: string;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
+		content = accessor.fileService.getContent();
 	});
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
+		accessor.fileService.setContent(content);
 	});
 
 	test('Save', function (done) {
@@ -42,7 +51,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		model.load().done(() => {
 			model.textEditorModel.setValue('bar');
-			assert.ok(model.getLastModifiedTime() <= Date.now());
+			assert.ok(getLastModifiedTime(model) <= Date.now());
 
 			return model.save().then(() => {
 				assert.ok(model.getLastSaveAttemptTime() <= Date.now());
@@ -60,11 +69,11 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.setEncoding('utf8', EncodingMode.Encode); // no-op
-		assert.equal(model.getLastModifiedTime(), -1);
+		assert.equal(getLastModifiedTime(model), -1);
 
 		model.setEncoding('utf16', EncodingMode.Encode);
 
-		assert.ok(model.getLastModifiedTime() <= Date.now()); // indicates model was saved due to encoding change
+		assert.ok(getLastModifiedTime(model) <= Date.now()); // indicates model was saved due to encoding change
 
 		model.dispose();
 	});
@@ -93,7 +102,7 @@ suite('Files - TextFileEditorModel', () => {
 
 	test('Load does not trigger save', function (done) {
 		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
-		assert.equal(model.getState(), ModelState.SAVED);
+		assert.ok(model.hasState(ModelState.SAVED));
 
 		model.onDidStateChange(e => {
 			assert.ok(e !== StateChange.DIRTY && e !== StateChange.SAVED);
@@ -117,7 +126,7 @@ suite('Files - TextFileEditorModel', () => {
 			model.textEditorModel.setValue('foo');
 
 			assert.ok(model.isDirty());
-			assert.equal(model.getState(), ModelState.DIRTY);
+			assert.ok(model.hasState(ModelState.DIRTY));
 			return model.load().then(() => {
 				assert.ok(model.isDirty());
 
@@ -184,19 +193,30 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
+	test('Load and undo turns model dirty', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+		model.load().done(() => {
+			accessor.fileService.setContent('Hello Change');
+			model.load().done(() => {
+				model.textEditorModel.undo();
+
+				assert.ok(model.isDirty());
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('File not modified error is handled gracefully', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.load().done(() => {
-			const mtime = model.getLastModifiedTime();
-			accessor.textFileService.setResolveTextContentErrorOnce(<IFileOperationResult>{
-				message: 'error',
-				fileOperationResult: FileOperationResult.FILE_NOT_MODIFIED_SINCE
-			});
+			const mtime = getLastModifiedTime(model);
+			accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_MODIFIED_SINCE));
 
 			return model.load().then((model: TextFileEditorModel) => {
 				assert.ok(model);
-				assert.equal(model.getLastModifiedTime(), mtime);
+				assert.equal(getLastModifiedTime(model), mtime);
 				model.dispose();
 
 				done();
@@ -204,55 +224,15 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Conflict Resolution Mode', function (done) {
+	test('Load error is handled gracefully if model already exists', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.load().done(() => {
-			model.setConflictResolutionMode();
-			model.textEditorModel.setValue('foo');
+			accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
 
-			assert.ok(model.isDirty());
-			assert.equal(model.getState(), ModelState.CONFLICT);
-			assert.ok(model.isInConflictResolutionMode());
-
-			return model.revert().then(() => {
-				model.textEditorModel.setValue('bar');
-				assert.ok(model.isDirty());
-
-				return model.save().then(() => {
-					assert.ok(!model.isDirty());
-
-					model.dispose();
-
-					done();
-				});
-			});
-		}, error => onError(error, done));
-	});
-
-	test('Auto Save triggered when model changes', function (done) {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
-
-		(<any>model).autoSaveAfterMillies = 10;
-		(<any>model).autoSaveAfterMilliesEnabled = true;
-
-		model.onDidStateChange(e => {
-			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
-				eventCounter++;
-			}
-		});
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			return TPromise.timeout(50).then(() => {
-				assert.ok(!model.isDirty());
-				assert.equal(eventCounter, 2);
-
+			return model.load().then((model: TextFileEditorModel) => {
+				assert.ok(model);
 				model.dispose();
-
-				assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 				done();
 			});
@@ -267,8 +247,8 @@ suite('Files - TextFileEditorModel', () => {
 			return input2.resolve().then((model2: TextFileEditorModel) => {
 				model1.textEditorModel.setValue('foo');
 
-				const m1Mtime = model1.getLastModifiedTime();
-				const m2Mtime = model2.getLastModifiedTime();
+				const m1Mtime = model1.getStat().mtime;
+				const m2Mtime = model2.getStat().mtime;
 				assert.ok(m1Mtime > 0);
 				assert.ok(m2Mtime > 0);
 
@@ -283,8 +263,8 @@ suite('Files - TextFileEditorModel', () => {
 					accessor.textFileService.saveAll().then(() => {
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 						assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-						assert.ok(model1.getLastModifiedTime() > m1Mtime);
-						assert.ok(model2.getLastModifiedTime() > m2Mtime);
+						assert.ok(model1.getStat().mtime > m1Mtime);
+						assert.ok(model2.getStat().mtime > m2Mtime);
 						assert.ok(model1.getLastSaveAttemptTime() > m1Mtime);
 						assert.ok(model2.getLastSaveAttemptTime() > m2Mtime);
 
@@ -360,7 +340,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		TextFileEditorModel.setSaveParticipant({
 			participate: (model) => {
-				return TPromise.wrapError('boom');
+				return TPromise.wrapError(new Error('boom'));
 			}
 		});
 

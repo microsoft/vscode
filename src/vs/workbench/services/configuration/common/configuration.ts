@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService, IConfigurationValue, IConfigurationKeys } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const CONFIG_DEFAULT_NAME = 'settings';
@@ -12,64 +12,13 @@ export const WORKSPACE_CONFIG_DEFAULT_PATH = `${WORKSPACE_CONFIG_FOLDER_DEFAULT_
 
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
-export type IWorkspaceConfigurationValues = { [key: string]: IWorkspaceConfigurationValue<any> };
-
-export interface IWorkspaceTrust {
-	/**
-	 * Returns iff the workspace is trusted by the user.
-	 */
-	isTrusted(): boolean;
-
-	/**
-	 * Returns iff the user explicitly configured to not trust the workspace.
-	 */
-	isExplicitlyUntrusted(): boolean;
-
-	/**
-	 * Returns a hash of all known configuration keys that can be used to specify executables.
-	 */
-	allKnownConfigKeysForExecutables(): { [configKey: string]: any };
-}
-
 export interface IWorkspaceConfigurationService extends IConfigurationService {
-
-	/**
-	 * Returns iff the workspace has configuration or not.
-	 */
-	hasWorkspaceConfiguration(): boolean;
 
 	/**
 	 * Returns untrusted configuration keys for the current workspace.
 	 */
-	getUntrustedConfigurations(): string[];
+	getUnsupportedWorkspaceKeys(): string[];
 
-	/**
-	 * Returns if the user explicitly configured to not trust the current workspace.
-	 */
-	isExplicitlyUntrusted(): boolean;
-
-	/**
-	 * Override for the IConfigurationService#lookup() method that adds information about workspace settings.
-	 */
-	lookup<T>(key: string): IWorkspaceConfigurationValue<T>;
-
-	/**
-	 * Override for the IConfigurationService#keys() method that adds information about workspace settings.
-	 */
-	keys(): IWorkspaceConfigurationKeys;
-
-	/**
-	 * Returns the defined values of configurations in the different scopes.
-	 */
-	values(): IWorkspaceConfigurationValues;
-}
-
-export interface IWorkspaceConfigurationValue<T> extends IConfigurationValue<T> {
-	workspace: T;
-}
-
-export interface IWorkspaceConfigurationKeys extends IConfigurationKeys {
-	workspace: string[];
 }
 
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = {

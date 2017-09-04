@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/f2e3c30f0ebfcc89fb78ad908701159f20516812",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [
@@ -17,9 +23,6 @@
 			"include": "#structure"
 		},
 		{
-			"include": "#attributes"
-		},
-		{
 			"include": "#strings"
 		},
 		{
@@ -30,6 +33,9 @@
 		},
 		{
 			"include": "#definition"
+		},
+		{
+			"include": "#attributes"
 		},
 		{
 			"include": "#method_calls"
@@ -59,7 +65,7 @@
 				{
 					"name": "function.anonymous",
 					"begin": "\\b(fun)\\b",
-					"end": "[(->)\\n]",
+					"end": "(->)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.other.function-definition.fsharp"
@@ -139,7 +145,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\.]|(?<=,)\\s)*)",
+					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\._]|(?<=,)\\s)*)",
 					"end": "((``.*``)|(with)|=|$)",
 					"beginCaptures": {
 						"1": {
@@ -149,9 +155,12 @@
 							"name": "keyword.other.function-recursive.fsharp"
 						},
 						"3": {
-							"name": "keyword.other.access.fsharp"
+							"name": "support.function.attribute.fsharp"
 						},
 						"4": {
+							"name": "keyword.other.access.fsharp"
+						},
+						"5": {
 							"name": "variable.other.binding.fsharp"
 						}
 					},
@@ -178,7 +187,7 @@
 			"patterns": [
 				{
 					"name": "keyword.other.fsharp",
-					"match": "\\b(function|yield!|yield|class|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|member|try|finally|and|when|use|use\\!|struct|while)\\b"
+					"match": "\\b(function|yield!|yield|class|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|member|try|finally|and|when|use|use\\!|struct|while|mutable)\\b"
 				},
 				{
 					"name": "meta.preprocessor.fsharp",
@@ -195,7 +204,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace|module)(\\s+public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
+					"begin": "\\b(namespace|module)\\s*(public|internal|private)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -288,31 +297,6 @@
 		"strings": {
 			"patterns": [
 				{
-					"contentName": "string.quoted.literalprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(@\"))",
-					"end": "(\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "constant.character.string.escape.fsharp",
-							"match": "\"(\")"
-						},
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						}
-					]
-				},
-				{
 					"name": "string.quoted.literal.fsharp",
 					"begin": "(?=[^\\\\])(@\")",
 					"end": "(\")(?!\")",
@@ -334,27 +318,6 @@
 					]
 				},
 				{
-					"contentName": "string.quoted.tripleprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(\"\"\"))",
-					"end": "(\"\"\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						}
-					]
-				},
-				{
 					"name": "string.quoted.triple.fsharp",
 					"begin": "(?=[^\\\\])(\"\"\")",
 					"end": "(\"\"\")",
@@ -368,39 +331,6 @@
 							"name": "punctuation.definition.string.end.fsharp"
 						}
 					}
-				},
-				{
-					"contentName": "string.quoted.doubleprintf.fsharp",
-					"begin": "(sprintf|printf[n]|failwithf)\\s+((?=[^\\\\])(\"))",
-					"end": "(\")",
-					"beginCaptures": {
-						"2": {
-							"name": "punctuation.definition.string.begin.fsharp"
-						}
-					},
-					"endCaptures": {
-						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
-						}
-					},
-					"patterns": [
-						{
-							"name": "punctuation.separator.string.ignore-eol.fsharp",
-							"match": "\\\\$[ \\t]*"
-						},
-						{
-							"name": "constant.character.string.escape.format.fsharp",
-							"match": "%[0\\-\\+# ]{0,3}(\\*|[0-9]{0,2})(\\.[0-9]{1,2})?([bcsdiuxXoeEfFgGMOAt]|\\+A)"
-						},
-						{
-							"name": "constant.character.string.escape.fsharp",
-							"match": "\\\\([\\\\''ntbr]|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
-						},
-						{
-							"name": "invalid.illeagal.character.string.fsharp",
-							"match": "\\\\(?![\\\\''ntbr]|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
-						}
-					]
 				},
 				{
 					"name": "string.quoted.double.fsharp",
@@ -468,7 +398,7 @@
 			"patterns": [
 				{
 					"name": "record.fsharp",
-					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,. ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,. ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
+					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,._ ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,._ ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
 					"captures": {
 						"1": {
 							"name": "keyword.other.fsharp"
@@ -532,6 +462,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/16d4cc8cb0224d8861a7b48107ac102e3f51579a"
+	}
 }

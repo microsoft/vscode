@@ -15,5 +15,8 @@
 			"scopeName": "source.powershell",
 			"path": "./syntaxes/PowershellSyntax.tmLanguage"
 		}]
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js SublimeText/PowerShell Support/PowershellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
 	}
 }
