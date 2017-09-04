@@ -29,9 +29,12 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
+
+const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes");
 
 // A handler for save error happening with conflict resolution actions
 export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
@@ -110,7 +113,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 			// If the user tried to save from the opened conflict editor, show its message again
 			// Otherwise show the message that will lead the user into the save conflict editor.
 			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
-				message = nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes");
+				message = conflictEditorHelp;
 			} else {
 				message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
 			}
@@ -224,7 +227,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
 
 						// Inform user
-						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes")));
+						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, conflictEditorHelp));
 					});
 				}
 
@@ -237,6 +240,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
 	const resolverService = accessor.get(ITextModelService);
+	const modelService = accessor.get(IModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
@@ -248,11 +252,11 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// revert to be able to save
+		// Revert to be able to save
 		return model.revert().then(() => {
 
-			// Restore user value
-			model.textEditorModel.setValue(localModelValue);
+			// Restore user value (without loosing undo stack)
+			modelService.updateModel(model.textEditorModel, localModelValue);
 
 			// Trigger save
 			return model.save().then(() => {
