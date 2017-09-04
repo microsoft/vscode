@@ -28,6 +28,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -37,6 +38,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	private messages: ResourceMap<() => void>;
 	private toUnbind: IDisposable[];
 	private conflictResolutionContext: IContextKey<boolean>;
+	private activeConflictResolutionResource: URI;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -75,14 +77,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	private onEditorsChanged(): void {
 		let isActiveEditorSaveConflictResolution = false;
-		const activeEditor = this.editorService.getActiveEditor();
+		let activeConflictResolutionResource: URI;
 
-		if (activeEditor && activeEditor.input instanceof DiffEditorInput && activeEditor.input.originalInput instanceof ResourceEditorInput) {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.input instanceof DiffEditorInput && activeEditor.input.originalInput instanceof ResourceEditorInput && activeEditor.input.modifiedInput instanceof FileEditorInput) {
 			const resource = activeEditor.input.originalInput.getResource();
-			isActiveEditorSaveConflictResolution = resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME;
+			if (resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME) {
+				isActiveEditorSaveConflictResolution = true;
+				activeConflictResolutionResource = activeEditor.input.modifiedInput.getResource();
+			}
 		}
 
 		this.conflictResolutionContext.set(isActiveEditorSaveConflictResolution);
+		this.activeConflictResolutionResource = activeConflictResolutionResource;
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
@@ -94,12 +101,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 
 	public onSaveError(error: any, model: ITextFileEditorModel): void {
-		let message: IMessageWithAction;
+		let message: IMessageWithAction | string;
 		const resource = model.getResource();
 
 		// Dirty write prevention
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-			message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
+
+			// If the user tried to save from the opened conflict editor, show its message again
+			// Otherwise show the message that will lead the user into the save conflict editor.
+			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
+				message = nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes");
+			} else {
+				message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
+			}
 		}
 
 		// Any other save error
@@ -161,7 +175,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
-		this.messages.set(model.getResource(), this.messageService.show(Severity.Error, message));
+		this.messages.set(model.getResource(), typeof message === 'string' ? this.messageService.show(Severity.Error, message) : this.messageService.show(Severity.Error, message));
 	}
 
 	public dispose(): void {
