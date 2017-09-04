@@ -68,8 +68,7 @@ export class SpectronApplication {
 
 		this.spectron = new Application({
 			path: electronPath,
-			args: ['/Users/sandy081/work/vscode', ...args],
-			// args: args,
+			args: args,
 			chromeDriverArgs: chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
