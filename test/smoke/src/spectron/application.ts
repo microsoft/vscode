@@ -56,7 +56,7 @@ export class SpectronApplication {
 			}
 		}
 		if (!userDataDirIsSet) {
-			chromeDriverArgs.push(`--user-data-dir=${path.join(USER_DIR), new Date().getTime().toString()}`);
+			chromeDriverArgs.push(`--user-data-dir=${path.join(USER_DIR, new Date().getTime().toString())}`);
 		}
 
 		const repo = process.env.VSCODE_REPOSITORY;
