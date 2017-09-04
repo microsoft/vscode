@@ -141,7 +141,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		this.lastDirtyCount = dirtyCount;
 		dispose(this.badgeHandle);
 		if (dirtyCount > 0) {
-			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
+			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)), 'explorer-viewlet-label');
 		}
 	}
 
