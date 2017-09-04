@@ -143,6 +143,16 @@ export default class ErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
+			/* __GDPR__
+			   "UnhandledError" : {
+				  "message" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "name": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "stack": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "id": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "line": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "column": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			   }
+			 */
 			this._telemetryService.publicLog('UnhandledError', error);
 		}
 		this._buffer.length = 0;
