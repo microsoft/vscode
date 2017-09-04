@@ -41,6 +41,7 @@ const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_FIND_ALL_BTN_LABEL = nls.localize('label.findAllButton', "Find all");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -96,6 +97,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _matchesCount: HTMLElement;
 	private _prevBtn: SimpleButton;
 	private _nextBtn: SimpleButton;
+	private _findAllBtn: SimpleButton;
 	private _toggleSelectionFind: SimpleCheckbox;
 	private _closeBtn: SimpleButton;
 	private _replaceBtn: SimpleButton;
@@ -721,12 +723,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			onKeyDown: (e) => { }
 		}));
 
+		// Find all button
+		this._findAllBtn = this._register(new SimpleButton({
+			label: NLS_FIND_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.FindAllAction),
+			className: 'find-all',
+			onTrigger: () => {
+				this._codeEditor.getAction(FIND_IDS.FindAllAction).run().done(null, onUnexpectedError);
+			},
+			onKeyDown: (e) => { }
+		}));
+
 		let findPart = document.createElement('div');
 		findPart.className = 'find-part';
 		findPart.appendChild(this._findInput.domNode);
 		findPart.appendChild(this._matchesCount);
 		findPart.appendChild(this._prevBtn.domNode);
 		findPart.appendChild(this._nextBtn.domNode);
+		findPart.appendChild(this._findAllBtn.domNode);
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new SimpleCheckbox({

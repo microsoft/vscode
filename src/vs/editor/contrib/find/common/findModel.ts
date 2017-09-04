@@ -20,6 +20,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -48,6 +49,7 @@ export const FIND_IDS = {
 	StartFindAction: 'actions.find',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
+	FindAllAction: 'editor.action.findAllAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	AddSelectionToNextFindMatchAction: 'editor.action.addSelectionToNextFindMatch',
@@ -383,6 +385,24 @@ export class FindModelBoundToEditorModel {
 	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): editorCommon.FindMatch[] {
 		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches, limitResultCount);
+	}
+
+	public findAll(): void {
+		if (!this._hasMatches()) {
+			return;
+		}
+		const matches = this._findMatches(this._decorations.getFindScope(), false, Constants.MAX_SAFE_SMALL_INTEGER);
+		const ranges = matches.map(match => match.range);
+		const cursors = this._editor._getCursors();
+		const selections = ranges.map(range => ({
+			selectionStartLineNumber: range.startLineNumber,
+			selectionStartColumn: range.startColumn,
+			positionLineNumber: range.endLineNumber,
+			positionColumn: range.endColumn
+		}));
+		this._editor.setSelections(selections);
+		const states: CursorState[] = CursorState.fromModelSelections(selections);
+		cursors.setStates('findAllCommand', CursorChangeReason.Explicit, states);
 	}
 
 	public replaceAll(): void {
