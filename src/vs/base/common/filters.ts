@@ -556,25 +556,26 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	// _bucket is an array of [PrefixArray] we use to keep
 	// track of scores and matches. After calling `_findAllMatches`
 	// the best match (if available) is the first item in the array
-	_bucket.length = 0;
+	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
 	_findAllMatches(patternLen, wordLen, 0, new LazyArray(), false);
 
-	if (_bucket.length === 0) {
+	if (_matchesCount === 0) {
 		return undefined;
 	}
 
-	return [_topScore, _bucket[0].toArray()];
+	return [_topScore, _topMatch.toArray()];
 }
 
-let _bucket: LazyArray[] = [];
+let _matchesCount: number = 0;
+let _topMatch: LazyArray;
 let _topScore: number = 0;
 let _patternStartPos: number = 0;
 
 function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
 
-	if (_bucket.length >= 10 || total < -25) {
+	if (_matchesCount >= 10 || total < -25) {
 		// stop when having already 10 results, or
 		// when a potential alignment as already 5 gaps
 		return;
@@ -645,11 +646,10 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 
 	// dynamically keep track of the current top score
 	// and insert the current best score at head, the rest at tail
+	_matchesCount += 1;
 	if (total > _topScore) {
 		_topScore = total;
-		_bucket.unshift(matches);
-	} else {
-		_bucket.push(matches);
+		_topMatch = matches;
 	}
 }
 
