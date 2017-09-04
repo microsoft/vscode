@@ -31,7 +31,7 @@ export class SCM {
 
 	async waitForChange(func: (change: Change) => boolean): Promise<Change> {
 		return await this.spectron.client.waitFor(async () => {
-			const changes = await this.spectron.client.spectron.client.selectorExecute(SCM_RESOURCE,
+			const changes = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
 				div => (Array.isArray(div) ? div : [div]).map(div => {
 					const name = div.querySelector('.label-name') as HTMLElement;
 					const icon = div.querySelector('.decoration-icon') as HTMLElement;
