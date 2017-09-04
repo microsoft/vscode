@@ -29,7 +29,7 @@ export class SpectronApplication {
 	private keybindings: any[];
 	private screenshot: IScreenshot;
 
-	private readonly sampleExtensionsDir: string = EXTENSIONS_DIR;
+	private readonly sampleExtensionsDir: string = path.join(EXTENSIONS_DIR, new Date().getTime().toString());
 	private readonly pollTrials = 50;
 	private readonly pollTimeout = 1; // in secs
 
