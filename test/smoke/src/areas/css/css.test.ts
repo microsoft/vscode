@@ -10,18 +10,11 @@ import { ProblemSeverity, Problems } from '../problems/problems';
 import { QuickOutline } from '../editor/quickoutline';
 import { SettingsEditor } from '../preferences/settings';
 
-let app: SpectronApplication;
-
 export function testCSS() {
 	describe('CSS', () => {
-
-		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
-			return await app.start();
-		});
-		afterEach(async function () {
-			return await app.stop();
-		});
+		let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		before(() => app.start());
+		after(() => app.stop());
 
 		it('verifies quick outline', async function () {
 			await app.workbench.quickopen.openFile('style.css');
@@ -43,6 +36,7 @@ export function testCSS() {
 			await problems.showProblemsView();
 			warning = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
 			assert.ok(warning, 'Warning does not appear in Problems view.');
+			await problems.hideProblemsView();
 		});
 
 		it('verifies that warning becomes an error once setting changed', async function () {
@@ -57,6 +51,7 @@ export function testCSS() {
 			await problems.showProblemsView();
 			error = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			assert.ok(error, 'Warning does not appear in Problems view.');
+			await problems.hideProblemsView();
 		});
 	});
 }

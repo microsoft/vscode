@@ -5,34 +5,20 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, EXTENSIONS_DIR } from '../../spectron/application';
-import { Util } from '../../helpers/utilities';
-
-var dns = require('dns');
-
-let app: SpectronApplication;
+import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
 
 export function testExtensions() {
 
 	describe('Extensions', () => {
-		const extensionName = 'vscode-smoketest-check';
+		let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		before(() => app.start());
+		after(() => app.stop());
 
-		beforeEach(async function () {
-			const network = await networkAttached();
-			if (!network) {
-				return Promise.reject('There is no network connection for testing extensions.');
-			}
-
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH, `--extensions-dir=${EXTENSIONS_DIR}`]);
-			await Util.rimraf(EXTENSIONS_DIR);
-			return await app.start();
-		});
-		afterEach(async function () {
-			await app.stop();
-			await Util.rimraf(EXTENSIONS_DIR);
-		});
+		// this used to run before each test
+		// await Util.rimraf(EXTENSIONS_DIR);
 
 		it(`install and activate vscode-smoketest-check extension`, async function () {
+			const extensionName = 'vscode-smoketest-check';
 			await app.workbench.extensions.openExtensionsViewlet();
 
 			const installed = await app.workbench.extensions.installExtension(extensionName);
@@ -47,13 +33,5 @@ export function testExtensions() {
 			assert.equal(statusbarText, 'VS Code Smoke Test Check');
 		});
 
-	});
-}
-
-function networkAttached(): Promise<boolean> {
-	return new Promise((res, rej) => {
-		dns.resolve('marketplace.visualstudio.com', (err) => {
-			err ? res(false) : res(true);
-		});
 	});
 }

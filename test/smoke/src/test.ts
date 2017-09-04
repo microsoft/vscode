@@ -14,6 +14,7 @@ import { testDataLoss } from './areas/workbench/data-loss.test';
 // import { testDataMigration } from './areas/workbench/data-migration.test';
 
 describe('Smoke:', () => {
+
 	testCSS();
 	testExplorer();
 	testSettings();

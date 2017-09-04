@@ -12,8 +12,8 @@ import { RawResult, Element } from 'webdriverio';
  */
 export class SpectronClient {
 
-	private readonly trials = 50;
-	private readonly trialWait = 100; // in milliseconds
+	private readonly retryCount = 50;
+	private readonly retryDuration = 100; // in milliseconds
 
 	constructor(private spectron: Application, private shot: IScreenshot) {
 	}
@@ -164,8 +164,8 @@ export class SpectronClient {
 		let trial = 1;
 
 		while (true) {
-			if (trial > this.trials) {
-				return new Promise<T>((res, rej) => rej(`${timeoutMessage}: Timed out after ${this.trials * this.trialWait} seconds.`));
+			if (trial > this.retryCount) {
+				throw new Error(`${timeoutMessage}: Timed out after ${this.retryCount * this.retryDuration} seconds.`);
 			}
 
 			let result;
@@ -179,7 +179,7 @@ export class SpectronClient {
 				return result;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, this.trialWait));
+			await new Promise(resolve => setTimeout(resolve, this.retryDuration));
 			trial++;
 		}
 	}

@@ -17,8 +17,27 @@ export class Problems {
 	}
 
 	public async showProblemsView(): Promise<any> {
+		const panelSelector = '.panel.markers-panel';
+		const result = await this.spectron.client.element(panelSelector);
+
+		if (result) {
+			return;
+		}
+
 		await this.spectron.command('workbench.actions.view.problems');
-		await this.spectron.client.waitForElement('.panel.markers-panel');
+		await this.spectron.client.waitForElement(panelSelector);
+	}
+
+	public async hideProblemsView(): Promise<any> {
+		const panelSelector = '.panel.markers-panel';
+		const result = await this.spectron.client.element(panelSelector);
+
+		if (!result) {
+			return;
+		}
+
+		await this.spectron.command('workbench.actions.view.problems');
+		await this.spectron.client.waitForElement(panelSelector, el => !el);
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {

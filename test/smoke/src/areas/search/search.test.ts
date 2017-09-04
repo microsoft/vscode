@@ -7,18 +7,11 @@ import * as assert from 'assert';
 
 import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
 
-let app: SpectronApplication;
-
 export function testSearch() {
 	describe('Search', () => {
-
-		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
-			return await app.start();
-		});
-		afterEach(async function () {
-			return await app.stop();
-		});
+		let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		before(() => app.start());
+		after(() => app.stop());
 
 		it('searches for body & checks for correct result number', async function () {
 			await app.workbench.search.openSearchViewlet();

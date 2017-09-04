@@ -19,7 +19,7 @@ export class SettingsEditor {
 
 	public async openUserSettings(): Promise<Element> {
 		await this.spectron.command('workbench.action.openGlobalSettings');
-		return this.spectron.client.waitForElement('.settings-search-input .synthetic-focus');
+		return this.spectron.client.waitForElement('.settings-search-input input:focus');
 	}
 
 	public async focusEditableSettings(): Promise<void> {
@@ -30,6 +30,8 @@ export class SettingsEditor {
 
 	public async addUserSetting(setting: string, value: string): Promise<void> {
 		await this.openUserSettings();
+
+		// await this.spectron.wait(1);
 		await this.focusEditableSettings();
 		await this.spectron.client.keys(`"${setting}": ${value}`);
 		await this.spectron.workbench.saveOpenedFile();

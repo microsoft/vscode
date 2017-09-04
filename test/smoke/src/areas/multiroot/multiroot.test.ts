@@ -9,19 +9,11 @@ import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../../spe
 import { QuickOpen } from '../quickopen/quickopen';
 import { Window } from '../window';
 
-let app: SpectronApplication;
-
 export function testMultiRoot() {
 	describe('Multi Root', () => {
-
-		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [CODE_WORKSPACE_PATH]);
-			return app.start();
-		});
-
-		afterEach(async function () {
-			return app.stop();
-		});
+		let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [CODE_WORKSPACE_PATH]);
+		before(() => app.start());
+		after(() => app.stop());
 
 		it('shows results from all folders', async function () {
 			let quickOpen = new QuickOpen(app);

@@ -6,21 +6,15 @@
 import * as assert from 'assert';
 
 import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
-import { Util } from '../../helpers/utilities';
-
-let app: SpectronApplication;
 
 export function testDataLoss() {
 	describe('Data Loss', () => {
+		let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH], [`--user-data-dir=${USER_DIR}`]);
+		before(() => app.start());
+		after(() => app.stop());
 
-		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH], [`--user-data-dir=${USER_DIR}`]);
-			await Util.rimraf(USER_DIR);
-			return await app.start();
-		});
-		afterEach(async function () {
-			return await app.stop();
-		});
+		// this used to run before each test
+		// await Util.rimraf(USER_DIR);
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const textToType = 'Hello, Code', fileName = 'readme.md', untitled = 'Untitled-1';

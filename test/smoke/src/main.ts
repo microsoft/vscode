@@ -124,7 +124,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log('Running npm install...');
-	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
 
 	console.log('Running tests...');
 	const mocha = cp.spawnSync(process.execPath, ['out/mocha-runner.js'], { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
