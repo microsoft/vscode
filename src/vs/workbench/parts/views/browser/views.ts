@@ -529,7 +529,7 @@ export class ViewsViewlet extends Viewlet {
 
 			}, [[], [], unregisteredViews]);
 
-			const toCreate = [];
+			const toCreate: IView[] = [];
 
 			if (toAdd.length || toRemove.length) {
 				for (const view of this.splitView.getViews<IView>()) {

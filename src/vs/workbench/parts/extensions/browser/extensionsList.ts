@@ -80,7 +80,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
-		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
+		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 

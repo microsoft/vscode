@@ -118,7 +118,7 @@ export class ExplorerView extends CollapsibleView {
 		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
 		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
-		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, root => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
+		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {

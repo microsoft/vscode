@@ -119,12 +119,12 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 	}
 
-	protected abstract onInputChanged();
-	protected abstract find(previous: boolean);
-	protected abstract onFocusTrackerFocus();
-	protected abstract onFocusTrackerBlur();
-	protected abstract onFindInputFocusTrackerFocus();
-	protected abstract onFindInputFocusTrackerBlur();
+	protected abstract onInputChanged(): void;
+	protected abstract find(previous: boolean): void;
+	protected abstract onFocusTrackerFocus(): void;
+	protected abstract onFocusTrackerBlur(): void;
+	protected abstract onFindInputFocusTrackerFocus(): void;
+	protected abstract onFindInputFocusTrackerBlur(): void;
 
 	protected get inputValue() {
 		return this._findInput.getValue();

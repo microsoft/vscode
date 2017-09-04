@@ -176,7 +176,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
 		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-		this.resourceFilter = instantiationService.createInstance(ResourceGlobMatcher, root => this.getExcludes(root), (expression: IExpression) => parse(expression));
+		this.resourceFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getExcludes(root), (expression: IExpression) => parse(expression));
 
 		this.registerListeners();
 	}

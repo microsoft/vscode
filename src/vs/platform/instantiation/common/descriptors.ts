@@ -44,8 +44,8 @@ export class SyncDescriptor<T> extends AbstractDescriptor<T> {
 		return this._ctor;
 	}
 
-	protected bind(...moreStaticArguments): SyncDescriptor<T> {
-		let allArgs = [];
+	protected bind(...moreStaticArguments: any[]): SyncDescriptor<T> {
+		let allArgs: any[] = [];
 		allArgs = allArgs.concat(this.staticArguments());
 		allArgs = allArgs.concat(moreStaticArguments);
 		return new SyncDescriptor<T>(this._ctor, ...allArgs);
@@ -198,8 +198,8 @@ export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements AsyncDe
 		return this._ctorName;
 	}
 
-	bind(...moreStaticArguments): AsyncDescriptor<T> {
-		let allArgs = [];
+	bind(...moreStaticArguments: any[]): AsyncDescriptor<T> {
+		let allArgs: any[] = [];
 		allArgs = allArgs.concat(this.staticArguments());
 		allArgs = allArgs.concat(moreStaticArguments);
 		return new AsyncDescriptor<T>(this.moduleName, this.ctorName, ...allArgs);

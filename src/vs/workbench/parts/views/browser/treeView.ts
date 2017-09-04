@@ -442,8 +442,8 @@ class Menus implements IDisposable {
 		contextKeyService.createKey(context.key, context.value);
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary = [];
-		const secondary = [];
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		fillInActions(menu, { shouldForwardArgs: true }, result);
 

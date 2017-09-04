@@ -97,7 +97,7 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 const MINIMUM_THRESHOLD = 0.2;
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
-const MAPPED_ENCODINGS = {
+const MAPPED_ENCODINGS: { [name: string]: string } = {
 	'ibm866': 'cp866'
 };
 

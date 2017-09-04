@@ -431,7 +431,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		let textEdits: TextEdit[] = [];
 
 		let indentConverter = {
-			shiftIndent: (indentation) => {
+			shiftIndent: (indentation: string) => {
 				let desiredIndentCount = ShiftCommand.shiftIndentCount(indentation, indentation.length + 1, tabSize);
 				let newIndentation = '';
 				for (let i = 0; i < desiredIndentCount; i++) {
@@ -440,7 +440,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				return newIndentation;
 			},
-			unshiftIndent: (indentation) => {
+			unshiftIndent: (indentation: string) => {
 				let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, tabSize);
 				let newIndentation = '';
 				for (let i = 0; i < desiredIndentCount; i++) {
@@ -496,7 +496,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 					return model.getLanguageIdAtPosition(lineNumber, column);
 				},
-				getLineContent: (lineNumber) => {
+				getLineContent: (lineNumber: number) => {
 					if (lineNumber === startLineNumber) {
 						return firstLineText;
 					} else {

@@ -384,7 +384,7 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 }
 
 function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs = [];
+	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
 		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
 		const result = globExprsToRgGlobs(totalIncludePattern, folderQuery.folder);

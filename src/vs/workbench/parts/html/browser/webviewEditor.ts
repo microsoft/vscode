@@ -91,7 +91,7 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		return true;
 	}
 
-	protected abstract createEditor(parent: Builder);
+	protected abstract createEditor(parent: Builder): void;
 }
 
 class ShowWebViewEditorFindCommand extends Command {

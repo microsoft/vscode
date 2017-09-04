@@ -46,7 +46,7 @@ class GrammarContributions implements IGrammarContributions {
 		});
 	}
 
-	public getGrammar(mode): string {
+	public getGrammar(mode: string): string {
 		return GrammarContributions._grammars[mode];
 	}
 }

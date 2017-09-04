@@ -33,8 +33,8 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
-const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
-const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
+const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
+const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, eg: {0}", 'ms-vscode.csharp');
 
 function getId(manifest: IExtensionManifest, withVersion?: boolean): string {

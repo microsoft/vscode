@@ -20,7 +20,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this.onInputChanged = this.onInputChanged.bind(this);
 	}
 
-	public find(previous) {
+	public find(previous: boolean) {
 		let val = this.inputValue;
 		if (this.webview !== null && val) {
 			this.webview.find(val, { findNext: true, forward: !previous });

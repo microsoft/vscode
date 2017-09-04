@@ -955,7 +955,7 @@ class UnsupportedWorkspaceSettingsRenderer extends Disposable {
 		this._register(this.configurationService.onDidUpdateConfiguration(() => this.render()));
 	}
 
-	private getMarkerMessage(settingKey): string {
+	private getMarkerMessage(settingKey: string): string {
 		switch (settingKey) {
 			case 'php.validate.executablePath':
 				return nls.localize('unsupportedPHPExecutablePathSetting', "This setting must be a User Setting. To configure PHP for the workspace, open a PHP file and click on 'PHP Path' in the status bar.");

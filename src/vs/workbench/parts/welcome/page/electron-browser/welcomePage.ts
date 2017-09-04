@@ -212,7 +212,7 @@ class WelcomePage {
 			name: localize('welcome.title', "Welcome"),
 			resource,
 			telemetryFrom,
-			onReady: container => this.onReady(container, recentlyOpened, installedExtensions)
+			onReady: (container: HTMLElement) => this.onReady(container, recentlyOpened, installedExtensions)
 		});
 	}
 

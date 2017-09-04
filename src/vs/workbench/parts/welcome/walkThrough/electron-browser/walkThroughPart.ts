@@ -483,7 +483,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	private saveTextEditorViewState(resource: URI): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		let editorViewStateMemento: { [key: string]: { [position: number]: IWalkThroughEditorViewState } } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (!editorViewStateMemento) {
 			editorViewStateMemento = Object.create(null);
 			memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
@@ -497,7 +497,7 @@ export class WalkThroughPart extends BaseEditor {
 			}
 		};
 
-		let fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+		let fileViewState = editorViewStateMemento[resource.toString()];
 		if (!fileViewState) {
 			fileViewState = Object.create(null);
 			editorViewStateMemento[resource.toString()] = fileViewState;
@@ -510,11 +510,11 @@ export class WalkThroughPart extends BaseEditor {
 
 	private loadTextEditorViewState(resource: URI) {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const editorViewStateMemento: { [key: string]: IWalkThroughEditorViewStates } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (editorViewStateMemento) {
-			const fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+			const fileViewState = editorViewStateMemento[resource.toString()];
 			if (fileViewState) {
-				const state: IWalkThroughEditorViewState = fileViewState[this.position];
+				const state = fileViewState[this.position];
 				if (state) {
 					this.scrollbar.setScrollPosition(state.viewState);
 				}

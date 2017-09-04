@@ -163,7 +163,7 @@ export class OpenIntegratedTerminalAction extends AbstractOpenInTerminalAction {
 	public run(event?: any): TPromise<any> {
 		let pathToOpen = this.getPathToOpen();
 
-		var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+		const instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
 		if (instance) {
 			this.integratedTerminalService.setActiveInstance(instance);
 			this.integratedTerminalService.showPanel(true);

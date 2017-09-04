@@ -23,6 +23,7 @@ import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMode } from 'vs/editor/common/modes';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -74,7 +75,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 		await super.setInput(input, options);
 
-		const result = [];
+		const result: TPromise<IMode>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
 			const modeId = this.modeService.getModeIdForLanguageName(lang);

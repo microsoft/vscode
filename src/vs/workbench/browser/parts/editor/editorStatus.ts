@@ -782,7 +782,7 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
-		let modeId;
+		let modeId: string;
 		if (textModel) {
 			modeId = textModel.getLanguageIdentifier().language;
 			currentModeId = this.modeService.getLanguageName(modeId);

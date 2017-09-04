@@ -50,7 +50,7 @@ class SCMRepository implements ISCMRepository {
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand;
+	_serviceBrand: any;
 
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];

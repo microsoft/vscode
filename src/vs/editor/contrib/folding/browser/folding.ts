@@ -382,7 +382,7 @@ export class FoldingController implements IFoldingController {
 			if (!decRange) {
 				return;
 			}
-			let isLineHidden = line => line > decRange.startLineNumber && line <= decRange.endLineNumber;
+			let isLineHidden = (line: number) => line > decRange.startLineNumber && line <= decRange.endLineNumber;
 			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
 				if (isLineHidden(selection.getStartPosition().lineNumber)) {

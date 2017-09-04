@@ -94,7 +94,7 @@ export class ViewletActivityAction extends ActivityAction {
 		return this._viewlet;
 	}
 
-	public run(event): TPromise<any> {
+	public run(event: any): TPromise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return TPromise.as(false); // do not run on right click
 		}
@@ -509,7 +509,7 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	public run(event): TPromise<any> {
+	public run(event: any): TPromise<any> {
 		this.showMenu();
 
 		return TPromise.as(true);

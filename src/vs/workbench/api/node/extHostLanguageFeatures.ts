@@ -874,7 +874,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name, data) => {
+		this._adapter.set(handle, new HoverAdapter(this._documents, provider, once((name: string, data: any) => {
 			data['extension'] = extensionId;
 			this._telemetry.$publicLog(name, data);
 		})));

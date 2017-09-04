@@ -134,7 +134,7 @@ export class CodeApplication {
 			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 
 		app.on('web-contents-created', (event, contents) => {
-			contents.on('will-attach-webview', (event, webPreferences, params) => {
+			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 

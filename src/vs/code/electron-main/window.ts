@@ -428,7 +428,7 @@ export class CodeWindow implements ICodeWindow {
 	};
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command, (e, cmd) => {
+		this._win.on(command, (e: Electron.Event, cmd: string) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}

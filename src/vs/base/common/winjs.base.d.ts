@@ -49,7 +49,7 @@ export declare class Promise<T = any, TProgress = any> {
 	/**
 	 * @internal
 	 */
-	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void);
+	public static addEventListener(event: 'error', promiseErrorHandler: (e: IPromiseError) => void): void;
 }
 
 export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;

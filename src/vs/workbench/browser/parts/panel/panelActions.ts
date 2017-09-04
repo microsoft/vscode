@@ -28,7 +28,7 @@ export class PanelAction extends Action {
 		this.tooltip = nls.localize('panelActionTooltip', "{0} ({1})", panel.name, this.getKeybindingLabel(panel.commandId));
 	}
 
-	public run(event): TPromise<any> {
+	public run(event: any): TPromise<any> {
 		return this.panelService.openPanel(this.panel.id, true).then(() => this.activate());
 	}
 

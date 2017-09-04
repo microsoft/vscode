@@ -175,7 +175,7 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem) {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
 		if (extensionTreeItem.iconPath) {
 			if (typeof extensionTreeItem.iconPath === 'string' || extensionTreeItem.iconPath instanceof URI) {
 				return this.getIconPath(extensionTreeItem.iconPath);
@@ -185,7 +185,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem) {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string {
 		if (extensionTreeItem.iconPath && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
