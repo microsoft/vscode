@@ -55,16 +55,12 @@ export class TextResourceEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		super.setInput(input, options);
 
-		// Detect options
+		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
+		if (!forceOpen && input.matches(this.input)) {
 
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
 				textOptions.apply(this.getControl(), ScrollType.Smooth);
@@ -74,39 +70,41 @@ export class TextResourceEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		this.saveTextEditorViewStateForInput(oldInput);
+		this.saveTextEditorViewStateForInput(this.input);
 
-		// Different Input (Reload)
-		return input.resolve(true).then((resolvedModel: EditorModel) => {
+		// Set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then((resolvedModel: EditorModel) => {
 
-			// Assert Model instance
-			if (!(resolvedModel instanceof BaseTextEditorModel)) {
-				return TPromise.wrapError<void>(new Error('Unable to open file as text'));
-			}
+				// Assert Model instance
+				if (!(resolvedModel instanceof BaseTextEditorModel)) {
+					return TPromise.wrapError<void>(new Error('Unable to open file as text'));
+				}
 
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-			if (!this.input || this.input !== input) {
-				return null;
-			}
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
 
-			// Set Editor Model
-			const textEditor = this.getControl();
-			const textEditorModel = resolvedModel.textEditorModel;
-			textEditor.setModel(textEditorModel);
+				// Set Editor Model
+				const textEditor = this.getControl();
+				const textEditorModel = resolvedModel.textEditorModel;
+				textEditor.setModel(textEditorModel);
 
-			// Apply Options from TextOptions
-			let optionsGotApplied = false;
-			const textOptions = <TextEditorOptions>options;
-			if (textOptions && types.isFunction(textOptions.apply)) {
-				optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
-			}
+				// Apply Options from TextOptions
+				let optionsGotApplied = false;
+				const textOptions = <TextEditorOptions>options;
+				if (textOptions && types.isFunction(textOptions.apply)) {
+					optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+				}
 
-			// Otherwise restore View State
-			if (!optionsGotApplied) {
-				this.restoreViewState(input);
-			}
+				// Otherwise restore View State
+				if (!optionsGotApplied) {
+					this.restoreViewState(input);
+				}
 
-			return void 0;
+				return void 0;
+			});
 		});
 	}
 
