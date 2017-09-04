@@ -22,10 +22,10 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService, IFileStat, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -42,16 +42,13 @@ import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IMode } from 'vs/editor/common/modes';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export interface IEditableData {
 	action: IAction;
@@ -2013,7 +2010,7 @@ export function getWellFormedFileName(filename: string): string {
 	return filename;
 }
 
-export class CompareWithSavedAction extends Action implements ITextModelContentProvider {
+export class CompareWithSavedAction extends Action {
 
 	public static ID = 'workbench.files.action.compareWithSaved';
 	public static LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
@@ -2021,24 +2018,25 @@ export class CompareWithSavedAction extends Action implements ITextModelContentP
 	private static SCHEME = 'showModifications';
 
 	private resource: URI;
-	private fileWatcher: IDisposable;
+	private toDispose: IDisposable[];
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService,
-		@IMessageService messageService: IMessageService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService textModelService: ITextModelService
 	) {
 		super(id, label);
 
-		textModelService.registerTextModelContentProvider(CompareWithSavedAction.SCHEME, this);
-
 		this.enabled = true;
+		this.toDispose = [];
+
+		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
+		this.toDispose.push(provider);
+
+		const registrationDisposal = textModelService.registerTextModelContentProvider(CompareWithSavedAction.SCHEME, provider);
+		this.toDispose.push(registrationDisposal);
 	}
 
 	public setResource(resource: URI) {
@@ -2063,61 +2061,10 @@ export class CompareWithSavedAction extends Action implements ITextModelContentP
 		return TPromise.as(true);
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
-
-		// Make sure our file from disk is resolved up to date
-		return this.resolveEditorModel(resource).then(codeEditorModel => {
-
-			// Make sure to keep contents on disk up to date when it changes
-			if (!this.fileWatcher) {
-				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(resource, FileChangeType.UPDATED)) {
-						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, errors.onUnexpectedError); // update model when resource changes
-					}
-				});
-
-				const disposeListener = codeEditorModel.onWillDispose(() => {
-					disposeListener.dispose();
-					this.fileWatcher.dispose();
-					this.fileWatcher = void 0;
-				});
-			}
-
-			return codeEditorModel;
-		});
-	}
-
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
-
-		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (codeEditorModel) {
-				this.modelService.updateModel(codeEditorModel, content.value);
-			} else if (createAsNeeded) {
-				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
-
-				let mode: TPromise<IMode>;
-				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
-				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
-				}
-
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
-			}
-
-			return codeEditorModel;
-		});
-	}
-
 	public dispose(): void {
 		super.dispose();
 
-		if (this.fileWatcher) {
-			this.fileWatcher.dispose();
-			this.fileWatcher = void 0;
-		}
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 

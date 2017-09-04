@@ -18,25 +18,22 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMode } from 'vs/editor/common/modes';
+import { FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution, ITextModelContentProvider {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: ResourceMap<() => void>;
 	private toUnbind: IDisposable[];
 	private conflictResolutionContext: IContextKey<boolean>;
@@ -44,52 +41,26 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextModelService textModelService: ITextModelService
 	) {
+		this.toUnbind = [];
 		this.messages = new ResourceMap<() => void>();
 		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
-		this.toUnbind = [];
 
-		// Register as text model content provider that supports to load a resource as it actually
-		// is stored on disk as opposed to using the file:// scheme that will return a dirty buffer
-		// if there is one.
-		this.textModelResolverService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, this);
+		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
+		this.toUnbind.push(provider);
+
+		const registrationDisposal = textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider);
+		this.toUnbind.push(registrationDisposal);
 
 		// Hook into model
 		TextFileEditorModel.setSaveErrorHandler(this);
 
 		this.registerListeners();
-	}
-
-	public provideTextContent(resource: URI): TPromise<IModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
-
-		// Make sure our file from disk is resolved up to date
-		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (codeEditorModel) {
-				this.modelService.updateModel(codeEditorModel, content.value);
-			} else {
-				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
-
-				let mode: TPromise<IMode>;
-				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
-				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
-				}
-
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
-			}
-
-			return codeEditorModel;
-		});
 	}
 
 	public getId(): string {
