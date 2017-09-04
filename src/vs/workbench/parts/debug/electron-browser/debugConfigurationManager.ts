@@ -21,6 +21,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -231,6 +232,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this._providers = new Map<number, IDebugConfigurationProvider>();
 		this.adapters = [];
@@ -406,34 +408,36 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public guessAdapter(type?: string): TPromise<Adapter> {
-		if (type) {
-			const adapter = this.getAdapter(type);
-			return TPromise.as(adapter);
-		}
+		return this.extensionService.activateByEvent('onDebug').then(() => {
+			if (type) {
+				const adapter = this.getAdapter(type);
+				return TPromise.as(adapter);
+			}
 
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			const codeEditor = editor.getControl();
-			if (isCommonCodeEditor(codeEditor)) {
-				const model = codeEditor.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-				if (adapters.length === 1) {
-					return TPromise.as(adapters[0]);
+			const editor = this.editorService.getActiveEditor();
+			if (editor) {
+				const codeEditor = editor.getControl();
+				if (isCommonCodeEditor(codeEditor)) {
+					const model = codeEditor.getModel();
+					const language = model ? model.getLanguageIdentifier().language : undefined;
+					const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+					if (adapters.length === 1) {
+						return TPromise.as(adapters[0]);
+					}
 				}
 			}
-		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-			.then(picked => {
-				if (picked instanceof Adapter) {
-					return picked;
-				}
-				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers');
-				}
-				return undefined;
-			});
+			return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked instanceof Adapter) {
+						return picked;
+					}
+					if (picked) {
+						this.commandService.executeCommand('debug.installAdditionalDebuggers');
+					}
+					return undefined;
+				});
+		});
 	}
 
 	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
