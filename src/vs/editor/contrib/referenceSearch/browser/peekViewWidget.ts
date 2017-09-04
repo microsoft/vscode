@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./peekViewWidget';
+import 'vs/css!./media/peekViewWidget';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
@@ -18,7 +18,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IOptions, ZoneWidget, IStyles } from './zoneWidget';
+import { IOptions, ZoneWidget, IStyles } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Color } from 'vs/base/common/color';
