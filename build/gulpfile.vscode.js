@@ -312,7 +312,7 @@ function packageTask(platform, arch, opts) {
 		);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
+			all = es.merge(all, gulp.src(['resources/win32/code_file.ico', 'resources/win32/code_70x70.png', 'resources/win32/code_150x150.png'], { base: '.' }));
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
@@ -338,6 +338,9 @@ function packageTask(platform, arch, opts) {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+
+			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
+				.pipe(rename(product.nameLong + '.VisualElementsManifest.xml')));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@NAME@@', product.applicationName))
