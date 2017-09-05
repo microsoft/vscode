@@ -684,7 +684,7 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			})
-		));
+		)));
 	}
 
 	public findProcessByUUID(uuid: string): debug.IProcess | null {
