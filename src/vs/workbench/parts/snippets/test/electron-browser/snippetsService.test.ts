@@ -126,4 +126,32 @@ suite('SnippetsService', function () {
 		result = await provider.provideCompletionItems(model, new Position(2, 2));
 		assert.equal(result.suggestions.length, 1);
 	});
+
+	test('SnippetSuggest - ensure extension snippets come last ', async function () {
+		snippetService = new SimpleSnippetService([{
+			prefix: 'second',
+			codeSnippet: 'second',
+			name: 'second',
+			description: '',
+			source: '',
+			isFromExtension: true
+		}, {
+			prefix: 'first',
+			codeSnippet: 'first',
+			name: 'first',
+			description: '',
+			source: '',
+			isFromExtension: false
+		}]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = Model.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 1));
+		assert.equal(result.suggestions.length, 2);
+
+		let [first, second] = result.suggestions;
+		assert.equal(first.label, 'first');
+		assert.equal(second.label, 'second');
+	});
 });
