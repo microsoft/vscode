@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "Eine Einstellung wurde geändert, welche einen Neustart benötigt.",
 	"relaunchSettingDetail": "Drücke den Neu starten-Button, um {0} neuzustarten und die Einstellung zu aktivieren.",
 	"restart": "Neu starten",
+	"relaunchWorkspaceMessage": "Dieser Arbeitsbereich erfordert das erneute Laden des Erweiterungssystems.",
 	"reload": "Neu starten"
 }

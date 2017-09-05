@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "Cor de fundo da dobra do editor para as linhas que estão modificadas.",
 	"editorGutterAddedBackground": "Cor de fundo da dobra do editor para as linhas que estão adicionadas.",
-	"editorGutterDeletedBackground": "Cor de fundo da dobra do editor para as linhas que estão excluídas."
+	"editorGutterDeletedBackground": "Cor de fundo da dobra do editor para as linhas que estão excluídas.",
+	"overviewRulerModifiedForeground": "Visão geral da cor do marcador da régua para conteúdo modificado.",
+	"overviewRulerAddedForeground": "Visão geral da cor do marcador da régua para conteúdo adicionado.",
+	"overviewRulerDeletedForeground": "Visão geral da cor do marcador da régua para conteúdo excluído."
 }

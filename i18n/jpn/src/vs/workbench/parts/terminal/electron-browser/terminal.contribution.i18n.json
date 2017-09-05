@@ -10,6 +10,7 @@
 	"terminal.integrated.shellArgs.linux": "Linux のターミナルで使用するコマンド ライン引数。",
 	"terminal.integrated.shell.osx": "ターミナルが OS X で使用するシェルのパス。",
 	"terminal.integrated.shellArgs.osx": "OS X 端末で使用するコマンド ライン引数。",
+	"terminal.integrated.shell.windows": "Windows でターミナルが使用するシェルのパス。 Windows に同梱されているシェルを使用する場合 (cmd、PowerShell、または Bash on Ubuntu) 。",
 	"terminal.integrated.shellArgs.windows": "Windows ターミナル上の場合に使用されるコマンド ライン引数。",
 	"terminal.integrated.rightClickCopyPaste": "設定している場合、ターミナル内で右クリックしたときにコンテキスト メニューを表示させず、選択範囲がある場合はコピー、選択範囲がない場合は貼り付けの操作を行います。",
 	"terminal.integrated.fontFamily": "端末のフォント ファミリを制御します。既定値は editor.fontFamily になります。",

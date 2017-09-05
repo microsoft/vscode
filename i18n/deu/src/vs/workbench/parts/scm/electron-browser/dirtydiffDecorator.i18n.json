@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die geändert wurden.",
 	"editorGutterAddedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die hinzugefügt wurden.",
-	"editorGutterDeletedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die gelöscht wurden."
+	"editorGutterDeletedBackground": "Hintergrundfarbe für die Editor-Leiste für Zeilen, die gelöscht wurden.",
+	"overviewRulerModifiedForeground": "Übersichtslineal-Markierungsfarbe für geänderte Inhalte.",
+	"overviewRulerAddedForeground": "Übersichtslineal-Markierungsfarbe für hinzugefügte Inhalte.",
+	"overviewRulerDeletedForeground": "Übersichtslineal-Markierungsfarbe für gelöschte Inhalte."
 }

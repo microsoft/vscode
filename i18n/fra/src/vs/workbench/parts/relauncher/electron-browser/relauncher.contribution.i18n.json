@@ -7,5 +7,6 @@
 	"relaunchSettingMessage": "Un paramètre a changé et nécessite un redémarrage pour être appliqué.",
 	"relaunchSettingDetail": "Appuyez sur le bouton de redémarrage pour redémarrer {0} et activer le paramètre.",
 	"restart": "Redémarrer",
+	"relaunchWorkspaceMessage": "Ce changement d’espace de travail nécessite un rechargement de notre système d’extension.",
 	"reload": "Recharger"
 }

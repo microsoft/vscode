@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "未知的供应商特定属性。",
 	"css.lint.vendorPrefix.desc": "使用供应商特定前缀时，还应包括标准属性",
 	"css.lint.zeroUnits.desc": "零不需要单位",
+	"css.trace.server.desc": "跟踪 VS Code 与 CSS 语言服务器之间的通信。",
+	"css.validate.title": "控制 CSS 验证和问题严重性。",
 	"css.validate.desc": "启用或禁用所有验证",
 	"less.lint.argumentsInColorFunction.desc": "参数数量无效",
 	"less.lint.boxModel.desc": "使用边距或边框时，不要使用宽度或高度",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "未知的供应商特定属性。",
 	"less.lint.vendorPrefix.desc": "使用供应商特定前缀时，还应包括标准属性",
 	"less.lint.zeroUnits.desc": "零不需要单位",
+	"less.validate.title": "控制 LESS 验证和问题严重性。",
 	"less.validate.desc": "启用或禁用所有验证",
 	"scss.lint.argumentsInColorFunction.desc": "参数数量无效",
 	"scss.lint.boxModel.desc": "使用边距或边框时，不要使用宽度或高度",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "未知的供应商特定属性。",
 	"scss.lint.vendorPrefix.desc": "使用供应商特定前缀时，还应包括标准属性",
 	"scss.lint.zeroUnits.desc": "零不需要单位",
+	"scss.validate.title": "控制 SCSS 验证和问题严重性。",
 	"scss.validate.desc": "启用或禁用所有验证",
 	"less.colorDecorators.enable.desc": "启用或禁用颜色修饰器",
 	"scss.colorDecorators.enable.desc": "启用或禁用颜色修饰器",
-	"css.colorDecorators.enable.desc": "启用或禁用颜色修饰器"
+	"css.colorDecorators.enable.desc": "启用或禁用颜色修饰器",
+	"css.colorDecorators.enable.deprecationMessage": "已弃用设置 \"css.colorDecorators.enabl\"，请改用 \"editor.colorDecorators\"。",
+	"scss.colorDecorators.enable.deprecationMessage": "已弃用设置 \"scss.colorDecorators.enable\"，请改用 \"editor.colorDecorators\"。",
+	"less.colorDecorators.enable.deprecationMessage": "已弃用设置 \"less.colorDecorators.enable\"，请改用 \"editor.colorDecorators\"。"
 }

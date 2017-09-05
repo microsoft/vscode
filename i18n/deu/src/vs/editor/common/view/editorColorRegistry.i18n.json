@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "Hintergrundfarbe für den Rahmen um die Zeile an der Cursorposition.",
 	"rangeHighlight": "Hintergrundfarbe hervorgehobener Bereiche (beispielsweise durch Features wie Quick Open und Suche).",
 	"caret": "Farbe des Cursors im Editor.",
+	"editorCursorBackground": "Hintergrundfarbe vom Editor-Cursor. Erlaubt die Anpassung der Farbe von einem Zeichen, welches von einem Block-Cursor überdeckt wird.",
 	"editorWhitespaces": "Farbe der Leerzeichen im Editor.",
 	"editorIndentGuides": "Farbe der Führungslinien für Einzüge im Editor.",
 	"editorLineNumbers": "Zeilennummernfarbe im Editor.",
@@ -20,5 +21,9 @@
 	"errorForeground": "Vordergrundfarbe von Fehlerunterstreichungen im Editor.",
 	"errorBorder": "Rahmenfarbe von Fehlerunterstreichungen im Editor.",
 	"warningForeground": "Vordergrundfarbe von Warnungsunterstreichungen im Editor.",
-	"warningBorder": "Rahmenfarbe von Warnungsunterstreichungen im Editor."
+	"warningBorder": "Rahmenfarbe von Warnungsunterstreichungen im Editor.",
+	"overviewRulerRangeHighlight": "Übersichtslineal-Markierungsfarbe für Bereichshervorhebungen.",
+	"overviewRuleError": "Übersichtslineal-Markierungsfarbe für Fehler.",
+	"overviewRuleWarning": "Übersichtslineal-Markierungsfarbe für Warnungen.",
+	"overviewRuleInfo": "Übersichtslineal-Markierungsfarbe für Informationen."
 }

@@ -7,6 +7,14 @@
 	"ok": "OK",
 	"pathNotExistTitle": "パスが存在しません",
 	"pathNotExistDetail": "パス '{0}' はディスクに存在しなくなったようです。",
+	"openWorkspace": "開く(&&O)",
+	"openWorkspaceTitle": "ワークスペースを開く",
+	"save": "保存(&&S)",
+	"doNotSave": "保存しない(&&N)",
+	"cancel": "キャンセル",
+	"saveWorkspaceMessage": "ワークスペースの構成をファイルとして保存しますか?",
+	"saveWorkspaceDetail": "再度開く予定があるならワークスペースを保存します。",
+	"saveWorkspace": "ワークスペースを保存",
 	"reopen": "もう一度開く",
 	"wait": "待機を続ける",
 	"close": "閉じる",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "ウィンドウを再度開くか、閉じるか、このまま待機できます。",
 	"appCrashed": "ウィンドウがクラッシュしました",
 	"appCrashedDetail": "ご不便をおかけして申し訳ありません。ウィンドウを再度開いて、中断したところから続行できます。",
-	"openFile": "ファイルを開く",
-	"openFolder": "フォルダーを開く"
+	"open": "開く",
+	"openFolder": "フォルダーを開く",
+	"openFile": "ファイルを開く"
 }

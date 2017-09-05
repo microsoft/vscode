@@ -6,5 +6,7 @@
 {
 	"terminal.background": "終端機的背景色彩，允許終端機和面板的色彩不同。",
 	"terminal.foreground": "終端機的前景色彩。",
+	"terminalCursor.foreground": "終端機游標的前景色彩。",
+	"terminalCursor.background": "終端機游標的背景色彩。允許區塊游標重疊於自訂字元色彩。",
 	"terminal.ansiColor": "終端機中的 '{0}' ANSI 色彩。"
 }

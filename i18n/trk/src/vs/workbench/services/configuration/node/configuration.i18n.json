@@ -14,7 +14,7 @@
 	"invalid.title": "'configuration.title' bir dize olmalıdır",
 	"vscode.extension.contributes.defaultConfiguration": "Varsayılan düzenleyici yapılandırma ayarlarına dil bazında ekleme yapar.",
 	"invalid.properties": "'configuration.properties' bir nesne olmalıdır",
-	"workspaceConfig.id.description": "Çalışma Alanı Tanımlayıcısı. Değiştirilirken kaybolabilecek dahili çalışma alanı durumunu depolamak için kullanılır.",
-	"workspaceConfig.folders.description": "Çalışma alanında yüklenecek klasörler listesi. Bir dosya yolu olmalıdır. ör. `file:///root/folderA`",
+	"workspaceConfig.folders.description": "Çalışma alanında yüklenecek klasörler listesi. Bir dosya yolu olmalıdır. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",
+	"workspaceConfig.folder.description": "Bir dosya yolu. ör. `/root/folderA` veya çalışma alanı dosyasının konumuna karşı çözümlenecek göreceli bir yol için `./folderA`.",
 	"workspaceConfig.settings.description": "Çalışma alanı ayarları"
 }

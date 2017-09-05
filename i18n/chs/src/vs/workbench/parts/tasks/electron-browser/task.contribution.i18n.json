@@ -19,7 +19,7 @@
 	"manyMarkers": "99+",
 	"runningTasks": "显示运行中的任务",
 	"tasks": "任务",
-	"TaskSystem.noHotSwap": "更改任务执行引擎需要重启 VS Code。已忽略更改。",
+	"TaskSystem.noHotSwap": "更改需要重新加载窗口的任务执行引擎。",
 	"TaskService.noBuildTask1": "未定义任何生成任务。使用 \"isBuildCommand\" 在 tasks.json 文件中标记任务。",
 	"TaskService.noBuildTask2": "未定义任何生成任务。在 tasks.json 文件中将任务标记为 \"build\" 组。",
 	"TaskService.noTestTask1": "未定义任何测试任务。使用 \"isTestCommand\" 在 tasks.json 文件中标记任务。",

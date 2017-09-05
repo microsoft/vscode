@@ -49,6 +49,8 @@
 	"showRecommendedKeymapExtensionsShort": "Billentyűkonfigurációk",
 	"showLanguageExtensions": "Nyelvi kiegészítők megjelenítése",
 	"showLanguageExtensionsShort": "Nyelvi kiegészítők",
+	"showAzureExtensions": "Azure-kiegészítők megjelenítése",
+	"showAzureExtensionsShort": "Azure-kiegészítők",
 	"configureWorkspaceRecommendedExtensions": "Ajánlott kiegészítők konfigurálása (munkaterületre vonatkozóan)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Az ajánlatok csak egy munkaterület mappájára vonatkozóan érhetők el.",
 	"OpenExtensionsFile.failed": "Nem sikerült létrehozni az 'extensions.json' fájlt a '.vscode' mappánan ({0}).",

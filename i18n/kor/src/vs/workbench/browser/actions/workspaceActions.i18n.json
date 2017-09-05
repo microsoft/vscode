@@ -6,9 +6,17 @@
 {
 	"openFolder": "폴더 열기...",
 	"openFileFolder": "열기...",
-	"cancel": "취소",
 	"addFolderToWorkspace": "작업 영역에 폴더 추가...",
+	"add": "추가(&&A)",
 	"addFolderToWorkspaceTitle": "작업 영역에 폴더 추가",
+	"newWorkspace": "새 작업 영역...",
+	"select": "선택(&&S)",
+	"selectWorkspace": "작업 영역 폴더 선택",
 	"removeFolderFromWorkspace": "작업 영역에서 폴더 삭제",
-	"save": "저장(&&S)"
+	"saveWorkspaceAsAction": "작업 영역을 다른 이름으로 저장",
+	"saveEmptyWorkspaceNotSupported": "저장하려면 먼저 작업 영역을 여세요.",
+	"save": "저장(&&S)",
+	"saveWorkspace": "작업 영역 저장",
+	"openWorkspaceAction": "작업 영역 열기...",
+	"openWorkspaceConfigFile": "작업 영역 구성 파일 열기"
 }

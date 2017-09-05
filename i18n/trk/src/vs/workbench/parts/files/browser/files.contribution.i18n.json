@@ -44,5 +44,5 @@
 	"sortOrder.filesFirst": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar klasörlerden önce görüntülenir.",
 	"sortOrder.type": "Dosya ve klasörler uzantılarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
 	"sortOrder.modified": "Dosya ve klasörler son değiştirilme tarihine göre, azalan düzende sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
-	"sortOrder": "Dosyaların ve klasörlerin gezginde nasıl sıralanacağını denetler."
+	"sortOrder": "Gezginde dosya ve klasörlerin sıralamasını denetler. Varsayılan sıralamaya ek olarak, sıralamayı; 'mixed' (dosya ve klasörler karışık olarak sıralanır), 'type' (dosya türüne göre), 'modified' (son düzenlenme tarihine göre) veya 'filesFirst' (dosyaları klasörlerden önce sırala) olarak ayarlayabilirsiniz."
 }

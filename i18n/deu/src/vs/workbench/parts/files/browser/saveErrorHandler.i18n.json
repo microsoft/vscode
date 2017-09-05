@@ -11,5 +11,6 @@
 	"genericSaveError": "Fehler beim Speichern von \"{0}\": {1}.",
 	"staleSaveError": "Fehler beim Speichern von \"{0}\": Der Inhalt auf dem Datenträger ist neuer. Klicken Sie auf **Vergleichen**, um Ihre Version mit der Version auf dem Datenträger zu vergleichen.",
 	"compareChanges": "Vergleichen",
-	"saveConflictDiffLabel": "{0} (auf Datenträger) ↔ {1} (in {2}): Speicherkonflikt lösen"
+	"saveConflictDiffLabel": "{0} (auf Datenträger) ↔ {1} (in {2}): Speicherkonflikt lösen",
+	"userGuide": "Verwenden Sie die Aktionen auf der Editor-Symbolleiste auf der rechten Seite, um Ihre Änderungen **rückgängig zu machen** oder den Inhalt auf dem Datenträger mit Ihren Änderungen zu **überschreiben**."
 }

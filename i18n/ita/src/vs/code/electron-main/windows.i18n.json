@@ -7,6 +7,14 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Il percorso non esiste",
 	"pathNotExistDetail": "Il percorso '{0}' sembra non esistere più sul disco.",
+	"openWorkspace": "&&Apri",
+	"openWorkspaceTitle": "Apri area di lavoro",
+	"save": "&&Salva",
+	"doNotSave": "&&Non salvare",
+	"cancel": "Annulla",
+	"saveWorkspaceMessage": "Salvare la configurazione dell'area di lavoro in un file?",
+	"saveWorkspaceDetail": "Salvare l'area di lavoro se si prevede di aprirla di nuovo.",
+	"saveWorkspace": "Salva area di lavoro",
 	"reopen": "Riapri",
 	"wait": "Continua ad attendere",
 	"close": "Chiudi",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "È possibile riaprire la finestra, chiuderla oppure attendere.",
 	"appCrashed": "Si è verificato un arresto anomalo della finestra",
 	"appCrashedDetail": "Ci scusiamo per l'inconveniente. Per riprendere dal punto in cui si è verificata l'interruzione, riaprire la finestra.",
-	"openFile": "Apri file",
-	"openFolder": "Apri cartella"
+	"open": "Apri",
+	"openFolder": "Apri cartella",
+	"openFile": "Apri file"
 }

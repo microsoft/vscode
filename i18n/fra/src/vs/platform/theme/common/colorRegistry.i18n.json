@@ -85,5 +85,7 @@
 	"mergeBorder": "Couleur de bordure des en-têtes et du séparateur dans les conflits de fusion inline.",
 	"overviewRulerCurrentContentForeground": "Premier plan de la règle d'aperçu actuelle pour les conflits de fusion inline.",
 	"overviewRulerIncomingContentForeground": "Premier plan de la règle d'aperçu entrante pour les conflits de fusion inline.",
-	"overviewRulerCommonContentForeground": "Arrière-plan de la règle d'aperçu de l'ancêtre commun dans les conflits de fusion inline."
+	"overviewRulerCommonContentForeground": "Arrière-plan de la règle d'aperçu de l'ancêtre commun dans les conflits de fusion inline.",
+	"overviewRulerFindMatchForeground": "Couleur du marqueur de la règle d'aperçu pour rechercher des correspondances.",
+	"overviewRulerSelectionHighlightForeground": "Couleur du marqueur de la règle d'aperçu pour la mise en évidence de la sélection."
 }

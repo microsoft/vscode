@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "매개 변수 서명으로 함수를 완료하세요.",
 	"typescript.tsdk.desc": "사용할 tsserver 및 lib*.d.ts 파일이 들어 있는 폴더 경로를 지정합니다.",
-	"typescript.disableAutomaticTypeAcquisition": "자동 형식 인식을 사용하지 않습니다. TypeScript >= 2.0.6이 필요하며 변경 후 다시 시작해야 합니다.",
+	"typescript.disableAutomaticTypeAcquisition": "자동 형식 인식을 사용하지 않습니다. TypeScript >= 2.0.6이 필요합니다.",
 	"typescript.tsserver.log": "파일에 대해 TS 서버 로깅을 사용하도록 설정합니다. 이 로그는 TS 서버 문제를 진단하는 데 사용될 수 있습니다. 로그에는 파일 경로, 소스 코드 및 프로젝트에서 잠재적으로 중요한 기타 정보가 포함될 수 있습니다.",
 	"typescript.tsserver.trace": "TS 서버로 전송한 메시지 추적을 사용하도록 설정합니다. 이\n 추적은 TS 서버 문제를 진단하는 데 사용될 수 있습니다. 추적에는 파일 경로, 소스 코드 및 프로젝트에서 잠재적으로 중요한\n 기타 정보가 포함될 수 있습니다.",
 	"typescript.validate.enable": "TypeScript 유효성 검사를 사용하거나 사용하지 않습니다.",

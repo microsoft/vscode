@@ -85,5 +85,7 @@
 	"mergeBorder": "Satır içi birleştirme çakışmalarında üst bilgi ve ayırıcıdaki kenarlık rengi.",
 	"overviewRulerCurrentContentForeground": "Satır içi birleştirme çakışmalarında geçerli genel bakış cetveli ön planı.",
 	"overviewRulerIncomingContentForeground": "Satır içi birleştirme çakışmalarında gelen genel bakış cetveli ön planı.",
-	"overviewRulerCommonContentForeground": "Satır içi birleştirme çakışmalarında ortak ata genel bakış cetveli ön planı."
+	"overviewRulerCommonContentForeground": "Satır içi birleştirme çakışmalarında ortak ata genel bakış cetveli ön planı.",
+	"overviewRulerFindMatchForeground": "Bulunan eşler için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRulerSelectionHighlightForeground": "Seçim vurguları için genel bakış cetvelinin işaretleyici rengi."
 }

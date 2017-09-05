@@ -11,9 +11,11 @@
 	"ConfigurationParser.unknownMatcherKind": "警告: 定義的問題比對器未知。支援的類型為 string | ProblemMatcher | (string | ProblemMatcher)[]。\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "錯誤: problemMatcher 參考無效: {0}\n",
 	"ConfigurationParser.noTaskType": "錯誤: 工作組態必須具有型別屬性。將會忽略該組態。\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "錯誤: 沒有已註冊工作類型 '{0}'。您是否忘記安裝提供相應工作提供者的延伸模組?",
 	"ConfigurationParser.notCustom": "錯誤: 未將工作宣告為自訂工作。將會忽略該組態。\n{0}\n",
 	"ConfigurationParser.noTaskName": "錯誤: 工作必須提供 taskName 屬性。即將忽略此工作。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: 工作 '{0}' 是殼層命令，但命令名稱或其中一個引數有的未逸出的空格。若要確保命令列正確引述，請將引數合併到命令中。",
 	"taskConfiguration.noCommandOrDependsOn": "錯誤: 工作 '{0}' 未指定命令與 dependsOn 屬性。將會略過該工作。其定義為: \n{1}",
-	"taskConfiguration.noCommand": "錯誤: 工作 '{0}' 未定義命令。即將略過該工作。其定義為:\n{1}"
+	"taskConfiguration.noCommand": "錯誤: 工作 '{0}' 未定義命令。即將略過該工作。其定義為:\n{1}",
+	"TaskParse.noOsSpecificGlobalTasks": "工作版本 2.0.0 不支援全域 OS 特定工作。請使用 OS 特定命令來轉換這些工作。受影響的工作為:\n{0}"
 }

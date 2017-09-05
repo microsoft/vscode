@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "L'exécutable d'adaptateur de débogage '{0}' n'existe pas.",
 	"debugAdapterCannotDetermineExecutable": "Impossible de déterminer l'exécutable pour l'adaptateur de débogage '{0}'.",
+	"launch.config.comment1": "Utilisez IntelliSense pour en savoir plus sur les attributs possibles.",
+	"launch.config.comment2": "Pointez pour afficher la description des attributs existants.",
+	"launch.config.comment3": "Pour plus d'informations, visitez : {0}",
 	"debugType": "Type de configuration.",
 	"debugTypeNotRecognised": "Le type de débogage n'est pas reconnu. Vérifiez que vous avez installé l'extension de débogage correspondante et qu'elle est activée.",
 	"node2NotSupported": "\"node2\" n'est plus pris en charge. Utilisez \"node\" à la place, et affectez la valeur \"inspector\" à l'attribut \"protocol\".",

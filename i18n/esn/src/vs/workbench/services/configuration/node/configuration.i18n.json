@@ -7,8 +7,14 @@
 	"vscode.extension.contributes.configuration": "Aporta opciones de configuración.",
 	"vscode.extension.contributes.configuration.title": "Resumen de la configuración. Esta etiqueta se usará en el archivo de configuración como comentario divisor.",
 	"vscode.extension.contributes.configuration.properties": "Descripción de las propiedades de configuración.",
+	"scope.window.description": "Configuración específica para ventanas, que se puede definir en la configuración de usuario o de área de trabajo.",
+	"scope.resource.description": "Configuración específica para recursos, que se puede definir en la configuración de usuario, de área de trabajo o de carpeta.",
+	"scope.description": "Ámbito donde es aplicable la configuración. Los ámbitos disponibles son \"window\" y \"resource\".",
 	"invalid.type": "si se establece, \"configuration.type\" debe establecerse en \"object\"",
 	"invalid.title": "configuration.title debe ser una cadena",
 	"vscode.extension.contributes.defaultConfiguration": "Contribuye a la configuración de los parámetros del editor predeterminados por lenguaje.",
-	"invalid.properties": "configuration.properties debe ser un objeto"
+	"invalid.properties": "configuration.properties debe ser un objeto",
+	"workspaceConfig.folders.description": "Lista de carpetas que debe cargarse en el área de trabajo. Debe ser una ruta de acceso de archivo; por ejemplo, \"/raíz/carpetaA\" o \"./carpetaA\" para una ruta de acceso relativa que se resolverá respecto a la ubicación del archivo del área de trabajo.",
+	"workspaceConfig.folder.description": "Ruta de acceso de archivo; por ejemplo, \"/raíz/carpetaA\" o \"./carpetaA\" para una ruta de acceso de archivo que se resolverá respecto a la ubicación del archivo del área de trabajo.",
+	"workspaceConfig.settings.description": "Configuración de área de trabajo"
 }

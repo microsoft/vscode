@@ -49,6 +49,8 @@
 	"showRecommendedKeymapExtensionsShort": "キーマップ",
 	"showLanguageExtensions": "言語の拡張機能を表示",
 	"showLanguageExtensionsShort": "言語の拡張機能",
+	"showAzureExtensions": "Azure 拡張機能の表示",
+	"showAzureExtensionsShort": "Azure 拡張機能",
 	"configureWorkspaceRecommendedExtensions": "お勧めの拡張機能の構成 (ワークスペース)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "推奨事項はワークスペース フォルダーでのみ利用可能です。",
 	"OpenExtensionsFile.failed": "'.vscode' ファルダー ({0}) 内に 'extensions.json' ファイルを作成できません。",

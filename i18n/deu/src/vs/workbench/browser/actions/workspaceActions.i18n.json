@@ -6,9 +6,17 @@
 {
 	"openFolder": "Ordner öffnen...",
 	"openFileFolder": "Öffnen...",
-	"cancel": "Abbrechen",
 	"addFolderToWorkspace": "Ordner zum Arbeitsbereich hinzufügen...",
+	"add": "&&Hinzufügen",
 	"addFolderToWorkspaceTitle": "Ordner zum Arbeitsbereich hinzufügen",
+	"newWorkspace": "Neuer Arbeitsbereich...",
+	"select": "Au&&swählen",
+	"selectWorkspace": "Ordner für den Arbeitsbereich auswählen",
 	"removeFolderFromWorkspace": "Ordner aus dem Arbeitsbereich entfernen",
-	"save": "&&Speichern"
+	"saveWorkspaceAsAction": "Arbeitsbereich speichern unter...",
+	"saveEmptyWorkspaceNotSupported": "Öffnen Sie zum Speichern zunächst einen Arbeitsbereich.",
+	"save": "&&Speichern",
+	"saveWorkspace": "Arbeitsbereich speichern",
+	"openWorkspaceAction": "Arbeitsbereich öffnen...",
+	"openWorkspaceConfigFile": "Konfigurationsdatei des Arbeitsbereichs öffnen"
 }

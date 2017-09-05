@@ -11,9 +11,11 @@
 	"ConfigurationParser.unknownMatcherKind": "Avertissement : le détecteur de problèmes de correspondance défini est inconnu. Les types pris en charge sont string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "Erreur : référence à problemMatcher non valide : {0}\n",
 	"ConfigurationParser.noTaskType": "Erreur : la configuration des tâches doit avoir une propriété de type. La configuration est ignorée.\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "Erreur : aucun type de tâche '{0}' enregistré. Avez-vous oublié d'installer une extension incluant le fournisseur de tâches correspondant ?",
 	"ConfigurationParser.notCustom": "Erreur : la tâche n'est pas déclarée comme une tâche personnalisée. La configuration est ignorée.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Erreur : les tâches doivent fournir une propriété taskName. La tâche va être ignorée.\n{0}\n",
 	"taskConfiguration.shellArgs": "Avertissement : La tâche '{0}' est une commande d'interpréteur de commandes, et le nom de la commande ou l'un de ses arguments contient des espaces non précédés d'un caractère d'échappement. Pour garantir une ligne de commande correcte, fusionnez les arguments dans la commande.",
 	"taskConfiguration.noCommandOrDependsOn": "Erreur : La tâche '{0}' ne spécifie ni une commande, ni une propriété dependsOn. La tâche est ignorée. Sa définition est :\n{1}",
-	"taskConfiguration.noCommand": "Erreur : La tâche '{0}' ne définit aucune commande. La tâche va être ignorée. Sa définition est :\n{1}"
+	"taskConfiguration.noCommand": "Erreur : La tâche '{0}' ne définit aucune commande. La tâche va être ignorée. Sa définition est :\n{1}",
+	"TaskParse.noOsSpecificGlobalTasks": "Task Version 2.0.0 ne supporte pas les tâches spécifiques globales du système d'exploitation. Convertissez-les en une tâche en une commande spécifique du système d'exploitation. Les tâches concernées sont : {0}"
 }

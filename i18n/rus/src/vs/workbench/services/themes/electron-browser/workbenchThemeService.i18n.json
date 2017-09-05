@@ -28,5 +28,14 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "Переопределяет цвета из выбранной цветовой темы.",
 	"workbenchColors.deprecated": "Параметр больше не является экспериментальным и был переименован в 'workbench.colorCustomizations'",
-	"workbenchColors.deprecatedDescription": "Используйте параметр 'workbench.colorCustomizations'"
+	"workbenchColors.deprecatedDescription": "Используйте параметр 'workbench.colorCustomizations'",
+	"editorColors": "Переопределяет цвета редактора и стиль шрифта из текущей выбранной цветовой темы.",
+	"editorColors.comments": "Задает цвета и стили для комментариев",
+	"editorColors.strings": "Задает цвета и стили для строковых литералов.",
+	"editorColors.keywords": "Задает цвета и стили для ключевых слов.",
+	"editorColors.numbers": "Задает цвета и стили для числовых литералов. ",
+	"editorColors.types": "Задает цвета и стили для объявлений типов и ссылок. ",
+	"editorColors.functions": "Задает цвета и стили для объявлений функций и ссылок. ",
+	"editorColors.variables": "Задает цвета и стили для объявлений переменных и для ссылок. ",
+	"editorColors.textMateRules": "Задает цвета и стили с использованием правил оформления textmate (расширенный параметр)."
 }

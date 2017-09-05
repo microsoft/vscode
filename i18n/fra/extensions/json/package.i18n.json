@@ -11,5 +11,6 @@
 	"json.schemas.schema.desc": "Définition de schéma pour l'URL indiquée. Le schéma doit être fourni uniquement pour éviter les accès à l'URL du schéma.",
 	"json.format.enable.desc": "Activer/désactiver le formateur JSON par défaut (nécessite un redémarrage)",
 	"json.tracing.desc": "Trace la communication entre VS Code et le serveur de langage JSON.",
-	"json.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs"
+	"json.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs",
+	"json.colorDecorators.enable.deprecationMessage": "Le paramètre 'json.colorDecorators.enable' a été déprécié en faveur de 'editor.colorDecorators'."
 }

@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "不明なベンダー固有のプロパティ。",
 	"css.lint.vendorPrefix.desc": "ベンダー固有のプレフィックスを使用する場合は、標準のプロパティも含めます",
 	"css.lint.zeroUnits.desc": "0 の単位は必要ありません",
+	"css.trace.server.desc": "VS Code と CSS 言語サーバー間の通信をトレースします。",
+	"css.validate.title": "CSS の検証と問題の重大度を制御します。",
 	"css.validate.desc": "すべての検証を有効または無効にします",
 	"less.lint.argumentsInColorFunction.desc": "正しくないパラメーターの数",
 	"less.lint.boxModel.desc": "パディングまたは枠線を使用する場合は幅または高さを使用しないでください",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "不明なベンダー固有のプロパティ。",
 	"less.lint.vendorPrefix.desc": "ベンダー固有のプレフィックスを使用する場合は、標準のプロパティも含めます",
 	"less.lint.zeroUnits.desc": "0 の単位は必要ありません",
+	"less.validate.title": "LESS の検証と問題の重大度を制御します。",
 	"less.validate.desc": "すべての検証を有効または無効にします",
 	"scss.lint.argumentsInColorFunction.desc": "正しくないパラメーターの数",
 	"scss.lint.boxModel.desc": "パディングまたは枠線を使用する場合は幅または高さを使用しないでください",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "不明なベンダー固有のプロパティ。",
 	"scss.lint.vendorPrefix.desc": "ベンダー固有のプレフィックスを使用する場合は、標準のプロパティも含めます",
 	"scss.lint.zeroUnits.desc": "0 の単位は必要ありません",
+	"scss.validate.title": "SCSS の検証と問題の重大度を制御します。",
 	"scss.validate.desc": "すべての検証を有効または無効にします",
 	"less.colorDecorators.enable.desc": "カラー デコレーターを有効または無効にします",
 	"scss.colorDecorators.enable.desc": "カラー デコレーターを有効または無効にします",
-	"css.colorDecorators.enable.desc": "カラー デコレーターを有効または無効にします"
+	"css.colorDecorators.enable.desc": "カラー デコレーターを有効または無効にします",
+	"css.colorDecorators.enable.deprecationMessage": "設定 `css.colorDecorators.enable` は使用されなくなりました。`editor.colorDecorators` を使用してください。",
+	"scss.colorDecorators.enable.deprecationMessage": "設定 `scss.colorDecorators.enable` は使用されなくなりました。`editor.colorDecorators` を使用してください。",
+	"less.colorDecorators.enable.deprecationMessage": "設定 `less.colorDecorators.enable` は使用されなくなりました。`editor.colorDecorators` を使用してください。"
 }

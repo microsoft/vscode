@@ -9,6 +9,8 @@
 	"welcomePage.typeScript": "TypeScript",
 	"welcomePage.python": "Python",
 	"welcomePage.php": "PHP",
+	"welcomePage.azure": "Azure",
+	"welcomePage.showAzureExtensions": "顯示 Azure 擴充功能",
 	"welcomePage.docker": "Docker",
 	"welcomePage.vim": "活力",
 	"welcomePage.sublime": "壯麗",

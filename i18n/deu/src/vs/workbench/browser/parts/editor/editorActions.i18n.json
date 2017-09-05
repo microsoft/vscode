@@ -36,6 +36,7 @@
 	"navigateNext": "Weiter",
 	"navigatePrevious": "Zurück",
 	"reopenClosedEditor": "Geschlossenen Editor erneut öffnen",
+	"clearRecentFiles": "Zuletzt geöffnete löschen",
 	"showEditorsInFirstGroup": "Editoren in erster Gruppe anzeigen",
 	"showEditorsInSecondGroup": "Editoren in zweiter Gruppe anzeigen",
 	"showEditorsInThirdGroup": "Editoren in dritter Gruppe anzeigen",

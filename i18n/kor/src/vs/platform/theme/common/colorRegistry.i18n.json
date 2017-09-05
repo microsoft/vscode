@@ -53,6 +53,9 @@
 	"badgeBackground": "배지 배경색입니다. 배지는 검색 결과 수와 같은 소량의 정보 레이블입니다.",
 	"badgeForeground": "배지 전경색입니다. 배지는 검색 결과 수와 같은 소량의 정보 레이블입니다.",
 	"scrollbarShadow": "스크롤되는 보기를 나타내는 스크롤 막대 그림자입니다.",
+	"scrollbarSliderBackground": "스크롤 막대 슬라이버 배경색입니다.",
+	"scrollbarSliderHoverBackground": "마우스로 가리킬 때 스크롤 막대 슬라이더 배경색입니다.",
+	"scrollbarSliderActiveBackground": "활성 상태일 때 스크롤 막대 슬라이더 배경색입니다.",
 	"progressBarBackground": "오래 실행 중인 작업에 대해 표시되는 진행률 표시 막대의 배경색입니다.",
 	"editorBackground": "편집기 배경색입니다.",
 	"editorForeground": "편집기 기본 전경색입니다.",
@@ -82,5 +85,7 @@
 	"mergeBorder": "인라인 병합 충돌에서 헤더 및 스플리터의 테두리 색입니다.",
 	"overviewRulerCurrentContentForeground": "인라인 병합 충돌에서 현재 개요 눈금 전경색입니다.",
 	"overviewRulerIncomingContentForeground": "인라인 병합 충돌에서 수신 개요 눈금 전경색입니다.",
-	"overviewRulerCommonContentForeground": "인라인 병합 충돌에서 공통 과거 개요 눈금 전경색입니다."
+	"overviewRulerCommonContentForeground": "인라인 병합 충돌에서 공통 과거 개요 눈금 전경색입니다.",
+	"overviewRulerFindMatchForeground": "찾기 일치 항목의 개요 눈금자 마커 색입니다.",
+	"overviewRulerSelectionHighlightForeground": "선택 영역 강조 표시의 개요 눈금자 마커 색입니다."
 }

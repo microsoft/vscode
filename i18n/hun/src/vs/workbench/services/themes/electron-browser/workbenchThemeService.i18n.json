@@ -29,5 +29,13 @@
 	"workbenchColors": "Felülírja az aktuális színtémában definiált színeket.",
 	"workbenchColors.deprecated": "A beállítás már nem kísérleti, és át lett nevezve 'workbench.colorCustomizations'-re.",
 	"workbenchColors.deprecatedDescription": "Használja a 'workbench.colorCustomizations' tulajdonságot helyette.",
-	"editorColors": "Felülírja az aktuális színtémában definiált, szerkesztőablakhoz kapcsolódó színeket és betűstílusokat."
+	"editorColors": "Felülírja az aktuális színtémában definiált, szerkesztőablakhoz kapcsolódó színeket és betűstílusokat.",
+	"editorColors.comments": "Meghatározza a megjegyzések színét és stílusát.",
+	"editorColors.strings": "Meghatározza a sztringliterálok színét és stílusát.",
+	"editorColors.keywords": "Meghatározza a kulcsszavak színét és stílusát.",
+	"editorColors.numbers": "Meghatározza a számliterálok színét és stílusát.",
+	"editorColors.types": "Meghatározza a típusdeklarációk és -referenciák színét és stílusát.",
+	"editorColors.functions": "Meghatározza a függvénydeklarációk és -referenciák színét és stílusát.",
+	"editorColors.variables": "Meghatározza a változódeklarációk és -referenciák színét és stílusát.",
+	"editorColors.textMateRules": "Színek és stílusok beállítása textmate témázási szabályok alapján (haladó)."
 }

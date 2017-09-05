@@ -11,6 +11,7 @@
 	"ConfigurationParser.unknownMatcherKind": "警告: 定義されている問題マッチャーが不明です。サポートされている型は string | ProblemMatcher | (string | ProblemMatcher)[] です。\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "エラー: 正しくない problemMatcher 参照 {0}\n",
 	"ConfigurationParser.noTaskType": "エラー: タスクの構成には type プロパティが必要です。この構成は無視されます。\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "Error: タスク タイプ '{0}' は登録されていません。対応するタスク プロバイダーを提供する拡張機能をインストールしましたか?",
 	"ConfigurationParser.notCustom": "エラー: タスクがカスタム タスクとして定義されていません。この構成は無視されます。\n{0}\n",
 	"ConfigurationParser.noTaskName": "エラー: タスクが taskName プロパティを提供しなければなりません。このタスクは無視されます。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: タスク '{0}' はシェル コマンドです。コマンド名または引数の 1 つに、エスケープされていないスペースが含まれています。コマンド ラインの引用が正しく解釈されるように、引数をコマンドにマージしてください。",

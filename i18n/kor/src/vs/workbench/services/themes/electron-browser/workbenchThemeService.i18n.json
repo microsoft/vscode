@@ -28,5 +28,14 @@
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "현재 선택한 색 테마에서 색을 재정의합니다.",
 	"workbenchColors.deprecated": "이 설정은 더 이상 실험적 설정이 아니며 이름이\n 'workbench.colorCustomizations'로 변경되었습니다.",
-	"workbenchColors.deprecatedDescription": "대신 'workbench.colorCustomizations'를 사용합니다."
+	"workbenchColors.deprecatedDescription": "대신 'workbench.colorCustomizations'를 사용합니다.",
+	"editorColors": "현재 선택된 색 테마에서 편집기 색상과 글꼴 스타일을 재정의합니다.",
+	"editorColors.comments": "주석의 색 및 스타일을 설정합니다.",
+	"editorColors.strings": "문자열 리터럴의 색 및 스타일을 설정합니다.",
+	"editorColors.keywords": "키워드의 색과 스타일을 설정합니다.",
+	"editorColors.numbers": "숫자 리터럴의 색과 스타일을 설정합니다.",
+	"editorColors.types": "형식 선언 및 참조의 색 및 스타일을 설정합니다.",
+	"editorColors.functions": "함수 선언 및 참조의 색 및 스타일을 설정합니다.",
+	"editorColors.variables": "변수 선언 및 참조의 색 및 스타일을 설정합니다.",
+	"editorColors.textMateRules": "textmate 테마 설정 규칙을 사용하여 색 및 스타일을 설정합니다(고급)."
 }

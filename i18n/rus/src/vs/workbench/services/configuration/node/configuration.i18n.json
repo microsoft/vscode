@@ -7,8 +7,14 @@
 	"vscode.extension.contributes.configuration": "Добавляет параметры конфигурации.",
 	"vscode.extension.contributes.configuration.title": "Краткая сводка параметров. Эта метка будет использоваться в файле параметров в качестве разделяющего комментария.",
 	"vscode.extension.contributes.configuration.properties": "Описание свойств конфигурации.",
+	"scope.window.description": "Конфигурация окна, которая может быть задана в параметрах пользователя или рабочей области.",
+	"scope.resource.description": "Конфигурации ресурсов, которые могут быть заданы в параметрах пользователей, рабочих областей или папок.",
+	"scope.description": "Область, в которой применяется конфигурация. Доступные области — 'window' и 'resource'.",
 	"invalid.type": "Если тип configuration.type задан, то он должен иметь значение object",
 	"invalid.title": "configuration.title должно быть строкой",
 	"vscode.extension.contributes.defaultConfiguration": "Предоставляет параметры конфигурации редактора по умолчанию в соответствии с языком.",
-	"invalid.properties": "configuration.properties должно быть объектом"
+	"invalid.properties": "configuration.properties должно быть объектом",
+	"workspaceConfig.folders.description": "Список папок, которые будут загружены в рабочую область. Необходимо указывать пути к файлам, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
+	"workspaceConfig.folder.description": "Путь к файлу, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
+	"workspaceConfig.settings.description": "Параметры рабочей области"
 }

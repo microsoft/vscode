@@ -19,7 +19,7 @@
 	"manyMarkers": "99+",
 	"runningTasks": "Futó feladatok megjelenítése",
 	"tasks": "Feladatok",
-	"TaskSystem.noHotSwap": "A feladatvégrehajtó motor megváltoztatása a VS Code újraindítását igényli. A módosítás figyelmen kívül van hagyva.",
+	"TaskSystem.noHotSwap": "A feladatvégrehajtó motor megváltoztatása az ablak újraindítását igényli.",
 	"TaskService.noBuildTask1": "Nincs buildelési feladat definiálva. Jelöljön meg egy feladatot az 'isBuildCommand' tulajdonsággal a tasks.json fájlban!",
 	"TaskService.noBuildTask2": "Nincs buildelési feladat definiálva. Jelöljön meg egy feladatot a 'build' csoporttal a tasks.json fájlban!",
 	"TaskService.noTestTask1": "Nincs tesztelési feladat definiálva. Jelöljön meg egy feladatot az 'isTestCommand' tulajdonsággal a tasks.json fájlban!",

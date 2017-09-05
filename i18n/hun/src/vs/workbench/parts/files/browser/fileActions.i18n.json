@@ -40,7 +40,7 @@
 	"pickHistory": "Válasszon egy korábban megnyitott fájlt az összehasonlításhoz",
 	"unableToFileToCompare": "A kiválasztott fájl nem hasonlítható össze a következővel: '{0}'.",
 	"openFileToCompare": "Fájlok összehasonlításához elősször nyisson meg egy fájlt.",
-	"compareWith": "Összehasonlítás a következővel: '{0}'",
+	"compareWith": "'{0}' összehasonlítása a következővel: '{1}'",
 	"compareFiles": "Fájlok összehasonlítása",
 	"refresh": "Frissítés",
 	"save": "Mentés",

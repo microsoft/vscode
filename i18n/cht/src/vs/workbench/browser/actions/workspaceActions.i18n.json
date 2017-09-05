@@ -6,12 +6,17 @@
 {
 	"openFolder": "開啟資料夾...",
 	"openFileFolder": "開啟...",
-	"cancel": "取消",
-	"newWorkspaceFormExisting": "新的工作區從現有...",
 	"addFolderToWorkspace": "將資料夾新增到工作區...",
 	"add": "新增",
 	"addFolderToWorkspaceTitle": "將資料夾新增到工作區",
+	"newWorkspace": "新增工作區...",
+	"select": "選取(&&S)",
+	"selectWorkspace": "為工作區選取資料夾",
 	"removeFolderFromWorkspace": "將資料夾從工作區移除",
 	"saveWorkspaceAsAction": "另存工作區為...",
-	"save": "儲存(&&S)"
+	"saveEmptyWorkspaceNotSupported": "請先開啟工作區以進行儲存。",
+	"save": "儲存(&&S)",
+	"saveWorkspace": "儲存工作區",
+	"openWorkspaceAction": "開啟工作區...",
+	"openWorkspaceConfigFile": "開啟工作區組態檔"
 }

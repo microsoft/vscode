@@ -20,6 +20,5 @@
 	"debugAnyway": "Yine de Hata Ayıkla",
 	"noFolderWorkspaceDebugError": "Aktif dosyada hata ayıklama yapılamıyor. Lütfen, dosyanın diskte kayıtlı olduğundan ve bu dosya türü için hata ayıklama eklentinizin olduğundan emin olun.",
 	"NewLaunchConfig": "Lütfen uygulamanızın başlatma yapılandırması dosyasını ayarlayın. {0}",
-	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı.",
-	"differentTaskRunning": "'{0}' görevi zaten çalışıyor. Ön başlatma görevi '{1}' çalıştırılamıyor."
+	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı."
 }

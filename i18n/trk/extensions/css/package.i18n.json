@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Bilinmeyen satıcıya özel özellik.",
 	"css.lint.vendorPrefix.desc": "Satıcıya özgü bir ön ek kullanırken standart özelliği de dahil edin",
 	"css.lint.zeroUnits.desc": "Sıfır için birim gerekmez",
+	"css.trace.server.desc": "VS Code ve CSS dil sunucusu arasındaki iletişimi izler.",
+	"css.validate.title": "CSS doğrulamasını ve sorunların önem derecelerini denetler.",
 	"css.validate.desc": "Tüm doğrulamaları etkinleştirir veya devre dışı bırakır",
 	"less.lint.argumentsInColorFunction.desc": "Geçersiz sayıda parametre",
 	"less.lint.boxModel.desc": "Doldurma veya kenarlık kullanırken genişlik veya yükseklik kullanmayın",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "Bilinmeyen satıcıya özel özellik.",
 	"less.lint.vendorPrefix.desc": "Satıcıya özgü bir ön ek kullanırken standart özelliği de dahil edin",
 	"less.lint.zeroUnits.desc": "Sıfır için birim gerekmez",
+	"less.validate.title": "LESS doğrulamasını ve sorunların önem derecelerini denetler.",
 	"less.validate.desc": "Tüm doğrulamaları etkinleştirir veya devre dışı bırakır",
 	"scss.lint.argumentsInColorFunction.desc": "Geçersiz sayıda parametre",
 	"scss.lint.boxModel.desc": "Doldurma veya kenarlık kullanırken genişlik veya yükseklik kullanmayın",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Bilinmeyen satıcıya özel özellik.",
 	"scss.lint.vendorPrefix.desc": "Satıcıya özgü bir ön ek kullanırken standart özelliği de dahil edin",
 	"scss.lint.zeroUnits.desc": "Sıfır için birim gerekmez",
+	"scss.validate.title": "SCSS doğrulamasını ve sorunların önem derecelerini denetler.",
 	"scss.validate.desc": "Tüm doğrulamaları etkinleştirir veya devre dışı bırakır",
 	"less.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır",
 	"scss.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır",
-	"css.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır"
+	"css.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır",
+	"css.colorDecorators.enable.deprecationMessage": "`css.colorDecorators.enable` ayarı, `editor.colorDecorators` yüzünden kullanım dışıdır.",
+	"scss.colorDecorators.enable.deprecationMessage": "`scss.colorDecorators.enable` ayarı, `editor.colorDecorators` yüzünden kullanım dışıdır.",
+	"less.colorDecorators.enable.deprecationMessage": "`less.colorDecorators.enable` ayarı, `editor.colorDecorators` yüzünden kullanım dışıdır."
 }
