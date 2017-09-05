@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
+const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
+const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title$="${name}"]`;
 
 export interface Change {
+	id: string;
 	name: string;
 	type: string;
+	actions: { id: string, title: string; }[];
 }
 
 export class SCM {
@@ -47,14 +52,53 @@ export class SCM {
 	}
 
 	async getChanges(): Promise<Change[]> {
-		return await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
-			div => (Array.isArray(div) ? div : [div]).map(div => {
-				const name = div.querySelector('.label-name') as HTMLElement;
-				const icon = div.querySelector('.decoration-icon') as HTMLElement;
+		const result = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
+			div => (Array.isArray(div) ? div : [div]).map(element => {
+				const name = element.querySelector('.label-name') as HTMLElement;
+				const icon = element.querySelector('.decoration-icon') as HTMLElement;
+				const actionElementList = element.querySelectorAll('.actions .action-label');
+				const actionElements: any[] = [];
 
-				return { name: name.textContent, type: icon.title };
+				for (let i = 0; i < actionElementList.length; i++) {
+					const element = actionElementList.item(i) as HTMLElement;
+					actionElements.push({ element, title: element.title });
+				}
+				return {
+					name: name.textContent,
+					type: icon.title,
+					element,
+					actionElements
+				};
 			})
-		) as Change[];
+		);
+
+		return result.map(({ name, type, element, actionElements }) => {
+			// const actions = actionElements.reduce((r, { element, title }) => r[title] = element.ELEMENT, {});
+			const actions = actionElements.map(({ element, title }) => ({ id: element.ELEMENT, title }));
+			return { name, type, id: element.ELEMENT, actions };
+		});
+	}
+
+	async openChange(change: Change): Promise<void> {
+		await this.spectron.client.waitAndClick(SCM_RESOURCE_CLICK(change.name));
+	}
+
+	async stage(change: Change): Promise<void> {
+		const action = change.actions.filter(a => a.title === 'Stage Changes')[0];
+		assert(action);
+		await this.spectron.client.spectron.client.elementIdClick(action.id);
+	}
+
+	async unstage(change: Change): Promise<void> {
+		const action = change.actions.filter(a => a.title === 'Unstage Changes')[0];
+		assert(action);
+		await this.spectron.client.spectron.client.elementIdClick(action.id);
+	}
+
+	async commit(message: string): Promise<void> {
+		await this.spectron.client.click(SCM_INPUT);
+		await this.spectron.type(message);
+		await this.spectron.client.click(COMMIT_COMMAND);
 	}
 
 	// async getChanges(expectedCount: number): Promise<Change[]> {

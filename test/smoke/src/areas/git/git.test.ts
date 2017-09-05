@@ -6,70 +6,63 @@
 import * as assert from 'assert';
 import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
 
+const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
+const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
+
 describe('Git', () => {
 	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
 	before(() => app.start());
 	after(() => app.stop());
 
-	it('verifies current changes are picked up by Git viewlet', async function () {
-		// await app.wait(2);
+	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();
-		assert(true);
 
-		await app.workbench.quickopen.openFile('app.js');
-		await app.client.waitForElement(`.monaco-editor.focused`);
+		await app.workbench.openFile('app.js');
 		await app.type('.foo{}');
 		await app.workbench.saveOpenedFile();
 
-		await app.workbench.quickopen.openFile('index.jade');
-		await app.client.waitForElement(`.monaco-editor.focused`);
+		await app.workbench.openFile('index.jade');
 		await app.type('hello world');
 		await app.workbench.saveOpenedFile();
 
-		// wait
-
 		await app.workbench.scm.refreshSCMViewlet();
-		await app.workbench.scm.waitForChange(c => c.name === 'app.js');
-		await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
+		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
+		const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
 
-		// const changes = await app.workbench.scm.getChanges(context);
+		assert.equal(appJs.name, 'app.js');
+		assert.equal(appJs.type, 'Modified');
 
-		// assert(changes.indexOf('app.js'))
-		// assert(changes);
-		// console.log(changes);
-		// await git.openGitViewlet();
-		// assert.ok(await git.verifyScmChange('app.js'), 'app.js change does not appear in SCM viewlet.');
-		// assert.ok(await git.verifyScmChange('launch.json'), 'launch.json change does not appear in SCM viewlet.');
+		assert.equal(indexJade.name, 'index.jade');
+		assert.equal(indexJade.type, 'Modified');
 	});
 
-	// it(`verifies 'app.js' diff viewer changes`, async function () {
-	// 	await git.openGitViewlet();
-	// 	await common.openFile('app.js');
-	// 	const original = await git.getOriginalAppJsBodyVarName();
-	// 	assert.equal(original, 'bodyParser', 'Original value from diff view is wrong.');
-	// 	const modified = await git.getModifiedAppJsBodyVarName();
-	// 	assert.equal(modified, 'ydobParser', 'Modified value from diff view is wrong.');
-	// });
+	it('opens diff editor', async function () {
+		await app.workbench.scm.openSCMViewlet();
+		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
+		await app.workbench.scm.openChange(appJs);
+		await app.client.waitForElement(DIFF_EDITOR_LINE_INSERT);
+	});
 
-	// it(`stages 'app.js' changes and checks stage count`, async function () {
-	// 	await git.openGitViewlet();
-	// 	await app.wait();
-	// 	await git.stageFile('app.js');
-	// 	const stagedCount = await git.getStagedCount();
-	// 	assert.equal(stagedCount, 1);
+	it('stages correctly', async function () {
+		await app.workbench.scm.openSCMViewlet();
 
-	// 	// Return back to unstaged state
-	// 	await git.unstageFile('app.js');
-	// });
+		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
+		await app.workbench.scm.stage(appJs);
 
-	// it(`stages, commits change to 'app.js' locally and verifies outgoing change`, async function () {
-	// 	await git.openGitViewlet();
-	// 	await app.wait();
-	// 	await git.stageFile('app.js');
-	// 	await git.focusOnCommitBox();
-	// 	await common.type('Test commit');
-	// 	await git.pressCommit();
-	// 	const changes = await git.getOutgoingChanges();
-	// 	assert.equal(changes, ' 0↓ 1↑', 'Changes indicator is wrong in a status bar.');
-	// });
+		const indexAppJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Index Modified');
+		await app.workbench.scm.unstage(indexAppJs);
+
+		await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
+	});
+
+	it(`stages, commits change to 'app.js' locally and verifies outgoing change`, async function () {
+		await app.workbench.scm.openSCMViewlet();
+
+		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
+		await app.workbench.scm.stage(appJs);
+		await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Index Modified');
+
+		await app.workbench.scm.commit('hello world');
+		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
+	});
 });

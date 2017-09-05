@@ -82,4 +82,9 @@ export class Workbench {
 		await this.waitForActiveOpen('Untitled-1');
 		await this.waitForEditorFocus('Untitled-1', true);
 	}
+
+	async openFile(fileName: string): Promise<void> {
+		await this.quickopen.openFile(fileName);
+		await this.spectron.client.waitForElement(`.monaco-editor.focused`);
+	}
 }
