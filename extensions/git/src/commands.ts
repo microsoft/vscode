@@ -179,8 +179,7 @@ export class CommandCenter {
 		}
 
 		if (!left) {
-			const document = await workspace.openTextDocument(right);
-			await window.showTextDocument(document, opts);
+			await commands.executeCommand<void>('vscode.open', right, opts);
 			return;
 		}
 
@@ -372,8 +371,7 @@ export class CommandCenter {
 				opts.selection = activeTextEditor.selection;
 			}
 
-			const document = await workspace.openTextDocument(uri);
-			await window.showTextDocument(document, opts);
+			await commands.executeCommand<void>('vscode.open', uri, opts);
 		}
 	}
 
