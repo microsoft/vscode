@@ -340,7 +340,7 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
-				.pipe(rename(product.nameLong + '.VisualElementsManifest.xml')));
+				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@NAME@@', product.applicationName))
