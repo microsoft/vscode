@@ -1372,6 +1372,10 @@ export class WindowsManager implements IWindowsMainService {
 			return; // only care about untitled workspaces to ask for saving
 		}
 
+		if (e.window.config && !!e.window.config.extensionDevelopmentPath) {
+			return; // do not ask to save workspace when doing extension development
+		}
+
 		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
 			return; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
