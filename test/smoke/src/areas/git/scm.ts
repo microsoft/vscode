@@ -5,11 +5,10 @@
 
 import { SpectronApplication } from '../../spectron/application';
 
-// var htmlparser = require('htmlparser2');
-
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
+const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 
 export interface Change {
 	name: string;
@@ -31,14 +30,7 @@ export class SCM {
 
 	async waitForChange(func: (change: Change) => boolean): Promise<Change> {
 		return await this.spectron.client.waitFor(async () => {
-			const changes = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
-				div => (Array.isArray(div) ? div : [div]).map(div => {
-					const name = div.querySelector('.label-name') as HTMLElement;
-					const icon = div.querySelector('.decoration-icon') as HTMLElement;
-
-					return { name: name.textContent, type: icon.title };
-				})
-			) as Change[];
+			const changes = await this.getChanges();
 
 			for (const change of changes) {
 				if (func(change)) {
@@ -48,6 +40,21 @@ export class SCM {
 
 			return undefined;
 		});
+	}
+
+	async refreshSCMViewlet(): Promise<any> {
+		await this.spectron.client.click(REFRESH_COMMAND);
+	}
+
+	async getChanges(): Promise<Change[]> {
+		return await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
+			div => (Array.isArray(div) ? div : [div]).map(div => {
+				const name = div.querySelector('.label-name') as HTMLElement;
+				const icon = div.querySelector('.decoration-icon') as HTMLElement;
+
+				return { name: name.textContent, type: icon.title };
+			})
+		) as Change[];
 	}
 
 	// async getChanges(expectedCount: number): Promise<Change[]> {

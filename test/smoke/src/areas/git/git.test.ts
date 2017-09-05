@@ -28,6 +28,7 @@ describe('Git', () => {
 
 		// wait
 
+		await app.workbench.scm.refreshSCMViewlet();
 		await app.workbench.scm.waitForChange(c => c.name === 'app.js');
 		await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
 

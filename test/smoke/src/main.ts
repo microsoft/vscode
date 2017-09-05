@@ -91,8 +91,10 @@ function toUri(path: string): string {
 }
 
 async function main(): Promise<void> {
+	console.log('*** Preparing smoketest setup...');
+
 	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
-	console.log(`Fetching keybindings from ${keybindingsUrl}...`);
+	console.log('*** Fetching keybindings...');
 
 	await new Promise((c, e) => {
 		https.get(keybindingsUrl, res => {
@@ -105,7 +107,7 @@ async function main(): Promise<void> {
 	});
 
 	if (!fs.existsSync(workspacePath)) {
-		console.log('Creating workspace file...');
+		console.log('*** Creating workspace file...');
 		const workspace = {
 			id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
 			folders: [
@@ -119,17 +121,19 @@ async function main(): Promise<void> {
 	}
 
 	if (!fs.existsSync(testRepoLocalDir)) {
-		console.log('Cloning test project repository...');
+		console.log('*** Cloning test project repository...');
 		cp.spawnSync('git', ['clone', testRepoUrl, testRepoLocalDir]);
 	} else {
-		console.log('Cleaning test project repository...');
+		console.log('*** Cleaning test project repository...');
 		cp.spawnSync('git', ['fetch'], { cwd: testRepoLocalDir });
 		cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: testRepoLocalDir });
 		cp.spawnSync('git', ['clean', '-xdf'], { cwd: testRepoLocalDir });
 	}
 
-	console.log('Running npm install...');
+	console.log('*** Running npm install...');
 	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+
+	console.log('*** Smoketest setup done!\n');
 }
 
 /**
