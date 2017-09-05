@@ -70,6 +70,10 @@ export class CodeWindow implements ICodeWindow {
 	public static themeStorageKey = 'theme';
 	public static themeBackgroundStorageKey = 'themeBackground';
 
+	private static DEFAULT_BG_LIGHT = '#FFFFFF';
+	private static DEFAULT_BG_DARK = '#1E1E1E';
+	private static DEFAULT_BG_HC_BLACK = '#000000';
+
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
@@ -121,12 +125,17 @@ export class CodeWindow implements ICodeWindow {
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
+		let backgroundColor = this.getBackgroundColor();
+		if (isMacintosh && backgroundColor.toUpperCase() === CodeWindow.DEFAULT_BG_DARK) {
+			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
+		}
+
 		const options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: this.getBackgroundColor(),
+			backgroundColor,
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -576,14 +585,14 @@ export class CodeWindow implements ICodeWindow {
 
 	private getBackgroundColor(): string {
 		if (isWindows && systemPreferences.isInvertedColorScheme()) {
-			return '#000000';
+			return CodeWindow.DEFAULT_BG_HC_BLACK;
 		}
 
 		const background = this.storageService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
 			const baseTheme = this.getBaseTheme();
 
-			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+			return baseTheme === 'hc-black' ? CodeWindow.DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? CodeWindow.DEFAULT_BG_LIGHT : CodeWindow.DEFAULT_BG_DARK);
 		}
 
 		return background;
