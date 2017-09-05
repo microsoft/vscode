@@ -249,9 +249,9 @@
       "resolved": "https://registry.npmjs.org/isobject/-/isobject-2.1.0.tgz"
     },
     "jschardet": {
-      "version": "1.4.2",
-      "from": "jschardet@>=1.4.2 <2.0.0",
-      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.4.2.tgz"
+      "version": "1.5.1",
+      "from": "jschardet@>=1.5.1 <2.0.0",
+      "resolved": "https://registry.npmjs.org/jschardet/-/jschardet-1.5.1.tgz"
     },
     "keytar": {
       "version": "4.0.3",
