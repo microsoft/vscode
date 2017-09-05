@@ -36,5 +36,5 @@ function configureEnvironment {
 step "Configure environment" configureEnvironment
 
 step "Run smoke test" \
-	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
+	sudo -u testuser npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 
