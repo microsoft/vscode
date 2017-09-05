@@ -102,6 +102,16 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
+	context.subscriptions.push(vscode.commands.registerCommand('_markdown.moveCursorToPosition', (line: number, character: number) => {
+		if (!vscode.window.activeTextEditor) {
+			return;
+		}
+		const position = new vscode.Position(line, character);
+		const selection = new vscode.Selection(position, position);
+		vscode.window.activeTextEditor.revealRange(selection);
+		vscode.window.activeTextEditor.selection = selection;
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
