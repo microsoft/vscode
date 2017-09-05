@@ -9,8 +9,11 @@ import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
 describe('Preferences', () => {
-	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-	before(() => app.start());
+	let app: SpectronApplication;
+	before(() => {
+		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		return app.start();
+	});
 	after(() => app.stop());
 
 	it('turns off editor line numbers and verifies the live change', async function () {

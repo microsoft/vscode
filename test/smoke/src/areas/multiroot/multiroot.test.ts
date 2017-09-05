@@ -9,8 +9,11 @@ import { QuickOpen } from '../quickopen/quickopen';
 import { Window } from '../window';
 
 describe('Multi Root', () => {
-	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [CODE_WORKSPACE_PATH]);
-	before(() => app.start());
+	let app: SpectronApplication;
+	before(() => {
+		app = new SpectronApplication(LATEST_PATH, '', 0, [CODE_WORKSPACE_PATH]);
+		return app.start();
+	});
 	after(() => app.stop());
 
 	it('shows results from all folders', async function () {

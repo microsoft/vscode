@@ -10,8 +10,11 @@ const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-inse
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
 
 describe('Git', () => {
-	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-	before(() => app.start());
+	let app: SpectronApplication;
+	before(() => {
+		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		return app.start();
+	});
 	after(() => app.stop());
 
 	it('reflects working tree changes', async function () {

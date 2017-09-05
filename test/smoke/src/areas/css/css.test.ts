@@ -10,8 +10,11 @@ import { QuickOutline } from '../editor/quickoutline';
 import { SettingsEditor } from '../preferences/settings';
 
 describe('CSS', () => {
-	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-	before(() => app.start());
+	let app: SpectronApplication;
+	before(() => {
+		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
+		return app.start();
+	});
 	after(() => app.stop());
 
 	it('verifies quick outline', async function () {
