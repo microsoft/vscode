@@ -576,6 +576,11 @@ export interface IDebugService {
 	removeWatchExpressions(id?: string): void;
 
 	/**
+	 * Evaluates all watch expression.
+	 */
+	evaluateWatchExpressions(): TPromise<void>;
+
+	/**
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and calls the startSessionCommand if an adapter registered it.

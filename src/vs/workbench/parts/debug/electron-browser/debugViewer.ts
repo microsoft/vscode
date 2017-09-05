@@ -152,7 +152,10 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+						.done(() => {
+							tree.refresh(element, false);
+							debugService.evaluateWatchExpressions();
+						}, errors.onUnexpectedError);
 				}
 			}
 

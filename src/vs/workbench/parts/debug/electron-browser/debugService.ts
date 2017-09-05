@@ -604,6 +604,10 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
+	public evaluateWatchExpressions(): TPromise<void> {
+		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
+	}
+
 	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
