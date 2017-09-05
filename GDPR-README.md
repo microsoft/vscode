@@ -37,7 +37,7 @@ Snippets defined for GDPR classification:
 		"body": [
 			"/* __GDPR__",
 			"   \"${1:eventName}\" : {",
-			"      \"${2:propertyName}\" : { \"endPoint\": \"${4|none,SqmUserId,SqmMachineId|}\", \"classification\": \"${5|SystemMetaData,CustomerContent,EndUserPseudonymizedInformation|}\", \"purpose\": \"${6|FeatureInsight,PerformanceAndHealth,BusinessInsight,SecurityAndAuditing|}\" }$3$0",
+			"      \"${2:propertyName}\" : { \"endPoint\": \"${4|none,SqmUserId,SqmMachineId|}\", \"classification\": \"${5|SystemMetaData,CustomerContent,EndUserPseudonymizedInformation,PublicPersonalData,PublicNonPersonalData|}\", \"purpose\": \"${6|FeatureInsight,PerformanceAndHealth,BusinessInsight,SecurityAndAuditing|}\" }$3$0",
 			"   }",
 			" */\n"
 		],
@@ -48,7 +48,7 @@ Snippets defined for GDPR classification:
 		"body": [
 			"/* __GDPR__FRAGMENT__",
 			"   \"${1:fragmentName}\" : {",
-			"      \"${2:propertyName}\" : { \"endPoint\": \"${4|none,SqmUserId,SqmMachineId|}\", \"classification\": \"${5|SystemMetaData,CustomerContent,EndUserPseudonymizedInformation|}\", \"purpose\": \"${6|FeatureInsight,PerformanceAndHealth,BusinessInsight,SecurityAndAuditing|}\" }$3$0",
+			"      \"${2:propertyName}\" : { \"endPoint\": \"${4|none,SqmUserId,SqmMachineId|}\", \"classification\": \"${5|SystemMetaData,CustomerContent,EndUserPseudonymizedInformation,PublicPersonalData,PublicNonPersonalData|}\", \"purpose\": \"${6|FeatureInsight,PerformanceAndHealth,BusinessInsight,SecurityAndAuditing|}\" }$3$0",
 			"   }",
 			" */\n"
 		],
