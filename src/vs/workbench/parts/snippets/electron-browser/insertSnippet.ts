@@ -12,7 +12,7 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
@@ -75,14 +75,14 @@ class InsertSnippetAction extends EditorAction {
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
-		return new TPromise<ISnippet>((resolve, reject) => {
+		return new TPromise<ISnippet>(async (resolve, reject) => {
 
 			if (snippet) {
 				return resolve({
 					codeSnippet: snippet,
 					description: undefined,
 					name: undefined,
-					extensionName: undefined,
+					source: undefined,
 					prefix: undefined
 				});
 			}
@@ -105,7 +105,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (name) {
 				// take selected snippet
-				snippetService.visitSnippets(languageId, snippet => {
+				(await snippetService.getSnippets(languageId)).every(snippet => {
 					if (snippet.name !== name) {
 						return true;
 					}
@@ -114,14 +114,12 @@ class InsertSnippetAction extends EditorAction {
 				});
 			} else {
 				// let user pick a snippet
-				const picks: ISnippetPick[] = [];
-				snippetService.visitSnippets(languageId, snippet => {
-					picks.push({
+				const picks: ISnippetPick[] = (await snippetService.getSnippets(languageId)).map(snippet => {
+					return {
 						label: snippet.prefix,
 						detail: snippet.description,
 						snippet
-					});
-					return true;
+					};
 				});
 				return quickOpenService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}

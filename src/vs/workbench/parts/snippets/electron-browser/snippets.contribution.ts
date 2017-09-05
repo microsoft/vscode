@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
-import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
-import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
-
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { fileExists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,10 +16,31 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
-import * as snippetsTracker from './snippetsTracker';
-import * as tmSnippets from './TMSnippets';
-import * as winjs from 'vs/base/common/winjs.base';
-import * as workbenchContributions from 'vs/workbench/common/contributions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LanguageId } from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
+
+export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
+
+export interface ISnippetsService {
+
+	_serviceBrand: any;
+
+	getSnippets(languageId: LanguageId): TPromise<ISnippet[]>;
+
+	getSnippetsSync(languageId: LanguageId): ISnippet[];
+}
+
+
+export interface ISnippet {
+	readonly name: string;
+	readonly prefix: string;
+	readonly description: string;
+	readonly codeSnippet: string;
+	readonly source: string;
+	readonly isBogous?: boolean;
+	readonly isFromExtension?: boolean;
+}
 
 namespace OpenSnippetsAction {
 
@@ -37,7 +53,7 @@ namespace OpenSnippetsAction {
 		const environmentService = accessor.get(IEnvironmentService);
 		const windowsService = accessor.get(IWindowsService);
 
-		function openFile(filePath: string): winjs.TPromise<void> {
+		function openFile(filePath: string): TPromise<void> {
 			return windowsService.openWindow([filePath], { forceReuseWindow: true });
 		}
 
@@ -86,7 +102,7 @@ namespace OpenSnippetsAction {
 					});
 				});
 			}
-			return winjs.TPromise.as(null);
+			return TPromise.as(null);
 		});
 	});
 
@@ -136,11 +152,3 @@ const schema: IJSONSchema = {
 Registry
 	.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution)
 	.registerSchema(schemaId, schema);
-
-Registry
-	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
-	.registerWorkbenchContribution(snippetsTracker.SnippetsTracker);
-
-Registry
-	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
-	.registerWorkbenchContribution(tmSnippets.MainProcessTextMateSnippet);

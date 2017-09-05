@@ -9,7 +9,8 @@ import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService, getNonWhitespacePrefix, ISnippet, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -33,7 +34,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	private readonly _editor: editorCommon.ICommonCodeEditor;
 	private readonly _snippetController: SnippetController2;
 	private readonly _dispoables: IDisposable[] = [];
-	private readonly _snippets: ISnippet[] = [];
+	private _snippets: ISnippet[] = [];
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
@@ -61,12 +62,10 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 			}
 
 			if (selectFn) {
-				snippetService.visitSnippets(editor.getModel().getLanguageIdentifier().id, s => {
-					if (selectFn(s)) {
-						this._snippets.push(s);
-					}
-					return true;
-				});
+				const model = editor.getModel();
+				model.tokenizeIfCheap(e.selection.positionLineNumber);
+				const id = model.getLanguageIdAtPosition(e.selection.positionLineNumber, e.selection.positionColumn);
+				this._snippets = snippetService.getSnippetsSync(id).filter(selectFn);
 			}
 			hasSnippets.set(this._snippets.length > 0);
 		}));
