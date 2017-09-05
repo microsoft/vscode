@@ -8,6 +8,7 @@ import 'vs/css!./lightBulbWidget';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as dom from 'vs/base/browser/dom';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
@@ -50,13 +51,20 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 				y: top + height + pad
 			});
 		}));
-
-		this._disposables.push(this._editor.onDidChangeCursorSelection(e => {
-			// hide lightbulb when selection starts to
-			// enclose it
-			if (this._position && e.selection.containsPosition(this._position.position)) {
-				this.hide();
+		this._disposables.push(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
+			if ((e.buttons & 1) !== 1) {
+				return;
 			}
+			// mouse enters lightbulb while the primary/left button
+			// is being pressed -> hide the lightbulb and block future
+			// showings until mouse is released
+			this.hide();
+			dom.addClass(this._domNode, 'hidden');
+			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+			monitor.startMonitoring(standardMouseMoveMerger, () => { }, () => {
+				monitor.dispose();
+				dom.removeClass(this._domNode, 'hidden');
+			});
 		}));
 	}
 
@@ -78,14 +86,23 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	}
 
 	set model(value: QuickFixComputeEvent) {
-		this.hide();
-		this._model = value;
+
+		if (this._position && (!value.position || this._position.position.lineNumber !== value.position.lineNumber)) {
+			// hide when getting a 'hide'-request or when currently
+			// showing on another line
+			this.hide();
+		} else if (this._futureFixes) {
+			// cancel pending show request in any case
+			this._futureFixes.cancel();
+		}
+
 		this._futureFixes = new CancellationTokenSource();
 		const { token } = this._futureFixes;
+		this._model = value;
 
 		this._model.fixes.done(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				this.show(this._model);
+				this._show();
 			} else {
 				this.hide();
 			}
@@ -106,9 +123,9 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		return this._domNode.title;
 	}
 
-	show(e: QuickFixComputeEvent): void {
+	private _show(): void {
 		const { fontInfo } = this._editor.getConfiguration();
-		const { lineNumber } = e.position;
+		const { lineNumber } = this._model.position;
 		const model = this._editor.getModel();
 		const indent = model.getIndentLevel(lineNumber);
 		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
@@ -126,9 +143,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		};
-
 		this._editor.layoutContentWidget(this);
-		this._model = e;
 	}
 
 	hide(): void {
