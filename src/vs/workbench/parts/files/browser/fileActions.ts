@@ -830,7 +830,7 @@ export class ImportFileAction extends BaseFileAction {
 
 					let overwrite = true;
 					if (input.paths.some(path => {
-						return !!targetNames[isLinux ? paths.extname(path) : paths.extname(path).toLowerCase()];
+						return !!targetNames[isLinux ? paths.basename(path) : paths.basename(path).toLowerCase()];
 					})) {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
