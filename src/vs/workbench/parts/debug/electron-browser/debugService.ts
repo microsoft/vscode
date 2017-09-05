@@ -600,7 +600,7 @@ export class DebugService implements debug.IDebugService {
 	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
-		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
+		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
 			this.extensionService.onReady().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();

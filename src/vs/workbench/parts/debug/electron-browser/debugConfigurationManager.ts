@@ -231,8 +231,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService private extensionService: IExtensionService
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._providers = new Map<number, IDebugConfigurationProvider>();
 		this.adapters = [];
@@ -408,36 +407,34 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public guessAdapter(type?: string): TPromise<Adapter> {
-		return this.extensionService.activateByEvent('onDebug').then(() => {
-			if (type) {
-				const adapter = this.getAdapter(type);
-				return TPromise.as(adapter);
-			}
+		if (type) {
+			const adapter = this.getAdapter(type);
+			return TPromise.as(adapter);
+		}
 
-			const editor = this.editorService.getActiveEditor();
-			if (editor) {
-				const codeEditor = editor.getControl();
-				if (isCommonCodeEditor(codeEditor)) {
-					const model = codeEditor.getModel();
-					const language = model ? model.getLanguageIdentifier().language : undefined;
-					const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-					if (adapters.length === 1) {
-						return TPromise.as(adapters[0]);
-					}
+		const editor = this.editorService.getActiveEditor();
+		if (editor) {
+			const codeEditor = editor.getControl();
+			if (isCommonCodeEditor(codeEditor)) {
+				const model = codeEditor.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+				if (adapters.length === 1) {
+					return TPromise.as(adapters[0]);
 				}
 			}
+		}
 
-			return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-				.then(picked => {
-					if (picked instanceof Adapter) {
-						return picked;
-					}
-					if (picked) {
-						this.commandService.executeCommand('debug.installAdditionalDebuggers');
-					}
-					return undefined;
-				});
-		});
+		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			.then(picked => {
+				if (picked instanceof Adapter) {
+					return picked;
+				}
+				if (picked) {
+					this.commandService.executeCommand('debug.installAdditionalDebuggers');
+				}
+				return undefined;
+			});
 	}
 
 	public getStartSessionCommand(type?: string): TPromise<{ command: string, type: string }> {
@@ -475,6 +472,7 @@ class Launch implements ILaunch {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.name = paths.basename(this.workspaceUri.fsPath);
 	}
@@ -542,57 +540,59 @@ class Launch implements ILaunch {
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		const resource = this.uri;
-		let configFileCreated = false;
+		return this.extensionService.activateByEvent('onDebug').then(() => {
+			const resource = this.uri;
+			let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => content, err => {
+			return this.fileService.resolveContent(resource).then(content => content, err => {
 
-			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+				// launch.json not found: create one by collecting launch configs from debugConfigProviders
 
-			return this.configurationManager.guessAdapter(type).then(adapter => {
-				if (adapter) {
-					return this.configurationManager.provideDebugConfigurations(this.workspaceUri, adapter.type).then(initialConfigs => {
-						return adapter.getInitialConfigurationContent(this.workspaceUri, initialConfigs);
+				return this.configurationManager.guessAdapter(type).then(adapter => {
+					if (adapter) {
+						return this.configurationManager.provideDebugConfigurations(this.workspaceUri, adapter.type).then(initialConfigs => {
+							return adapter.getInitialConfigurationContent(this.workspaceUri, initialConfigs);
+						});
+					} else {
+						return undefined;
+					}
+				}).then(content => {
+
+					if (!content) {
+						return undefined;
+					}
+
+					configFileCreated = true;
+					return this.fileService.updateContent(resource, content).then(() => {
+						// convert string into IContent; see #32135
+						return { value: content };
 					});
-				} else {
-					return undefined;
-				}
+				});
 			}).then(content => {
-
 				if (!content) {
 					return undefined;
 				}
-
-				configFileCreated = true;
-				return this.fileService.updateContent(resource, content).then(() => {
-					// convert string into IContent; see #32135
-					return { value: content };
-				});
-			});
-		}).then(content => {
-			if (!content) {
-				return undefined;
-			}
-			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
-			let startLineNumber = 1;
-			for (let i = 0; i < index; i++) {
-				if (content.value.charAt(i) === '\n') {
-					startLineNumber++;
+				const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+				let startLineNumber = 1;
+				for (let i = 0; i < index; i++) {
+					if (content.value.charAt(i) === '\n') {
+						startLineNumber++;
+					}
 				}
-			}
-			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
+				const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-			return this.editorService.openEditor({
-				resource: resource,
-				options: {
-					forceOpen: true,
-					selection,
-					pinned: configFileCreated, // pin only if config file is created #8727
-					revealIfVisible: true
-				},
-			}, sideBySide);
-		}, (error) => {
-			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+				return this.editorService.openEditor({
+					resource: resource,
+					options: {
+						forceOpen: true,
+						selection,
+						pinned: configFileCreated, // pin only if config file is created #8727
+						revealIfVisible: true
+					},
+				}, sideBySide);
+			}, (error) => {
+				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+			});
 		});
 	}
 }
