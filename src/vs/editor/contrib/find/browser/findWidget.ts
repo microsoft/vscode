@@ -384,6 +384,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
 		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
 		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
+		this._findAllBtn.setEnabled(this._isVisible && findInputIsNonEmpty);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
