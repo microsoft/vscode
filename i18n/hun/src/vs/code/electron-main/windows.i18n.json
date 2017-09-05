@@ -7,6 +7,14 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Az elérési út nem létezik",
 	"pathNotExistDetail": "Úgy tűnik, hogy a(z) „{0}” elérési út már nem létezik a lemezen.",
+	"openWorkspace": "&&Megnyitás",
+	"openWorkspaceTitle": "Munkaterület megnyitása",
+	"save": "Menté&&s",
+	"doNotSave": "&&Ne mentse",
+	"cancel": "Mégse",
+	"saveWorkspaceMessage": "Szeretné menteni a munkaterület konfigurációját egy fájlba?",
+	"saveWorkspaceDetail": "Mentse el a munkaterületet, ha meg szeretné nyitni újra!",
+	"saveWorkspace": "Munkaterület mentése",
 	"reopen": "Újranyitás",
 	"wait": "Várakozás tovább",
 	"close": "Bezárás",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "Bezárhatja vagy újranyithatja az ablakot vagy várakozhat tovább.",
 	"appCrashed": "Az ablak összeomlott",
 	"appCrashedDetail": "Elnézést kérünk az okozott kellemetlenségért. Nyissa újra az ablakot, ha onnan szeretné folytatni a munkát, ahol abbahagyta.",
-	"openFile": "Fájl megnyitása",
-	"openFolder": "Mappa megnyitása"
+	"open": "Megnyitás",
+	"openFolder": "Mappa megnyitása",
+	"openFile": "Fájl megnyitása"
 }

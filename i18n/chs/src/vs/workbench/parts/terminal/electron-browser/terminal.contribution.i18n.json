@@ -10,6 +10,7 @@
 	"terminal.integrated.shellArgs.linux": "在 Linux 终端上时要使用的命令行参数。",
 	"terminal.integrated.shell.osx": "终端在 OS X 上使用的 shell 的路径。",
 	"terminal.integrated.shellArgs.osx": "在 OS X 终端上时要使用的命令行参数。",
+	"terminal.integrated.shell.windows": "终端在 Windows 使用的 shell 路径。使用随 Windows 一起提供的 shell (cmd、PowerShell 或 Bash on Ubuntu) 时。",
 	"terminal.integrated.shellArgs.windows": "在 Windows 终端上时使用的命令行参数。",
 	"terminal.integrated.rightClickCopyPaste": "设置后，在终端内右键单击时，这将阻止显示上下文菜单，相反，它将在有选项时进行复制，并且在没有选项时进行粘贴。",
 	"terminal.integrated.fontFamily": "控制终端的字体系列，这在编辑器中是默认的。fontFamily 的值。",

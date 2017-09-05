@@ -21,5 +21,9 @@
 	"errorForeground": "Colore primo piano degli squiggle di errore nell'editor.",
 	"errorBorder": "Colore del bordo degli squiggle di errore nell'editor.",
 	"warningForeground": "Colore primo piano degli squiggle di avviso nell'editor",
-	"warningBorder": "Colore del bordo degli squggle di avviso nell'editor."
+	"warningBorder": "Colore del bordo degli squggle di avviso nell'editor.",
+	"overviewRulerRangeHighlight": "Colore del marcatore del righello delle annotazioni per le evidenziazioni degli intervalli.",
+	"overviewRuleError": "Colore del marcatore del righello delle annotazioni per gli errori.",
+	"overviewRuleWarning": "Colore del marcatore del righello delle annotazioni per gli avvisi.",
+	"overviewRuleInfo": "Colore del marcatore del righello delle annotazioni per i messaggi di tipo informativo."
 }

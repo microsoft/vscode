@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "目前游標位置行之周圍框線的背景色彩。",
 	"rangeHighlight": "反白顯示範圍的背景色彩，例如 Quick Open 與尋找功能。",
 	"caret": "編輯器游標的色彩。",
+	"editorCursorBackground": "編輯器游標的背景色彩。允許自訂區塊游標重疊的字元色彩。",
 	"editorWhitespaces": "編輯器中空白字元的色彩。",
 	"editorIndentGuides": "編輯器縮排輔助線的色彩。",
 	"editorLineNumbers": "編輯器行號的色彩。",
@@ -20,5 +21,9 @@
 	"errorForeground": "編輯器內錯誤提示線的前景色彩.",
 	"errorBorder": "編輯器內錯誤提示線的邊框色彩.",
 	"warningForeground": "編輯器內警告提示線的前景色彩.",
-	"warningBorder": "編輯器內警告提示線的邊框色彩."
+	"warningBorder": "編輯器內警告提示線的邊框色彩.",
+	"overviewRulerRangeHighlight": "範圍醒目提示的概觀尺規標記色彩。",
+	"overviewRuleError": "錯誤的概觀尺規標記色彩。",
+	"overviewRuleWarning": "警示的概觀尺規標記色彩。",
+	"overviewRuleInfo": "資訊的概觀尺規標記色彩。"
 }

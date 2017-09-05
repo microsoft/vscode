@@ -49,6 +49,8 @@
 	"showRecommendedKeymapExtensionsShort": "Tuş Haritaları",
 	"showLanguageExtensions": "Dil Eklentilerini Göster",
 	"showLanguageExtensionsShort": "Dil Eklentileri",
+	"showAzureExtensions": "Azure Eklentilerini Göster",
+	"showAzureExtensionsShort": "Azure Eklentileri",
 	"configureWorkspaceRecommendedExtensions": "Tavsiye Edilen Eklentileri Yapılandır (Çalışma Alanı)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "Tavsiyeler, sadece çalışma alanı klasöründe mevcuttur.",
 	"OpenExtensionsFile.failed": " '.vscode' klasörü içinde 'extensions.json' dosyası oluşturulamıyor ({0}).",

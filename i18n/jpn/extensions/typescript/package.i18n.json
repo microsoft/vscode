@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "パラメーター シグネチャを含む完全な関数。",
 	"typescript.tsdk.desc": "使用する tsserver と lib*.d.ts ファイルが含まれているフォルダーのパスを指定します。",
-	"typescript.disableAutomaticTypeAcquisition": "種類の自動的な取得を無効にします。変更後、TypeScript 2.0.6 以降と再起動が必要です。",
+	"typescript.disableAutomaticTypeAcquisition": "型定義の自動取得を無効にします。TypeScript 2.0.6 以上が必要です。",
 	"typescript.tsserver.log": "ファイルへの TS サーバーのログを有効にします。このログは TS サーバーの問題を診断するために使用できます。ログには、プロジェクトのファイルパス、ソースコード、その他の潜在的に機密性の高い情報が含まれている場合があります。",
 	"typescript.tsserver.trace": "TS サーバーに送信されるメッセージのトレースを有効にします。このトレースは TS サーバーの問題を診断するために使用できます。トレースには、プロジェクトのファイルパス、ソースコード、その他の潜在的に機密性の高い情報が含まれている場合があります。",
 	"typescript.validate.enable": "TypeScript の検証を有効/無効にします。",

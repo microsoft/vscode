@@ -7,6 +7,14 @@
 	"ok": "OK",
 	"pathNotExistTitle": "O caminho não existe",
 	"pathNotExistDetail": "O caminho '{0}' não parece mais existir no disco.",
+	"openWorkspace": "&&Abrir",
+	"openWorkspaceTitle": "Abrir o Espaço de Trabalho",
+	"save": "&&Salvar",
+	"doNotSave": "&&Não Salvar",
+	"cancel": "Cancelar",
+	"saveWorkspaceMessage": "Você quer salvar a sua configuração de área de trabalho como um arquivo?",
+	"saveWorkspaceDetail": "Salve seu espaço de trabalho se pretende abri-lo novamente.",
+	"saveWorkspace": "Salvar o espaço de trabalho",
 	"reopen": "Reabrir",
 	"wait": "Continuar Esperando",
 	"close": "Fechar",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "Você pode reabrir, fechar a janela ou continuar esperando.",
 	"appCrashed": "A janela foi fechada inesperadamente",
 	"appCrashedDetail": "Pedimos desculpas pelo inconveniente! Você pode reabrir a janela para continuar de onde parou.",
-	"openFile": "Abrir Arquivo",
-	"openFolder": "Abrir Pasta"
+	"open": "Abrir",
+	"openFolder": "Abrir Pasta",
+	"openFile": "Abrir Arquivo"
 }

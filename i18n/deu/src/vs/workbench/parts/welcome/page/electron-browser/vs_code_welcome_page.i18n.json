@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Über die Befehlspalette ({0}) schnell auf Befehle zugreifen und nach Befehlen suchen",
 	"welcomePage.interfaceOverview": "Überblick über die Schnittstelle",
 	"welcomePage.interfaceOverviewDescription": "Erhalten Sie eine visuelle Überlagerung, die die wichtigsten Komponenten der Benutzeroberfläche hervorhebt.",
+	"welcomePage.deployToAzure": "Anwendungen in der Cloud bereitstellen",
+	"welcomePage.deployToAzureDescription": "Hier erfahren Sie, wie Sie Ihre Node-Apps in Azure App Service bereitstellen.",
 	"welcomePage.interactivePlayground": "Interaktiver Playground",
 	"welcomePage.interactivePlaygroundDescription": "Testen Sie die wichtigsten Editorfunktionen in einer kurzen exemplarischen Vorgehensweise."
 }

@@ -102,6 +102,7 @@
 	"miHideActivityBar": "&&Tevékenységsáv elrejtése",
 	"miShowActivityBar": "&&Tevékenységsáv megjelenítése",
 	"miToggleWordWrap": "&&Sortörés be- és kikapcsolása",
+	"miToggleMinimap": "&&Kódtérkép be- és kikapcsolása",
 	"miToggleRenderWhitespace": "S&&zóközök kirajzolásának be- és kikapcsolása",
 	"miToggleRenderControlCharacters": "&&Vezérlőkarakterek kirajzolásának be- és kikapcsolása",
 	"miZoomIn": "&&Nagyítás",

@@ -85,5 +85,7 @@
 	"mergeBorder": "A fejlécek és az elválasztó sáv keretszíne a sorok között megjelenített összeolvasztási konfliktusok esetén.",
 	"overviewRulerCurrentContentForeground": "A helyi tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén.",
 	"overviewRulerIncomingContentForeground": "A beérkező tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén.",
-	"overviewRulerCommonContentForeground": "A közös ős tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén. "
+	"overviewRulerCommonContentForeground": "A közös ős tartalom előtérszíne az áttekintő sávon összeolvasztási konfliktusok esetén. ",
+	"overviewRulerFindMatchForeground": "A keresési találatokat jelölő jelzések színe az áttekintősávon.",
+	"overviewRulerSelectionHighlightForeground": "A kiemelt kijelöléseket jelölő jelzések színe az áttekintősávon."
 }

@@ -7,8 +7,14 @@
 	"vscode.extension.contributes.configuration": "구성 설정을 적용합니다.",
 	"vscode.extension.contributes.configuration.title": "설정을 요약합니다. 이 레이블은 설정 파일에서 구분 주석으로 사용됩니다.",
 	"vscode.extension.contributes.configuration.properties": "구성 속성에 대한 설명입니다.",
+	"scope.window.description": "[사용자] 설정 또는 [작업 영역] 설정에서 구성할 수 있는 창 특정 구성입니다.",
+	"scope.resource.description": "사용자, 작업 영역 또는 폴더 설정에서 구성할 수 있는 리소스 특정 구성",
+	"scope.description": "구성이 적용되는 범위입니다. 사용 가능 범위는 '창'과 '리소스'입니다.",
 	"invalid.type": "설정된 경우 'configuration.type'을 '개체'로 설정해야 합니다.",
 	"invalid.title": "'configuration.title'은 문자열이어야 합니다.",
 	"vscode.extension.contributes.defaultConfiguration": "언어별로 기본 편집기 구성 설정을 적용합니다.",
-	"invalid.properties": "'configuration.properties'는 개체여야 합니다."
+	"invalid.properties": "'configuration.properties'는 개체여야 합니다.",
+	"workspaceConfig.folders.description": "작업 영역에 로드할 폴더 목록입니다. 파일 경로를 사용해야 합니다. 예: `/root/folderA` 또는 `./folderA`(작업 영역 파일의 위치를 기준으로 확인할 상대 경로인 경우)",
+	"workspaceConfig.folder.description": "파일 경로입니다. 예: `/root/folderA` 또는 `./folderA`(작업 영역 파일의 위치를 기준으로 확인할 상대 경로인 경우)",
+	"workspaceConfig.settings.description": "작업 영역 설정"
 }

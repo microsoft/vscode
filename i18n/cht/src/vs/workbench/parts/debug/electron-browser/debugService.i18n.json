@@ -20,6 +20,5 @@
 	"debugAnyway": "仍要偵錯",
 	"noFolderWorkspaceDebugError": "無法對使用中的檔案偵錯。請確認檔案已儲存在磁碟上，而且您已經為該檔案類型安裝偵錯延伸模組。",
 	"NewLaunchConfig": "請為您的應用程式設定啟動組態檔。{0}",
-	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。",
-	"differentTaskRunning": "工作{0}已正在執行。無法在啟動工作\"{1}\"前執行"
+	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。"
 }

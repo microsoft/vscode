@@ -7,8 +7,11 @@
 	"workbench.action.terminal.toggleTerminal": "Переключить интегрированный терминал",
 	"workbench.action.terminal.kill": "Завершить активный экземпляр терминала",
 	"workbench.action.terminal.kill.short": "Завершить работу терминала",
+	"workbench.action.terminal.quickKill": "Завершить работу экземпляра терминала",
 	"workbench.action.terminal.copySelection": "Скопировать выделение",
 	"workbench.action.terminal.selectAll": "Выбрать все",
+	"workbench.action.terminal.deleteWordLeft": "Удалить слово слева",
+	"workbench.action.terminal.deleteWordRight": "Удалить слово справа",
 	"workbench.action.terminal.new": "Создание нового интегрированного терминала",
 	"workbench.action.terminal.new.short": "Новый терминал",
 	"workbench.action.terminal.focus": "Фокус на терминале",
@@ -33,5 +36,8 @@
 	"workbench.action.terminal.rename": "Переименовать",
 	"workbench.action.terminal.rename.prompt": "Введите название терминала",
 	"workbench.action.terminal.focusFindWidget": "Выделить мини-приложение поиска",
-	"workbench.action.terminal.hideFindWidget": "Скрыть мини-приложение поиска"
+	"workbench.action.terminal.hideFindWidget": "Скрыть мини-приложение поиска",
+	"nextTerminalFindTerm": "Показать следующий найденный термин",
+	"previousTerminalFindTerm": "Показать предыдущий найденный термин",
+	"quickOpenTerm": "Терминал: переключить активный терминал"
 }

@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "A hibakeresési illesztő futtatható állománya ('{0}') nem létezik.",
 	"debugAdapterCannotDetermineExecutable": "Nem határozható meg a(z) '{0}' hibakeresési illesztő futtatható állománya.",
+	"launch.config.comment1": "IntelliSense használata a lehetséges attribútumok listázásához",
+	"launch.config.comment2": "Húzza fölé az egeret a létező attribútumok leírásának megtekintéséhez!",
+	"launch.config.comment3": "További információért látogassa meg a következőt: {0}",
 	"debugType": "A konfiguráció típusa.",
 	"debugTypeNotRecognised": "Ez a hibakeresési típus nem ismert. Bizonyosodjon meg róla, hogy telepítve és engedélyezve van a megfelelő hibakeresési kiegészítő.",
 	"node2NotSupported": "A \"node2\" már nem támogatott. Használja helyette a \"node\"-ot, és állítsa a \"protocol\" attribútum értékét \"inspector\"-ra.",

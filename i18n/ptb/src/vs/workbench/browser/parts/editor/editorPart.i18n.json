@@ -9,6 +9,6 @@
 	"groupThreeVertical": "Direita",
 	"groupOneHorizontal": "Topo",
 	"groupTwoHorizontal": "Centro",
-	"groupThreeHorizontal": "Baixo",
+	"groupThreeHorizontal": "Rodapé",
 	"editorOpenError": "Não foi possível abrir '{0}': {1}."
 }

@@ -15,5 +15,7 @@
 	"moveSelectionToNextFindMatch": "다음 일치 항목 찾기로 마지막 선택 항목 이동",
 	"moveSelectionToPreviousFindMatch": "마지막 선택 항목을 이전 일치 항목 찾기로 이동",
 	"selectAllOccurrencesOfFindMatch": "일치 항목 찾기의 모든 항목 선택",
-	"changeAll.label": "모든 항목 변경"
+	"changeAll.label": "모든 항목 변경",
+	"showNextFindTermAction": "다음 검색어 표시",
+	"showPreviousFindTermAction": "이전 검색어 표시"
 }

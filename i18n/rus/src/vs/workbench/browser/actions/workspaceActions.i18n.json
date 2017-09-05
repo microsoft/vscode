@@ -6,9 +6,17 @@
 {
 	"openFolder": "Открыть папку...",
 	"openFileFolder": "Открыть...",
-	"cancel": "Отмена",
 	"addFolderToWorkspace": "Добавить папку в рабочую область...",
+	"add": "&&Добавить",
 	"addFolderToWorkspaceTitle": "Добавить папку в рабочую область",
+	"newWorkspace": "Создать рабочую область...",
+	"select": "&&Выбрать",
+	"selectWorkspace": "Выбрать папки для рабочей области",
 	"removeFolderFromWorkspace": "Удалить папку из рабочей области",
-	"save": "Сохранить"
+	"saveWorkspaceAsAction": "Сохранить рабочую область как...",
+	"saveEmptyWorkspaceNotSupported": "Перед сохранением рабочей области откройте ее. ",
+	"save": "Сохранить",
+	"saveWorkspace": "Сохранить рабочую область",
+	"openWorkspaceAction": "Открыть рабочую область...",
+	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области"
 }

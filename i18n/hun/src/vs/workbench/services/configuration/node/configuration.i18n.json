@@ -7,11 +7,14 @@
 	"vscode.extension.contributes.configuration": "Konfigurációs beállításokat szolgáltat.",
 	"vscode.extension.contributes.configuration.title": "A beállítások összefoglaló leírása. Ez a címke jelenik meg a beállítások fájlban egy különálló megjegyzésként.",
 	"vscode.extension.contributes.configuration.properties": "A konfigurációs tulajdonságok leírása.",
+	"scope.window.description": "Ablakspecifikus beállítás, ami konfigurálható a felhasználói vagy munkaterületi beállításokban.",
+	"scope.resource.description": "Erőforrásspecifikus beállítás, ami beállítható a felhasználói, munkaterületi és mappaszintű beállításokban.",
+	"scope.description": "A hatókör, amire a beállítás vonatkozik. Az elérhető hatókörök: `window` és `resource`.",
 	"invalid.type": "ha meg van adva, a 'configuration.type' értékét egy objektumként kell megadnii",
 	"invalid.title": "a 'configuration.title' értékét karakterláncként kell megadni",
 	"vscode.extension.contributes.defaultConfiguration": "Adott nyelvre vonatkozóan szerkesztőbeállításokat szolgáltat.",
 	"invalid.properties": "A 'configuration.properties' értékét egy objektumként kell megadni",
-	"workspaceConfig.id.description": "A munkaterület azonosítója. A munkaterület belső állapotának tárolására van használva, ami elveszhet módosítás esetén.",
-	"workspaceConfig.folders.description": "A munkaterületre betöltött mappák listája. Elérési útnak kell lennie, pl. `file:///root/folderA`.",
+	"workspaceConfig.folders.description": "A munkaterületre betöltött mappák listája. Elérési útnak kell lennie, pl. `/root/folderA` vagy `./folderA` relatív elérési út esetén, ami a munkaterületfájl helye alapján lesz feloldva.",
+	"workspaceConfig.folder.description": "Egy fájl elérési útja, pl. `/root/folderA` vagy `./folderA` relatív elérési út esetén, ami a munkaterületfájl helye alapján lesz feloldva.",
 	"workspaceConfig.settings.description": "Munkaterület-beállítások"
 }

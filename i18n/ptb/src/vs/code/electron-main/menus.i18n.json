@@ -102,6 +102,7 @@
 	"miHideActivityBar": "Ocultar Barra de &&Atividades",
 	"miShowActivityBar": "Mostrar Barra de &&Atividades",
 	"miToggleWordWrap": "Alternar &&Quebra de Linha",
+	"miToggleMinimap": "Alternar &&Painel",
 	"miToggleRenderWhitespace": "Alternar &&Renderização de Espaços em Branco",
 	"miToggleRenderControlCharacters": "Alternar &&Caracteres de Controle",
 	"miZoomIn": "&&Ampliar",

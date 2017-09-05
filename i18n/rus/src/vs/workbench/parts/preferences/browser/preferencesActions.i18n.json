@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Открыть сочетания клавиш",
 	"openGlobalKeybindingsFile": "Открыть файл сочетаний клавиш",
 	"openWorkspaceSettings": "Открыть параметры рабочей области",
+	"openFolderSettings": "Открыть параметры папок",
+	"pickFolder": "Выбрать папку",
 	"configureLanguageBasedSettings": "Настроить параметры языка...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "Выбрать язык"

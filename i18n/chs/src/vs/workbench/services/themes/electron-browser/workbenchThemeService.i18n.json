@@ -29,5 +29,13 @@
 	"workbenchColors": "覆盖当前所选颜色主题的颜色。",
 	"workbenchColors.deprecated": "该设置不再是实验性设置，并已重命名为“workbench.colorCustomizations”",
 	"workbenchColors.deprecatedDescription": "改用“workbench.colorCustomizations”",
-	"editorColors": "覆盖当前所选颜色主题中的编辑器颜色和字体样式。"
+	"editorColors": "覆盖当前所选颜色主题中的编辑器颜色和字体样式。",
+	"editorColors.comments": "设置注释的颜色和样式",
+	"editorColors.strings": "设置字符串文本的颜色和样式",
+	"editorColors.keywords": "设置关键字的颜色和样式。",
+	"editorColors.numbers": "设置数字的颜色和样式。",
+	"editorColors.types": "设置类型定义与引用的颜色和样式。",
+	"editorColors.functions": "设置函数定义与引用的颜色和样式。",
+	"editorColors.variables": "设置变量定义和引用的颜色和样式。",
+	"editorColors.textMateRules": "使用 TextMate 主题规则设置颜色和样式(高级)。"
 }

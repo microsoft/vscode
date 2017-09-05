@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Propriété spécifique à un fournisseur inconnue.",
 	"css.lint.vendorPrefix.desc": "Lors de l'utilisation d'un préfixe spécifique à un fournisseur, ajouter également la propriété standard",
 	"css.lint.zeroUnits.desc": "Aucune unité nécessaire pour zéro",
+	"css.trace.server.desc": "Trace la communication entre VS Code et le serveur de langage CSS.",
+	"css.validate.title": "Contrôle la validation CSS et la gravité des problèmes.",
 	"css.validate.desc": "Active ou désactive toutes les validations",
 	"less.lint.argumentsInColorFunction.desc": "Nombre de paramètres non valide",
 	"less.lint.boxModel.desc": "Ne pas utiliser la largeur ou la hauteur avec une marge intérieure ou une bordure",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "Propriété spécifique à un fournisseur inconnue.",
 	"less.lint.vendorPrefix.desc": "Lors de l'utilisation d'un préfixe spécifique à un fournisseur, ajouter également la propriété standard",
 	"less.lint.zeroUnits.desc": "Aucune unité nécessaire pour zéro",
+	"less.validate.title": "Contrôle la validation LESS et la gravité des problèmes.",
 	"less.validate.desc": "Active ou désactive toutes les validations",
 	"scss.lint.argumentsInColorFunction.desc": "Nombre de paramètres non valide",
 	"scss.lint.boxModel.desc": "Ne pas utiliser la largeur ou la hauteur avec une marge intérieure ou une bordure",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Propriété spécifique à un fournisseur inconnue.",
 	"scss.lint.vendorPrefix.desc": "Lors de l'utilisation d'un préfixe spécifique à un fournisseur, ajouter également la propriété standard",
 	"scss.lint.zeroUnits.desc": "Aucune unité nécessaire pour zéro",
+	"scss.validate.title": "Contrôle la validation SCSS et la gravité des problèmes.",
 	"scss.validate.desc": "Active ou désactive toutes les validations",
 	"less.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs",
 	"scss.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs",
-	"css.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs"
+	"css.colorDecorators.enable.desc": "Active ou désactive les éléments décoratifs de couleurs",
+	"css.colorDecorators.enable.deprecationMessage": "Le paramètre 'css.colorDecorators.enable' a été déprécié en faveur de 'editor.colorDecorators'.",
+	"scss.colorDecorators.enable.deprecationMessage": "Le paramètre 'scss.colorDecorators.enable' a été déprécié en faveur de 'editor.colorDecorators'.",
+	"less.colorDecorators.enable.deprecationMessage": "Le paramètre 'less.colorDecorators.enable' a été déprécié en faveur de 'editor.colorDecorators'."
 }

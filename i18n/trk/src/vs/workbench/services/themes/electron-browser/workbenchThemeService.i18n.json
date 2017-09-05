@@ -29,5 +29,13 @@
 	"workbenchColors": "Şu an seçili renk temasındaki renkleri geçersiz kılar.",
 	"workbenchColors.deprecated": "Ayar, artık deneysel değildir ve 'workbench.colorCustomizations' olarak yeniden adlandırılmıştır",
 	"workbenchColors.deprecatedDescription": "Bunun yerine 'workbench.colorCustomizations' kullanın",
-	"editorColors": "Şu an seçili renk temasındaki düzenleyici renklerini ve yazı tipi stilini geçersiz kılar."
+	"editorColors": "Şu an seçili renk temasındaki düzenleyici renklerini ve yazı tipi stilini geçersiz kılar.",
+	"editorColors.comments": "Yorumların rengini ve stillerini ayarlar",
+	"editorColors.strings": "Dizelerin rengini ve stillerini ayarlar.",
+	"editorColors.keywords": "Anahtar sözcüklerin rengini ve stillerini ayarlar.",
+	"editorColors.numbers": "Numaraların rengini ve stillerini ayarlar.",
+	"editorColors.types": "Tür bildirimi ve başvurularının rengini ve stillerini ayarlar.",
+	"editorColors.functions": "Fonksiyon bildirimi ve başvurularının rengini ve stillerini ayarlar.",
+	"editorColors.variables": "Değişken bildirimi ve başvurularının rengini ve stillerini ayarlar.",
+	"editorColors.textMateRules": "Textmate tema kurallarını kullanarak renkleri ve stilleri ayarlar (gelişmiş)."
 }

@@ -6,9 +6,17 @@
 {
 	"openFolder": "Apri cartella...",
 	"openFileFolder": "Apri...",
-	"cancel": "Annulla",
 	"addFolderToWorkspace": "Aggiungi cartella all'area di lavoro...",
+	"add": "&&Aggiungi",
 	"addFolderToWorkspaceTitle": "Aggiungi cartella all'area di lavoro",
+	"newWorkspace": "Nuova area di lavoro...",
+	"select": "&&Seleziona",
+	"selectWorkspace": "Seleziona cartelle per l'area di lavoro",
 	"removeFolderFromWorkspace": "Rimuovi cartella dall'area di lavoro",
-	"save": "&&Salva"
+	"saveWorkspaceAsAction": "Salva area di lavoro come...",
+	"saveEmptyWorkspaceNotSupported": "Aprire prima un'area di lavoro da salvare.",
+	"save": "&&Salva",
+	"saveWorkspace": "Salva area di lavoro",
+	"openWorkspaceAction": "Apri area di lavoro...",
+	"openWorkspaceConfigFile": "Apri file di configurazione dell'area di lavoro"
 }

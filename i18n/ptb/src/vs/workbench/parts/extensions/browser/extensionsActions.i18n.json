@@ -49,6 +49,8 @@
 	"showRecommendedKeymapExtensionsShort": "Mapeamentos de Teclado",
 	"showLanguageExtensions": "Mostrar Extensões de Linguagem",
 	"showLanguageExtensionsShort": "Extensões de Linguagem",
+	"showAzureExtensions": "Mostrar extensões para o Azure",
+	"showAzureExtensionsShort": "Extensões do Azure",
 	"configureWorkspaceRecommendedExtensions": "Configurar Extensões Recomendadas (Espaço de Trabalho)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "As recomendações somente estão disponíveis em uma pasta do espaço de trabalho.",
 	"OpenExtensionsFile.failed": "Não foi possível criar o arquivo 'extensions.json' na pasta '.vscode' ({0}).",

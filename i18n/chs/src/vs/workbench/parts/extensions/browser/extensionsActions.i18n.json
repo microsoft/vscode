@@ -49,6 +49,8 @@
 	"showRecommendedKeymapExtensionsShort": "键映射",
 	"showLanguageExtensions": "显示语言扩展",
 	"showLanguageExtensionsShort": "语言扩展",
+	"showAzureExtensions": "显示 Azure 扩展",
+	"showAzureExtensionsShort": "Azure 扩展",
 	"configureWorkspaceRecommendedExtensions": "配置建议的扩展(工作区)",
 	"ConfigureWorkspaceRecommendations.noWorkspace": "建议仅在工作区文件夹上可用。",
 	"OpenExtensionsFile.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"extensions.json\" 文件。",

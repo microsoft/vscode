@@ -7,8 +7,11 @@
 	"workbench.action.terminal.toggleTerminal": "통합 터미널 설정/해제",
 	"workbench.action.terminal.kill": "활성 터미널 인스턴스 종료",
 	"workbench.action.terminal.kill.short": "터미널 종료",
+	"workbench.action.terminal.quickKill": "터미널 인스턴스 종료",
 	"workbench.action.terminal.copySelection": "선택 영역 복사",
 	"workbench.action.terminal.selectAll": "모두 선택",
+	"workbench.action.terminal.deleteWordLeft": "왼쪽 단어 삭제",
+	"workbench.action.terminal.deleteWordRight": "오른쪽 단어 삭제",
 	"workbench.action.terminal.new": "새 통합 터미널 만들기",
 	"workbench.action.terminal.new.short": "새 터미널",
 	"workbench.action.terminal.focus": "터미널에 포커스",
@@ -33,5 +36,8 @@
 	"workbench.action.terminal.rename": "이름 바꾸기",
 	"workbench.action.terminal.rename.prompt": "터미널 이름 입력",
 	"workbench.action.terminal.focusFindWidget": "파인드 위젯 포커스",
-	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기"
+	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기",
+	"nextTerminalFindTerm": "다음 검색어 표시",
+	"previousTerminalFindTerm": "이전 검색어 표시",
+	"quickOpenTerm": "터미널: 활성 터미널에 전환"
 }

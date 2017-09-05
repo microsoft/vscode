@@ -21,5 +21,9 @@
 	"errorForeground": "Cor do primeiro plano das linhas onduladas de erro no editor.",
 	"errorBorder": "Cor da borda das linhas onduladas de erro no editor.",
 	"warningForeground": "Cor do primeiro plano de linhas onduladas de aviso no editor.",
-	"warningBorder": "Cor da borda das linhas onduladas de aviso no editor."
+	"warningBorder": "Cor da borda das linhas onduladas de aviso no editor.",
+	"overviewRulerRangeHighlight": "Visão geral da cor do marcador da régua para intervalos de destaques.",
+	"overviewRuleError": "Visão geral da cor do marcador da régua para erros.",
+	"overviewRuleWarning": "Visão geral da cor do marcador da régua para avisos.",
+	"overviewRuleInfo": "Visão geral da cor do marcador da régua para informações."
 }

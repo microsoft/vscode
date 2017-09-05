@@ -7,6 +7,14 @@
 	"ok": "OK",
 	"pathNotExistTitle": "Der Pfad ist nicht vorhanden.",
 	"pathNotExistDetail": "Der Pfad \"{0}\" scheint auf dem Datenträger nicht mehr vorhanden zu sein.",
+	"openWorkspace": "&&Öffnen",
+	"openWorkspaceTitle": "Arbeitsbereich öffnen",
+	"save": "&&Speichern",
+	"doNotSave": "&&Nicht speichern",
+	"cancel": "Abbrechen",
+	"saveWorkspaceMessage": "Möchten Sie Ihre Arbeitsbereichskonfiguration als Datei speichern?",
+	"saveWorkspaceDetail": "Speichern Sie Ihren Arbeitsbereich, wenn Sie ihn erneut öffnen möchten.",
+	"saveWorkspace": "Arbeitsbereich speichern",
 	"reopen": "Erneut öffnen",
 	"wait": "Bitte warten.",
 	"close": "Schließen",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"appCrashed": "Das Fenster ist abgestürzt.",
 	"appCrashedDetail": "Bitte entschuldigen Sie die Unannehmlichkeiten. Sie können das Fenster erneut öffnen und dort weitermachen, wo Sie aufgehört haben.",
-	"openFile": "Datei öffnen",
-	"openFolder": "Ordner öffnen"
+	"open": "Öffnen",
+	"openFolder": "Ordner öffnen",
+	"openFile": "Datei öffnen"
 }

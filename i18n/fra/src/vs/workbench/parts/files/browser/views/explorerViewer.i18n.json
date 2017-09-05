@@ -6,6 +6,10 @@
 {
 	"fileInputAriaLabel": "Tapez le nom du fichier. Appuyez sur Entrée pour confirmer ou sur Échap pour annuler.",
 	"filesExplorerViewerAriaLabel": "{0}, Explorateur de fichiers",
+	"dropFolders": "Voulez-vous ajouter les dossiers à l’espace de travail ?",
+	"dropFolder": "Voulez-vous ajouter le dossier à l’espace de travail ?",
+	"addFolders": "&&Ajouter les dossiers",
+	"addFolder": "&&Ajouter le dossier",
 	"confirmOverwriteMessage": "{0}' existe déjà dans le dossier de destination. Voulez-vous le remplacer ?",
 	"irreversible": "Cette action est irréversible !",
 	"replaceButtonLabel": "&&Remplacer"
