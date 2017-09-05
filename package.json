@@ -20,7 +20,7 @@
     "gulp": "gulp --max_old_space_size=4096",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
-    "smoketest": "node test/smoke/out/main.js"
+    "smoketest": "cd test/smoke ; mocha"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",

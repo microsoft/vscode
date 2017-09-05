@@ -33,11 +33,8 @@ function configureEnvironment {
 	chown -R testuser $AGENT_BUILDDIRECTORY
 }
 
-function runTest {
-	cd test/smoke && npm run mocha -- --build "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
-}
-
 step "Configure environment" configureEnvironment
 
-step "Run smoke test" runTest
+step "Run smoke test" \
+	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-linux-ia32/code-insiders"
 
