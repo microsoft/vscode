@@ -26,7 +26,7 @@ export class Extensions {
 
 		await this.spectron.client.clearElement(searchBoxSelector);
 		try {
-			await this.spectron.client.click(searchBoxSelector, false);
+			await this.spectron.client.waitAndClick(searchBoxSelector);
 		} catch (e) {
 			return Promise.reject('Failed to click on search box in extensions viewlet.');
 		}
@@ -40,7 +40,7 @@ export class Extensions {
 		this.viewletExtensionIndex = await this.getExtensionIndex(name, extensionListSelector);
 
 		try {
-			return this.spectron.client.click(`${extensionListSelector}>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.install`);
+			return this.spectron.client.waitAndClick(`${extensionListSelector}>:nth-child(${this.viewletExtensionIndex}) .extension .extension-action.install`);
 		} catch (e) {
 			return Promise.reject('Failed to click on install button for selected extension.');
 		}
@@ -70,7 +70,7 @@ export class Extensions {
 	}
 
 	private getExtensionIndex(name: string, extensionListSelector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.getHTML, extensionListSelector).then(html => {
+		return this.spectron.waitFor(this.spectron.client.waitForHTML, extensionListSelector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let extensionIndex: number = 0;
 				let extension: boolean;

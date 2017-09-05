@@ -11,8 +11,8 @@ export class FirstExperience {
 	}
 
 	public async getWelcomeTab(): Promise<any> {
-		let el = await this.spectron.client.element('.vs_code_welcome_page-name-file-icon');
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement('.vs_code_welcome_page-name-file-icon');
+		if (el) {
 			return el;
 		}
 

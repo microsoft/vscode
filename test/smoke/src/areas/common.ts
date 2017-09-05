@@ -25,12 +25,22 @@ export class CommonActions {
 	}
 
 	public async addSetting(setting: string, value: string): Promise<any> {
-		await this.spectron.command('workbench.action.openGlobalSettings');
-		await this.spectron.wait();
-		await this.spectron.client.keys(['ArrowDown', 'NULL', 'ArrowRight', 'NULL'], false);
+		await this.openUserSettings();
+		await this.spectron.client.keys(['ArrowDown', 'NULL'], false);
+		await this.spectron.client.waitForElement(`.editable-preferences-editor-container .monaco-editor.focused`);
+		await this.spectron.client.keys(['ArrowRight', 'NULL'], false);
 		await this.spectron.client.keys(`"${setting}": "${value}"`);
-		await this.spectron.wait();
-		return this.saveOpenedFile();
+		await this.saveOpenedFile();
+	}
+
+	public async openUserSettings(): Promise<void> {
+		await this.spectron.command('workbench.action.openGlobalSettings');
+		await this.spectron.client.waitForElement('.settings-search-input .synthetic-focus');
+	}
+
+	public async openKeybindings(): Promise<void> {
+		await this.spectron.command('workbench.action.openGlobalKeybindings');
+		await this.spectron.client.waitForElement('.settings-search-input .synthetic-focus');
 	}
 
 	public async newUntitledFile(): Promise<any> {
@@ -46,8 +56,8 @@ export class CommonActions {
 		await this.closeCurrentNotification(); // close any notification messages that could overlap tabs
 
 		let tabSelector = active ? '.tab.active' : 'div';
-		let el = await this.spectron.client.element(`.tabs-container ${tabSelector}[aria-label="${tabName}, tab"]`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`.tabs-container ${tabSelector}[aria-label="${tabName}, tab"]`);
+		if (el) {
 			return el;
 		}
 
@@ -56,7 +66,13 @@ export class CommonActions {
 
 	public async selectTab(tabName: string): Promise<any> {
 		await this.closeCurrentNotification(); // close any notification messages that could overlap tabs
-		return this.spectron.client.click(`.tabs-container div[aria-label="${tabName}, tab"]`);
+		await this.spectron.client.waitAndClick(`.tabs-container div[aria-selected="false"][aria-label="${tabName}, tab"]`);
+		await this.spectron.client.waitForElement(`.tabs-container div[aria-selected="true"][aria-label="${tabName}, tab"]`);
+		return this.waitForEditorFocus();
+	}
+
+	private async waitForEditorFocus(): Promise<void> {
+		this.spectron.client.waitForElement(`.monaco-editor.focused`);
 	}
 
 	public async openFirstMatchFile(fileName: string): Promise<any> {
@@ -67,8 +83,15 @@ export class CommonActions {
 		return this.spectron.wait();
 	}
 
-	public saveOpenedFile(): Promise<any> {
-		return this.spectron.command('workbench.action.files.save');
+	public async saveOpenedFile(): Promise<any> {
+		try {
+			await this.spectron.client.waitForElement('.tabs-container .tab.active.dirty');
+		} catch (e) {
+			// ignore if there is no dirty file
+			return Promise.resolve();
+		}
+		await this.spectron.command('workbench.action.files.save');
+		return this.spectron.client.waitForElement('.tabs-container .tab.active.dirty', element => !element);
 	}
 
 	public type(text: string): Promise<any> {
@@ -109,7 +132,7 @@ export class CommonActions {
 	}
 
 	public async getQuickOpenElements(): Promise<number> {
-		const elements = await this.spectron.waitFor(this.spectron.client.elements, 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row');
+		const elements = await this.spectron.waitFor(this.spectron.client.waitForElements, 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row');
 		return elements.value.length;
 	}
 
@@ -121,12 +144,12 @@ export class CommonActions {
 		selector += '"]';
 
 		try {
-			await this.spectron.waitFor(this.spectron.client.doubleClick, selector);
+			await this.spectron.client.doubleClickAndWait(selector);
+			await this.spectron.client.waitForElement(`.tabs-container div[aria-label="${fileName}, tab"]`);
+			await this.spectron.client.waitForElement(`.monaco-editor.focused`);
 		} catch (e) {
 			return Promise.reject(`Cannot fine ${fileName} in a viewlet.`);
 		}
-
-		return this.spectron.wait();
 	}
 
 	public getExtensionSelector(fileName: string): string {

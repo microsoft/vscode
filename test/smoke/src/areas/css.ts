@@ -34,8 +34,8 @@ export class CSS {
 			throw new Error('No such problem type defined.');
 		}
 
-		let el = await this.spectron.client.element(`.view-overlays .cdr.${selector}`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`.view-overlays .cdr.${selector}`);
+		if (el) {
 			return el;
 		}
 
@@ -52,8 +52,8 @@ export class CSS {
 			throw new Error('No such problem type defined.');
 		}
 
-		let el = await this.spectron.client.element(`div[aria-label="Problems grouped by files"] .icon.${selector}`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`div[aria-label="Problems grouped by files"] .icon.${selector}`);
+		if (el) {
 			return el;
 		}
 

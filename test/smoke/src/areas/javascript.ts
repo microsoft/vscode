@@ -25,7 +25,7 @@ export class JavaScript {
 	public async findAppReferences(): Promise<any> {
 		await this.setAppVarSelector();
 		try {
-			await this.spectron.client.click(this.appVarSelector, false);
+			await this.spectron.client.waitAndClick(this.appVarSelector);
 		} catch (e) {
 			return Promise.reject(`Failed to select 'app' variable.`);
 		}
@@ -40,16 +40,16 @@ export class JavaScript {
 	}
 
 	public async getTreeReferencesCount(): Promise<any> {
-		const treeElems = await this.spectron.client.elements('.reference-zone-widget.results-loaded .ref-tree.inline .show-twisties .monaco-tree-row');
+		const treeElems = await this.spectron.client.waitForElements('.reference-zone-widget.results-loaded .ref-tree.inline .show-twisties .monaco-tree-row');
 
-		return treeElems.value.length;
+		return treeElems.length;
 	}
 
 	public async renameApp(newValue: string): Promise<any> {
 		await this.setAppVarSelector();
 
 		try {
-			await this.spectron.client.click(this.appVarSelector);
+			await this.spectron.client.waitAndClick(this.appVarSelector);
 		} catch (e) {
 			return Promise.reject(`Failed to select 'app' variable.`);
 		}
@@ -67,7 +67,7 @@ export class JavaScript {
 		this.foldSelector = `.margin-view-overlays>:nth-child(${this.foldLine})`;
 
 		try {
-			return this.spectron.client.click(`${this.foldSelector} .cldr.folding`);
+			return this.spectron.client.waitAndClick(`${this.foldSelector} .cldr.folding`);
 		} catch (e) {
 			return Promise.reject('Clicking on fold element failed ' + e);
 		}
@@ -78,7 +78,7 @@ export class JavaScript {
 			return Promise.reject('No code folding happened to be able to check for a folded icon.');
 		}
 
-		return this.spectron.client.getHTML(`${this.foldSelector} .cldr.folding.collapsed`);
+		return this.spectron.client.waitForHTML(`${this.foldSelector} .cldr.folding.collapsed`);
 	}
 
 	public async getNextLineNumberAfterFold(): Promise<any> {
@@ -92,7 +92,7 @@ export class JavaScript {
 	public async goToExpressDefinition(): Promise<any> {
 		await this.setExpressVarSelector();
 		try {
-			await this.spectron.client.click(this.expressVarSelector);
+			await this.spectron.client.waitAndClick(this.expressVarSelector);
 		} catch (e) {
 			return Promise.reject(`Clicking on express variable failed: ` + e);
 		}
@@ -103,7 +103,7 @@ export class JavaScript {
 	public async peekExpressDefinition(): Promise<any> {
 		await this.setExpressVarSelector();
 		try {
-			await this.spectron.client.click(this.expressVarSelector);
+			await this.spectron.client.waitAndClick(this.expressVarSelector);
 		} catch (e) {
 			return Promise.reject('Clicking on express variable failed: ' + e);
 		}
@@ -130,7 +130,7 @@ export class JavaScript {
 	}
 
 	private getLineIndexOfFirst(string: string, selector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+		return this.spectron.waitFor(this.spectron.client.waitForHTML, selector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let lineIndex: number = 0;
 				let stringFound: boolean;
@@ -159,7 +159,7 @@ export class JavaScript {
 	}
 
 	private getLineIndexOfFirstFoldableElement(selector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.getHTML, selector).then(html => {
+		return this.spectron.waitFor(this.spectron.client.waitForHTML, selector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let lineIndex: number = 0;
 				let foldFound: boolean;

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MochaTest = require('mocha');
-const path = require('path');
+import { SpectronApplication } from '../spectron/application';
 
-const mochaTest = new MochaTest({
-	timeout: 60000,
-	slow: 10000,
-	useColors: true
-});
-mochaTest.addFile(path.join(__dirname, 'test.js'));
-mochaTest.run((failures) => {
-	process.exit(failures);
-});
+export class Window {
+
+	constructor(private spectron: SpectronApplication) {
+
+	}
+
+	public async getTitle(): Promise<string> {
+		return this.spectron.client.getTitle();
+	}
+
+}

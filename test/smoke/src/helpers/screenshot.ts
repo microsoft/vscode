@@ -8,7 +8,12 @@ var fs = require('fs');
 
 const __testTime = new Date().toISOString();
 
-export class Screenshot {
+export interface IScreenshot {
+	capture(): Promise<void>;
+}
+
+export class Screenshot implements IScreenshot {
+
 	private index: number = 0;
 	private testPath: string;
 
@@ -20,7 +25,7 @@ export class Screenshot {
 		this.createFolder(this.testPath);
 	}
 
-	public async capture(): Promise<any> {
+	public async capture(): Promise<void> {
 		const image = await this.spectron.app.browserWindow.capturePage();
 		await new Promise((c, e) => fs.writeFile(`${this.testPath}/${this.index++}.png`, image, err => err ? e(err) : c()));
 	}
@@ -37,4 +42,12 @@ export class Screenshot {
 	private sanitizeFolderName(name: string): string {
 		return name.replace(/[&*:\/]/g, '');
 	}
+}
+
+export class NullScreenshot implements IScreenshot {
+
+	public async capture(): Promise<void> {
+		return Promise.resolve();
+	}
+
 }

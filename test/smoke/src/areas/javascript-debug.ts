@@ -19,7 +19,7 @@ export class JavaScriptDebug {
 
 	public async pressConfigureLaunchJson(): Promise<any> {
 		try {
-			await this.spectron.waitFor(this.spectron.client.click, 'ul[aria-label="Debug actions"] .action-label.icon.debug-action.configure');
+			await this.spectron.waitFor(this.spectron.client.waitAndClick, 'ul[aria-label="Debug actions"] .action-label.icon.debug-action.configure');
 		} catch (e) {
 			return Promise.reject('Clicking on debug configuration gear failed.');
 		}
@@ -43,8 +43,8 @@ export class JavaScriptDebug {
 	}
 
 	public async verifyBreakpointOnLine(lineNumber: number): Promise<any> {
-		let el = await this.spectron.client.element(`${this.sidebarSelector}>:nth-child(${lineNumber}) .cgmr.debug-breakpoint-glyph`);
-		if (el.status === 0) {
+		let el = await this.spectron.client.waitForElement(`${this.sidebarSelector}>:nth-child(${lineNumber}) .cgmr.debug-breakpoint-glyph`);
+		if (el) {
 			return el;
 		}
 

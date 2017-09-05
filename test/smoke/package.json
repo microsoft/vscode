@@ -4,7 +4,8 @@
   "main": "./src/main.js",
   "scripts": {
     "postinstall": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "mocha": "mocha"
   },
   "devDependencies": {
     "@types/electron": "~1.4.37",

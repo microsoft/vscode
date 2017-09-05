@@ -8,6 +8,10 @@ import * as https from 'https';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as mkdirp from 'mkdirp';
+import * as minimist from 'minimist';
+
+const [, , ...args] = process.argv;
+const opts = minimist(args, { string: ['build', 'stable-build'] });
 
 const testDataPath = path.join(__dirname, '..', 'test_data');
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
@@ -32,7 +36,7 @@ function getDevElectronPath(): string {
 
 	switch (process.platform) {
 		case 'darwin':
-			return path.join(buildPath, `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
 		case 'linux':
 			return path.join(buildPath, 'electron', `${product.applicationName}`);
 		case 'win32':
@@ -42,7 +46,8 @@ function getDevElectronPath(): string {
 	}
 }
 
-let [, , testCodePath, stableCodePath] = process.argv;
+let testCodePath = opts.build;
+let stableCodePath = opts['stable-build'];
 
 if (testCodePath) {
 	process.env.VSCODE_PATH = testCodePath;
@@ -86,8 +91,10 @@ function toUri(path: string): string {
 }
 
 async function main(): Promise<void> {
+	console.log('*** Preparing smoketest setup...');
+
 	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
-	console.log(`Fetching keybindings from ${keybindingsUrl}...`);
+	console.log('*** Fetching keybindings...');
 
 	await new Promise((c, e) => {
 		https.get(keybindingsUrl, res => {
@@ -100,7 +107,7 @@ async function main(): Promise<void> {
 	});
 
 	if (!fs.existsSync(workspacePath)) {
-		console.log('Creating workspace file...');
+		console.log('*** Creating workspace file...');
 		const workspace = {
 			id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
 			folders: [
@@ -114,21 +121,50 @@ async function main(): Promise<void> {
 	}
 
 	if (!fs.existsSync(testRepoLocalDir)) {
-		console.log('Cloning test project repository...');
+		console.log('*** Cloning test project repository...');
 		cp.spawnSync('git', ['clone', testRepoUrl, testRepoLocalDir]);
 	} else {
-		console.log('Cleaning test project repository...');
+		console.log('*** Cleaning test project repository...');
 		cp.spawnSync('git', ['fetch'], { cwd: testRepoLocalDir });
 		cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: testRepoLocalDir });
 		cp.spawnSync('git', ['clean', '-xdf'], { cwd: testRepoLocalDir });
 	}
 
-	console.log('Running npm install...');
-	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+	console.log('*** Running npm install...');
+	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
 
-	console.log('Running tests...');
-	const mocha = cp.spawnSync(process.execPath, ['out/mocha-runner.js'], { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
-	process.exit(mocha.status);
+	console.log('*** Smoketest setup done!\n');
 }
 
-main().catch(fail);
+/**
+ * WebDriverIO 4.8.0 outputs all kinds of "deprecation" warnings
+ * for common commands like `keys` and `moveToObject`.
+ * According to https://github.com/Codeception/CodeceptJS/issues/531,
+ * these deprecation warnings are for Firefox, and have no alternative replacements.
+ * Since we can't downgrade WDIO as suggested (it's Spectron's dep, not ours),
+ * we must suppress the warning with a classic monkey-patch.
+ *
+ * @see webdriverio/lib/helpers/depcrecationWarning.js
+ * @see https://github.com/webdriverio/webdriverio/issues/2076
+ */
+// Filter out the following messages:
+const wdioDeprecationWarning = /^WARNING: the "\w+" command will be depcrecated soon./; // [sic]
+// Monkey patch:
+const warn = console.warn;
+console.warn = function suppressWebdriverWarnings(message) {
+	if (wdioDeprecationWarning.test(message)) { return; }
+	warn.apply(console, arguments);
+};
+
+before(async () => main());
+
+import './areas/css/css.test';
+import './areas/explorer/explorer.test';
+import './areas/preferences/preferences.test';
+import './areas/multiroot/multiroot.test';
+import './areas/extensions/extensions.test';
+import './areas/search/search.test';
+import './areas/workbench/data-loss.test';
+import './areas/git/git.test';
+import './areas/statusbar/statusbar.test';
+// import './areas/workbench/data-migration.test';

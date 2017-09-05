@@ -34,4 +34,25 @@ export class Util {
 			});
 		});
 	}
+
+	public static rimraf(directory: string): Promise<any> {
+		return new Promise((res, rej) => {
+			rimraf(directory, (err) => {
+				if (err) {
+					rej(err);
+				}
+				res();
+			});
+		});
+	}
+
+	public static removeFile(filePath: string): void {
+		try {
+			fs.unlinkSync(`${filePath}`);
+		} catch (e) {
+			if (e.code !== 'ENOENT') {
+				throw e;
+			}
+		}
+	}
 }
