@@ -12,6 +12,7 @@ export const enum IndentConsts {
 	DECREASE_MASK = 0b00000010,
 	INDENT_NEXTLINE_MASK = 0b00000100,
 	UNINDENT_MASK = 0b00001000,
+	MAX_LINES_LOOKBEHIND = 64
 };
 
 export class IndentRulesSupport {
@@ -56,6 +57,18 @@ export class IndentRulesSupport {
 			// }
 		}
 		return false;
+	}
+
+	public mightIncrease(text: string): boolean {
+		if (!this._indentationRules) {
+			return false;
+		}
+
+		if (!this._indentationRules.partialEndOfIncreaseIndentPattern) {
+			return false;
+		}
+
+		return this._indentationRules.partialEndOfIncreaseIndentPattern.test(text);
 	}
 
 	public shouldDecrease(text: string): boolean {

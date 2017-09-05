@@ -4303,6 +4303,12 @@ declare module monaco.languages {
 		 */
 		indentNextLinePattern?: RegExp;
 		/**
+		 * If this is passed, vscode will assume that the increase indent pattern
+		 * can span multiple lines. A match against this pattern will
+		 * determine whether increaseIndentPattern will be called matched against more lines or not
+		 */
+		partialEndOfIncreaseIndentPattern?: RegExp;
+		/**
 		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
 		 */
 		unIndentedLinePattern?: RegExp;

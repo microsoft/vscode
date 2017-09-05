@@ -353,93 +353,150 @@ export class LanguageConfigurationRegistryImpl {
 				action: IndentAction.Indent,
 				line: precedingUnIgnoredLine
 			};
-		} else if (indentRulesSupport.shouldDecrease(precedingUnIgnoredLineContent)) {
+		}
+
+		// check if the current indentation token is able to span multiple lines
+		if (indentRulesSupport.mightIncrease(precedingUnIgnoredLineContent)) {
+			let linesToLookBehind: number = 1;
+			let hitStartOfDocument: boolean = false;
+			// set to some configurable constant, there are different (perhaps better) ways to do this
+			// For now we don't attempt to look further behind a total of 64 lines excluding line previously considered
+			while (linesToLookBehind <= IndentConsts.MAX_LINES_LOOKBEHIND && !hitStartOfDocument) {
+				let totalLookBehindContent: string = precedingUnIgnoredLineContent;
+				for (let iterator = 1; iterator <= linesToLookBehind; iterator++) {
+					totalLookBehindContent = model.getLineContent(precedingUnIgnoredLine - iterator) + totalLookBehindContent;
+					if ((precedingUnIgnoredLine - iterator) === 1) {
+						hitStartOfDocument = true;
+						break;
+					}
+				}
+				// do it logarathimically so we get done sooner
+				linesToLookBehind = linesToLookBehind * 2;
+				if (indentRulesSupport.shouldIncrease(totalLookBehindContent)) {
+					return {
+						indentation: strings.getLeadingWhitespace(totalLookBehindContent),
+						action: IndentAction.Indent,
+						line: precedingUnIgnoredLine
+					};
+				}
+			}
+		}
+
+		if (indentRulesSupport.shouldDecrease(precedingUnIgnoredLineContent)) {
 			return {
 				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
 				action: null,
 				line: precedingUnIgnoredLine
 			};
+		}
+
+		// precedingUnIgnoredLine can not be ignored.
+		// it doesn't increase indent of following lines
+		// it doesn't increase just next line
+		// so current line is not affect by precedingUnIgnoredLine
+		// and then we should get a correct inheritted indentation from above lines
+		if (precedingUnIgnoredLine === 1) {
+			return {
+				indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
+				action: null,
+				line: precedingUnIgnoredLine
+			};
+		}
+
+		let previousLine = precedingUnIgnoredLine - 1;
+
+		let previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
+		if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
+			(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
+			let stopLine = 0;
+			for (let i = previousLine - 1; i > 0; i--) {
+				if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+					continue;
+				}
+				stopLine = i;
+				break;
+			}
+
+			return {
+				indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
+				action: null,
+				line: stopLine + 1
+			};
+		}
+
+		if (honorIntentialIndent) {
+			return {
+				indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
+				action: null,
+				line: precedingUnIgnoredLine
+			};
 		} else {
-			// precedingUnIgnoredLine can not be ignored.
-			// it doesn't increase indent of following lines
-			// it doesn't increase just next line
-			// so current line is not affect by precedingUnIgnoredLine
-			// and then we should get a correct inheritted indentation from above lines
-			if (precedingUnIgnoredLine === 1) {
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null,
-					line: precedingUnIgnoredLine
-				};
-			}
-
-			let previousLine = precedingUnIgnoredLine - 1;
-
-			let previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
-			if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
-				(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
-				let stopLine = 0;
-				for (let i = previousLine - 1; i > 0; i--) {
-					if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
-						continue;
-					}
-					stopLine = i;
-					break;
+			// search from precedingUnIgnoredLine until we find one whose indent is not temporary
+			for (let i = precedingUnIgnoredLine; i > 0; i--) {
+				let lineContent = model.getLineContent(i);
+				if (indentRulesSupport.shouldIncrease(lineContent)) {
+					return {
+						indentation: strings.getLeadingWhitespace(lineContent),
+						action: IndentAction.Indent,
+						line: i
+					};
 				}
-
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-					action: null,
-					line: stopLine + 1
-				};
-			}
-
-			if (honorIntentialIndent) {
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null,
-					line: precedingUnIgnoredLine
-				};
-			} else {
-				// search from precedingUnIgnoredLine until we find one whose indent is not temporary
-				for (let i = precedingUnIgnoredLine; i > 0; i--) {
-					let lineContent = model.getLineContent(i);
-					if (indentRulesSupport.shouldIncrease(lineContent)) {
-						return {
-							indentation: strings.getLeadingWhitespace(lineContent),
-							action: IndentAction.Indent,
-							line: i
-						};
-					} else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
-						let stopLine = 0;
-						for (let j = i - 1; j > 0; j--) {
-							if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
-								continue;
+				// check if the current indentation token is able to span multiple lines
+				if (indentRulesSupport.mightIncrease(lineContent)) {
+					let linesToLookBehind: number = 1;
+					let hitStartOfDocument: boolean = false;
+					// set to some configurable constant, there are different (perhaps better) ways to do this
+					// For now we don't attempt to look further behind a total of 64 lines excluding line previously considered
+					while (linesToLookBehind <= IndentConsts.MAX_LINES_LOOKBEHIND && !hitStartOfDocument) {
+						let totalLookBehindContent: string = lineContent;
+						for (let iterator = 1; iterator <= linesToLookBehind; iterator++) {
+							totalLookBehindContent = model.getLineContent(i - iterator) + totalLookBehindContent;
+							if ((precedingUnIgnoredLine - iterator) === 1) {
+								hitStartOfDocument = true;
+								break;
 							}
-							stopLine = j;
-							break;
 						}
-
-						return {
-							indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-							action: null,
-							line: stopLine + 1
-						};
-					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
-						return {
-							indentation: strings.getLeadingWhitespace(lineContent),
-							action: null,
-							line: i
-						};
+						// do it logarathimically so we get done sooner
+						linesToLookBehind = linesToLookBehind * 2;
+						if (indentRulesSupport.shouldIncrease(totalLookBehindContent)) {
+							return {
+								indentation: strings.getLeadingWhitespace(totalLookBehindContent),
+								action: IndentAction.Indent,
+								line: precedingUnIgnoredLine
+							};
+						}
 					}
 				}
+				if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
+					let stopLine = 0;
+					for (let j = i - 1; j > 0; j--) {
+						if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+							continue;
+						}
+						stopLine = j;
+						break;
+					}
 
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
-					action: null,
-					line: 1
-				};
+					return {
+						indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
+						action: null,
+						line: stopLine + 1
+					};
+				}
+				if (indentRulesSupport.shouldDecrease(lineContent)) {
+					return {
+						indentation: strings.getLeadingWhitespace(lineContent),
+						action: null,
+						line: i
+					};
+				}
 			}
+
+			return {
+				indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
+				action: null,
+				line: 1
+			};
 		}
 	}
 
