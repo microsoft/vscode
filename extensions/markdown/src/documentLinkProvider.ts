@@ -91,16 +91,19 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		for (const match of matchAll(this.referenceLinkPattern, text)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
-			const reference = match[3];
+			let reference = match[3];
 			if (reference) { // [text][ref]
 				const pre = match[1];
 				const offset = (match.index || 0) + pre.length;
 				linkStart = document.positionAt(offset);
 				linkEnd = document.positionAt(offset + reference.length);
-			} else { // [ref][]
+			} else if (match[2]) { // [ref][]
+				reference = match[2];
 				const offset = (match.index || 0) + 1;
-				linkStart = document.positionAt(offset + 1);
+				linkStart = document.positionAt(offset);
 				linkEnd = document.positionAt(offset + match[2].length);
+			} else {
+				continue;
 			}
 
 			try {
