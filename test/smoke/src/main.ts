@@ -77,7 +77,7 @@ process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 
-if (testCodePath) {
+if (process.env.VSCODE_DEV === '1') {
 	process.env.VSCODE_EDITION = 'dev';
 } else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
@@ -170,6 +170,7 @@ console.warn = function suppressWebdriverWarnings(message) {
 
 before(async () => main());
 
+import './areas/workbench/data-migration.test';
 import './areas/css/css.test';
 import './areas/explorer/explorer.test';
 import './areas/preferences/preferences.test';
@@ -183,4 +184,3 @@ import './areas/debug/debug.test';
 import './areas/workbench/localization.test';
 import './areas/terminal/terminal.test';
 import './areas/editor/editor.test';
-// import './areas/workbench/data-migration.test';
