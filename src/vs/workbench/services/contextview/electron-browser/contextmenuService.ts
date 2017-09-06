@@ -55,7 +55,7 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				menu.popup(remote.getCurrentWindow(), { x: Math.floor(x), y: Math.floor(y) });
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}
@@ -78,7 +78,7 @@ export class ContextMenuService implements IContextMenuService {
 
 				menu.append(submenu);
 			} else {
-				const options: Electron.MenuItemOptions = {
+				const options: Electron.MenuItemConstructorOptions = {
 					label: unmnemonicLabel(e.label),
 					checked: !!e.checked || !!e.radio,
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,

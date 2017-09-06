@@ -118,7 +118,7 @@ export class TextFileService extends AbstractTextFileService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		const opts: Electron.ShowMessageBoxOptions = {
+		const opts: Electron.MessageBoxOptions = {
 			title: product.nameLong,
 			message: message.join('\n'),
 			type: 'warning',
