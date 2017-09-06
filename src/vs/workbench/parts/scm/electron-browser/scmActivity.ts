@@ -57,7 +57,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
 			} else {
-				return r + repository.provider.resources.reduce<number>((r, g) => r + g.resources.length, 0);
+				return r + repository.provider.resources.reduce<number>((r, g) => r + g.resourceCollection.resources.length, 0);
 			}
 		}, 0);
 

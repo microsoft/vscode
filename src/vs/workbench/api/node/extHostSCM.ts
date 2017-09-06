@@ -13,8 +13,9 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
-import * as vscode from 'vscode';
 import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
+import { comparePaths } from 'vs/base/common/comparers';
+import * as vscode from 'vscode';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
@@ -25,6 +26,10 @@ function getIconPath(decorations: vscode.SourceControlResourceThemableDecoration
 		return `${decorations.iconPath}`;
 	}
 	return undefined;
+}
+
+function resourceSorter(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
+	return comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath);
 }
 
 export class ExtHostSCMInputBox {
@@ -115,8 +120,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	}
 
 	_snapshot(): SCMRawResourceSplice[] {
+		const snapshot = [...this._resourceStates].sort(resourceSorter);
 		const original = new ResourceSequence(this._resourcesSnapshot);
-		const modified = new ResourceSequence(this._resourceStates);
+		const modified = new ResourceSequence(snapshot);
 		const lcs = new LcsDiff(original, modified);
 		const diffs = lcs.ComputeDiff(false);
 		const handlesToDelete: number[] = [];
@@ -126,7 +132,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			const deleteCount = diff.originalLength;
 			const handles: number[] = [];
 
-			const rawResources = this._resourceStates
+			const rawResources = snapshot
 				.slice(diff.modifiedStart, diff.modifiedStart + diff.modifiedLength)
 				.map(r => {
 					const handle = this._resourceHandlePool++;
@@ -167,7 +173,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			this._resourceStatesRollingDisposables.shift()();
 		}
 
-		this._resourcesSnapshot = this._resourceStates;
+		this._resourcesSnapshot = snapshot;
 		return splices;
 	}
 

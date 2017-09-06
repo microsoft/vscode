@@ -26,6 +26,17 @@ export interface ISCMResourceDecorations {
 	faded?: boolean;
 }
 
+export interface ISCMResourceSplice {
+	start: number;
+	deleteCount: number;
+	resources: ISCMResource[];
+}
+
+export interface ISCMResourceCollection {
+	readonly resources: ISCMResource[];
+	readonly onDidSplice: Event<ISCMResourceSplice>;
+}
+
 export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
@@ -37,7 +48,8 @@ export interface ISCMResourceGroup {
 	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly id: string;
-	readonly resources: ISCMResource[];
+	readonly resourceCollection: ISCMResourceCollection;
+	readonly hideWhenEmpty: boolean;
 }
 
 export interface ISCMProvider extends IDisposable {

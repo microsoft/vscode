@@ -36,7 +36,6 @@ import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionIt
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
 import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
@@ -121,7 +120,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.resources.length);
+		template.count.setCount(group.resourceCollection.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
@@ -227,10 +226,6 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
 		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
 	}
-}
-
-function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
 class SourceControlViewDescriptor implements IViewDescriptor {
@@ -411,7 +406,13 @@ class SourceControlView extends CollapsibleView {
 
 	private updateList(): void {
 		const elements = this.repository.provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
+				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
+					return r;
+				}
+
+				return [...r, g, ...g.resourceCollection.resources];
+			}, []);
 
 		this.list.splice(0, this.list.length, elements);
 	}

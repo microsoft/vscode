@@ -10,14 +10,30 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
+class MainThreadSCMResourceCollection implements ISCMResourceCollection {
+
+	readonly resources: ISCMResource[] = [];
+
+	private _onDidSplice = new Emitter<ISCMResourceSplice>();
+	readonly onDidSplice = this._onDidSplice.event;
+
+	splice(start: number, deleteCount: number, resources: ISCMResource[]) {
+		this.resources.splice(start, deleteCount, ...resources);
+		this._onDidSplice.fire({ start, deleteCount, resources });
+	}
+}
+
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
+
+	readonly resourceCollection = new MainThreadSCMResourceCollection();
+	get hideWhenEmpty(): boolean { return this.features.hideWhenEmpty; }
 
 	constructor(
 		private sourceControlHandle: number,
@@ -25,8 +41,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public id: string,
-		public resources: ISCMResource[]
+		public id: string
 	) { }
 
 	toJSON(): any {
@@ -71,7 +86,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get resources(): ISCMResourceGroup[] {
 		return this._groups
-			.filter(g => g.resources.length > 0 || !g.features.hideWhenEmpty);
+			.filter(g => g.resourceCollection.resources.length > 0 || !g.features.hideWhenEmpty);
 	}
 
 	private _onDidChangeResources = new Emitter<void>();
@@ -125,8 +140,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this,
 			{},
 			label,
-			id,
-			[]
+			id
 		);
 
 		this._groups.push(group);
@@ -190,7 +204,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 					);
 				});
 
-				group.resources.splice(start, deleteCount, ...resources);
+				group.resourceCollection.splice(start, deleteCount, resources);
 			}
 		}
 
