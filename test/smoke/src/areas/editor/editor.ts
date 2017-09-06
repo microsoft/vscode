@@ -15,6 +15,10 @@ export class Editor {
 		return Array.isArray(result) ? result.join() : result;
 	}
 
+	public async getEditorVisibleText(): Promise<string> {
+		return await this.spectron.client.getText('.view-lines');
+	}
+
 	public async waitForHighlightingLine(line: number): Promise<void> {
 		const currentLineIndex = await this.spectron.client.waitFor<number>(async () => {
 			const lineNumbers = await this.spectron.webclient.selectorExecute(`.monaco-editor .line-numbers`,

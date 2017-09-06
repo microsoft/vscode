@@ -175,4 +175,5 @@ import './areas/search/search.test';
 import './areas/workbench/data-loss.test';
 import './areas/git/git.test';
 import './areas/statusbar/statusbar.test';
+import './areas/debug/debug.test';
 // import './areas/workbench/data-migration.test';
