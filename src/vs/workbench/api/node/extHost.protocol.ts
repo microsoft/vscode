@@ -337,6 +337,11 @@ export type SCMRawResource = [
 	boolean /*faded*/
 ];
 
+export type SCMRawResourceGroup = [
+	number, /*handle*/
+	SCMRawResource[]
+];
+
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, id: string, label: string): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
@@ -345,8 +350,9 @@ export interface MainThreadSCMShape extends IDisposable {
 	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
-	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
+
+	$updateResourceStates(sourceControlHandle: number, resources: SCMRawResourceGroup[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
