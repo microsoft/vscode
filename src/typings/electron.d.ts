@@ -7934,12 +7934,10 @@ interface File {
 	path: string;
 }
 
-// ### BEGIN VSCODE CHANGE ###
-// declare module 'original-fs' {
-// 	import * as fs from 'fs';
-// 	export = fs;
-// }
-// ### END VSCODE CHANGE ###
+declare module 'original-fs' {
+	import * as fs from 'fs';
+	export = fs;
+}
 
 interface Document {
 	createElement(tagName: 'webview'): Electron.WebviewTag;
