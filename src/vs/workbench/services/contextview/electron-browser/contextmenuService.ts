@@ -47,7 +47,7 @@ export class ContextMenuService implements IContextMenuService {
 					y = elementPosition.top + elementPosition.height;
 				} else {
 					const pos = <{ x: number; y: number; }>anchor;
-					x = pos.x;
+					x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 					y = pos.y;
 				}
 

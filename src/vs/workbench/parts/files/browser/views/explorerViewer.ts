@@ -507,7 +507,7 @@ export class FileController extends DefaultController {
 			return true;
 		}
 
-		const anchor = { x: event.posx + 1, y: event.posy };
+		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {

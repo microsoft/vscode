@@ -265,7 +265,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
 			getActions: () => TPromise.as(actions),
 			onHide: () => dispose(actions)
 		});
