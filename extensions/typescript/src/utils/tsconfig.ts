@@ -29,15 +29,13 @@ export function openOrCreateConfigFile(
 	return vscode.workspace.openTextDocument(configFile)
 		.then(doc => {
 			return vscode.window.showTextDocument(doc, col);
-		}, _ => {
-			return vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
-				.then(doc => vscode.window.showTextDocument(doc, col))
-				.then(editor => {
-					if (editor.document.getText().length === 0) {
-						return editor.insertSnippet(emptyConfig)
-							.then(_ => editor);
-					}
-					return editor;
-				});
+		}, async () => {
+			const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
+			const editor = await vscode.window.showTextDocument(doc, col);
+			if (editor.document.getText().length === 0) {
+				await editor.insertSnippet(emptyConfig);
+				return editor;
+			}
+			return editor;
 		});
 }
