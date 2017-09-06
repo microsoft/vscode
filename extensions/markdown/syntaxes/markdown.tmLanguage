@@ -354,11 +354,11 @@
 										</dict>
 									</array>
 									<key>while</key>
-									<string>^\s*(?!&lt;/(script|style|pre)&gt;)</string>
+									<string>^(?!.*&lt;/(script|style|pre)&gt;)</string>
 								</dict>
 							</array>
 							<key>end</key>
-							<string>(?=&lt;/(script|style|pre)&gt;)</string>
+							<string>(?=.*&lt;/(script|style|pre)&gt;)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
