@@ -2258,10 +2258,10 @@
 		"c": "#{",
 		"t": "source.ruby string.interpolated.ruby meta.embedded.line.ruby punctuation.section.embedded.begin.ruby",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "string: #CE9178"
 		}
 	},
@@ -2271,8 +2271,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2280,10 +2280,10 @@
 		"c": "}",
 		"t": "source.ruby string.interpolated.ruby meta.embedded.line.ruby punctuation.section.embedded.end.ruby source.ruby",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "string: #CE9178"
 		}
 	},

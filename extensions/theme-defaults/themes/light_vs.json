@@ -4,6 +4,13 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
+			"scope": "meta.embedded",
+			"settings": {
+				"foreground": "#000000ff",
+				"background":"#ffffffff"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
