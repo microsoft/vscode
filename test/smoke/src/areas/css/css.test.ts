@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 import { QuickOutline } from '../editor/quickoutline';
 import { SettingsEditor } from '../preferences/settings';
 
 describe('CSS', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
-	it('verifies quick outline', async function () {
+	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');
 		const outline = new QuickOutline(app);
 		await outline.openSymbols();
@@ -25,10 +22,10 @@ describe('CSS', () => {
 		assert.ok(elements, `Did not find two outline elements`);
 	});
 
-	it('verifies warnings for the empty rule', async function () {
+	it('verifies warnings for the empty rule', async () => {
 		await app.workbench.quickopen.openFile('style.css');
 		await app.client.waitForElement(`.monaco-editor.focused`);
-		await app.type('.foo{}');
+		await app.client.type('.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 		assert.ok(warning, `Warning squiggle is not shown in 'style.css'.`);
@@ -40,10 +37,10 @@ describe('CSS', () => {
 		await problems.hideProblemsView();
 	});
 
-	it('verifies that warning becomes an error once setting changed', async function () {
+	it('verifies that warning becomes an error once setting changed', async () => {
 		await new SettingsEditor(app).addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
-		await app.type('.foo{}');
+		await app.client.type('.foo{}');
 
 		let error = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 		assert.ok(error, `Warning squiggle is not shown in 'style.css'.`);

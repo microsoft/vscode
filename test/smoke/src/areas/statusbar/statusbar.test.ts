@@ -5,16 +5,13 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 import { StatusBarElement } from './statusbar';
 
 
 describe('Statusbar', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
 	it('verifies presence of all default status bar elements', async function () {
@@ -57,7 +54,7 @@ describe('Statusbar', () => {
 	});
 
 	it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-		if (app.inDevMode) {
+		if (app.build === VSCODE_BUILD.DEV) {
 			return;
 		}
 		await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);

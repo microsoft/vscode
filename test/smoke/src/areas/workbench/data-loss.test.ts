@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
-import * as path from 'path';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Dataloss', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH], [`--user-data-dir=${path.join(USER_DIR, new Date().getTime().toString(), 'dataloss')}`]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {

@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Extensions', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
 	it(`install and activate vscode-smoketest-check extension`, async function () {
-		if (app.inDevMode) {
+		if (app.build === VSCODE_BUILD.DEV) {
 			return;
 		}
 		const extensionName = 'vscode-smoketest-check';

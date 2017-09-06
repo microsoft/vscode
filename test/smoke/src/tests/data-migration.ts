@@ -30,7 +30,7 @@ export function testDataMigration() {
 			}
 			args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
-			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), args, [`--user-data-dir=${USER_DIR}`]);
+			// app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), args, [`--user-data-dir=${USER_DIR}`]);
 			common = new CommonActions(app);
 		}
 

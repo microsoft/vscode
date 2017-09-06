@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../spectron/application';
+import { SpectronApplication } from '../spectron/application';
 import { CommonActions } from '../areas/common';
 import { JavaScript } from '../areas/javascript';
 
@@ -17,7 +17,7 @@ export function testJavaScript() {
 		let js: JavaScript;
 
 		beforeEach(async function () {
-			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
+			// app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
 			common = new CommonActions(app);
 			js = new JavaScript(app);
 

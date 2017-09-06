@@ -27,7 +27,7 @@ export class Terminal {
 	}
 
 	public async runCommand(commandText: string): Promise<void> {
-		await this.spectron.type(commandText);
+		await this.spectron.client.type(commandText);
 		await this.spectron.client.keys(['Enter', 'NULL']);
 	}
 

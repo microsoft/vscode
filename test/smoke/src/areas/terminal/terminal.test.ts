@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Terminal', () => {
-	let app: SpectronApplication = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-	before(() => app.start());
+	let app: SpectronApplication;
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
 	it(`opens terminal, runs 'echo' and verifies the output`, async function () {

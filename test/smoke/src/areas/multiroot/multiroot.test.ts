@@ -4,22 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, CODE_WORKSPACE_PATH } from '../../spectron/application';
 import { QuickOpen } from '../quickopen/quickopen';
 import { Window } from '../window';
 
 describe('Multi Root', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [CODE_WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(void 0, CODE_WORKSPACE_PATH); return app.start(); });
 	after(() => app.stop());
 
 	it('shows results from all folders', async function () {
 		let quickOpen = new QuickOpen(app);
 		await quickOpen.openQuickOpen();
-		await app.type('*.*');
+		await app.client.type('*.*');
 		const elements = await quickOpen.getQuickOpenElements();
 		assert.equal(elements.length, 6);
 	});

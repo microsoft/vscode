@@ -29,7 +29,7 @@ export function testDataMigration() {
 			}
 			args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
-			app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), args, [`--user-data-dir=${USER_DIR}`]);
+			// app = new SpectronApplication(appPath, context.test.fullTitle(), context.test.currentRetry(), args, [`--user-data-dir=${USER_DIR}`]);
 		}
 
 		it('checks if the Untitled file is restored migrating from stable to latest', async function () {
@@ -40,7 +40,7 @@ export function testDataMigration() {
 			await app.start();
 
 			await app.workbench.newUntitledFile();
-			await app.type(textToType);
+			await app.client.type(textToType);
 
 			await app.stop();
 			await app.wait(.5); // wait until all resources are released (e.g. locked local storage)
@@ -63,9 +63,9 @@ export function testDataMigration() {
 			await app.start();
 
 			await app.workbench.waitForActiveOpen(fileName);
-			await app.type(firstTextPart);
+			await app.client.type(firstTextPart);
 			await app.workbench.saveOpenedFile();
-			await app.type(secondTextPart);
+			await app.client.type(secondTextPart);
 
 			await app.stop();
 			await app.wait(); // wait until all resources are released (e.g. locked local storage)

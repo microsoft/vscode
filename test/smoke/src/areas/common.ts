@@ -132,8 +132,8 @@ export class CommonActions {
 	}
 
 	public async getQuickOpenElements(): Promise<number> {
-		const elements = await this.spectron.waitFor(this.spectron.client.waitForElements, 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row');
-		return elements.value.length;
+		const elements = await this.spectron.client.waitForElements('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row');
+		return elements.length;
 	}
 
 	public async openFile(fileName: string, explorer?: boolean): Promise<any> {

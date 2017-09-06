@@ -5,18 +5,15 @@
 
 import * as assert from 'assert';
 var stripJsonComments = require('strip-json-comments');
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
 
 	it('configure launch json', async function () {
-		if (app.inDevMode) {
+		if (app.build === VSCODE_BUILD.DEV) {
 			return;
 		}
 

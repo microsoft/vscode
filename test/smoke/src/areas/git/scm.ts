@@ -90,7 +90,7 @@ export class SCM extends Viewlet {
 
 	async commit(message: string): Promise<void> {
 		await this.spectron.client.click(SCM_INPUT);
-		await this.spectron.type(message);
+		await this.spectron.client.type(message);
 		await this.spectron.client.click(COMMIT_COMMAND);
 	}
 }

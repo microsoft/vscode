@@ -77,8 +77,12 @@ process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 
-if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+if (testCodePath) {
+	process.env.VSCODE_EDITION = 'dev';
+} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
+} else {
+	process.env.VSCODE_EDITION = 'stable';
 }
 
 function getKeybindingPlatform(): string {
@@ -139,7 +143,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log('*** Running npm install...');
-	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
 
 	console.log('*** Smoketest setup done!\n');
 }

@@ -5,7 +5,7 @@
 
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { SpectronClient } from './client';
-import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
+import { NullScreenshot, IScreenshot } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -16,84 +16,62 @@ export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
 export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
 export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
+export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
+
+export enum VSCODE_BUILD {
+	DEV,
+	INSIDERS,
+	STABLE
+}
 
 /**
  * Wraps Spectron's Application instance with its used methods.
  */
 export class SpectronApplication {
 
-	public readonly client: SpectronClient;
-	public readonly workbench: Workbench;
-
+	private _client: SpectronClient;
+	private _workbench: Workbench;
+	private _screenshot: IScreenshot;
 	private spectron: Application;
 	private keybindings: any[];
-	private screenshot: IScreenshot;
 
-	private readonly sampleExtensionsDir: string = path.join(EXTENSIONS_DIR, new Date().getTime().toString());
-	private readonly pollTrials = 50;
-	private readonly pollTimeout = 1; // in secs
-
-	constructor(electronPath: string, testName: string, private testRetry: number, args: string[] = [], chromeDriverArgs: string[] = []) {
-		// Prevent 'Getting Started' web page from opening on clean user-data-dir
-		args.push('--skip-getting-started');
-
-		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		let extensionDirIsSet = false;
-		for (let arg of args) {
-			if (arg.startsWith('--extensions-dir')) {
-				extensionDirIsSet = true;
-				break;
-			}
-		}
-		if (!extensionDirIsSet) {
-			args.push(`--extensions-dir=${this.sampleExtensionsDir}`);
-		}
-		let userDataDirIsSet = false;
-		for (let arg of chromeDriverArgs) {
-			if (arg.startsWith('--user-data-dir')) {
-				userDataDirIsSet = true;
-				break;
-			}
-		}
-		if (!userDataDirIsSet) {
-			chromeDriverArgs.push(`--user-data-dir=${path.join(USER_DIR, new Date().getTime().toString())}`);
-		}
-
-		const repo = process.env.VSCODE_REPOSITORY;
-		if (repo) {
-			args = [repo, ...args];
-		}
-
-		this.spectron = new Application({
-			path: electronPath,
-			args: args,
-			chromeDriverArgs: chromeDriverArgs,
-			startTimeout: 10000,
-			requireName: 'nodeRequire'
-		});
-		this.testRetry += 1; // avoid multiplication by 0 for wait times
-		this.screenshot = args.indexOf('--no-screenshot') === -1 ? new NullScreenshot() : new Screenshot(this, testName, testRetry);
-		this.client = new SpectronClient(this.spectron, this.screenshot);
-		this.retrieveKeybindings();
-
-		this.workbench = new Workbench(this);
+	constructor(private _electronPath: string = LATEST_PATH, private _workspace: string = WORKSPACE_PATH, private _userDir: string = USER_DIR) {
 	}
 
-	public get inDevMode(): boolean {
-		return process.env.VSCODE_DEV === '1';
+	public get build(): VSCODE_BUILD {
+		switch (VSCODE_EDITION) {
+			case 'dev':
+				return VSCODE_BUILD.DEV;
+			case 'insiders':
+				return VSCODE_BUILD.INSIDERS;
+		}
+		return VSCODE_BUILD.STABLE;
 	}
 
 	public get app(): Application {
 		return this.spectron;
 	}
 
+	public get client(): SpectronClient {
+		return this._client;
+	}
+
 	public get webclient(): WebClient {
 		return this.spectron.client;
 	}
 
+	public get screenshot(): IScreenshot {
+		return this._screenshot;
+	}
+
+	public get workbench(): Workbench {
+		return this._workbench;
+	}
+
 	public async start(): Promise<any> {
-		await this.spectron.start();
-		await this.focusOnWindow(1); // focuses on main renderer window
+		await this.retrieveKeybindings();
+		await this.startApplication();
+		await this.client.windowByIndex(1); // focuses on main renderer window
 		await this.checkWindowReady();
 	}
 
@@ -110,16 +88,39 @@ export class SpectronApplication {
 		}
 	}
 
-	public waitFor(func: (...args: any[]) => any, args: any): Promise<any> {
-		return this.callClientAPI(func, args);
-	}
-
-	public wait(seconds: number = this.testRetry * this.pollTimeout): Promise<any> {
+	public wait(seconds: number = 1): Promise<any> {
 		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
-	public focusOnWindow(index: number): Promise<any> {
-		return this.client.windowByIndex(index);
+	private async startApplication(): Promise<any> {
+
+		let args: string[] = [];
+		let chromeDriverArgs: string[] = [];
+
+		if (process.env.VSCODE_REPOSITORY) {
+			args.push(process.env.VSCODE_REPOSITORY as string);
+		}
+
+		args.push(this._workspace);
+		// Prevent 'Getting Started' web page from opening on clean user-data-dir
+		args.push('--skip-getting-started');
+		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
+		args.push(`--extensions-dir=${path.join(EXTENSIONS_DIR, new Date().getTime().toString())}`);
+
+		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
+
+		this.spectron = new Application({
+			path: this._electronPath,
+			args,
+			chromeDriverArgs,
+			startTimeout: 10000,
+			requireName: 'nodeRequire'
+		});
+		await this.spectron.start();
+
+		this._screenshot = new NullScreenshot();
+		this._client = new SpectronClient(this.spectron, this.screenshot);
+		this._workbench = new Workbench(this);
 	}
 
 	private async checkWindowReady(): Promise<any> {
@@ -128,40 +129,20 @@ export class SpectronApplication {
 		await this.client.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}
 
-	private retrieveKeybindings() {
-		fs.readFile(process.env.VSCODE_KEYBINDINGS_PATH as string, 'utf8', (err, data) => {
-			if (err) {
-				throw err;
-			}
-			try {
-				this.keybindings = JSON.parse(data);
-			} catch (e) {
-				throw new Error(`Error parsing keybindings JSON: ${e}`);
-			}
+	private retrieveKeybindings(): Promise<void> {
+		return new Promise((c, e) => {
+			fs.readFile(process.env.VSCODE_KEYBINDINGS_PATH as string, 'utf8', (err, data) => {
+				if (err) {
+					throw err;
+				}
+				try {
+					this.keybindings = JSON.parse(data);
+					c();
+				} catch (e) {
+					throw new Error(`Error parsing keybindings JSON: ${e}`);
+				}
+			});
 		});
-	}
-
-	private async callClientAPI(func: (...args: any[]) => Promise<any>, args: any): Promise<any> {
-		let trial = 1;
-
-		while (true) {
-			if (trial > this.pollTrials) {
-				throw new Error(`Could not retrieve the element in ${this.testRetry * this.pollTrials * this.pollTimeout} seconds.`);
-			}
-
-			let result;
-			try {
-				result = await func.call(this.client, args, false);
-			} catch (e) { }
-
-			if (result && result !== '') {
-				await this.screenshot.capture();
-				return result;
-			}
-
-			await this.wait();
-			trial++;
-		}
 	}
 
 	/**
@@ -200,25 +181,5 @@ export class SpectronApplication {
 			default:
 				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
 		};
-	}
-
-	// TODO: Sandy remove this
-	public type(text: string): Promise<any> {
-		return new Promise((res) => {
-			let textSplit = text.split(' ');
-
-			const type = async (i: number) => {
-				if (!textSplit[i] || textSplit[i].length <= 0) {
-					return res();
-				}
-
-				const toType = textSplit[i + 1] ? `${textSplit[i]} ` : textSplit[i];
-				await this.client.keys(toType, false);
-				await this.client.keys(['NULL']);
-				await type(i + 1);
-			};
-
-			return type(0);
-		});
 	}
 }

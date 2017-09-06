@@ -130,7 +130,7 @@ export class JavaScript {
 	}
 
 	private getLineIndexOfFirst(string: string, selector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.waitForHTML, selector).then(html => {
+		return this.spectron.client.waitForHTML(selector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let lineIndex: number = 0;
 				let stringFound: boolean;
@@ -159,7 +159,7 @@ export class JavaScript {
 	}
 
 	private getLineIndexOfFirstFoldableElement(selector: string): Promise<number> {
-		return this.spectron.waitFor(this.spectron.client.waitForHTML, selector).then(html => {
+		return this.spectron.client.waitForHTML(selector).then(html => {
 			return new Promise<number>((res, rej) => {
 				let lineIndex: number = 0;
 				let foldFound: boolean;
