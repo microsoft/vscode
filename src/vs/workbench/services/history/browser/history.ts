@@ -149,6 +149,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private stack: IStackEntry[];
 	private index: number;
+	private lastIndex: number;
 	private navigatingInStack: boolean;
 	private currentFileEditorState: EditorState;
 
@@ -172,6 +173,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		super(editorGroupService, editorService);
 
 		this.index = -1;
+		this.lastIndex = -1;
 		this.stack = [];
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
@@ -179,6 +181,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.resourceFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getExcludes(root), (expression: IExpression) => parse(expression));
 
 		this.registerListeners();
+	}
+
+	private setIndex(value: number): void {
+		this.lastIndex = this.index;
+		this.index = value;
 	}
 
 	private getExcludes(root?: URI): IExpression {
@@ -246,7 +253,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private doForwardInEditors(): void {
-		this.index++;
+		this.setIndex(this.index + 1);
 		this.navigate();
 	}
 
@@ -260,7 +267,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 			const previousEntry = this.stack[currentIndex];
 			if (!this.matches(currentEntry.input, previousEntry.input)) {
-				this.index = currentIndex;
+				this.setIndex(currentIndex);
 				this.navigate(true /* across editors */);
 				break;
 			}
@@ -277,8 +284,17 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
+	public last(): void {
+		if (this.lastIndex === -1) {
+			this.back();
+		} else {
+			this.setIndex(this.lastIndex);
+			this.navigate();
+		}
+	}
+
 	private doBackInEditors(): void {
-		this.index--;
+		this.setIndex(this.index - 1);
 		this.navigate();
 	}
 
@@ -292,7 +308,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 			const previousEntry = this.stack[currentIndex];
 			if (!this.matches(currentEntry.input, previousEntry.input)) {
-				this.index = currentIndex;
+				this.setIndex(currentIndex);
 				this.navigate(true /* across editors */);
 				break;
 			}
@@ -303,6 +319,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.ensureHistoryLoaded();
 
 		this.index = -1;
+		this.lastIndex = -1;
 		this.stack.splice(0);
 		this.history = [];
 		this.recentlyClosedFiles = [];
@@ -505,14 +522,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 		// Add to stack at current position
 		else {
-			this.index++;
+			this.setIndex(this.index + 1);
 			this.stack.splice(this.index, 0, entry);
 
 			// Check for limit
 			if (this.stack.length > HistoryService.MAX_STACK_ITEMS) {
 				this.stack.shift(); // remove first and dispose
 				if (this.index > 0) {
-					this.index--;
+					this.setIndex(this.index - 1);
 				}
 			}
 		}
@@ -562,6 +579,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private removeFromStack(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
 		this.stack = this.stack.filter(e => !this.matches(arg1, e.input));
 		this.index = this.stack.length - 1; // reset index
+		this.lastIndex = -1;
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {

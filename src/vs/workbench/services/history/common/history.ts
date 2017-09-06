@@ -41,6 +41,11 @@ export interface IHistoryService {
 	back(acrossEditors?: boolean): void;
 
 	/**
+	 * Navigate forward or backwards to previous entry in history.
+	 */
+	last(): void;
+
+	/**
 	 * Removes an entry from history.
 	 */
 	remove(input: IEditorInput | IResourceInput): void;
