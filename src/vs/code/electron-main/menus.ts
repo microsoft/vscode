@@ -49,6 +49,11 @@ interface IConfiguration extends IFilesConfiguration {
 	};
 }
 
+interface IMenuItemClickHandler {
+	inDevTools: (contents: Electron.WebContents) => void;
+	inNoWindow: () => void;
+}
+
 const telemetryFrom = 'menu';
 
 export class CodeMenu {
@@ -539,8 +544,14 @@ export class CodeMenu {
 		let paste: Electron.MenuItem;
 
 		if (isMacintosh) {
-			undo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', devTools => devTools.undo());
-			redo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', devTools => devTools.redo());
+			undo = this.createContextAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', {
+				inDevTools: devTools => devTools.undo(),
+				inNoWindow: () => Menu.sendActionToFirstResponder('undo:')
+			});
+			redo = this.createContextAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', {
+				inDevTools: devTools => devTools.redo(),
+				inNoWindow: () => Menu.sendActionToFirstResponder('redo:')
+			});
 			cut = this.createRoleMenuItem(nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "Cu&&t"), 'editor.action.clipboardCutAction', 'cut');
 			copy = this.createRoleMenuItem(nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "&&Copy"), 'editor.action.clipboardCopyAction', 'copy');
 			paste = this.createRoleMenuItem(nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"), 'editor.action.clipboardPasteAction', 'paste');
@@ -611,7 +622,10 @@ export class CodeMenu {
 
 		let selectAll: Electron.MenuItem;
 		if (isMacintosh) {
-			selectAll = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll', (devTools) => devTools.selectAll());
+			selectAll = this.createContextAwareMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll', {
+				inDevTools: devTools => devTools.selectAll(),
+				inNoWindow: () => Menu.sendActionToFirstResponder('selectAll:')
+			});
 		} else {
 			selectAll = this.createMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll');
 		}
@@ -1084,21 +1098,25 @@ export class CodeMenu {
 		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
-	private createDevToolsAwareMenuItem(label: string, commandId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
+	private createContextAwareMenuItem(label: string, commandId: string, clickHandler: IMenuItemClickHandler): Electron.MenuItem {
 		return new MenuItem(this.withKeybinding(commandId, {
 			label: this.mnemonicLabel(label),
 			enabled: this.windowsService.getWindowCount() > 0,
 			click: () => {
-				const windowInFocus = this.windowsService.getFocusedWindow();
-				if (!windowInFocus) {
-					return;
+
+				// No Active Window
+				const activeWindow = this.windowsService.getFocusedWindow();
+				if (!activeWindow) {
+					return clickHandler.inNoWindow();
 				}
 
-				if (windowInFocus.win.webContents.isDevToolsFocused()) {
-					devToolsFocusedFn(windowInFocus.win.webContents.devToolsWebContents);
-				} else {
-					this.windowsService.sendToFocused('vscode:runAction', commandId);
+				// DevTools focused
+				if (activeWindow.win.webContents.isDevToolsFocused()) {
+					return clickHandler.inDevTools(activeWindow.win.webContents.devToolsWebContents);
 				}
+
+				// Finally execute command in Window
+				this.windowsService.sendToFocused('vscode:runAction', commandId);
 			}
 		}));
 	}
