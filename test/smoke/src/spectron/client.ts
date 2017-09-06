@@ -38,6 +38,12 @@ export class SpectronClient {
 		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
 	}
 
+	public async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
+		await this.screenshot();
+		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
+		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
+	}
+
 	public async waitForHTML(selector: string, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
 		await this.screenshot();
 		return this.waitFor(() => this.spectron.client.getHTML(selector), accept, `getHTML with selector ${selector}`);

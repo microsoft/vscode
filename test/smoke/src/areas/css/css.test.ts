@@ -6,8 +6,6 @@
 import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
-import { QuickOutline } from '../editor/quickoutline';
-import { SettingsEditor } from '../preferences/settings';
 
 describe('CSS', () => {
 	let app: SpectronApplication;
@@ -16,10 +14,9 @@ describe('CSS', () => {
 
 	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');
-		const outline = new QuickOutline(app);
-		await outline.openSymbols();
-		const elements = await app.client.waitForElements(QuickOutline.QUICK_OPEN_ENTRY_SELECTOR, elements => elements.length === 2);
-		assert.ok(elements, `Did not find two outline elements`);
+		const outline = await app.workbench.editor.openOutline();
+		const elements = await outline.getQuickOpenElements();
+		assert.equal(elements.length, 2, `Did not find two outline elements`);
 	});
 
 	it('verifies warnings for the empty rule', async () => {
@@ -30,15 +27,14 @@ describe('CSS', () => {
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 		assert.ok(warning, `Warning squiggle is not shown in 'style.css'.`);
 
-		const problems = new Problems(app);
-		await problems.showProblemsView();
+		await app.workbench.problems.showProblemsView();
 		warning = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
 		assert.ok(warning, 'Warning does not appear in Problems view.');
-		await problems.hideProblemsView();
+		await app.workbench.problems.hideProblemsView();
 	});
 
 	it('verifies that warning becomes an error once setting changed', async () => {
-		await new SettingsEditor(app).addUserSetting('css.lint.emptyRules', '"error"');
+		await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
 		await app.client.type('.foo{}');
 

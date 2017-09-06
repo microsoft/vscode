@@ -12,12 +12,15 @@ export class QuickOutline extends QuickOpen {
 		super(spectron);
 	}
 
-	public async openSymbols(): Promise<void> {
+	public async open(): Promise<void> {
 		await this.spectron.client.waitFor(async () => {
 			await this.spectron.command('workbench.action.gotoSymbol');
-			const element = await this.spectron.client.element('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row[aria-label="body, symbols, picker"] .quick-open-entry');
-			if (element) {
-				return element;
+			const entry = await this.spectron.client.element('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry');
+			if (entry) {
+				const text = await this.spectron.client.getText('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
+				if (text !== 'No symbol information for the file') {
+					return entry;
+				}
 			}
 			await this.closeQuickOpen();
 		});

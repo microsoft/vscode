@@ -182,4 +182,5 @@ import './areas/statusbar/statusbar.test';
 import './areas/debug/debug.test';
 import './areas/workbench/localization.test';
 import './areas/terminal/terminal.test';
+import './areas/editor/editor.test';
 // import './areas/workbench/data-migration.test';

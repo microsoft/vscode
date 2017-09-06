@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { QuickOutline } from './quickoutline';
+import { References } from './peek';
+import { Rename } from './rename';
 
 export class Editor {
+
+	private static VIEW_LINES = '.monaco-editor .view-lines';
+	private static FOLDING_EXPANDED = '.monaco-editor .margin .margin-view-overlays>:nth-child(${INDEX}) .folding';
+	private static FOLDING_COLLAPSED = `${Editor.FOLDING_EXPANDED}.collapsed`;
 
 	constructor(private spectron: SpectronApplication) {
 	}
@@ -19,17 +26,99 @@ export class Editor {
 		return await this.spectron.client.getText('.view-lines');
 	}
 
+	public async openOutline(): Promise<QuickOutline> {
+		const outline = new QuickOutline(this.spectron);
+		await outline.open();
+		return outline;
+	}
+
+	public async findReferences(term: string, line: number): Promise<References> {
+		await this.clickOnTerm(term, line);
+		await this.spectron.workbench.commandPallette.runCommand('Find All References');
+		const references = new References(this.spectron);
+		await references.waitUntilOpen();
+		return references;
+	}
+
+	public async rename(term: string, line: number): Promise<Rename> {
+		await this.clickOnTerm(term, line);
+		await this.spectron.workbench.commandPallette.runCommand('Rename Symbol');
+		const rename = new Rename(term, this.spectron);
+		await rename.waitUntilOpen();
+		return rename;
+	}
+
+	public async gotoDefinition(term: string, line: number): Promise<void> {
+		await this.clickOnTerm(term, line);
+		await this.spectron.workbench.commandPallette.runCommand('Go to Definition');
+	}
+
+	public async peekDefinition(term: string, line: number): Promise<References> {
+		await this.clickOnTerm(term, line);
+		await this.spectron.workbench.commandPallette.runCommand('Peek Definition');
+		const peek = new References(this.spectron);
+		await peek.waitUntilOpen();
+		return peek;
+	}
+
 	public async waitForHighlightingLine(line: number): Promise<void> {
-		const currentLineIndex = await this.spectron.client.waitFor<number>(async () => {
-			const lineNumbers = await this.spectron.webclient.selectorExecute(`.monaco-editor .line-numbers`,
-				elements => (Array.isArray(elements) ? elements : [elements]).map(element => element.textContent));
-			for (let index = 0; index < lineNumbers.length; index++) {
-				if (lineNumbers[index] === `${line}`) {
-					return index + 1;
-				}
+		const currentLineIndex = await this.getViewLineIndex(line);
+		if (currentLineIndex) {
+			await this.spectron.client.waitForElement(`.monaco-editor .view-overlays>:nth-child(${currentLineIndex}) .current-line`);
+		}
+		throw new Error('Cannot find line ' + line);
+	}
+
+	public async getSelector(term: string, line: number): Promise<string> {
+		const lineIndex = await this.getViewLineIndex(line);
+		const classNames = await this.spectron.client.waitFor(() => this.getClassSelectors(term, lineIndex), classNames => classNames && !!classNames.length);
+		return `${Editor.VIEW_LINES}>:nth-child(${lineIndex}) span span.${classNames[0]}`;
+	}
+
+	public async foldAtLine(line: number): Promise<any> {
+		const lineIndex = await this.getViewLineIndex(line);
+		await this.spectron.client.waitAndClick(Editor.FOLDING_EXPANDED.replace('${INDEX}', '' + lineIndex));
+		await this.spectron.client.waitForElement(Editor.FOLDING_COLLAPSED.replace('${INDEX}', '' + lineIndex));
+	}
+
+	public async unfoldAtLine(line: number): Promise<any> {
+		const lineIndex = await this.getViewLineIndex(line);
+		await this.spectron.client.waitAndClick(Editor.FOLDING_COLLAPSED.replace('${INDEX}', '' + lineIndex));
+		await this.spectron.client.waitForElement(Editor.FOLDING_EXPANDED.replace('${INDEX}', '' + lineIndex));
+	}
+
+	public async waitUntilHidden(line: number): Promise<void> {
+		await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line), lineNumber => lineNumber === undefined);
+	}
+
+	public async waitUntilShown(line: number): Promise<void> {
+		await this.getViewLineIndex(line);
+	}
+
+	public async clickOnTerm(term: string, line: number): Promise<void> {
+		const selector = await this.getSelector(term, line);
+		await this.spectron.client.waitAndClick(selector);
+	}
+
+	private async getClassSelectors(term: string, viewline: number): Promise<string[]> {
+		const result: { text: string, className: string }[] = await this.spectron.webclient.selectorExecute(`${Editor.VIEW_LINES}>:nth-child(${viewline}) span span`,
+			elements => (Array.isArray(elements) ? elements : [elements])
+				.map(element => ({ text: element.textContent, className: element.className })));
+		return result.filter(r => r.text === term).map(({ className }) => className);
+	}
+
+	private async getViewLineIndex(line: number): Promise<number> {
+		return await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line));
+	}
+
+	private async getViewLineIndexWithoutWait(line: number): Promise<number | undefined> {
+		const lineNumbers = await this.spectron.webclient.selectorExecute(`.monaco-editor .line-numbers`,
+			elements => (Array.isArray(elements) ? elements : [elements]).map(element => element.textContent));
+		for (let index = 0; index < lineNumbers.length; index++) {
+			if (lineNumbers[index] === `${line}`) {
+				return index + 1;
 			}
-			return undefined;
-		});
-		await this.spectron.client.waitForElement(`.monaco-editor .view-overlays>:nth-child(${currentLineIndex}) .current-line`);
+		}
+		return undefined;
 	}
 }
