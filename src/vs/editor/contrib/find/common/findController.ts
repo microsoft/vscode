@@ -260,6 +260,15 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		return false;
 	}
 
+	public findAll(): boolean {
+		if (this._model) {
+			this._model.findAll();
+			this._editor.focus();
+			return true;
+		}
+		return false;
+	}
+
 	public moveToPrevMatch(): boolean {
 		if (this._model) {
 			this._model.moveToPrevMatch();
@@ -379,6 +388,25 @@ export class NextMatchFindAction extends MatchFindAction {
 
 	protected _run(controller: CommonFindController): boolean {
 		return controller.moveToNextMatch();
+	}
+}
+
+
+@editorAction
+export class FindAllAction extends MatchFindAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.FindAllAction,
+			label: nls.localize('findAllAction', "Find All"),
+			alias: 'Find All',
+			precondition: null,
+			kbOpts: null
+		});
+	}
+
+	protected _run(controller: CommonFindController): boolean {
+		return controller.findAll();
 	}
 }
 

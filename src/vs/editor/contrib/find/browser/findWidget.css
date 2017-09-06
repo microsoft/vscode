@@ -176,6 +176,10 @@
 	background-image: url('images/next.svg');
 }
 
+.monaco-editor .find-widget .find-all {
+	background-image: url('images/find-all.svg');
+}
+
 .monaco-editor .find-widget .disabled {
 	opacity: 0.3;
 	cursor: default;
