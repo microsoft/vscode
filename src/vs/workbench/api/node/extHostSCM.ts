@@ -310,12 +310,22 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyUpdateResourceStates(): void {
-		const resources: SCMRawResourceSplices[] = [];
+		const splices: SCMRawResourceSplices[] = [];
 
-		this.updatedResourceGroups
-			.forEach(group => resources.push([group.handle, group._snapshot()]));
+		this.updatedResourceGroups.forEach(group => {
+			const snapshot = group._snapshot();
 
-		this._proxy.$spliceResourceStates(this.handle, resources);
+			if (snapshot.length === 0) {
+				return;
+			}
+
+			splices.push([group.handle, snapshot]);
+		});
+
+		if (splices.length > 0) {
+			this._proxy.$spliceResourceStates(this.handle, splices);
+		}
+
 		this.updatedResourceGroups.clear();
 	}
 

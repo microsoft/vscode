@@ -169,8 +169,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
-	$spliceGroupResourceStates(slices: SCMRawResourceSplices[]): void {
-		for (const [groupHandle, groupSlices] of slices) {
+	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
+		for (const [groupHandle, groupSlices] of splices) {
 			const group = this._groupsByHandle[groupHandle];
 
 			if (!group) {
