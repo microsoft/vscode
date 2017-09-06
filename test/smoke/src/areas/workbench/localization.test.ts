@@ -29,10 +29,9 @@ describe('Localization', () => {
 		text = await app.workbench.scm.getTitle();
 		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
 
-		// TODO: Sandy Enable this
-		// await app.workbench.debug.openDebugViewlet();
-		// text = await app.workbench.debug.getTitle();
-		// assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
+		await app.workbench.debug.openDebugViewlet();
+		text = await app.workbench.debug.getTitle();
+		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
 
 		await app.workbench.extensions.openExtensionsViewlet();
 		text = await app.workbench.extensions.getTitle();

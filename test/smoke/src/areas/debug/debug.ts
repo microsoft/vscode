@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
 const VIEWLET = 'div[id="workbench.view.debug"]';
 const DEBUG_VIEW = `${VIEWLET} .debug-view-content`;
@@ -13,10 +14,10 @@ const GLYPH_AREA = '.margin-view-overlays>:nth-child';
 const BREAKPOINT_GLYPH = '.debug-breakpoint-glyph';
 const TOOLBAR = `.debug-actions-widget`;
 
-export class Debug {
+export class Debug extends Viewlet {
 
-	constructor(private spectron: SpectronApplication) {
-		// noop
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
 	}
 
 	async openDebugViewlet(): Promise<any> {
