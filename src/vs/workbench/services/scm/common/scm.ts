@@ -40,8 +40,8 @@ export interface ISCMResourceCollection {
 export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
-	readonly command?: Command;
 	readonly decorations: ISCMResourceDecorations;
+	open(): TPromise<void>;
 }
 
 export interface ISCMResourceGroup {

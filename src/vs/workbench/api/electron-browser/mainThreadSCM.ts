@@ -56,14 +56,18 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 class MainThreadSCMResource implements ISCMResource {
 
 	constructor(
+		private proxy: ExtHostSCMShape,
 		private sourceControlHandle: number,
 		private groupHandle: number,
 		private handle: number,
 		public sourceUri: URI,
-		public command: Command | undefined,
 		public resourceGroup: ISCMResourceGroup,
 		public decorations: ISCMResourceDecorations
 	) { }
+
+	open(): TPromise<void> {
+		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
+	}
 
 	toJSON(): any {
 		return {
@@ -182,7 +186,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded] = rawResource;
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
@@ -194,11 +198,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 					};
 
 					return new MainThreadSCMResource(
+						this.proxy,
 						this.handle,
 						groupHandle,
 						handle,
 						URI.parse(sourceUri),
-						command,
 						group,
 						decorations
 					);

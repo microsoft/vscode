@@ -418,12 +418,7 @@ class SourceControlView extends CollapsibleView {
 	}
 
 	private open(e: ISCMResource): void {
-		if (!e.command) {
-			return;
-		}
-
-		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
-			.done(undefined, onUnexpectedError);
+		e.open().done(undefined, onUnexpectedError);
 	}
 
 	private pin(): void {

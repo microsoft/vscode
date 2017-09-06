@@ -11,11 +11,15 @@ import { debounce } from 'vs/base/common/decorators';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
 import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
+
+type ProviderHandle = number;
+type GroupHandle = number;
+type ResourceStateHandle = number;
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
@@ -161,6 +165,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	private _resourceStatesRollingDisposables: { (): void }[] = [];
 	private _resourceStatesMap: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
+	private _resourceStatesCommandsMap: Map<ResourceStateHandle, vscode.Command> = new Map<ResourceStateHandle, vscode.Command>();
 
 	private _onDidUpdateResourceStates = new Emitter<void>();
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
@@ -212,11 +217,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					handles.push(handle);
 
 					const sourceUri = r.resourceUri.toString();
-					const command = this._commands.toInternal(r.command);
 					const iconPath = getIconPath(r.decorations);
 					const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
 					const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
 					const icons: string[] = [];
+
+					if (r.command) {
+						this._resourceStatesCommandsMap.set(handle, r.command);
+					}
 
 					if (lightIconPath || darkIconPath) {
 						icons.push(lightIconPath);
@@ -230,7 +238,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 					const faded = r.decorations && !!r.decorations.faded;
 
-					return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+					return [handle, sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
 				});
 
 			handlesToDelete.push(...this._handlesSnapshot.splice(start, deleteCount, ...handles));
@@ -238,7 +246,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			return [start, deleteCount, rawResources] as SCMRawResourceSplice;
 		});
 
-		const disposable = () => handlesToDelete.forEach(handle => this._resourceStatesMap.delete(handle));
+		const disposable = () => handlesToDelete.forEach(handle => {
+			this._resourceStatesMap.delete(handle);
+			this._resourceStatesCommandsMap.delete(handle);
+		});
+
 		this._resourceStatesRollingDisposables.push(disposable);
 
 		while (this._resourceStatesRollingDisposables.length >= 10) {
@@ -254,7 +266,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	constructor(
 		private _proxy: MainThreadSCMShape,
-		private _commands: CommandsConverter,
+		private _commands: ExtHostCommands,
 		private _sourceControlHandle: number,
 		private _id: string,
 		private _label: string,
@@ -264,6 +276,16 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
 		return this._resourceStatesMap.get(handle);
+	}
+
+	async $executeResourceCommand(handle: number): TPromise<void> {
+		const command = this._resourceStatesCommandsMap.get(handle);
+
+		if (!command) {
+			return;
+		}
+
+		this._commands.executeCommand(command.command, ...command.arguments);
 	}
 
 	dispose(): void {
@@ -331,7 +353,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	set acceptInputCommand(acceptInputCommand: vscode.Command | undefined) {
 		this._acceptInputCommand = acceptInputCommand;
 
-		const internal = this._commands.toInternal(acceptInputCommand);
+		const internal = this._commands.converter.toInternal(acceptInputCommand);
 		this._proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
@@ -344,7 +366,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
 		this._statusBarCommands = statusBarCommands;
 
-		const internal = (statusBarCommands || []).map(c => this._commands.toInternal(c));
+		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c));
 		this._proxy.$updateSourceControl(this.handle, { statusBarCommands: internal });
 	}
 
@@ -352,7 +374,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	constructor(
 		private _proxy: MainThreadSCMShape,
-		private _commands: CommandsConverter,
+		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
 	) {
@@ -410,10 +432,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$unregisterSourceControl(this.handle);
 	}
 }
-
-type ProviderHandle = number;
-type GroupHandle = number;
-type ResourceStateHandle = number;
 
 export class ExtHostSCM {
 
@@ -473,7 +491,7 @@ export class ExtHostSCM {
 
 	createSourceControl(extension: IExtensionDescription, id: string, label: string): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands.converter, id, label);
+		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
@@ -508,11 +526,27 @@ export class ExtHostSCM {
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
-		if (!sourceControl || !sourceControl.quickDiffProvider) {
+		if (!sourceControl) {
 			return TPromise.as(null);
 		}
 
 		sourceControl.inputBox.$onInputBoxValueChange(value);
 		return TPromise.as(null);
+	}
+
+	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl) {
+			return;
+		}
+
+		const group = sourceControl.getResourceGroup(groupHandle);
+
+		if (!group) {
+			return;
+		}
+
+		group.$executeResourceCommand(handle);
 	}
 }
