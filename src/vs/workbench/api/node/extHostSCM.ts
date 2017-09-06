@@ -12,8 +12,9 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceGroup, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
+import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
@@ -59,6 +60,22 @@ export class ExtHostSCMInputBox {
 	}
 }
 
+class ResourceSequence implements ISequence {
+
+	constructor(private resources: vscode.SourceControlResourceState[]) { }
+
+	getLength() {
+		return this.resources.length;
+	}
+
+	getElementHash(index) {
+		const resource = this.resources[index];
+
+		// TODO!!!
+		return resource.resourceUri.toString();
+	}
+}
+
 class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceGroup {
 
 	private static _handlePool: number = 0;
@@ -72,6 +89,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	readonly onDidUpdateResourceStates = this._onDidUpdateResourceStates.event;
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
+
+	private _handlesSnapshot: number[] = [];
+	private _resourcesSnapshot: vscode.SourceControlResourceState[] = [];
 
 	get id(): string { return this._id; }
 
@@ -94,43 +114,61 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._onDidUpdateResourceStates.fire();
 	}
 
-	get _rawResources(): SCMRawResource[] {
-		const handles: number[] = [];
-		const rawResources = this._resourceStates.map(r => {
-			const handle = this._resourceHandlePool++;
-			this._resourceStatesMap.set(handle, r);
-			handles.push(handle);
+	_snapshot(): SCMRawResourceSplice[] {
+		const original = new ResourceSequence(this._resourcesSnapshot);
+		const modified = new ResourceSequence(this._resourceStates);
+		const lcs = new LcsDiff(original, modified);
+		const diffs = lcs.ComputeDiff(false);
+		const handlesToDelete: number[] = [];
 
-			const sourceUri = r.resourceUri.toString();
-			const command = this._commands.toInternal(r.command);
-			const iconPath = getIconPath(r.decorations);
-			const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
-			const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
-			const icons: string[] = [];
+		const splices = diffs.map(diff => {
+			const start = diff.originalStart;
+			const deleteCount = diff.originalLength;
+			const handles: number[] = [];
 
-			if (lightIconPath || darkIconPath) {
-				icons.push(lightIconPath);
-			}
+			const rawResources = this._resourceStates
+				.slice(diff.modifiedStart, diff.modifiedStart + diff.modifiedLength)
+				.map(r => {
+					const handle = this._resourceHandlePool++;
+					this._resourceStatesMap.set(handle, r);
+					handles.push(handle);
 
-			if (darkIconPath !== lightIconPath) {
-				icons.push(darkIconPath);
-			}
+					const sourceUri = r.resourceUri.toString();
+					const command = this._commands.toInternal(r.command);
+					const iconPath = getIconPath(r.decorations);
+					const lightIconPath = r.decorations && getIconPath(r.decorations.light) || iconPath;
+					const darkIconPath = r.decorations && getIconPath(r.decorations.dark) || iconPath;
+					const icons: string[] = [];
 
-			const tooltip = (r.decorations && r.decorations.tooltip) || '';
-			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
-			const faded = r.decorations && !!r.decorations.faded;
+					if (lightIconPath || darkIconPath) {
+						icons.push(lightIconPath);
+					}
 
-			return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+					if (darkIconPath !== lightIconPath) {
+						icons.push(darkIconPath);
+					}
+
+					const tooltip = (r.decorations && r.decorations.tooltip) || '';
+					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+					const faded = r.decorations && !!r.decorations.faded;
+
+					return [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+				});
+
+			handlesToDelete.push(...this._handlesSnapshot.splice(start, deleteCount, ...handles));
+
+			return [start, deleteCount, rawResources] as SCMRawResourceSplice;
 		});
 
-		const disposable = () => handles.forEach(handle => this._resourceStatesMap.delete(handle));
+		const disposable = () => handlesToDelete.forEach(handle => this._resourceStatesMap.delete(handle));
 		this._resourceStatesRollingDisposables.push(disposable);
 
 		while (this._resourceStatesRollingDisposables.length >= 10) {
 			this._resourceStatesRollingDisposables.shift()();
 		}
 
-		return rawResources;
+		this._resourcesSnapshot = this._resourceStates;
+		return splices;
 	}
 
 	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
@@ -266,12 +304,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyUpdateResourceStates(): void {
-		const resources: SCMRawResourceGroup[] = [];
+		const resources: SCMRawResourceSplices[] = [];
 
 		this.updatedResourceGroups
-			.forEach(group => resources.push([group.handle, group._rawResources]));
+			.forEach(group => resources.push([group.handle, group._snapshot()]));
 
-		this._proxy.$updateResourceStates(this.handle, resources);
+		this._proxy.$spliceResourceStates(this.handle, resources);
 		this.updatedResourceGroups.clear();
 	}
 

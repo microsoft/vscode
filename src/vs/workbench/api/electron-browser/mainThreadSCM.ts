@@ -13,7 +13,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceGroup, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
@@ -155,36 +155,43 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
-	$updateGroupResourceStates(groups: SCMRawResourceGroup[]): void {
-		for (const [groupHandle, resources] of groups) {
+	$spliceGroupResourceStates(slices: SCMRawResourceSplices[]): void {
+		for (const [groupHandle, groupSlices] of slices) {
 			const group = this._groupsByHandle[groupHandle];
 
 			if (!group) {
 				return;
 			}
 
-			group.resources = resources.map(rawResource => {
-				const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
-				const icon = icons[0];
-				const iconDark = icons[1] || icon;
-				const decorations = {
-					icon: icon && URI.parse(icon),
-					iconDark: iconDark && URI.parse(iconDark),
-					tooltip,
-					strikeThrough,
-					faded
-				};
+			// reverse the splices sequence in order to apply them correctly
+			groupSlices.reverse();
 
-				return new MainThreadSCMResource(
-					this.handle,
-					groupHandle,
-					handle,
-					URI.parse(sourceUri),
-					command,
-					group,
-					decorations
-				);
-			});
+			for (const [start, deleteCount, rawResources] of groupSlices) {
+				const resources = rawResources.map(rawResource => {
+					const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
+					const icon = icons[0];
+					const iconDark = icons[1] || icon;
+					const decorations = {
+						icon: icon && URI.parse(icon),
+						iconDark: iconDark && URI.parse(iconDark),
+						tooltip,
+						strikeThrough,
+						faded
+					};
+
+					return new MainThreadSCMResource(
+						this.handle,
+						groupHandle,
+						handle,
+						URI.parse(sourceUri),
+						command,
+						group,
+						decorations
+					);
+				});
+
+				group.resources.splice(start, deleteCount, ...resources);
+			}
 		}
 
 		this._onDidChangeResources.fire();
@@ -317,7 +324,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		provider.$updateGroupLabel(groupHandle, label);
 	}
 
-	$updateResourceStates(sourceControlHandle: number, resources: SCMRawResourceGroup[]): void {
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
 		const repository = this._repositories[sourceControlHandle];
 
 		if (!repository) {
@@ -325,7 +332,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroupResourceStates(resources);
+		provider.$spliceGroupResourceStates(splices);
 	}
 
 	$unregisterGroup(sourceControlHandle: number, handle: number): void {
