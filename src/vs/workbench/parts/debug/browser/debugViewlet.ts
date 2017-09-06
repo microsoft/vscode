@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { PersistentViewsViewlet } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/views';
 import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewLocation } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewLocation } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 

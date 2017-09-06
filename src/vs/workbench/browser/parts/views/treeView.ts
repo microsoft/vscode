@@ -25,12 +25,12 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsRegistry } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg } from 'vs/workbench/parts/views/common/views';
+import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { CollapsibleState, ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 
 export class TreeView extends CollapsibleView {
 

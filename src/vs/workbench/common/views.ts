@@ -46,5 +46,4 @@ export interface ITreeViewDataProvider {
 	getElements(): TPromise<ITreeItem[]>;
 
 	getChildren(element: ITreeItem): TPromise<ITreeItem[]>;
-
 }

@@ -131,10 +131,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/views",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/parts/watermark",
 			"project": "vscode-workbench"
 		},
