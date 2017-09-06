@@ -32,6 +32,7 @@ interface IExtensionViewlet {
 interface IConfiguration extends IFilesConfiguration {
 	window: {
 		enableMenuBarMnemonics: boolean;
+		nativeTabs: boolean;
 	};
 	workbench: {
 		sideBar: {
@@ -66,6 +67,7 @@ export class CodeMenu {
 	private currentStatusbarVisible: boolean;
 	private currentActivityBarVisible: boolean;
 	private currentEnableMenuBarMnemonics: boolean;
+	private currentEnableNativeTabs: boolean;
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -80,6 +82,8 @@ export class CodeMenu {
 	private closeWorkspace: Electron.MenuItem;
 	private saveWorkspaceAs: Electron.MenuItem;
 
+	private nativeTabMenuItems: Electron.MenuItem[];
+
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -91,6 +95,7 @@ export class CodeMenu {
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
 	) {
 		this.extensionViewlets = [];
+		this.nativeTabMenuItems = [];
 
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 		this.keybindingsResolver = instantiationService.createInstance(KeybindingsResolver);
@@ -188,6 +193,15 @@ export class CodeMenu {
 			updateMenu = true;
 		}
 
+		let newEnableNativeTabs = config && config.window && config.window.nativeTabs;
+		if (typeof newEnableNativeTabs !== 'boolean') {
+			newEnableNativeTabs = false;
+		}
+		if (newEnableNativeTabs !== this.currentEnableNativeTabs) {
+			this.currentEnableNativeTabs = newEnableNativeTabs;
+			updateMenu = true;
+		}
+
 		if (handleMenu && updateMenu) {
 			this.updateMenu();
 		}
@@ -221,6 +235,15 @@ export class CodeMenu {
 		// Update menu if window count goes from N > 0 or 0 > N to update menu item enablement
 		if ((e.oldCount === 0 && e.newCount > 0) || (e.oldCount > 0 && e.newCount === 0)) {
 			this.updateMenu();
+		}
+
+		// Update specific items that are dependent on window count
+		else if (this.currentEnableNativeTabs) {
+			this.nativeTabMenuItems.forEach(item => {
+				if (item) {
+					item.enabled = e.newCount > 1;
+				}
+			});
 		}
 	}
 
@@ -877,10 +900,25 @@ export class CodeMenu {
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
 		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
 
+		const nativeTabMenuItems: Electron.MenuItem[] = [];
+		if (this.currentEnableNativeTabs) {
+			const hasMultipleWindows = this.windowsService.getWindowCount() > 1;
+
+			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mShowPreviousTab', "Show Previous Tab"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('selectPreviousTab:') }));
+			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mShowNextTab', "Show Next Tab"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('selectNextTab:') }));
+			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('moveTabToNewWindow:') }));
+			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mMergeAllWindows', "Merge All Windows"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('mergeAllWindows:') }));
+
+			nativeTabMenuItems.push(__separator__(), ...this.nativeTabMenuItems);
+		} else {
+			this.nativeTabMenuItems = [];
+		}
+
 		[
 			minimize,
 			zoom,
 			switchWindow,
+			...nativeTabMenuItems,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));
