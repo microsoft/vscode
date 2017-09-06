@@ -216,7 +216,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Configuration updates
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
-		this.onConfigurationChanged();
+		this.onConfigurationChanged(false);
 
 		// Editor Actions Container
 		const editorActionsContainer = document.createElement('div');
@@ -254,11 +254,11 @@ export class TabsTitleControl extends TitleControl {
 		return (element.className === 'tabs-container');
 	}
 
-	private onConfigurationChanged(): void {
-		const tabDescriptionTemplate = this.configurationService.lookup<string>('workbench.editor.tabDescription').value;
+	private onConfigurationChanged(doUpdate = true): void {
+		const currentTabDescriptionTemplate = this.tabDescriptionTemplate;
+		this.tabDescriptionTemplate = this.configurationService.lookup<string>('workbench.editor.tabDescription').value;
 
-		if (tabDescriptionTemplate !== this.tabDescriptionTemplate) {
-			this.tabDescriptionTemplate = tabDescriptionTemplate;
+		if (doUpdate && currentTabDescriptionTemplate !== this.tabDescriptionTemplate) {
 			this.doUpdate();
 		}
 	}
