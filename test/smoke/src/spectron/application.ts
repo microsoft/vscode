@@ -14,8 +14,8 @@ export const LATEST_PATH = process.env.VSCODE_PATH || '';
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
 export const WORKSPACE_PATH = process.env.SMOKETEST_REPO || '';
 export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH || '';
-export const USER_DIR = path.join(__dirname, '../../test_data/temp_user_dir');
-export const EXTENSIONS_DIR = path.join(__dirname, '../../test_data/temp_extensions_dir');
+export const USER_DIR = path.resolve(path.join(__dirname, '../../test_data/temp_user_dir'));
+export const EXTENSIONS_DIR = path.resolve(path.join(__dirname, '../../test_data/temp_extensions_dir'));
 
 /**
  * Wraps Spectron's Application instance with its used methods.
