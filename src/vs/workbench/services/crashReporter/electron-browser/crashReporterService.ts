@@ -84,8 +84,8 @@ export class CrashReporterService implements ICrashReporterService {
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
 			const childProcessOptions = clone(this.options);
-			childProcessOptions.extra.processName = name;
-			childProcessOptions.crashesDirectory = os.tmpdir();
+			(<any>childProcessOptions.extra).processName = name;
+			(<any>childProcessOptions).crashesDirectory = os.tmpdir();
 
 			return childProcessOptions;
 		}

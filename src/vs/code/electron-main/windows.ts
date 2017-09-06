@@ -768,7 +768,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Warn if the requested path to open does not exist
 			if (!path) {
-				const options: Electron.ShowMessageBoxOptions = {
+				const options: Electron.MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
@@ -1403,7 +1403,7 @@ export class WindowsManager implements IWindowsMainService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		const options: Electron.ShowMessageBoxOptions = {
+		const options: Electron.MessageBoxOptions = {
 			title: this.environmentService.appNameLong,
 			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
 			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),

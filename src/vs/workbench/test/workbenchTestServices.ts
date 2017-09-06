@@ -930,7 +930,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+	showMessageBox(options: Electron.MessageBoxOptions): number {
 		return 0;
 	}
 

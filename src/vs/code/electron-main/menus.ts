@@ -517,12 +517,13 @@ export class CodeMenu {
 		}, false));
 	}
 
-	private isOptionClick(event: Electron.Event & Electron.Modifiers): boolean {
+	//instead of any was Electron.Modifier
+	private isOptionClick(event: Electron.Event & any): boolean {
 		return event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
 	}
 
-	private createRoleMenuItem(label: string, commandId: string, role: Electron.MenuItemRole): Electron.MenuItem {
-		const options: Electron.MenuItemOptions = {
+	private createRoleMenuItem(label: string, commandId: string, role: string): Electron.MenuItem {
+		const options: Electron.MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
 			enabled: true
@@ -1054,7 +1055,8 @@ export class CodeMenu {
 	private createMenuItem(label: string, click: () => void, enabled?: boolean, checked?: boolean): Electron.MenuItem;
 	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, arg4?: boolean): Electron.MenuItem {
 		const label = this.mnemonicLabel(arg1);
-		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: Electron.MenuItem, win: Electron.BrowserWindow, event: Electron.Event & Electron.Modifiers) => {
+		//instead of any was Electron.Modifier
+		const click: () => void = (typeof arg2 === 'function') ? arg2 : (menuItem: Electron.MenuItem, win: Electron.BrowserWindow, event: Electron.Event & any) => {
 			let commandId = arg2;
 			if (Array.isArray(arg2)) {
 				commandId = this.isOptionClick(event) ? arg2[1] : arg2[0]; // support alternative action if we got multiple action Ids and the option key was pressed while invoking
@@ -1070,7 +1072,7 @@ export class CodeMenu {
 			commandId = arg2;
 		}
 
-		const options: Electron.MenuItemOptions = {
+		const options: Electron.MenuItemConstructorOptions = {
 			label,
 			click,
 			enabled
@@ -1103,7 +1105,7 @@ export class CodeMenu {
 		}));
 	}
 
-	private withKeybinding(commandId: string, options: Electron.MenuItemOptions): Electron.MenuItemOptions {
+	private withKeybinding(commandId: string, options: Electron.MenuItemConstructorOptions): Electron.MenuItemConstructorOptions {
 		const binding = this.keybindingsResolver.getKeybinding(commandId);
 
 		// Apply binding if there is one
@@ -1134,7 +1136,7 @@ export class CodeMenu {
 		return options;
 	}
 
-	private likeAction(commandId: string, options: Electron.MenuItemOptions, setAccelerator = !options.accelerator): Electron.MenuItemOptions {
+	private likeAction(commandId: string, options: Electron.MenuItemConstructorOptions, setAccelerator = !options.accelerator): Electron.MenuItemConstructorOptions {
 		if (setAccelerator) {
 			options = this.withKeybinding(commandId, options);
 		}

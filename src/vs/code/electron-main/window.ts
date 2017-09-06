@@ -130,7 +130,7 @@ export class CodeWindow implements ICodeWindow {
 			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
 		}
 
-		const options: Electron.BrowserWindowOptions = {
+		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -320,7 +320,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Prevent loading of svgs
-		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+		this._win.webContents.session.webRequest.onBeforeRequest({ urls: []}, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
 				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
@@ -331,7 +331,7 @@ export class CodeWindow implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+		this._win.webContents.session.webRequest.onHeadersReceived({ urls: []}, (details, callback) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
