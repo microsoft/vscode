@@ -13,7 +13,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
-import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 
@@ -141,22 +141,6 @@ export class ExtHostSCMInputBox {
 	}
 }
 
-class ResourceSequence implements ISequence {
-
-	constructor(private resources: vscode.SourceControlResourceState[]) { }
-
-	getLength() {
-		return this.resources.length;
-	}
-
-	getElementHash(index) {
-		const resource = this.resources[index];
-
-		// TODO!!!
-		return resource.resourceUri.toString();
-	}
-}
-
 class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceGroup {
 
 	private static _handlePool: number = 0;
@@ -173,7 +157,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	readonly onDidDispose = this._onDidDispose.event;
 
 	private _handlesSnapshot: number[] = [];
-	private _resourcesSnapshot: vscode.SourceControlResourceState[] = [];
+	private _resourceSnapshot: vscode.SourceControlResourceState[] = [];
 
 	get id(): string { return this._id; }
 
@@ -198,19 +182,14 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
-		const original = new ResourceSequence(this._resourcesSnapshot);
-		const modified = new ResourceSequence(snapshot);
-		const lcs = new LcsDiff(original, modified);
-		const diffs = lcs.ComputeDiff(false);
+		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 		const handlesToDelete: number[] = [];
 
 		const splices = diffs.map(diff => {
-			const start = diff.originalStart;
-			const deleteCount = diff.originalLength;
+			const { start, deleteCount } = diff;
 			const handles: number[] = [];
 
-			const rawResources = snapshot
-				.slice(diff.modifiedStart, diff.modifiedStart + diff.modifiedLength)
+			const rawResources = diff.inserted
 				.map(r => {
 					const handle = this._resourceHandlePool++;
 					this._resourceStatesMap.set(handle, r);
@@ -257,7 +236,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			this._resourceStatesRollingDisposables.shift()();
 		}
 
-		this._resourcesSnapshot = snapshot;
+		this._resourceSnapshot = snapshot;
 		return splices;
 	}
 
