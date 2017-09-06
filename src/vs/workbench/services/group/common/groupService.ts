@@ -24,6 +24,7 @@ export interface ITabOptions {
 	tabCloseButton?: 'left' | 'right' | 'off';
 	showIcons?: boolean;
 	previewEditors?: boolean;
+	tabSubtitleStyle?: 'default' | 'short' | 'medium' | 'long';
 }
 
 export interface IMoveOptions {

@@ -12,8 +12,7 @@ import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
-import { shorten, getPathLabel, template } from 'vs/base/common/labels';
-import { nativeSep, join } from 'vs/base/common/paths';
+import { shorten, getPathLabel } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
@@ -45,7 +44,6 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IEditorInputLabel {
 	name: string;
@@ -61,7 +59,6 @@ export class TabsTitleControl extends TitleControl {
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
-	private tabDescriptionTemplate: string;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -79,7 +76,6 @@ export class TabsTitleControl extends TitleControl {
 		@IThemeService themeService: IThemeService,
 		@IFileService private fileService: IFileService,
 		@IWorkspacesService private workspacesService: IWorkspacesService,
-		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -214,10 +210,6 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		// Configuration updates
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged()));
-		this.onConfigurationChanged(false);
-
 		// Editor Actions Container
 		const editorActionsContainer = document.createElement('div');
 		DOM.addClass(editorActionsContainer, 'editor-actions');
@@ -252,15 +244,6 @@ export class TabsTitleControl extends TitleControl {
 
 	public allowDragging(element: HTMLElement): boolean {
 		return (element.className === 'tabs-container');
-	}
-
-	private onConfigurationChanged(doUpdate = true): void {
-		const currentTabDescriptionTemplate = this.tabDescriptionTemplate;
-		this.tabDescriptionTemplate = this.configurationService.lookup<string>('workbench.editor.tabDescription').value;
-
-		if (doUpdate && currentTabDescriptionTemplate !== this.tabDescriptionTemplate) {
-			this.doUpdate();
-		}
 	}
 
 	protected doUpdate(): void {
@@ -355,71 +338,87 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
-		const labels: IEditorInputLabel[] = [];
-
-		const mapLabelToDuplicates = new Map<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDifferential = new Map<string, string>();
+		const tabSubtitleStyle = this.editorGroupService.getTabOptions().tabSubtitleStyle;
+		const { verbosity, shortenDuplicates } = this.getSubtitleConfigFlags(tabSubtitleStyle);
 
 		// Build labels and descriptions for each editor
-		editors.forEach(editor => {
-			const name = editor.getName();
-			let description = editor.getDescription();
-			if (mapLabelAndDescriptionToDuplicates.has(`${name}${description}`)) {
-				description = editor.getDescription(true); // try verbose description if name+description already exists
+		type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
+		const labels = editors.map(editor => ({
+			editor,
+			name: editor.getName(),
+			description: editor.getDescription(verbosity),
+			title: editor.getTitle(Verbosity.LONG)
+		}));
+
+		if (shortenDuplicates) {
+			// identify duplicate titles
+			const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
+			for (const label of labels) {
+				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
 			}
 
-			const item: IEditorInputLabel = {
-				name,
-				description,
-				title: editor.getTitle(Verbosity.LONG)
-			};
-			labels.push(item);
+			// identify duplicate titles and shorten descriptions
+			mapTitleToDuplicates.forEach(duplicateTitles => {
+				// don't display a description unless the title is duplicated
+				if (duplicateTitles.length === 1) {
+					duplicateTitles[0].description = '';
+					return;
+				}
 
-			getOrSet(mapLabelToDuplicates, item.name, []).push(item);
+				const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
+				// identify duplicate descriptions, while filtering out invalid descriptions
+				for (const label of duplicateTitles) {
+					if (typeof label.description !== 'string') {
+						label.description = '';
+					} else {
+						getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+					}
+				}
+				duplicateTitles = duplicateTitles.filter(label => label.description);
 
-			if (typeof description === 'string') {
-				getOrSet(mapLabelAndDescriptionToDuplicates, `${item.name}${item.description}`, []).push(item);
-			}
-		});
-
-		// Mark duplicates and shorten their descriptions
-		mapLabelToDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates = duplicates.filter(d => {
-					// we could have items with equal label and description. in that case it does not make much
-					// sense to produce a shortened version of the label, so we ignore those kind of items
-					return typeof d.description === 'string' && mapLabelAndDescriptionToDuplicates.get(`${d.name}${d.description}`).length === 1;
+				// for editors with duplicate descriptions, check whether any long descriptions differ
+				let useLongDescriptions = false;
+				mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
+					if (!useLongDescriptions && duplicateDescriptions.length > 1) {
+						const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
+						useLongDescriptions = rest.some(description => description !== first);
+					}
 				});
 
-				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
-					duplicates.forEach((duplicate, i) => {
-						mapLabelAndDescriptionToDifferential.set(
-							`${duplicate.name}${duplicate.description}`,
-							shortenedDescriptions[i],
-						);
+				// if so, replace all descriptions with long descriptions
+				if (useLongDescriptions) {
+					mapDescriptionToDuplicates.clear();
+					duplicateTitles.forEach(label => {
+						label.description = label.editor.getDescription(Verbosity.LONG);
+						getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 					});
 				}
-			}
-		});
 
-		for (const label of labels) {
-			const description = label.description;
-			if (description) {
-				const parts = description.split(nativeSep);
-				const definitions = {
-					pathShort: parts[parts.length - 1],
-					pathMedium: join(...parts.slice(-2)),
-					pathLong: description,
-					pathDifferential: mapLabelAndDescriptionToDifferential.get(`${label.name}${label.description}`) || '',
-				};
-
-				label.description = template(this.tabDescriptionTemplate, definitions);
-			}
+				// shorten descriptions
+				const descriptions: string[] = [];
+				mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
+				const shortenedDescriptions = shorten(descriptions);
+				descriptions.forEach((description, i) => {
+					const duplicateDescriptions = mapDescriptionToDuplicates.get(description);
+					duplicateDescriptions.map(label => label.description = shortenedDescriptions[i]);
+				});
+			});
 		}
 
 		return labels;
+	}
+
+	private getSubtitleConfigFlags(value: string) {
+		switch (value) {
+			case 'short':
+				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
+			case 'medium':
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
+			case 'long':
+				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
+			default:
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+		}
 	}
 
 	protected doRefresh(): void {

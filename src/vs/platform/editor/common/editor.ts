@@ -204,7 +204,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(verbose?: boolean): string;
+	getDescription(verbosity?: Verbosity): string;
 
 	/**
 	 * Returns the display title of this input.
