@@ -240,8 +240,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
-		const launchToSelect = filtered.length ? filtered[0] : this.launches.length ? this.launches[0] : undefined;
-		this.selectConfiguration(launchToSelect, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		this.selectConfiguration(filtered.length ? filtered[0] : undefined, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 	}
 
 	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
@@ -340,8 +339,10 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
 			this.initLaunches();
-			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
-			this.selectConfiguration(toSelect);
+			this.selectConfiguration();
+		}));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
+			this.selectConfiguration();
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
@@ -371,9 +372,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	public selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void {
+	public selectConfiguration(launch?: ILaunch, name?: string, debugStarted?: boolean): void {
 		const previousLaunch = this._selectedLaunch;
 		const previousName = this._selectedName;
+
+		if (!launch) {
+			launch = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
+		}
 
 		this._selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
