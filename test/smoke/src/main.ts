@@ -16,7 +16,7 @@ const opts = minimist(args, { string: ['build', 'stable-build'] });
 
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', () => rimraf.sync(testDataPath));
+process.once('exit', code => code === 0 && rimraf.sync(testDataPath));
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
