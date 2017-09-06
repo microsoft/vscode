@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
-export class Search {
+export class Search extends Viewlet {
 
 	static SEARCH_VIEWLET_XPATH = 'div[id="workbench.view.search"] .search-viewlet';
 
-	constructor(private spectron: SpectronApplication) {
-		// noop
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
 	}
 
 	public async openSearchViewlet(): Promise<any> {

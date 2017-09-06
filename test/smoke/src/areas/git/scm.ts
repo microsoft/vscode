@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
@@ -20,9 +21,11 @@ export interface Change {
 	actions: { id: string, title: string; }[];
 }
 
-export class SCM {
+export class SCM extends Viewlet {
 
-	constructor(private spectron: SpectronApplication) { }
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
+	}
 
 	async openSCMViewlet(): Promise<any> {
 		await this.spectron.command('workbench.view.scm');

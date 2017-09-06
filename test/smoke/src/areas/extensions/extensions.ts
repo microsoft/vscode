@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
-export class Extensions {
+export class Extensions extends Viewlet {
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
 	}
 
 	public async openExtensionsViewlet(): Promise<any> {
