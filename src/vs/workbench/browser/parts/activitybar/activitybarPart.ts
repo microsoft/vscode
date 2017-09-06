@@ -15,7 +15,7 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
+import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -124,7 +124,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	public showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+		if (this.viewletService.getViewlet(viewletOrActionId)) {
+			return this.showViewletActivity(viewletOrActionId, badge, clazz);
+		}
+
+		return this.showGlobalActivity(viewletOrActionId, badge);
+	}
+
+	private showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -139,7 +147,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
+	private showViewletActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -148,7 +156,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const stack = this.viewletIdToActivityStack[viewletId] || (this.viewletIdToActivityStack[viewletId] = []);
 		stack.unshift(activity);
 
-		this.updateActivity(viewletId);
+		this.updateViewletActivity(viewletId);
 
 		return {
 			dispose: () => {
@@ -167,12 +175,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 					delete this.viewletIdToActivityStack[viewletId];
 				}
 
-				this.updateActivity(viewletId);
+				this.updateViewletActivity(viewletId);
 			}
 		};
 	}
 
-	private updateActivity(viewletId: string) {
+	private updateViewletActivity(viewletId: string) {
 		const action = this.viewletIdToActions[viewletId];
 		if (!action) {
 			return;
@@ -373,7 +381,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 			// Make sure to restore activity
 			Object.keys(this.viewletIdToActions).forEach(viewletId => {
-				this.updateActivity(viewletId);
+				this.updateViewletActivity(viewletId);
 			});
 		}
 

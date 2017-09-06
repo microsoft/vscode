@@ -12,7 +12,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/browser/activity';
+import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/common/activity';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';

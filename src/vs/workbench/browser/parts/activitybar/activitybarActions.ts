@@ -20,7 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IActivity, IGlobalActivity } from 'vs/workbench/browser/activity';
+import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
@@ -83,15 +83,15 @@ export class ViewletActivityAction extends ActivityAction {
 	private lastRun: number = 0;
 
 	constructor(
-		private _viewlet: ViewletDescriptor,
+		private viewlet: ViewletDescriptor,
 		@IViewletService private viewletService: IViewletService,
 		@IPartService private partService: IPartService
 	) {
-		super(_viewlet);
+		super(viewlet);
 	}
 
 	public get descriptor(): ViewletDescriptor {
-		return this._viewlet;
+		return this.viewlet;
 	}
 
 	public run(event: any): TPromise<any> {
@@ -110,12 +110,11 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
+		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.viewlet.id) {
 			return this.partService.setSideBarHidden(true);
 		}
 
-		return this.viewletService.openViewlet(this._viewlet.id, true)
-			.then(() => this.activate());
+		return this.viewletService.openViewlet(this.viewlet.id, true).then(() => this.activate());
 	}
 }
 
@@ -249,7 +248,11 @@ export class ActivityActionItem extends BaseActionItem {
 		// Title
 		let title: string;
 		if (badge && badge.getDescription()) {
-			title = `${this.activity.name} - ${badge.getDescription()}`;
+			if (this.activity.name) {
+				title = nls.localize('badgeTitle', "{0} - {1}", this.activity.name, badge.getDescription());
+			} else {
+				title = badge.getDescription();
+			}
 		} else {
 			title = this.activity.name;
 		}
