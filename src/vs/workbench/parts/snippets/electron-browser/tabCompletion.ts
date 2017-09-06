@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
@@ -34,7 +34,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	private readonly _editor: editorCommon.ICommonCodeEditor;
 	private readonly _snippetController: SnippetController2;
 	private readonly _dispoables: IDisposable[] = [];
-	private _snippets: ISnippet[] = [];
+	private _snippets: Snippet[] = [];
 
 	constructor(
 		editor: editorCommon.ICommonCodeEditor,
@@ -48,7 +48,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		this._dispoables.push(editor.onDidChangeCursorSelection(e => {
 
 			this._snippets.length = 0;
-			let selectFn: (snippet: ISnippet) => boolean;
+			let selectFn: (snippet: Snippet) => boolean;
 
 			if (e.selection.isEmpty()) {
 				// empty selection -> real text (no whitespace) left of cursor

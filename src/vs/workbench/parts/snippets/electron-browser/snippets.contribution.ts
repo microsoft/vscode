@@ -26,13 +26,13 @@ export interface ISnippetsService {
 
 	_serviceBrand: any;
 
-	getSnippets(languageId: LanguageId): TPromise<ISnippet[]>;
+	getSnippets(languageId: LanguageId): TPromise<Snippet[]>;
 
-	getSnippetsSync(languageId: LanguageId): ISnippet[];
+	getSnippetsSync(languageId: LanguageId): Snippet[];
 }
 
 
-export interface ISnippet {
+export class Snippet {
 	readonly name: string;
 	readonly prefix: string;
 	readonly description: string;
@@ -40,6 +40,22 @@ export interface ISnippet {
 	readonly source: string;
 	readonly isBogous?: boolean;
 	readonly isFromExtension?: boolean;
+
+	static compare(a: Snippet, b: Snippet): number {
+		if (a.isFromExtension !== b.isFromExtension) {
+			if (a.isFromExtension) {
+				return 1;
+			} else {
+				return -1;
+			}
+		} else if (a.name > b.name) {
+			return 1;
+		} else if (a.name < b.name) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
 }
 
 namespace OpenSnippetsAction {

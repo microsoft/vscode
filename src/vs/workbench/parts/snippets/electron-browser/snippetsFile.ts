@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { forEach } from 'vs/base/common/collections';
-import { ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 
 interface JsonSerializedSnippet {
 	body: string;
@@ -31,7 +31,7 @@ export class SnippetFile {
 
 	private constructor(
 		readonly filepath: string,
-		readonly data: ISnippet[]
+		readonly data: Snippet[]
 	) {
 		//
 	}
@@ -39,7 +39,7 @@ export class SnippetFile {
 	static fromFile(filepath: string, source: string, isFromExtension?: boolean): TPromise<SnippetFile> {
 		return readFile(filepath).then(value => {
 			const data = <JsonSerializedSnippets>jsonParse(value.toString());
-			const snippets: ISnippet[] = [];
+			const snippets: Snippet[] = [];
 			if (typeof data === 'object') {
 				forEach(data, entry => {
 					const { key: name, value: scopeOrTemplate } = entry;
@@ -57,7 +57,7 @@ export class SnippetFile {
 		});
 	}
 
-	private static _parseSnippet(name: string, snippet: JsonSerializedSnippet, source: string, isFromExtension: boolean, bucket: ISnippet[]): void {
+	private static _parseSnippet(name: string, snippet: JsonSerializedSnippet, source: string, isFromExtension: boolean, bucket: Snippet[]): void {
 
 		let { prefix, body, description } = snippet;
 

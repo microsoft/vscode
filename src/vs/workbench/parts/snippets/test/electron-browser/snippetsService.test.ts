@@ -11,17 +11,17 @@ import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { Model } from 'vs/editor/common/model/model';
-import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
-	constructor(readonly snippets: ISnippet[]) {
+	constructor(readonly snippets: Snippet[]) {
 	}
 	getSnippets() {
 		return TPromise.as(this.getSnippetsSync());
 	}
-	getSnippetsSync(): ISnippet[] {
+	getSnippetsSync(): Snippet[] {
 		return this.snippets;
 	}
 }
