@@ -1664,10 +1664,10 @@
 		"c": "{",
 		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.begin.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1677,8 +1677,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1686,10 +1686,10 @@
 		"c": "}",
 		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.without-attributes.js meta.jsx.children.tsx meta.embedded.expression.js punctuation.section.embedded.end.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1862,10 +1862,10 @@
 		"c": "{",
 		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.begin.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1884,10 +1884,10 @@
 		"c": ".",
 		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.accessor.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1897,8 +1897,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1906,10 +1906,10 @@
 		"c": "}",
 		"t": "source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.function.expression.js meta.block.js meta.tag.without-attributes.js meta.jsx.children.tsx meta.tag.js meta.embedded.expression.js punctuation.section.embedded.end.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
