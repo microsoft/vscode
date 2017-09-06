@@ -10,6 +10,16 @@ export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.indexOf('/dev/null/') === 0;
 }
 
+const emptyConfig = new vscode.SnippetString(`{
+	"compilerOptions": {
+		"target": "ES6"$0
+	},
+	"exclude": [
+		"node_modules",
+		"**/node_modules/*"
+	]
+}`);
+
 export function openOrCreateConfigFile(
 	isTypeScriptProject: boolean,
 	rootPath: string
@@ -24,7 +34,7 @@ export function openOrCreateConfigFile(
 				.then(doc => vscode.window.showTextDocument(doc, col))
 				.then(editor => {
 					if (editor.document.getText().length === 0) {
-						return editor.insertSnippet(new vscode.SnippetString('{\n\t$0\n}'))
+						return editor.insertSnippet(emptyConfig)
 							.then(_ => editor);
 					}
 					return editor;
