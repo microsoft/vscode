@@ -28,8 +28,80 @@ function getIconPath(decorations: vscode.SourceControlResourceThemableDecoration
 	return undefined;
 }
 
-function resourceSorter(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
-	return comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath);
+function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
+	if (!a.iconPath && !b.iconPath) {
+		return 0;
+	} else if (!a.iconPath) {
+		return -1;
+	} else if (!b.iconPath) {
+		return 1;
+	}
+
+	const aPath = typeof a.iconPath === 'string' ? a.iconPath : a.iconPath.fsPath;
+	const bPath = typeof b.iconPath === 'string' ? b.iconPath : b.iconPath.fsPath;
+	return comparePaths(aPath, bPath);
+}
+
+function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorations, b: vscode.SourceControlResourceDecorations): number {
+	let result = 0;
+
+	if (a.strikeThrough !== b.strikeThrough) {
+		return a.strikeThrough ? 1 : -1;
+	}
+
+	if (a.faded !== b.faded) {
+		return a.faded ? 1 : -1;
+	}
+
+	if (a.tooltip !== b.tooltip) {
+		return (a.tooltip || '').localeCompare(b.tooltip);
+	}
+
+	result = compareResourceThemableDecorations(a, b);
+
+	if (result !== 0) {
+		return result;
+	}
+
+	if (a.light && b.light) {
+		result = compareResourceThemableDecorations(a.light, b.light);
+	} else if (a.light) {
+		return 1;
+	} else if (b.light) {
+		return -1;
+	}
+
+	if (result !== 0) {
+		return result;
+	}
+
+	if (a.dark && b.dark) {
+		result = compareResourceThemableDecorations(a.dark, b.dark);
+	} else if (a.dark) {
+		return 1;
+	} else if (b.dark) {
+		return -1;
+	}
+
+	return result;
+}
+
+function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
+	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath);
+
+	if (result !== 0) {
+		return result;
+	}
+
+	if (a.decorations && b.decorations) {
+		result = compareResourceStatesDecorations(a.decorations, b.decorations);
+	} else if (a.decorations) {
+		return 1;
+	} else if (b.decorations) {
+		return -1;
+	}
+
+	return result;
 }
 
 export class ExtHostSCMInputBox {
@@ -119,8 +191,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._onDidUpdateResourceStates.fire();
 	}
 
-	_snapshot(): SCMRawResourceSplice[] {
-		const snapshot = [...this._resourceStates].sort(resourceSorter);
+	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
+		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const original = new ResourceSequence(this._resourcesSnapshot);
 		const modified = new ResourceSequence(snapshot);
 		const lcs = new LcsDiff(original, modified);
@@ -313,7 +385,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const splices: SCMRawResourceSplices[] = [];
 
 		this.updatedResourceGroups.forEach(group => {
-			const snapshot = group._snapshot();
+			const snapshot = group._takeResourceStateSnapshot();
 
 			if (snapshot.length === 0) {
 				return;
