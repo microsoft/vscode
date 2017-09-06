@@ -7,17 +7,21 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as cp from 'child_process';
 import * as path from 'path';
-import * as mkdirp from 'mkdirp';
 import * as minimist from 'minimist';
+import * as tmp from 'tmp';
+import * as rimraf from 'rimraf';
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, { string: ['build', 'stable-build'] });
 
-const testDataPath = path.join(__dirname, '..', 'test_data');
+const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
+const testDataPath = tmpDir.name;
+process.once('exit', () => rimraf.sync(testDataPath));
+
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
-mkdirp.sync(testDataPath);
+const keybindingsPath = path.join(testDataPath, 'keybindings.json');
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -67,8 +71,11 @@ if (!fs.existsSync(testCodePath)) {
 	fail(`Can't find Code at ${testCodePath}.`);
 }
 
+process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
+process.env.VSCODE_EXTENSIONS_DIR = path.join(testDataPath, 'extensions-dir');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
+process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 
 if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
@@ -91,6 +98,7 @@ function toUri(path: string): string {
 }
 
 async function main(): Promise<void> {
+	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
 	const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
@@ -98,7 +106,7 @@ async function main(): Promise<void> {
 
 	await new Promise((c, e) => {
 		https.get(keybindingsUrl, res => {
-			const output = fs.createWriteStream(path.join(testDataPath, 'keybindings.json'));
+			const output = fs.createWriteStream(keybindingsPath);
 			res.on('error', e);
 			output.on('error', e);
 			output.on('close', c);

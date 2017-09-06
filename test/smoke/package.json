@@ -20,6 +20,7 @@
     "rimraf": "^2.6.1",
     "spectron": "~3.6.4",
     "strip-json-comments": "^2.0.1",
+    "tmp": "0.0.33",
     "typescript": "^2.2.2"
   }
 }

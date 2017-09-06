@@ -30,7 +30,6 @@ function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	sudo -i -u testuser git config --global user.name "VS Code Agent"
 	sudo -i -u testuser git config --global user.email "monacotools@microsoft.com"
-	chown -R testuser $AGENT_BUILDDIRECTORY
 }
 
 step "Configure environment" \

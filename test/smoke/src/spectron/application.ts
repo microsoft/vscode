@@ -10,12 +10,12 @@ import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export const LATEST_PATH = process.env.VSCODE_PATH || '';
+export const LATEST_PATH = process.env.VSCODE_PATH as string;
 export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
-export const WORKSPACE_PATH = process.env.SMOKETEST_REPO || '';
-export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH || '';
-export const USER_DIR = path.resolve(path.join(__dirname, '../../test_data/temp_user_dir'));
-export const EXTENSIONS_DIR = path.resolve(path.join(__dirname, '../../test_data/temp_extensions_dir'));
+export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
+export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
+export const USER_DIR = process.env.VSCODE_USER_DIR as string;
+export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 
 /**
  * Wraps Spectron's Application instance with its used methods.
@@ -129,7 +129,7 @@ export class SpectronApplication {
 	}
 
 	private retrieveKeybindings() {
-		fs.readFile(path.join(__dirname, '../../test_data/keybindings.json'), 'utf8', (err, data) => {
+		fs.readFile(process.env.VSCODE_KEYBINDINGS_PATH as string, 'utf8', (err, data) => {
 			if (err) {
 				throw err;
 			}
