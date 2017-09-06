@@ -18,6 +18,7 @@ import { StatusBar } from '../statusbar/statusbar';
 import { Problems } from '../problems/problems';
 import { SettingsEditor } from '../preferences/settings';
 import { KeybindingsEditor } from '../preferences/keybindings';
+import { Terminal } from '../terminal/terminal';
 
 export class Workbench {
 
@@ -34,6 +35,7 @@ export class Workbench {
 	readonly problems: Problems;
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
+	readonly terminal: Terminal;
 
 	constructor(private spectron: SpectronApplication) {
 		this.explorer = new Explorer(spectron);
@@ -49,6 +51,7 @@ export class Workbench {
 		this.problems = new Problems(spectron);
 		this.settingsEditor = new SettingsEditor(spectron);
 		this.keybindingsEditor = new KeybindingsEditor(spectron);
+		this.terminal = new Terminal(spectron);
 	}
 
 	public async saveOpenedFile(): Promise<any> {

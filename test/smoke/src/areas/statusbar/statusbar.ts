@@ -19,7 +19,6 @@ export enum StatusBarElement {
 
 export class StatusBar {
 
-	// private selectorsMap: Map<StatusBarElement, string>;
 	private readonly mainSelector = 'div[id="workbench.parts.statusbar"]';
 
 	constructor(private spectron: SpectronApplication) {
