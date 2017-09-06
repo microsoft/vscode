@@ -84,14 +84,9 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	splice(start: number, deleteCount: number): void {
-		for (let i = 0; i < deleteCount; i++) {
-			const key = `key_${start + i}`;
-			const data = this.rendered[key];
-
-			if (data) {
-				data.elementDisposable.dispose();
-			}
-		}
+		this.rendered
+			.filter(({ index }) => index >= start && index < start + deleteCount)
+			.forEach(({ templateData }) => templateData.elementDisposable.dispose());
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {

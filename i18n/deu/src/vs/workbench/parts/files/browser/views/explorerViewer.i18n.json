@@ -6,6 +6,10 @@
 {
 	"fileInputAriaLabel": "Geben Sie den Dateinamen ein. Drücken Sie zur Bestätigung die EINGABETASTE oder ESC, um den Vorgang abzubrechen.",
 	"filesExplorerViewerAriaLabel": "{0}, Datei-Explorer",
+	"dropFolders": "Möchten Sie die Ordner zum Arbeitsbereich hinzufügen?",
+	"dropFolder": "Möchten Sie den Ordner zum Arbeitsbereich hinzufügen?",
+	"addFolders": "&&Ordner hinzufügen",
+	"addFolder": "&&Ordner hinzufügen",
 	"confirmOverwriteMessage": "{0} ist im Zielordner bereits vorhanden. Möchten Sie das Element ersetzen?",
 	"irreversible": "Diese Aktion kann nicht rückgängig gemacht werden.",
 	"replaceButtonLabel": "&&Ersetzen"

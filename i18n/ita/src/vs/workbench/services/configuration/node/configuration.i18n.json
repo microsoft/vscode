@@ -7,8 +7,14 @@
 	"vscode.extension.contributes.configuration": "Impostazioni di configurazione di contributes.",
 	"vscode.extension.contributes.configuration.title": "Riepilogo delle impostazioni. Questa etichetta verrà usata nel file di impostazioni come commento di separazione.",
 	"vscode.extension.contributes.configuration.properties": "Descrizione delle proprietà di configurazione.",
+	"scope.window.description": "Configurazione specifica della finestra, che può essere configurata nelle impostazioni dell'utente o dell'area di lavoro.",
+	"scope.resource.description": "Configurazione specifica di risorse, che possono essere configurate nelle impostazioni utente, in quelle dell'area di lavoro o di una cartella.",
+	"scope.description": "Ambito in cui la configurazione è applicabile. Gli ambiti disponibili sono 'finestra' e 'risorsa'.",
 	"invalid.type": "se impostato, 'configuration.type' deve essere impostato su 'object",
 	"invalid.title": "'configuration.title' deve essere una stringa",
 	"vscode.extension.contributes.defaultConfiguration": "Aggiunge come contributo le impostazioni di configurazione predefinite dell'editor in base al linguaggio.",
-	"invalid.properties": "'configuration.properties' deve essere un oggetto"
+	"invalid.properties": "'configuration.properties' deve essere un oggetto",
+	"workspaceConfig.folders.description": "Elenco delle cartelle da caricare nell'area di lavoro. Deve essere un percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",
+	"workspaceConfig.folder.description": "Percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",
+	"workspaceConfig.settings.description": "Impostazioni di area di lavoro"
 }

@@ -7,6 +7,14 @@
 	"ok": "확인",
 	"pathNotExistTitle": "경로가 없습니다.",
 	"pathNotExistDetail": "'{0}' 경로가 디스크에 더 이상 없는 것 같습니다.",
+	"openWorkspace": "열기(&&O)",
+	"openWorkspaceTitle": "작업 영역 열기",
+	"save": "저장(&&S)",
+	"doNotSave": "저장 안 함(&&N)",
+	"cancel": "취소",
+	"saveWorkspaceMessage": "작업 영역 구성을 파일로 저장하시겠습니까?",
+	"saveWorkspaceDetail": "작업 영역을 다시 열려면 작업 영역을 저장하세요.",
+	"saveWorkspace": "작업 영역 저장",
 	"reopen": "다시 열기",
 	"wait": "계속 대기",
 	"close": "닫기",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "창을 다시 열거나, 닫거나, 계속 기다릴 수 있습니다.",
 	"appCrashed": "창이 충돌했습니다.",
 	"appCrashedDetail": "불편을 드려서 죄송합니다. 창을 다시 열면 중단된 위치에서 계속할 수 있습니다.",
-	"openFile": "파일 열기",
-	"openFolder": "폴더 열기"
+	"open": "열기",
+	"openFolder": "폴더 열기",
+	"openFile": "파일 열기"
 }

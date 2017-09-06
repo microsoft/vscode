@@ -85,5 +85,7 @@
 	"mergeBorder": "行内マージ競合のヘッダーとスプリッターの境界線の色。",
 	"overviewRulerCurrentContentForeground": "行内マージ競合の現在の概要ルーラー前景色。",
 	"overviewRulerIncomingContentForeground": "行内マージ競合の入力側の概要ルーラー前景色。",
-	"overviewRulerCommonContentForeground": "行内マージ競合の共通の祖先概要ルーラー前景色。"
+	"overviewRulerCommonContentForeground": "行内マージ競合の共通の祖先概要ルーラー前景色。",
+	"overviewRulerFindMatchForeground": "一致項目を示す概要ルーラーのマーカー色。",
+	"overviewRulerSelectionHighlightForeground": "選択対象を強調表示するときの概要ルーラーのマーカー色。"
 }

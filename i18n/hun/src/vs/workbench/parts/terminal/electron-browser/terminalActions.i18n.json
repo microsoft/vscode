@@ -7,6 +7,7 @@
 	"workbench.action.terminal.toggleTerminal": "Integrált terminál be- és kikapcsolása",
 	"workbench.action.terminal.kill": "Az aktív terminálpéldány leállítása",
 	"workbench.action.terminal.kill.short": "Terminál leállítása",
+	"workbench.action.terminal.quickKill": "Terminálpéldány leállítása",
 	"workbench.action.terminal.copySelection": "Kijelölés másolása",
 	"workbench.action.terminal.selectAll": "Összes kijelölése",
 	"workbench.action.terminal.deleteWordLeft": "Balra lévő szó törlése",
@@ -35,5 +36,8 @@
 	"workbench.action.terminal.rename": "Átnevezés",
 	"workbench.action.terminal.rename.prompt": "Adja meg a terminál nevét!",
 	"workbench.action.terminal.focusFindWidget": "Váltás a keresőmodulra",
-	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése"
+	"workbench.action.terminal.hideFindWidget": "Keresőmodul elrejtése",
+	"nextTerminalFindTerm": "Következő keresési kifejezés megjelenítése",
+	"previousTerminalFindTerm": "Előző keresési kifejezés megjelenítése",
+	"quickOpenTerm": "Terminál: Aktív terminál váltása"
 }

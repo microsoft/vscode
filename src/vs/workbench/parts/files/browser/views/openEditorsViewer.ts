@@ -256,7 +256,7 @@ export class Controller extends DefaultController {
 		const group = element instanceof EditorGroup ? element : (<OpenEditor>element).editorGroup;
 		const editor = element instanceof OpenEditor ? (<OpenEditor>element).editorInput : undefined;
 
-		let anchor = { x: event.posx + 1, y: event.posy };
+		let anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),

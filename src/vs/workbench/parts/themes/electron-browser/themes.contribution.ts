@@ -54,7 +54,7 @@ export class SelectColorThemeAction extends Action {
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
-			const selectTheme = (theme, applyTheme) => {
+			const selectTheme = (theme, applyTheme: boolean) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}
@@ -120,7 +120,7 @@ class SelectIconThemeAction extends Action {
 
 			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
 
-			const selectTheme = (theme, applyTheme) => {
+			const selectTheme = (theme, applyTheme: boolean) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}

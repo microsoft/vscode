@@ -7,6 +7,14 @@
 	"ok": "確定",
 	"pathNotExistTitle": "路徑不存在",
 	"pathNotExistDetail": "磁碟上似乎已沒有路徑 '{0}'。",
+	"openWorkspace": "開啟(&&O)...",
+	"openWorkspaceTitle": "開啟工作區",
+	"save": "儲存(&&S)",
+	"doNotSave": "不要儲存(&&N)",
+	"cancel": "取消",
+	"saveWorkspaceMessage": "要將工作區組態儲存為檔案嗎?",
+	"saveWorkspaceDetail": "如果您預計再次開啟工作區，請儲存工作區。",
+	"saveWorkspace": "儲存工作區",
 	"reopen": "重新開啟",
 	"wait": "繼續等候",
 	"close": "關閉",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "您可以重新開啟或關閉視窗，或是繼續等候。",
 	"appCrashed": "視窗已損毀",
 	"appCrashedDetail": "很抱歉造成您的不便! 您可以重新開啟視窗，從您離開的地方繼續進行。",
-	"openFile": "開啟檔案",
-	"openFolder": "開啟資料夾"
+	"open": "開啟",
+	"openFolder": "開啟資料夾",
+	"openFile": "開啟檔案"
 }

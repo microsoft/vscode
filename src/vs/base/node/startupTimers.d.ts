@@ -28,7 +28,7 @@ declare interface TickController {
 
 export function startTimer(name: string): TickController;
 
-export function stopTimer(name: string);
+export function stopTimer(name: string): void;
 
 export function ticks(): Tick[];
 

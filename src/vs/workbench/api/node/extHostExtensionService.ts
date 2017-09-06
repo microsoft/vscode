@@ -342,7 +342,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		if (typeof extensionModule.activate === 'function') {
 			try {
 				activationTimesBuilder.activateCallStart();
-				const activateResult = extensionModule.activate.apply(global, [context]);
+				const activateResult: TPromise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();

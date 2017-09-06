@@ -20,7 +20,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
-import { IGlobalActivity } from 'vs/workbench/browser/activity';
+import { IGlobalActivity } from 'vs/workbench/common/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -363,7 +363,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		if (isUpdateAvailable) {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
-			this.badgeDisposable = this.activityBarService.showGlobalActivity(this.id, badge);
+			this.badgeDisposable = this.activityBarService.showActivity(this.id, badge);
 		}
 	}
 

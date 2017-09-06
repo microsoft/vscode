@@ -172,7 +172,7 @@ export abstract class Marker {
 		}
 	}
 
-	toString() {
+	toString(): string {
 		return this.children.reduce((prev, cur) => prev + cur.toString(), '');
 	}
 
@@ -460,8 +460,10 @@ export class SnippetParser {
 		// that has a value defines the value for all placeholders with that index
 		const placeholderDefaultValues = new Map<number, Marker[]>();
 		const incompletePlaceholders: Placeholder[] = [];
+		let placeholderCount = 0;
 		snippet.walk(marker => {
 			if (marker instanceof Placeholder) {
+				placeholderCount += 1;
 				if (marker.isFinalTabstop) {
 					placeholderDefaultValues.set(0);
 				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
@@ -482,10 +484,11 @@ export class SnippetParser {
 			}
 		}
 
-		if (
-			!placeholderDefaultValues.has(0) && // there is no final tabstop
-			(insertFinalTabstop && placeholderDefaultValues.size > 0 || enforceFinalTabstop)
-		) {
+		if (!enforceFinalTabstop) {
+			enforceFinalTabstop = placeholderCount > 0 && insertFinalTabstop;
+		}
+
+		if (!placeholderDefaultValues.has(0) && enforceFinalTabstop) {
 			// the snippet uses placeholders but has no
 			// final tabstop defined -> insert at the end
 			snippet.appendChild(new Placeholder(0));

@@ -95,28 +95,26 @@ export class TryCompleteJsDocCommand {
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
+	public async tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
 		const file = this.lazyClient().normalizePath(resource);
 		if (!file) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const editor = window.activeTextEditor;
 		if (!editor || editor.document.uri.fsPath !== resource.fsPath) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		if (!shouldGetJSDocFromTSServer) {
 			return this.tryInsertDefaultDoc(editor, start);
 		}
 
-		return this.tryInsertJsDocFromTemplate(editor, file, start)
-			.then((didInsertFromTemplate: boolean) => {
-				if (didInsertFromTemplate) {
-					return true;
-				}
-				return this.tryInsertDefaultDoc(editor, start);
-			});
+		const didInsertFromTemplate = await this.tryInsertJsDocFromTemplate(editor, file, start);
+		if (didInsertFromTemplate) {
+			return true;
+		}
+		return this.tryInsertDefaultDoc(editor, start);
 	}
 
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {

@@ -19,7 +19,7 @@
 	"manyMarkers": "99+",
 	"runningTasks": "Mostrar tarefas em execução",
 	"tasks": "Tarefas",
-	"TaskSystem.noHotSwap": "Alterar o mecanismo de execução de tarefa requer reiniciar o VS Code. A alteração será ignorada.",
+	"TaskSystem.noHotSwap": "Alterar o mecanismo de execução de tarefa exige que a Janela seja recarregada.",
 	"TaskService.noBuildTask1": "Nenhuma tarefa de compilação definida. Marque uma tarefa com 'isBuildCommand' no arquivo tasks.json.",
 	"TaskService.noBuildTask2": "Nenhuma tarefa de compilação definida. Marque uma tarefa como um grupo 'build' no arquivo tasks.json.",
 	"TaskService.noTestTask1": "Nenhuma tarefa de teste definida. Marque uma tarefa com 'isTestCommand' no arquivo tasks.json.",

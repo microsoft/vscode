@@ -144,7 +144,7 @@ export function asText(context: IRequestContext): TPromise<string> {
 		}
 
 		let buffer: string[] = [];
-		context.stream.on('data', d => buffer.push(d));
+		context.stream.on('data', (d: string) => buffer.push(d));
 		context.stream.on('end', () => c(buffer.join('')));
 		context.stream.on('error', e);
 	});
@@ -165,7 +165,7 @@ export function asJson<T>(context: IRequestContext): TPromise<T> {
 		}
 
 		const buffer: string[] = [];
-		context.stream.on('data', d => buffer.push(d));
+		context.stream.on('data', (d: string) => buffer.push(d));
 		context.stream.on('end', () => c(JSON.parse(buffer.join(''))));
 		context.stream.on('error', e);
 	});

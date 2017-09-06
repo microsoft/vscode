@@ -20,6 +20,5 @@
 	"debugAnyway": "仍进行调试",
 	"noFolderWorkspaceDebugError": "无法调试活动文件。请确保它保存在磁盘上，并确保已为该文件类型安装了调试扩展。",
 	"NewLaunchConfig": "请设置应用程序的启动配置文件。{0}",
-	"DebugTaskNotFound": "找不到 preLaunchTask“{0}”。",
-	"differentTaskRunning": "任务 {0} 正在运行。无法运行前置任务 \"{1}\"。"
+	"DebugTaskNotFound": "找不到 preLaunchTask“{0}”。"
 }

@@ -20,6 +20,5 @@
 	"debugAnyway": "このままデバッグを続ける",
 	"noFolderWorkspaceDebugError": "アクティブ ファイルをデバッグできません。ファイルがディスクに保存されており、そのファイル タイプのデバッグ拡張機能がインストールされていることを確認してください。",
 	"NewLaunchConfig": "アプリケーションの起動構成ファイルをセットアップしてください。{0}",
-	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
-	"differentTaskRunning": "タスク '{0}' は既に実行中です。起動前タスク '{1}' は実行できません。 "
+	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。"
 }

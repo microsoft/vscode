@@ -274,7 +274,7 @@ class KeybindingItemMatches {
 	}
 
 	private matchesWords(words: string[], wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
-		let matches = [];
+		let matches: IMatch[] = [];
 		for (const word of words) {
 			const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
 			if (wordMatches) {

@@ -837,7 +837,7 @@ export function parse(text: string, errors: ParseError[] = [], options?: ParseOp
 			currentParent = previousParents.pop();
 		},
 		onArrayBegin: () => {
-			let array = [];
+			let array: any[] = [];
 			onValue(array);
 			previousParents.push(currentParent);
 			currentParent = array;

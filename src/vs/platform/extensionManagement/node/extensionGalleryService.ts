@@ -359,7 +359,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, query, options.source));
 			const pageSize = query.pageSize;
-			const getPage = pageIndex => {
+			const getPage = (pageIndex: number) => {
 				const nextPageQuery = query.withPage(pageIndex + 1);
 				return this.queryGallery(nextPageQuery)
 					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, this.extensionsGalleryUrl, index, nextPageQuery, options.source)));
@@ -425,7 +425,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const zipPath = path.join(tmpdir(), uuid.generateUuid());
 			const data = getGalleryExtensionTelemetryData(extension);
 			const startTime = new Date().getTime();
-			const log = duration => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+			const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
 			return this.getAsset(extension.assets.download)
 				.then(context => download(zipPath, context))

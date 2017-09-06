@@ -102,6 +102,7 @@
 	"miHideActivityBar": "Etkinlik Ç&&ubuğunu Gizle",
 	"miShowActivityBar": "Etkinlik Ç&&ubuğunu Göster",
 	"miToggleWordWrap": "&&Sözcük Kaydırmasını Aç/Kapat",
+	"miToggleMinimap": "&&Mini Haritayı Aç/Kapat",
 	"miToggleRenderWhitespace": "&&Boşlukları Görüntülemeyi Aç/Kapat",
 	"miToggleRenderControlCharacters": "&&Kontrol Karakterlerini Aç/Kapat",
 	"miZoomIn": "&&Yakınlaştır",

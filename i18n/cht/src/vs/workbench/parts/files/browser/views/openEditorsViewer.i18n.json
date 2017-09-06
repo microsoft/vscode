@@ -9,6 +9,7 @@
 	"saveAll": "全部儲存",
 	"closeAllUnmodified": "關閉未變更的檔案",
 	"closeAll": "全部關閉",
+	"compareWithSaved": "與已儲存的檔案比較",
 	"close": "關閉",
 	"closeOthers": "關閉其他"
 }

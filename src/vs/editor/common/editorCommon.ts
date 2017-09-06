@@ -1646,7 +1646,7 @@ export interface IEditorContribution {
 /**
  * @internal
  */
-export function isThemeColor(o): o is ThemeColor {
+export function isThemeColor(o: any): o is ThemeColor {
 	return o && typeof o.id === 'string';
 }
 

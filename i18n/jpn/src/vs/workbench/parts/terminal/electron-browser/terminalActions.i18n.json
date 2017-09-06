@@ -7,6 +7,7 @@
 	"workbench.action.terminal.toggleTerminal": "統合ターミナルの切り替え",
 	"workbench.action.terminal.kill": "アクティブな端末インスタンスを強制終了",
 	"workbench.action.terminal.kill.short": "ターミナルの強制終了",
+	"workbench.action.terminal.quickKill": "ターミナル インスタンスの停止",
 	"workbench.action.terminal.copySelection": "選択内容のコピー",
 	"workbench.action.terminal.selectAll": "すべて選択",
 	"workbench.action.terminal.deleteWordLeft": "左の文字を削除",
@@ -35,5 +36,8 @@
 	"workbench.action.terminal.rename": "名前変更",
 	"workbench.action.terminal.rename.prompt": "ターミナルの名前を入力してください",
 	"workbench.action.terminal.focusFindWidget": "検索ウィジェットにフォーカスする",
-	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする"
+	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
+	"nextTerminalFindTerm": "次の検索語句を表示",
+	"previousTerminalFindTerm": "前の検索語句を表示",
+	"quickOpenTerm": "ターミナル: アクティブなターミナルの切り替え"
 }

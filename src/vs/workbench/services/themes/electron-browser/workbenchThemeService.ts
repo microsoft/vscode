@@ -417,8 +417,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateDynamicCSSRules(themeData: ITheme) {
-		let cssRules = [];
-		let hasRule = {};
+		let cssRules: string[] = [];
+		let hasRule: { [rule: string]: boolean } = {};
 		let ruleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {

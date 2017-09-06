@@ -122,28 +122,43 @@ export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	return result;
 }
 
-/**
- * Takes two *sorted* arrays and computes their delta (removed, added elements).
- * Finishes in `Math.min(before.length, after.length)` steps.
- * @param before
- * @param after
- * @param compare
- */
-export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number) {
+export interface Splice<T> {
+	start: number;
+	deleteCount: number;
+	inserted: T[];
+}
 
-	const removed: T[] = [];
-	const added: T[] = [];
+/**
+ * Diffs two *sorted* arrays and computes the splices which apply the diff.
+ */
+export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): Splice<T>[] {
+	const result: Splice<T>[] = [];
+
+	function pushSplice(start: number, deleteCount: number, inserted: T[]): void {
+		if (deleteCount === 0 && inserted.length === 0) {
+			return;
+		}
+
+		const latest = result[result.length - 1];
+
+		if (latest && latest.start + latest.deleteCount === start) {
+			latest.deleteCount += deleteCount;
+			latest.inserted.push(...inserted);
+		} else {
+			result.push({ start, deleteCount, inserted });
+		}
+	}
 
 	let beforeIdx = 0;
 	let afterIdx = 0;
 
 	while (true) {
 		if (beforeIdx === before.length) {
-			added.push(...after.slice(afterIdx));
+			pushSplice(beforeIdx, 0, after.slice(afterIdx));
 			break;
 		}
 		if (afterIdx === after.length) {
-			removed.push(...before.slice(beforeIdx));
+			pushSplice(beforeIdx, before.length - beforeIdx, []);
 			break;
 		}
 
@@ -156,13 +171,33 @@ export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => numbe
 			afterIdx += 1;
 		} else if (n < 0) {
 			// beforeElement is smaller -> before element removed
-			removed.push(beforeElement);
+			pushSplice(beforeIdx, 1, []);
 			beforeIdx += 1;
 		} else if (n > 0) {
 			// beforeElement is greater -> after element added
-			added.push(afterElement);
+			pushSplice(beforeIdx, 0, [afterElement]);
 			afterIdx += 1;
 		}
+	}
+
+	return result;
+}
+
+/**
+ * Takes two *sorted* arrays and computes their delta (removed, added elements).
+ * Finishes in `Math.min(before.length, after.length)` steps.
+ * @param before
+ * @param after
+ * @param compare
+ */
+export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+	const splices = sortedDiff(before, after, compare);
+	const removed: T[] = [];
+	const added: T[] = [];
+
+	for (const splice of splices) {
+		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
+		added.push(...splice.inserted);
 	}
 
 	return { removed, added };

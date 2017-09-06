@@ -287,7 +287,7 @@ export class FocusActiveEditorAction extends Action {
 export abstract class FindOrReplaceInFilesAction extends Action {
 
 	constructor(id: string, label: string, private viewletService: IViewletService,
-		private expandSearchReplaceWidget: boolean, private selectWidgetText, private focusReplace) {
+		private expandSearchReplaceWidget: boolean, private selectWidgetText: boolean, private focusReplace: boolean) {
 		super(id, label);
 	}
 

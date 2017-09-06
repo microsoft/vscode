@@ -353,7 +353,7 @@ class OutputContentProvider implements ITextModelContentProvider {
 		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
 	}
 
-	public scrollLock(channelId): boolean {
+	public scrollLock(channelId: string): boolean {
 		return this.channelIdsWithScrollLock.has(channelId);
 	}
 

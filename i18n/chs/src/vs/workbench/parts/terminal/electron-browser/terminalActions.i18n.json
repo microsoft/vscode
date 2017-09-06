@@ -7,8 +7,11 @@
 	"workbench.action.terminal.toggleTerminal": "切换集成终端",
 	"workbench.action.terminal.kill": "终止活动终端实例",
 	"workbench.action.terminal.kill.short": "终止终端",
+	"workbench.action.terminal.quickKill": "终止终端实例",
 	"workbench.action.terminal.copySelection": "复制所选内容",
 	"workbench.action.terminal.selectAll": "全选",
+	"workbench.action.terminal.deleteWordLeft": "删除左侧的字符",
+	"workbench.action.terminal.deleteWordRight": "删除右侧的字符",
 	"workbench.action.terminal.new": "新建集成终端",
 	"workbench.action.terminal.new.short": "新的终端",
 	"workbench.action.terminal.focus": "聚焦于终端",
@@ -33,5 +36,8 @@
 	"workbench.action.terminal.rename": "重命名",
 	"workbench.action.terminal.rename.prompt": "输入终端名称",
 	"workbench.action.terminal.focusFindWidget": "聚焦于查找小组件",
-	"workbench.action.terminal.hideFindWidget": "隐藏查找小组件"
+	"workbench.action.terminal.hideFindWidget": "隐藏查找小组件",
+	"nextTerminalFindTerm": "显示下一个搜索结果",
+	"previousTerminalFindTerm": "显示上一个搜索结果",
+	"quickOpenTerm": "终端: 切换活动终端"
 }

@@ -20,7 +20,7 @@ import { Location } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
-import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { PeekContext } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';

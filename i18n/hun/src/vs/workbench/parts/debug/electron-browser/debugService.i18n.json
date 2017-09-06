@@ -20,6 +20,5 @@
 	"debugAnyway": "Hibakeresés indítása mindenképp",
 	"noFolderWorkspaceDebugError": "Az aktív fájlon nem lehet hibakeresést végezni. Bizonyosodjon meg róla, hogy el van mentve a lemezre, és hogy az adott fájltípushoz telepítve van a megfelelő hibakeresési kiegészítő.",
 	"NewLaunchConfig": "Állítson be egy indítási konfigurációt az alkalmazása számára. {0}",
-	"DebugTaskNotFound": "A(z) '{0}' preLaunchTask nem található.",
-	"differentTaskRunning": "A(z) '{0}' feladat már fut. Nem futtatható a(z) '{1}' indítás előtti feladat."
+	"DebugTaskNotFound": "A(z) '{0}' preLaunchTask nem található."
 }

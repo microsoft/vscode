@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "BEFEHLSTASTE + Mausklick zum Aufrufen des Links",
 	"links.navigate": "STRG + Mausklick zum Aufrufen des Links",
+	"links.command.mac": "Cmd + Klick um Befehl auszuführen",
+	"links.command": "Ctrl + Klick um Befehl auszuführen.",
 	"links.navigate.al": "ALT + Mausklick zum Aufrufen des Links",
+	"links.command.al": "Alt + Klick um Befehl auszuführen.",
 	"invalid.url": "Fehler beim Öffnen dieses Links, weil er nicht wohlgeformt ist: {0}",
 	"missing.url": "Fehler beim Öffnen dieses Links, weil das Ziel fehlt.",
 	"label": "Link öffnen"

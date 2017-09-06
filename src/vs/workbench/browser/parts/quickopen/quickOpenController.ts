@@ -169,7 +169,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 		let currentPick = defaultMessage;
-		let currentValidation = TPromise.as(true);
+		let currentValidation: TPromise<boolean>;
 		let currentDecoration: Severity;
 		let lastValue: string;
 
@@ -215,6 +215,17 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		};
 
 		return new TPromise(init).then(item => {
+
+			if (!currentValidation) {
+				if (options.validateInput) {
+					currentValidation = options
+						.validateInput(lastValue === void 0 ? options.value : lastValue)
+						.then(message => !message);
+				} else {
+					currentValidation = TPromise.as(true);
+				}
+			}
+
 			return currentValidation.then(valid => {
 				if (valid && item) {
 					return lastValue === void 0 ? (options.value || '') : lastValue;

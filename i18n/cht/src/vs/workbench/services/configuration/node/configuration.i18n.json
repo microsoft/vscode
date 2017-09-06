@@ -7,8 +7,14 @@
 	"vscode.extension.contributes.configuration": "提供組態設定。",
 	"vscode.extension.contributes.configuration.title": "設定的摘要。此標籤將會在設定檔中作為分隔註解使用。",
 	"vscode.extension.contributes.configuration.properties": "組態屬性的描述。",
+	"scope.window.description": "視窗特定組態，可在使用者或工作區設定中予以設定。",
+	"scope.resource.description": "資源特定設定，可在使用者、工作區或資料夾設定中予以設定。",
+	"scope.description": "組態適用的範圍。可用的範圍為「視窗」和「資源」。",
 	"invalid.type": "如果已設定，'configuration.type' 必須設定為物件",
 	"invalid.title": "'configuration.title' 必須是字串",
 	"vscode.extension.contributes.defaultConfiguration": "依語言貢獻預設編輯器組態設定。",
-	"invalid.properties": "'configuration.properties' 必須是物件"
+	"invalid.properties": "'configuration.properties' 必須是物件",
+	"workspaceConfig.folders.description": "要在工作區中載入之資料夾的清單。必須是檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",
+	"workspaceConfig.folder.description": "檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",
+	"workspaceConfig.settings.description": "工作區設定"
 }

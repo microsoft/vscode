@@ -7,6 +7,7 @@
 	"workbench.action.terminal.toggleTerminal": "Entegre Terminali Aç/Kapat",
 	"workbench.action.terminal.kill": "Aktif Terminal Örneğini Sonlandır",
 	"workbench.action.terminal.kill.short": "Terminali Sonlandır",
+	"workbench.action.terminal.quickKill": "Terminal Örneğini Sonlandır",
 	"workbench.action.terminal.copySelection": "Seçimi Kopyala",
 	"workbench.action.terminal.selectAll": "Tümünü Seç",
 	"workbench.action.terminal.deleteWordLeft": "Soldaki Sözcüğü Sil",
@@ -35,5 +36,8 @@
 	"workbench.action.terminal.rename": "Yeniden Adlandır",
 	"workbench.action.terminal.rename.prompt": "Terminal adını girin",
 	"workbench.action.terminal.focusFindWidget": "Bulma Aracına Odakla",
-	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle"
+	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
+	"nextTerminalFindTerm": "Sonraki Arama Terimini Göster",
+	"previousTerminalFindTerm": "Önceki Arama Terimini Göster",
+	"quickOpenTerm": "Terminal: Aktif Terminali Değiştir"
 }

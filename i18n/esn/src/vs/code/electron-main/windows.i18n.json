@@ -7,6 +7,14 @@
 	"ok": "Aceptar",
 	"pathNotExistTitle": "La ruta no existe",
 	"pathNotExistDetail": "Parece que la ruta '{0}' ya no existe en el disco.",
+	"openWorkspace": "&&Abrir...",
+	"openWorkspaceTitle": "Abrir área de trabajo",
+	"save": "&&Guardar",
+	"doNotSave": "&&No guardar",
+	"cancel": "Cancelar",
+	"saveWorkspaceMessage": "¿Quiere guardar la configuración del área de trabajo como un archivo?",
+	"saveWorkspaceDetail": "Guarde el área de trabajo si tiene pensado volverla a abrir.",
+	"saveWorkspace": "Guardar área de trabajo",
 	"reopen": "Volver a abrir",
 	"wait": "Siga esperando",
 	"close": "Cerrar",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "Puede volver a abrir la ventana, cerrarla o seguir esperando.",
 	"appCrashed": "La ventana se bloqueó",
 	"appCrashedDetail": "Sentimos las molestias. Puede volver a abrir la ventana para continuar donde se detuvo.",
-	"openFile": "Abrir archivo",
-	"openFolder": "Abrir carpeta"
+	"open": "Abrir",
+	"openFolder": "Abrir carpeta",
+	"openFile": "Abrir archivo"
 }

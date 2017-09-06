@@ -476,10 +476,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.style.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -498,10 +498,10 @@
 		"c": "=",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.style.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -553,10 +553,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -575,10 +575,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -586,10 +586,10 @@
 		"c": "{",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -597,10 +597,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -619,10 +619,10 @@
 		"c": ":",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.separator.key-value.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -630,10 +630,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -643,7 +643,7 @@
 		"r": {
 			"dark_plus": "support.constant.color: #CE9178",
 			"light_plus": "support.constant.color: #0451A5",
-			"dark_vs": "default: #D4D4D4",
+			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "support.constant.color: #0451A5",
 			"hc_black": "support.constant.color: #CE9178"
 		}
@@ -652,10 +652,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.terminator.rule.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -663,10 +663,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -685,10 +685,10 @@
 		"c": ":",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.separator.key-value.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -696,10 +696,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -709,7 +709,7 @@
 		"r": {
 			"dark_plus": "constant.other.color.rgb-value: #CE9178",
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
-			"dark_vs": "default: #D4D4D4",
+			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
 			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
@@ -720,7 +720,7 @@
 		"r": {
 			"dark_plus": "constant.other.color.rgb-value: #CE9178",
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
-			"dark_vs": "default: #D4D4D4",
+			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
 			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
@@ -729,10 +729,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.terminator.rule.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -740,10 +740,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -751,10 +751,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -762,10 +762,10 @@
 		"c": "\t",
 		"t": "text.html.basic meta.embedded.block.html source.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1125,10 +1125,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.script.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1147,10 +1147,10 @@
 		"c": "=",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.script.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1279,10 +1279,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.script.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1301,10 +1301,10 @@
 		"c": "=",
 		"t": "text.html.basic meta.embedded.block.html meta.tag.metadata.script.html",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1444,10 +1444,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1457,8 +1457,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1466,10 +1466,10 @@
 		"c": ".",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1479,8 +1479,8 @@
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -1488,10 +1488,10 @@
 		"c": "(",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1532,10 +1532,10 @@
 		"c": ")",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1543,10 +1543,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.js punctuation.terminator.statement.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1554,10 +1554,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1567,8 +1567,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1576,10 +1576,10 @@
 		"c": ".",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1589,8 +1589,8 @@
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -1598,10 +1598,10 @@
 		"c": "(",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1609,10 +1609,10 @@
 		"c": "{",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1620,10 +1620,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1633,8 +1633,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1644,8 +1644,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1653,10 +1653,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1697,10 +1697,10 @@
 		"c": ",",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js punctuation.separator.comma.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1708,10 +1708,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1721,8 +1721,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1732,8 +1732,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1741,10 +1741,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1752,10 +1752,10 @@
 		"c": "{",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1763,10 +1763,10 @@
 		"c": "\t\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js meta.objectliteral.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1776,8 +1776,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1787,8 +1787,8 @@
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "meta.object-literal.key: #9CDCFE"
 		}
 	},
@@ -1796,10 +1796,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1840,10 +1840,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1851,10 +1851,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1862,10 +1862,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1873,10 +1873,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1884,10 +1884,10 @@
 		"c": ")",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1895,10 +1895,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.js punctuation.terminator.statement.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1906,10 +1906,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1919,8 +1919,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -1928,10 +1928,10 @@
 		"c": "(",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1939,10 +1939,10 @@
 		"c": "{",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1950,10 +1950,10 @@
 		"c": "{ ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1963,8 +1963,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -1972,10 +1972,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js meta.object.member.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1983,10 +1983,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -1994,10 +1994,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2005,10 +2005,10 @@
 		"c": ",",
 		"t": "text.html.basic meta.embedded.block.html source.js punctuation.separator.comma.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2016,10 +2016,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2038,10 +2038,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2049,10 +2049,10 @@
 		"c": "(",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.begin.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2060,10 +2060,10 @@
 		"c": ")",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.parameters.js punctuation.definition.parameters.end.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2071,10 +2071,10 @@
 		"c": " ",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2082,10 +2082,10 @@
 		"c": "{",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2093,10 +2093,10 @@
 		"c": "\t\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2106,8 +2106,8 @@
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -2115,10 +2115,10 @@
 		"c": ".",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2128,8 +2128,8 @@
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
@@ -2137,10 +2137,10 @@
 		"c": "()",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2148,10 +2148,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js punctuation.terminator.statement.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2159,10 +2159,10 @@
 		"c": "\t\t",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2170,10 +2170,10 @@
 		"c": "}",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.function.expression.js meta.block.js punctuation.definition.block.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2181,10 +2181,10 @@
 		"c": ")",
 		"t": "text.html.basic meta.embedded.block.html source.js meta.brace.round.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2192,10 +2192,10 @@
 		"c": ";",
 		"t": "text.html.basic meta.embedded.block.html source.js punctuation.terminator.statement.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -2203,10 +2203,10 @@
 		"c": "\t",
 		"t": "text.html.basic meta.embedded.block.html source.js",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},

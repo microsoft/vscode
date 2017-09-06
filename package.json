@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.17.0",
   "electronVersion": "1.7.3",
-  "distro": "d6b5ac1ef16a6b4358d7152dffc07e02a1b7bef6",
+  "distro": "9484fa9cab7f33e7948756e42cca0c3369331a54",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -19,7 +19,8 @@
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4096",
     "7z": "7z",
-    "update-grammars": "node build/npm/update-all-grammars.js"
+    "update-grammars": "node build/npm/update-all-grammars.js",
+    "smoketest": "cd test/smoke ; mocha"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -31,7 +32,7 @@
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
-    "jschardet": "^1.4.2",
+    "jschardet": "^1.5.1",
     "keytar": "^4.0.3",
     "minimist": "1.2.0",
     "native-keymap": "1.2.5",

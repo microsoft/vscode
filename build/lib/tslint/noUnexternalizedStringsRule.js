@@ -19,7 +19,7 @@ var Lint = require("tslint");
 /**
  * Implementation of the no-unexternalized-strings rule.
  */
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -39,7 +39,7 @@ function isObjectLiteral(node) {
 function isPropertyAssignment(node) {
     return node && node.kind === ts.SyntaxKind.PropertyAssignment;
 }
-var NoUnexternalizedStringsRuleWalker = (function (_super) {
+var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
     __extends(NoUnexternalizedStringsRuleWalker, _super);
     function NoUnexternalizedStringsRuleWalker(file, opts) {
         var _this = _super.call(this, file, opts) || this;

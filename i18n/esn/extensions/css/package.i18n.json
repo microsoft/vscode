@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Propiedad específica del proveedor desconocida.",
 	"css.lint.vendorPrefix.desc": "Cuando use un prefijo específico del proveedor, incluya también la propiedad estándar.",
 	"css.lint.zeroUnits.desc": "No se necesita una unidad para cero",
+	"css.trace.server.desc": "Hace un seguimiento de la comunicación entre VSCode y el servidor de lenguaje CSS.",
+	"css.validate.title": "Controla la validación de CSS y la gravedad de los problemas.",
 	"css.validate.desc": "Habilita o deshabilita todas las validaciones",
 	"less.lint.argumentsInColorFunction.desc": "Número de parámetros no válido",
 	"less.lint.boxModel.desc": "No use ancho o alto con el relleno o los bordes.",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "Propiedad específica del proveedor desconocida.",
 	"less.lint.vendorPrefix.desc": "Cuando use un prefijo específico del proveedor, incluya también la propiedad estándar.",
 	"less.lint.zeroUnits.desc": "No se necesita una unidad para cero",
+	"less.validate.title": "Controla la validación de LESS y la gravedad de los problemas.",
 	"less.validate.desc": "Habilita o deshabilita todas las validaciones",
 	"scss.lint.argumentsInColorFunction.desc": "Número de parámetros no válido",
 	"scss.lint.boxModel.desc": "No use ancho o alto con el relleno o los bordes.",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Propiedad específica del proveedor desconocida.",
 	"scss.lint.vendorPrefix.desc": "Cuando use un prefijo específico del proveedor, incluya también la propiedad estándar.",
 	"scss.lint.zeroUnits.desc": "No se necesita una unidad para cero",
+	"scss.validate.title": "Controla la validación de SCSS y la gravedad de los problemas.",
 	"scss.validate.desc": "Habilita o deshabilita todas las validaciones",
 	"less.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color",
 	"scss.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color",
-	"css.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color"
+	"css.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color",
+	"css.colorDecorators.enable.deprecationMessage": "El valor \"css.colorDecorators.enable\" está en desuso en favor de \"editor.colorDecorators\".",
+	"scss.colorDecorators.enable.deprecationMessage": "El valor \"scss.colorDecorators.enable\" está en desuso en favor de \"editor.colorDecorators\".",
+	"less.colorDecorators.enable.deprecationMessage": "El valor \"less.colorDecorators.enable\" está en desuso en favor de \"editor.colorDecorators\"."
 }

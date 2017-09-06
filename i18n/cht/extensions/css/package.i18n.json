@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "未知的廠商特定屬性。",
 	"css.lint.vendorPrefix.desc": "在使用廠商專屬的前置詞時，也包括標準屬性。",
 	"css.lint.zeroUnits.desc": "零不需要任何單位",
+	"css.trace.server.desc": "追蹤 VS Code 與 CSS 語言伺服器之間的通訊。",
+	"css.validate.title": "控制 CSS 驗證與問題嚴重性。",
 	"css.validate.desc": "啟用或停用所有驗證",
 	"less.lint.argumentsInColorFunction.desc": "參數數目無效",
 	"less.lint.boxModel.desc": "使用填補或框線時不要使用寬度或高度。",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "未知的廠商特定屬性。",
 	"less.lint.vendorPrefix.desc": "在使用廠商專屬的前置詞時，也包括標準屬性。",
 	"less.lint.zeroUnits.desc": "零不需要任何單位",
+	"less.validate.title": "控制 LESS 驗證與問題嚴重性。",
 	"less.validate.desc": "啟用或停用所有驗證",
 	"scss.lint.argumentsInColorFunction.desc": "參數數目無效",
 	"scss.lint.boxModel.desc": "使用填補或框線時不要使用寬度或高度。",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "未知的廠商特定屬性。",
 	"scss.lint.vendorPrefix.desc": "在使用廠商專屬的前置詞時，也包括標準屬性。",
 	"scss.lint.zeroUnits.desc": "零不需要任何單位",
+	"scss.validate.title": "控制 SCSS 驗證與問題嚴重性。",
 	"scss.validate.desc": "啟用或停用所有驗證",
 	"less.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目",
 	"scss.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目",
-	"css.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目"
+	"css.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目",
+	"css.colorDecorators.enable.deprecationMessage": "設定 `css.colorDecorators.enable` 已淘汰，改為 `editor.colorDecorators`。",
+	"scss.colorDecorators.enable.deprecationMessage": "設定 `scss.colorDecorators.enable` 已淘汰，改為 `editor.colorDecorators`。",
+	"less.colorDecorators.enable.deprecationMessage": "設定 `less.colorDecorators.enable` 已淘汰，改為 `editor.colorDecorators`。"
 }

@@ -276,7 +276,7 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		}
 	}
 
-	private getDeliveredMarkersPerOwner(owner): Map<string, number> {
+	private getDeliveredMarkersPerOwner(owner: string): Map<string, number> {
 		let result = this.deliveredMarkers.get(owner);
 		if (!result) {
 			result = new Map<string, number>();

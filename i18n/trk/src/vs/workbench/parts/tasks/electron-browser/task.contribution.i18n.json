@@ -19,7 +19,7 @@
 	"manyMarkers": "99+",
 	"runningTasks": "Çalışan Görevleri Göster",
 	"tasks": "Görevler",
-	"TaskSystem.noHotSwap": "Görev yürütme motorunu değiştirmek VS Code'u yeniden başlatmayı gerektirir. Değişiklik yok sayıldı.",
+	"TaskSystem.noHotSwap": "Görev yürütme motorunu değiştirmek pencereyi yeniden yüklemeyi gerektirir",
 	"TaskService.noBuildTask1": "Derleme görevi tanımlanmamış. tasks.json dosyasındaki bir görevi 'isBuildCommand' ile işaretleyin.",
 	"TaskService.noBuildTask2": "Derleme görevi tanımlanmamış. tasks.json dosyasındaki bir görevi, bir 'build' grubu olarak işaretleyin.",
 	"TaskService.noTestTask1": "Test görevi tanımlanmamış. tasks.json dosyasındaki bir testi 'isTestCommand' ile işaretleyin.",

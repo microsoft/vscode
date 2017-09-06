@@ -11,6 +11,7 @@ import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -451,6 +452,10 @@ export class Limiter<T> {
 		return this._onFinished.event;
 	}
 
+	public get size(): number {
+		return this.runningPromises + this.outstandingPromises.length;
+	}
+
 	queue(promiseFactory: ITask<Promise>): Promise;
 	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		return new TPromise<T>((c, e, p) => {
@@ -498,6 +503,33 @@ export class Queue<T> extends Limiter<T> {
 
 	constructor() {
 		super(1);
+	}
+}
+
+/**
+ * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
+ * by disposing them once the queue is empty.
+ */
+export class ResourceQueue<T> {
+	private queues: { [path: string]: Queue<void> };
+
+	constructor() {
+		this.queues = Object.create(null);
+	}
+
+	public queueFor(resource: URI): Queue<void> {
+		const key = resource.toString();
+		if (!this.queues[key]) {
+			const queue = new Queue<void>();
+			queue.onFinished(() => {
+				queue.dispose();
+				delete this.queues[key];
+			});
+
+			this.queues[key] = queue;
+		}
+
+		return this.queues[key];
 	}
 }
 

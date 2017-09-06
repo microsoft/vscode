@@ -511,7 +511,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, this.keybindingService.lookupKeybinding(actionDescriptor.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, this.keybindingService.lookupKeybinding(actionDescriptor.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, actionDescriptor, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -537,7 +537,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}
@@ -580,7 +580,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, id => this.onBeforeRunCommand(id)));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, this.keybindingService.lookupKeybinding(action.item.id), label, alias, { label: labelHighlights, alias: aliasHighlights }, action, (id: string) => this.onBeforeRunCommand(id)));
 				}
 			}
 		}

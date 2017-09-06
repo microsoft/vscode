@@ -635,7 +635,21 @@ export class TabsTitleControl extends TitleControl {
 		// Drag over
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
 			counter++;
-			this.updateDropFeedback(tab, true, index);
+
+			// Find out if the currently dragged editor is this tab and in that
+			// case we do not want to show any drop feedback
+			let draggedEditorIsTab = false;
+			const draggedEditor = TabsTitleControl.getDraggedEditor();
+			if (draggedEditor) {
+				const { group, editor } = this.toTabContext(index);
+				if (draggedEditor.editor === editor && draggedEditor.group === group) {
+					draggedEditorIsTab = true;
+				}
+			}
+
+			if (!draggedEditorIsTab) {
+				this.updateDropFeedback(tab, true, index);
+			}
 		}));
 
 		// Drag leave

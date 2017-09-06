@@ -36,6 +36,7 @@ const eolFilter = [
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
 	'!extensions/**/out/**',
+	'!test/smoke/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',

@@ -207,7 +207,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, arg) => this.request(channelName, command, arg);
+		const call = (command: string, arg: any) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
@@ -452,14 +452,14 @@ export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<T>): T {
-	const call = (command, arg) => promise.then(c => c.call(command, arg));
+	const call = (command: string, arg: any) => promise.then(c => c.call(command, arg));
 	return { call } as T;
 }
 
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
-	const call = (command, arg) => {
+	const call = (command: string, arg: any) => {
 		if (didTick) {
 			return channel.call(command, arg);
 		}

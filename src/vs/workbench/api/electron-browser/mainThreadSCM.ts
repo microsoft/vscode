@@ -10,14 +10,30 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
+class MainThreadSCMResourceCollection implements ISCMResourceCollection {
+
+	readonly resources: ISCMResource[] = [];
+
+	private _onDidSplice = new Emitter<ISCMResourceSplice>();
+	readonly onDidSplice = this._onDidSplice.event;
+
+	splice(start: number, deleteCount: number, resources: ISCMResource[]) {
+		this.resources.splice(start, deleteCount, ...resources);
+		this._onDidSplice.fire({ start, deleteCount, resources });
+	}
+}
+
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
+
+	readonly resourceCollection = new MainThreadSCMResourceCollection();
+	get hideWhenEmpty(): boolean { return this.features.hideWhenEmpty; }
 
 	constructor(
 		private sourceControlHandle: number,
@@ -25,8 +41,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public id: string,
-		public resources: ISCMResource[]
+		public id: string
 	) { }
 
 	toJSON(): any {
@@ -41,14 +56,18 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 class MainThreadSCMResource implements ISCMResource {
 
 	constructor(
+		private proxy: ExtHostSCMShape,
 		private sourceControlHandle: number,
 		private groupHandle: number,
 		private handle: number,
 		public sourceUri: URI,
-		public command: Command | undefined,
 		public resourceGroup: ISCMResourceGroup,
 		public decorations: ISCMResourceDecorations
 	) { }
+
+	open(): TPromise<void> {
+		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
+	}
 
 	toJSON(): any {
 		return {
@@ -71,11 +90,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get resources(): ISCMResourceGroup[] {
 		return this._groups
-			.filter(g => g.resources.length > 0 || !g.features.hideWhenEmpty);
+			.filter(g => g.resourceCollection.resources.length > 0 || !g.features.hideWhenEmpty);
 	}
 
-	private _onDidChange = new Emitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	private _onDidChangeResources = new Emitter<void>();
+	get onDidChangeResources(): Event<void> { return this._onDidChangeResources.event; }
 
 	private features: SCMProviderFeatures = {};
 
@@ -92,6 +111,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
+
+	private _onDidChange = new Emitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	constructor(
 		private proxy: ExtHostSCMShape,
@@ -122,8 +144,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this,
 			{},
 			label,
-			id,
-			[]
+			id
 		);
 
 		this._groups.push(group);
@@ -152,37 +173,46 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
-	$updateGroupResourceStates(groupHandle: number, resources: SCMRawResource[]): void {
-		const group = this._groupsByHandle[groupHandle];
+	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
+		for (const [groupHandle, groupSlices] of splices) {
+			const group = this._groupsByHandle[groupHandle];
 
-		if (!group) {
-			return;
+			if (!group) {
+				return;
+			}
+
+			// reverse the splices sequence in order to apply them correctly
+			groupSlices.reverse();
+
+			for (const [start, deleteCount, rawResources] of groupSlices) {
+				const resources = rawResources.map(rawResource => {
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded] = rawResource;
+					const icon = icons[0];
+					const iconDark = icons[1] || icon;
+					const decorations = {
+						icon: icon && URI.parse(icon),
+						iconDark: iconDark && URI.parse(iconDark),
+						tooltip,
+						strikeThrough,
+						faded
+					};
+
+					return new MainThreadSCMResource(
+						this.proxy,
+						this.handle,
+						groupHandle,
+						handle,
+						URI.parse(sourceUri),
+						group,
+						decorations
+					);
+				});
+
+				group.resourceCollection.splice(start, deleteCount, resources);
+			}
 		}
 
-		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, tooltip, strikeThrough, faded] = rawResource;
-			const icon = icons[0];
-			const iconDark = icons[1] || icon;
-			const decorations = {
-				icon: icon && URI.parse(icon),
-				iconDark: iconDark && URI.parse(iconDark),
-				tooltip,
-				strikeThrough,
-				faded
-			};
-
-			return new MainThreadSCMResource(
-				this.handle,
-				groupHandle,
-				handle,
-				URI.parse(sourceUri),
-				command,
-				group,
-				decorations
-			);
-		});
-
-		this._onDidChange.fire();
+		this._onDidChangeResources.fire();
 	}
 
 	$unregisterGroup(handle: number): void {
@@ -312,7 +342,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		provider.$updateGroupLabel(groupHandle, label);
 	}
 
-	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void {
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
 		const repository = this._repositories[sourceControlHandle];
 
 		if (!repository) {
@@ -320,7 +350,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroupResourceStates(groupHandle, resources);
+		provider.$spliceGroupResourceStates(splices);
 	}
 
 	$unregisterGroup(sourceControlHandle: number, handle: number): void {

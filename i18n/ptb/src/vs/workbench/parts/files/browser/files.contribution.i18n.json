@@ -39,10 +39,10 @@
 	"dynamicHeight": "Controla se a altura da seção de editores abertos deve adaptar-se dinamicamente para o número de elementos ou não.",
 	"autoReveal": "Controla se o explorador deve automaticamente revelar e selecionar arquivos ao abri-los.",
 	"enableDragAndDrop": "Controla se o explorador deve permitir mover arquivos e pastas através de arrastar e soltar.",
-	"sortOrder.default": "Arquivos e diretórios são classificados por seus nomes, em ordem alfabética. Diretórios são exibidos antes de arquivos.",
-	"sortOrder.mixed": "Arquivos e diretórios são classificados por seus nomes, em ordem alfabética. Arquivos são entrelaçados com diretórios.",
-	"sortOrder.filesFirst": "Arquivos e diretórios são classificados por seus nomes, em ordem alfabética. Os arquivos são exibidos antes de diretórios.",
-	"sortOrder.type": "Arquivos e diretórios são classificados por suas extensões, em ordem alfabética. Diretórios são exibidos antes de arquivos.",
-	"sortOrder.modified": "Arquivos e diretórios são classificados pela data da última modificação, em ordem decrescente. Diretórios são exibidos antes de arquivos.",
-	"sortOrder": "Controla a forma de organização de arquivos e diretórios no explorador."
+	"sortOrder.default": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Pastas são exibidas acima dos arquivos.",
+	"sortOrder.mixed": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Arquivos são misturados com pastas.",
+	"sortOrder.filesFirst": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Os arquivos são exibidos acima das pastas.",
+	"sortOrder.type": "Arquivos e pastas são classificadas de acordo com suas extensões, em ordem alfabética. Pastas são exibidas acima dos arquivos.",
+	"sortOrder.modified": "Arquivos e pastas são classificados de acordo com a data da última modificação, em ordem decrescente. Pastas são exibidas acima dos arquivos.",
+	"sortOrder": "Controla a ordem de classificação dos arquivos e pastas no explorador. Além da classificação padrão, você pode definir a ordem para 'mixed' (arquivos e pastas misturados), 'type' (por tipo de arquivo), 'modified' (pela data da última modificação) ou 'filesFirst' (exibe os arquivos acima das pastas)."
 }

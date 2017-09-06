@@ -158,7 +158,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					return;
 				}
 
-				const anchor = { x: e.event.posx + 1, y: e.event.posy };
+				const anchor = { x: e.event.posx, y: e.event.posy };
 				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
 
 				this.contextMenuService.showContextMenu({

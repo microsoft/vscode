@@ -1204,7 +1204,7 @@ export class ToggleSharedProcessAction extends Action {
 	}
 }
 
-enum Direction {
+export enum Direction {
 	Next,
 	Previous,
 }
@@ -1277,7 +1277,7 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction): TPromise<boolean> {
+	protected navigateAcrossEditorGroup(direction: Direction): TPromise<boolean> {
 		const model = this.groupService.getStacksModel();
 		const currentPosition = model.positionOfGroup(model.activeGroup);
 		const nextPosition = direction === Direction.Next ? currentPosition + 1 : currentPosition - 1;
@@ -1330,7 +1330,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (isSidebarPositionLeft) {
 				return this.navigateToSidebar();
@@ -1346,7 +1346,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isEditorGroupVertica: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
@@ -1354,7 +1354,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
 		if (isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
@@ -1383,7 +1383,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (!isEditorGroupVertical) {
 			if (!isSidebarPositionLeft) {
 				return this.navigateToSidebar();
@@ -1400,7 +1400,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
@@ -1408,7 +1408,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
 		if (!isSidebarPositionLeft) {
 			return TPromise.as(false);
 		}
@@ -1437,14 +1437,14 @@ export class NavigateUpAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
 		if (isEditorGroupVertical) {
 			return TPromise.as(false);
 		}
 		return this.navigateAcrossEditorGroup(Direction.Previous);
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean> {
+	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
 		if (isEditorGroupVertical) {
 			return this.navigateToLastActiveGroup();
 		}
@@ -1468,7 +1468,7 @@ export class NavigateDownAction extends BaseNavigationAction {
 		super(id, label, groupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft): TPromise<boolean | IPanel> {
+	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IPanel> {
 		if (isEditorGroupVertical) {
 			return this.navigateToPanel();
 		}

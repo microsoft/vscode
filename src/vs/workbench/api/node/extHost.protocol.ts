@@ -44,7 +44,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
-import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
@@ -279,7 +279,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 
 export interface MainThreadStatusBarShape extends IDisposable {
 	$setEntry(id: number, extensionId: string, text: string, tooltip: string, command: string, color: string | ThemeColor, alignment: MainThreadStatusBarAlignment, priority: number): void;
-	$dispose(id: number);
+	$dispose(id: number): void;
 }
 
 export interface MainThreadStorageShape extends IDisposable {
@@ -298,7 +298,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$applyWorkspaceEdit(edits: IResourceEdit[]): TPromise<boolean>;
 
 	$registerFileSystemProvider(handle: number, authority: string): void;
-	$unregisterFileSystemProvider(handle): void;
+	$unregisterFileSystemProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: URI): void;
 	$updateSearchSession(session: number, data): void;
 	$finishSearchSession(session: number, err?: any): void;
@@ -330,11 +330,21 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	string /*resourceUri*/,
-	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/
+];
+
+export type SCMRawResourceSplice = [
+	number /* start */,
+	number /* delete count */,
+	SCMRawResource[]
+];
+
+export type SCMRawResourceSplices = [
+	number, /*handle*/
+	SCMRawResourceSplice[]
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
@@ -345,8 +355,9 @@ export interface MainThreadSCMShape extends IDisposable {
 	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
-	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
+
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
@@ -379,7 +390,7 @@ export interface ExtHostCommandsShape {
 }
 
 export interface ExtHostConfigurationShape {
-	$acceptConfigurationChanged(data: IConfigurationData<any>);
+	$acceptConfigurationChanged(data: IConfigurationData<any>): void;
 }
 
 export interface ExtHostDiagnosticsShape {
@@ -461,7 +472,7 @@ export interface FileSystemEvents {
 	deleted: URI[];
 }
 export interface ExtHostFileSystemEventServiceShape {
-	$onFileEvent(events: FileSystemEvents);
+	$onFileEvent(events: FileSystemEvents): void;
 }
 
 export interface ObjectIdentifier {
@@ -528,6 +539,7 @@ export interface ExtHostTerminalServiceShape {
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 }
 
 export interface ExtHostTaskShape {

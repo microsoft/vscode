@@ -7,10 +7,16 @@
 	"open": "Ouvrir les paramètres",
 	"close": "Fermer",
 	"saveAndRetry": "Enregistrer les paramètres et recommencer",
+	"errorUnknownKey": "Impossible d’écrire dans {0} car {1} n’est pas une configuration recommandée.",
+	"errorInvalidFolderConfiguration": "Impossible d’écrire dans les paramètres de dossier parce que {0} ne supporte pas la portée de ressource de dossier.",
+	"errorInvalidUserTarget": "Impossible d’écrire dans les paramètres utilisateur parce que {0} ne supporte pas de portée globale.",
+	"errorInvalidFolderTarget": "Impossible d’écrire dans les paramètres de dossier car aucune ressource n’est fournie.",
+	"errorNoWorkspaceOpened": "Impossible d’écrire dans {0} car aucun espace de travail n’est ouvert. Veuillez ouvrir un espace de travail et essayer à nouveau.",
 	"errorInvalidConfiguration": "Impossible d'écrire les paramètres. Ouvrez les **Paramètres utilisateur** pour corriger les erreurs/avertissements présents dans le fichier, puis réessayez.",
 	"errorInvalidConfigurationWorkspace": "Impossible d'écrire les paramètres. Ouvrez les **Paramètres d'espace de travail** pour corriger les erreurs/avertissements présents dans le fichier, puis réessayez.",
 	"errorConfigurationFileDirty": "Impossible d'écrire les paramètres, car l'intégrité du fichier est compromise. Enregistrez le fichier des **Paramètres utilisateur**, puis réessayez.",
 	"errorConfigurationFileDirtyWorkspace": "Impossible d'écrire les paramètres, car l'intégrité du fichier est compromise. Enregistrez le fichier des **Paramètres d'espace de travail**, puis réessayez.",
 	"userTarget": "Paramètres utilisateur",
-	"workspaceTarget": "Paramètres de l'espace de travail"
+	"workspaceTarget": "Paramètres de l'espace de travail",
+	"folderTarget": "Paramètres de dossier"
 }

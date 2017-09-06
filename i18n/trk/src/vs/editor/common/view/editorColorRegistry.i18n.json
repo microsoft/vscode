@@ -21,5 +21,9 @@
 	"errorForeground": "Düzenleyicideki hata karalamalarının ön plan rengi.",
 	"errorBorder": "Düzenleyicideki hata karalamalarının kenarlık rengi.",
 	"warningForeground": "Düzenleyicideki uyarı karalamalarının ön plan rengi.",
-	"warningBorder": "Düzenleyicideki uyarı karalamalarının kenarlık rengi."
+	"warningBorder": "Düzenleyicideki uyarı karalamalarının kenarlık rengi.",
+	"overviewRulerRangeHighlight": "Aralık vurguları için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleError": "Hatalar için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleWarning": "Uyarılar için genel bakış cetvelinin işaretleyici rengi.",
+	"overviewRuleInfo": "Bilgilendirmeler için genel bakış cetvelinin işaretleyici rengi."
 }

@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "必須為 true 以顯示此檢視的條件",
 	"vscode.extension.contributes.views": "提供意見給編輯者",
 	"views.explorer": "檔案總管檢視",
+	"views.debug": "偵錯檢視",
 	"locationId.invalid": "`{0}`不是有效的識別位置"
 }

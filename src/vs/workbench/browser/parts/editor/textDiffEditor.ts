@@ -112,16 +112,12 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		super.setInput(input, options);
 
-		// Detect options
+		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
+		if (!forceOpen && input.matches(this.input)) {
 
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
 				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
@@ -135,49 +131,51 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator.dispose();
 		}
 
-		// Different Input (Reload)
-		return input.resolve(true).then(resolvedModel => {
+		// Set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then(resolvedModel => {
 
-			// Assert Model Instance
-			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-				return null;
-			}
-
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
-			if (!this.input || this.input !== input) {
-				return null;
-			}
-
-			// Editor
-			const diffEditor = <IDiffEditor>this.getControl();
-			diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
-
-			// Handle TextOptions
-			let alwaysRevealFirst = true;
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
-				if (hadOptions) {
-					alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+				// Assert Model Instance
+				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+					return null;
 				}
-			}
 
-			// Listen on diff updated changes to reveal the first change
-			this.diffNavigator = new DiffNavigator(diffEditor, {
-				alwaysRevealFirst
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
+
+				// Editor
+				const diffEditor = <IDiffEditor>this.getControl();
+				diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
+
+				// Handle TextOptions
+				let alwaysRevealFirst = true;
+				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+					const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
+					if (hadOptions) {
+						alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+					}
+				}
+
+				// Listen on diff updated changes to reveal the first change
+				this.diffNavigator = new DiffNavigator(diffEditor, {
+					alwaysRevealFirst
+				});
+				this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
+					this.nextDiffAction.updateEnablement();
+					this.previousDiffAction.updateEnablement();
+				});
+			}, error => {
+
+				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+				if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+					return null;
+				}
+
+				// Otherwise make sure the error bubbles up
+				return TPromise.wrapError(error);
 			});
-			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
-				this.nextDiffAction.updateEnablement();
-				this.previousDiffAction.updateEnablement();
-			});
-		}, error => {
-
-			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
-				return null;
-			}
-
-			// Otherwise make sure the error bubbles up
-			return TPromise.wrapError(error);
 		});
 	}
 

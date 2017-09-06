@@ -49,8 +49,8 @@
 	"openPreviousRecentlyUsedEditor": "Abrir o Editor Anterior Recentemente Utilizado",
 	"clearEditorHistory": "Limpar Histórico do Editor",
 	"focusLastEditorInStack": "Abrir Último Editor do Grupo",
-	"moveEditorLeft": "Mover Editor para Esquerda",
-	"moveEditorRight": "Mover Editor para Direita",
-	"moveEditorToPreviousGroup": "Mover Editor para o Grupo Anterior",
+	"moveEditorLeft": "Mover o Editor para a Esquerda",
+	"moveEditorRight": "Mover o Editor para a Direita",
+	"moveEditorToPreviousGroup": "Mover o Editor para o Grupo Anterior",
 	"moveEditorToNextGroup": "Mover o Editor para o Próximo Grupo"
 }

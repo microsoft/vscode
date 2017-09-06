@@ -23,6 +23,8 @@ const options: minimist.Opts = {
 		'debugId',
 		'debugPluginHost',
 		'debugBrkPluginHost',
+		'debugSearch',
+		'debugBrkSearch',
 		'open-url',
 		'enable-proposed-api'
 	],
@@ -60,6 +62,8 @@ const options: minimist.Opts = {
 		'extensions-dir': 'extensionHomePath',
 		'debugPluginHost': 'inspect-extensions',
 		'debugBrkPluginHost': 'inspect-brk-extensions',
+		'debugSearch': 'inspect-search',
+		'debugBrkSearch': 'inspect-brk-search',
 	}
 };
 

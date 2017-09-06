@@ -229,16 +229,18 @@ export class SnippetSession {
 
 	static adjustSelection(model: IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
 		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
-			let { startLineNumber, startColumn, endLineNumber, endColumn } = selection;
-			startColumn -= overwriteBefore;
-			endColumn += overwriteAfter;
+			// overwrite[Before|After] is compute using the position, not the whole
+			// selection. therefore we adjust the selection around that position
+			const { positionLineNumber, positionColumn } = selection;
+			const positionColumnBefore = positionColumn - overwriteBefore;
+			const positionColumnAfter = positionColumn + overwriteAfter;
 
-			const range = model.validateRange(Range.plusRange(selection, {
-				startLineNumber,
-				startColumn,
-				endLineNumber,
-				endColumn,
-			}));
+			const range = model.validateRange({
+				startLineNumber: positionLineNumber,
+				startColumn: positionColumnBefore,
+				endLineNumber: positionLineNumber,
+				endColumn: positionColumnAfter
+			});
 
 			selection = Selection.createWithDirection(
 				range.startLineNumber, range.startColumn,

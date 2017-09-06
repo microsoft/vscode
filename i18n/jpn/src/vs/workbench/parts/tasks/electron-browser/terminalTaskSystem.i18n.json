@@ -6,7 +6,7 @@
 {
 	"TerminalTaskSystem.unknownError": "タスクの実行中に不明なエラーが発生しました。詳細については、タスク出力ログを参照してください。",
 	"TerminalTaskSystem.terminalName": "タスク - {0}",
-	"reuseTerminal": "端末はタスクで再利用されます、閉じるには任意のキーを押してください。",
+	"reuseTerminal": "ターミナルはタスクで再利用されます、閉じるには任意のキーを押してください。",
 	"TerminalTaskSystem": "UNC ドライブでシェル コマンドを実行できません。",
 	"unkownProblemMatcher": "問題マッチャー {0} は解決できませんでした。マッチャーは無視されます"
 }

@@ -102,6 +102,7 @@
 	"miHideActivityBar": "アクティビティ バーを非表示にする(&&A)",
 	"miShowActivityBar": "アクティビティ バーを表示する(&&A)",
 	"miToggleWordWrap": "折り返しの切り替え(&&W)",
+	"miToggleMinimap": "ミニマップの切り替え(&&M)",
 	"miToggleRenderWhitespace": "空白文字の表示の切り替え(&&R)",
 	"miToggleRenderControlCharacters": "制御文字の切り替え(&&C)",
 	"miZoomIn": "拡大(&&Z)",

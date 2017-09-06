@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "La palette de commandes ({0}) permet d'accéder rapidement aux commandes pour en rechercher une",
 	"welcomePage.interfaceOverview": "Vue d'ensemble de l'interface",
 	"welcomePage.interfaceOverviewDescription": "Obtenez une superposition visuelle mettant en évidence les principaux composants de l'IU",
+	"welcomePage.deployToAzure": "Déployer des applications sur le cloud",
+	"welcomePage.deployToAzureDescription": "Découvrir comment déployer vos applications Node sur Azure App Service",
 	"welcomePage.interactivePlayground": "Terrain de jeu interactif",
 	"welcomePage.interactivePlaygroundDescription": "Essayez les fonctionnalités essentielles de l'éditeur en suivant une brève procédure pas à pas"
 }

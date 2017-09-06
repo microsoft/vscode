@@ -10,6 +10,7 @@
 	"terminal.integrated.shellArgs.linux": "Os argumentos de linha de comando a serem usados no terminal do Linux.",
 	"terminal.integrated.shell.osx": "O caminho do shell que o terminal usa no OS X.",
 	"terminal.integrated.shellArgs.osx": "Os argumentos de linha de comando a serem usados no terminal do OS X.",
+	"terminal.integrated.shell.windows": "O caminho do shell que o terminal utiliza no Windows. Quando estiver usando shells fornecidos com o Windows (cmd, PowerShell ou Bash no Ubuntu).",
 	"terminal.integrated.shellArgs.windows": "Os argumentos de linha de comando a serem utilizados no terminal do Windows.",
 	"terminal.integrated.rightClickCopyPaste": "Quando configurado, isto evitará que o menu de contexto apareça quando pressionado o botão direito do mouse dentro do terminal, em vez disso vai copiar quando há uma seleção e colar quando não há nenhuma seleção.",
 	"terminal.integrated.fontFamily": "Controla a família de fontes do terminal, este padrão é o valor do editor.fontFamily.",

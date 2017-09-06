@@ -362,7 +362,7 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once(commit => {
+		const done = once((commit: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
@@ -507,7 +507,7 @@ export class FileController extends DefaultController {
 			return true;
 		}
 
-		const anchor = { x: event.posx + 1, y: event.posy };
+		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {

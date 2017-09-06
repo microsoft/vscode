@@ -29,6 +29,8 @@ import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 class MarkerModel {
 
@@ -188,27 +190,68 @@ class MarkerModel {
 
 class MessageWidget {
 
-	domNode: HTMLDivElement;
 	lines: number = 0;
+	longestLineLength: number = 0;
 
-	constructor(container: HTMLElement) {
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'block descriptioncontainer';
-		this.domNode.setAttribute('aria-live', 'assertive');
-		this.domNode.setAttribute('role', 'alert');
-		container.appendChild(this.domNode);
+	private readonly _editor: ICodeEditor;
+	private readonly _domNode: HTMLElement;
+	private readonly _scrollable: ScrollableElement;
+	private readonly _disposables: IDisposable[] = [];
+
+	constructor(parent: HTMLElement, editor: ICodeEditor) {
+		this._editor = editor;
+
+		this._domNode = document.createElement('span');
+		this._domNode.className = 'descriptioncontainer';
+		this._domNode.setAttribute('aria-live', 'assertive');
+		this._domNode.setAttribute('role', 'alert');
+
+		this._scrollable = new ScrollableElement(this._domNode, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			horizontalScrollbarSize: 3
+		});
+		dom.addClass(this._scrollable.getDomNode(), 'block');
+		parent.appendChild(this._scrollable.getDomNode());
+		this._disposables.push(this._scrollable.onScroll(e => this._domNode.style.left = `-${e.scrollLeft}px`));
+		this._disposables.push(this._scrollable);
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
 	}
 
 	update({ source, message }: IMarker): void {
-		this.lines = 1;
+
 		if (source) {
+			this.lines = 0;
+			this.longestLineLength = 0;
 			const indent = new Array(source.length + 3 + 1).join(' ');
-			message = `[${source}] ` + message.replace(/\r\n|\r|\n/g, () => {
+			const lines = message.split(/\r\n|\r|\n/g);
+			for (let i = 0; i < lines.length; i++) {
+				let line = lines[i];
 				this.lines += 1;
-				return '\n' + indent;
-			});
+				this.longestLineLength = Math.max(line.length, this.longestLineLength);
+				if (i === 0) {
+					message = `[${source}] ${line}`;
+				} else {
+					message += `\n${indent}${line}`;
+				}
+			}
+		} else {
+			this.lines = 1;
+			this.longestLineLength = message.length;
 		}
-		this.domNode.innerText = message;
+
+		this._domNode.innerText = message;
+		this._editor.applyFontInfo(this._domNode);
+		const width = Math.floor(this._editor.getConfiguration().fontInfo.typicalFullwidthCharacterWidth * this.longestLineLength);
+		this._scrollable.setScrollDimensions({ scrollWidth: width });
+	}
+
+	layout(height: number, width: number): void {
+		this._scrollable.setScrollDimensions({ width });
 	}
 }
 
@@ -222,7 +265,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _severity: Severity;
 	private _backgroundColor: Color;
 
-	constructor(editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
+	constructor(
+		editor: ICodeEditor,
+		private _model: MarkerModel,
+		private _themeService: IThemeService
+	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = Severity.Warning;
 		this._backgroundColor = Color.white;
@@ -272,11 +319,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._title.className = 'block title';
 		this._container.appendChild(this._title);
 
-		this._message = new MessageWidget(this._container);
-		this.editor.applyFontInfo(this._message.domNode);
+		this._message = new MessageWidget(this._container, this.editor);
+		this._disposables.push(this._message);
 	}
 
-	public show(where: Position, heightInLines: number): void {
+	show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
 		if (this.editor.getConfiguration().accessibilitySupport !== AccessibilitySupport.Disabled) {
 			this.focus();
@@ -320,6 +367,10 @@ class MarkerNavigationWidget extends ZoneWidget {
 			this._container.classList.add('stale');
 		}
 		this._relayout();
+	}
+
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+		this._message.layout(heightInPixel, widthInPixel);
 	}
 
 	protected _relayout(): void {

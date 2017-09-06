@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "이 보기를 표시하기 위해 true여야 하는 조건입니다.",
 	"vscode.extension.contributes.views": "뷰를 에디터에 적용합니다.",
 	"views.explorer": "탐색기 뷰",
+	"views.debug": "디버그 보기",
 	"locationId.invalid": "`{0}`은(는) 유효한 뷰 위치가 아닙니다."
 }

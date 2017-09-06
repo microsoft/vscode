@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "명령 팔레트({0})에서 빠른 액세스 및 명령 검색",
 	"welcomePage.interfaceOverview": "인터페이스 개요",
 	"welcomePage.interfaceOverviewDescription": "UI의 주요 구성 요소를 강조 표시하는 시각적 오버레이 가져오기",
+	"welcomePage.deployToAzure": "클라우드에 응용 프로그램 배포",
+	"welcomePage.deployToAzureDescription": "Azure App Service에 Node 앱을 배포하는 방법 알아보기",
 	"welcomePage.interactivePlayground": "대화형 실습",
 	"welcomePage.interactivePlaygroundDescription": "짧은 연습에서 기본 편집기 기능 사용해 보기"
 }

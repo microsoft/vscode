@@ -40,7 +40,7 @@
 	"pickHistory": "Karşılaştırmak için daha önce açılan bir dosyayı seçin",
 	"unableToFileToCompare": "Seçtiğiniz dosya, '{0}' ile karşılaştırılamaz.",
 	"openFileToCompare": "Bir başka dosya ile karşılaştırmak için ilk olarak bir dosya açın.",
-	"compareWith": "'{0}' ile karşılaştır",
+	"compareWith": "'{0}' dosyasını '{1}' ile karşılaştır",
 	"compareFiles": "Dosyaları Karşılaştır",
 	"refresh": "Yenile",
 	"save": "Kaydet",

@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Ismeretlen gyártóspecifikus tulajdonság.",
 	"css.lint.vendorPrefix.desc": "Gyártóspecifikus előtagok használata esetén az adott tulajdonság szabványos változatát is meg kell adni",
 	"css.lint.zeroUnits.desc": "A 0 értékhez nem szükséges mértékegység",
+	"css.trace.server.desc": "A VS Code és a CSS nyelvi szerver közötti kommunikáció naplózása.",
+	"css.validate.title": "Meghatározza a CSS-validáció működését és a problémák súlyosságát.",
 	"css.validate.desc": "Összes validálás engedélyezése vagy letiltása",
 	"less.lint.argumentsInColorFunction.desc": "Nem megfelelő számú paraméter",
 	"less.lint.boxModel.desc": "A width és a height tulajdonság kerülése a padding és a border tulajdonság használata esetén",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "Ismeretlen gyártóspecifikus tulajdonság.",
 	"less.lint.vendorPrefix.desc": "Gyártóspecifikus előtagok használata esetén az adott tulajdonság szabványos változatát is meg kell adni",
 	"less.lint.zeroUnits.desc": "A 0 értékhez nem szükséges mértékegység",
+	"less.validate.title": "Meghatározza a LESS-validáció működését és a problémák súlyosságát.",
 	"less.validate.desc": "Összes validálás engedélyezése vagy letiltása",
 	"scss.lint.argumentsInColorFunction.desc": "Nem megfelelő számú paraméter",
 	"scss.lint.boxModel.desc": "A width és a height tulajdonság kerülése a padding és a border tulajdonság használata esetén",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Ismeretlen gyártóspecifikus tulajdonság.",
 	"scss.lint.vendorPrefix.desc": "Gyártóspecifikus előtagok használata esetén az adott tulajdonság szabványos változatát is meg kell adni",
 	"scss.lint.zeroUnits.desc": "A 0 értékhez nem szükséges mértékegység",
+	"scss.validate.title": "Meghatározza az SCSS-validáció működését és a problémák súlyosságát.",
 	"scss.validate.desc": "Összes validálás engedélyezése vagy letiltása",
 	"less.colorDecorators.enable.desc": "Színdekorátorok engedélyezése vagy letiltása",
 	"scss.colorDecorators.enable.desc": "Színdekorátorok engedélyezése vagy letiltása",
-	"css.colorDecorators.enable.desc": "Színdekorátorok engedélyezése vagy letiltása"
+	"css.colorDecorators.enable.desc": "Színdekorátorok engedélyezése vagy letiltása",
+	"css.colorDecorators.enable.deprecationMessage": "Az `css.colorDecorators.enable` beállítás elavult az `editor.colorDecorators` bevezetése miatt.",
+	"scss.colorDecorators.enable.deprecationMessage": "Az `scss.colorDecorators.enable` beállítás elavult az `editor.colorDecorators` bevezetése miatt.",
+	"less.colorDecorators.enable.deprecationMessage": "A `less.colorDecorators.enable` beállítás elavult az `editor.colorDecorators` bevezetése miatt."
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
@@ -111,7 +111,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
 	@memoize
-	get debugExtensionHost(): { port: number; break: boolean; debugId: string } { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+
+	@memoize
+	get debugSearch(): IDebugParams { return parseSearchPort(this._args, this.isBuilt); }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
@@ -160,11 +163,19 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): { port: number; break: boolean; debugId: string } {
-	const portStr = args.debugBrkPluginHost || args.debugPluginHost;
-	const port = Number(portStr) || (!isBuild ? 5870 : null);
-	const brk = port ? Boolean(!!args.debugBrkPluginHost) : false;
-	return { port, break: brk, debugId: args.debugId };
+export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
+	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, isBuild, args.debugId);
+}
+
+export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
+	return parseDebugPort(args.debugSearch, args.debugBrkSearch, 5876, isBuild);
+}
+
+export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+	const portStr = debugBrkArg || debugArg;
+	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
+	const brk = port ? Boolean(!!debugBrkArg) : false;
+	return { port, break: brk, debugId };
 }
 
 function parsePathArg(arg: string, process: NodeJS.Process): string {

@@ -21,5 +21,9 @@
 	"errorForeground": "Couleur de premier plan de la ligne ondulée marquant les erreurs dans l'éditeur.",
 	"errorBorder": "Couleur de bordure de la ligne ondulée marquant les erreurs dans l'éditeur.",
 	"warningForeground": "Couleur de premier plan de la ligne ondulée marquant les avertissements dans l'éditeur.",
-	"warningBorder": "Couleur de bordure de la ligne ondulée marquant les avertissements dans l'éditeur."
+	"warningBorder": "Couleur de bordure de la ligne ondulée marquant les avertissements dans l'éditeur.",
+	"overviewRulerRangeHighlight": "Couleur du marqueur de la règle d'aperçu pour la mise en évidence de plage.",
+	"overviewRuleError": "Couleur du marqueur de la règle d'aperçu pour les erreurs.",
+	"overviewRuleWarning": "Couleur du marqueur de la règle d'aperçu pour les avertissements.",
+	"overviewRuleInfo": "Couleur du marqueur de la règle d'aperçu pour les informations."
 }

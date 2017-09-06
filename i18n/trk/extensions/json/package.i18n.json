@@ -11,5 +11,6 @@
 	"json.schemas.schema.desc": "Verilen URL için şema tanımı. Şema, yalnızca şema URL'sine erişimi önlemek için sağlanmalıdır.",
 	"json.format.enable.desc": "Varsayılan JSON biçimlendiricisini etkinleştirin/devre dışı bırakın (yeniden başlatma gerektirir)",
 	"json.tracing.desc": "VS Code ve JSON dil sunucusu arasındaki iletişimi izler.",
-	"json.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır"
+	"json.colorDecorators.enable.desc": "Renk dekoratörlerini etkinleştirir veya devre dışı bırakır",
+	"json.colorDecorators.enable.deprecationMessage": "`json.colorDecorators.enable` ayarı, `editor.colorDecorators` yüzünden kullanım dışıdır."
 }

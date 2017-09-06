@@ -157,7 +157,7 @@ export class KeybindingsResolver {
 
 	private resolveKeybindings(win = this.windowsService.getLastActiveWindow()): void {
 		if (this.commandIds.size && win) {
-			const commandIds = [];
+			const commandIds: string[] = [];
 			this.commandIds.forEach(id => commandIds.push(id));
 			win.sendWhenReady('vscode:resolveKeybindings', JSON.stringify(commandIds));
 		}

@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "編集された行を示すエディター余白の背景色。",
 	"editorGutterAddedBackground": "追加された行を示すエディター余白の背景色。",
-	"editorGutterDeletedBackground": "削除された行を示すエディター余白の背景色。"
+	"editorGutterDeletedBackground": "削除された行を示すエディター余白の背景色。",
+	"overviewRulerModifiedForeground": "変更されたコンテンツを示す概要ルーラーのマーカー色。",
+	"overviewRulerAddedForeground": "追加されたコンテンツを示す概要ルーラーのマーカー色。",
+	"overviewRulerDeletedForeground": "削除されたコンテンツを示す概要ルーラーのマーカー色。"
 }

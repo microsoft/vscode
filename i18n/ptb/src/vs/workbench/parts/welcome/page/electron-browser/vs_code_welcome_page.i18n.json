@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Comandos de acesso rápido e de pesquisa da paleta de comando ({0})",
 	"welcomePage.interfaceOverview": "Visão geral da interface",
 	"welcomePage.interfaceOverviewDescription": "Obter uma sobreposição visual, destacando os principais componentes da interface do usuário",
+	"welcomePage.deployToAzure": "Implantar aplicativos na nuvem",
+	"welcomePage.deployToAzureDescription": "Aprenda como implantar seus aplicativos Node no Serviço de aplicativo do Azure",
 	"welcomePage.interactivePlayground": "Playground interativo",
 	"welcomePage.interactivePlaygroundDescription": "Experimente as características essenciais do editor em um curto passo-a-passo"
 }

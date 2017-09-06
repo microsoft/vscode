@@ -40,7 +40,7 @@
 	"pickHistory": "選取先前開啟的檔案以相比較",
 	"unableToFileToCompare": "選取的檔案無法與 '{0}' 進行比較。",
 	"openFileToCompare": "先開啟檔案以與其他檔案進行比較",
-	"compareWith": "與 '{0}' 比較",
+	"compareWith": "比較 '{0}' 與 '{1}'",
 	"compareFiles": "比較檔案",
 	"refresh": "重新整理",
 	"save": "儲存",
@@ -69,5 +69,7 @@
 	"emptyFileNameError": "必須提供檔案或資料夾名稱。",
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
 	"invalidFileNameError": "名稱 **{0}** 不能作為檔案或資料夾名稱。請選擇不同的名稱。",
-	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。"
+	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。",
+	"compareWithSaved": "比較使用中的檔案和已儲存的檔案",
+	"modifiedLabel": "{0} (在磁碟上) ↔ {1}"
 }

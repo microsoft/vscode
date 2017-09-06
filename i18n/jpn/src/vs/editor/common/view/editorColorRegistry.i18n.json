@@ -21,5 +21,9 @@
 	"errorForeground": "エディターでエラーを示す波線の前景色。",
 	"errorBorder": "エディターでエラーを示す波線の境界線の色。",
 	"warningForeground": "エディターで警告を示す波線の前景色。",
-	"warningBorder": "エディターで警告を示す波線の境界線の色。"
+	"warningBorder": "エディターで警告を示す波線の境界線の色。",
+	"overviewRulerRangeHighlight": "範囲を強調表示するときの概要ルーラーのマーカー色。",
+	"overviewRuleError": "エラーを示す概要ルーラーのマーカー色。",
+	"overviewRuleWarning": "警告を示す概要ルーラーのマーカー色。",
+	"overviewRuleInfo": "情報を示す概要ルーラーのマーカー色。"
 }

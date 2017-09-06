@@ -29,7 +29,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
-import { IMimeAndEncoding, detectMimesFromFile } from 'vs/base/node/mime';
+import { detectMimesFromFile } from 'vs/base/node/mime';
 import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -229,7 +229,7 @@ export class FileService implements IFileService {
 			// Return early if resource is a directory
 			if (model.isDirectory) {
 				return TPromise.wrapError<IStreamContent>(new FileOperationError(
-					nls.localize('fileIsDirectoryError', "File is directory ({0})", absolutePath),
+					nls.localize('fileIsDirectoryError', "File is directory"),
 					FileOperationResult.FILE_IS_DIRECTORY
 				));
 			}
@@ -246,7 +246,7 @@ export class FileService implements IFileService {
 
 			// 2.) detect mimes
 			const autoGuessEncoding = (options && options.autoGuessEncoding) || this.configuredAutoGuessEncoding(resource);
-			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then((detected: IMimeAndEncoding) => {
+			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then(detected => {
 				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
 
 				// Return error early if client only accepts text and this is not text
@@ -277,7 +277,7 @@ export class FileService implements IFileService {
 				// 3.) get content
 				return contentResolver(model, preferredEncoding);
 			});
-		}, (error) => {
+		}, error => {
 
 			// bubble up existing file operation results
 			if (!types.isUndefinedOrNull((<FileOperationError>error).fileOperationResult)) {
@@ -290,7 +290,7 @@ export class FileService implements IFileService {
 				// Return if file not found
 				if (!exists) {
 					return TPromise.wrapError<IStreamContent>(new FileOperationError(
-						nls.localize('fileNotFoundError', "File not found ({0})", absolutePath),
+						nls.localize('fileNotFoundError', "File not found ({0})", resource.toString()),
 						FileOperationResult.FILE_NOT_FOUND
 					));
 				}
@@ -881,7 +881,7 @@ export class StatResolver {
 			return new TPromise<IFileStat>((c, e) => {
 
 				// Load children
-				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, (children) => {
+				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
 					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
 					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];

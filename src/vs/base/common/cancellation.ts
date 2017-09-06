@@ -6,6 +6,7 @@
 'use strict';
 
 import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
 	readonly isCancellationRequested: boolean;
@@ -16,10 +17,10 @@ export interface CancellationToken {
 	readonly onCancellationRequested: Event<any>;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function (callback, context?) {
+const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
 	let handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
-});
+} as Event<any>);
 
 export namespace CancellationToken {
 
@@ -83,8 +84,10 @@ export class CancellationTokenSource {
 			// cancelled token when cancellation happens
 			// before someone asks for the token
 			this._token = CancellationToken.Cancelled;
-		} else {
-			(<MutableToken>this._token).cancel();
+
+		} else if (this._token instanceof MutableToken) {
+			// actually cancel
+			this._token.cancel();
 		}
 	}
 

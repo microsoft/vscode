@@ -7,9 +7,14 @@
 	"vscode.extension.contributes.configuration": "用于配置字符串。",
 	"vscode.extension.contributes.configuration.title": "设置摘要。此标签将在设置文件中用作分隔注释。",
 	"vscode.extension.contributes.configuration.properties": "配置属性的描述。",
+	"scope.window.description": "特定于窗口的配置，可在“用户”或“工作区”设置中配置。",
+	"scope.resource.description": "特定于资源的配置，可在“用户”、“工作区”或“文件夹”设置中配置。",
+	"scope.description": "配置适用的范围。可用范围有“窗口”和“资源”。",
 	"invalid.type": "如果进行设置，\"configuration.type\" 必须设置为对象",
 	"invalid.title": "configuration.title 必须是字符串",
 	"vscode.extension.contributes.defaultConfiguration": "按语言提供默认编辑器配置设置。",
 	"invalid.properties": "configuration.properties 必须是对象",
+	"workspaceConfig.folders.description": "要在工作区中加载的文件夹列表。必须为文件夹完整路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",
+	"workspaceConfig.folder.description": "文件路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",
 	"workspaceConfig.settings.description": "工作区设置"
 }

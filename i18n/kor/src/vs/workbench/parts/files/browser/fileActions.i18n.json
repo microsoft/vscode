@@ -40,7 +40,7 @@
 	"pickHistory": "비교할 이전에 연 파일 선택",
 	"unableToFileToCompare": "선택한 파일을 '{0}'과(와) 비교할 수 없습니다.",
 	"openFileToCompare": "첫 번째 파일을 열어서 다른 파일과 비교합니다.",
-	"compareWith": "'{0}'과(와) 비교",
+	"compareWith": "'{0}'과(와) '{1}' 비교",
 	"compareFiles": "파일 비교",
 	"refresh": "새로 고침",
 	"save": "저장",
@@ -69,5 +69,7 @@
 	"emptyFileNameError": "파일 또는 폴더 이름을 입력해야 합니다.",
 	"fileNameExistsError": "파일 또는 폴더 **{0}**이(가) 이 위치에 이미 있습니다. 다른 이름을 선택하세요.",
 	"invalidFileNameError": "**{0}**(이)라는 이름은 파일 또는 폴더 이름으로 올바르지 않습니다. 다른 이름을 선택하세요.",
-	"filePathTooLongError": "**{0}**(이)라는 이름을 사용하면 경로가 너무 길어집니다. 짧은 이름을 선택하세요."
+	"filePathTooLongError": "**{0}**(이)라는 이름을 사용하면 경로가 너무 길어집니다. 짧은 이름을 선택하세요.",
+	"compareWithSaved": "활성 파일을 저장된 파일과 비교",
+	"modifiedLabel": "{0}(디스크) ↔ {1}"
 }

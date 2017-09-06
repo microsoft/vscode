@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "A szerkesztőablak margójának háttérszíne a módosított soroknál.",
 	"editorGutterAddedBackground": "A szerkesztőablak margójának háttérszíne a hozzáadott soroknál.",
-	"editorGutterDeletedBackground": "A szerkesztőablak margójának háttérszíne a törölt soroknál."
+	"editorGutterDeletedBackground": "A szerkesztőablak margójának háttérszíne a törölt soroknál.",
+	"overviewRulerModifiedForeground": "A módosított tartalmat jelölő jelzések színe az áttekintősávon.",
+	"overviewRulerAddedForeground": "A hozzáadott tartalmat jelölő jelzések színe az áttekintősávon.",
+	"overviewRulerDeletedForeground": "A törölt tartalmat jelölő jelzések színe az áttekintősávon."
 }

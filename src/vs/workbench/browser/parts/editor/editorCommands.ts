@@ -199,7 +199,7 @@ function handleCommandDeprecations(): void {
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
-		const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
+		const newCommandId: string = mapDeprecatedCommands[deprecatedCommandId];
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: deprecatedCommandId,

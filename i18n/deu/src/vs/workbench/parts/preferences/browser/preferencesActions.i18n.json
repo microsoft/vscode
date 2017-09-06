@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Tastaturkurzbefehle öffnen",
 	"openGlobalKeybindingsFile": "Datei mit Tastaturkurzbefehlen öffnen",
 	"openWorkspaceSettings": "Arbeitsbereichseinstellungen öffnen",
+	"openFolderSettings": "Ordnereinstellungen öffnen",
+	"pickFolder": "Ordner auswählen",
 	"configureLanguageBasedSettings": "Sprachspezifische Einstellungen konfigurieren...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "Sprache auswählen"

@@ -6,8 +6,8 @@
 {
 	"label.close": "Fechar",
 	"header": "Diferença {0} de {1}: original {2}, {3} linhas, modificado {4}, {5} linhas",
-	"blankLine": "em branco",
-	"equalLine": "original {0}, {1} modificados: {2}",
+	"blankLine": "branco",
+	"equalLine": "original {0}, modificados {1}: {2}",
 	"insertLine": "+ modificado {0}: {1}",
 	"deleteLine": "-original {0}: {1}",
 	"editor.action.diffReview.next": "Ir para a próxima diferença",

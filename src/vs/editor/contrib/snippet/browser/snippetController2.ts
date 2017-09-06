@@ -16,6 +16,7 @@ import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { repeat } from 'vs/base/common/strings';
 
 @commonEditorContribution
 export class SnippetController2 {
@@ -146,7 +147,7 @@ export class SnippetController2 {
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
-					sortText: String(i),
+					sortText: repeat('a', i),
 					overwriteAfter: first.value.length
 				};
 			}));

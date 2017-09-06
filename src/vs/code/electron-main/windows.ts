@@ -358,7 +358,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// When run with --add, take the folders that are to be opened as
 		// folders that should be added to the currently active window.
-		let foldersToAdd = [];
+		let foldersToAdd: IPath[] = [];
 		if (openConfig.addMode && product.quality !== 'stable') { // TODO@Ben multi root
 			foldersToAdd = pathsToOpen.filter(path => !!path.folderPath).map(path => ({ filePath: path.folderPath }));
 			pathsToOpen = pathsToOpen.filter(path => !path.folderPath);
@@ -411,11 +411,25 @@ export class WindowsManager implements IWindowsMainService {
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, workspacesToOpen, workspacesToRestore, foldersToOpen, foldersToRestore, emptyToRestore, emptyToOpen, filesToOpen, filesToCreate, filesToDiff, foldersToAdd);
 
-		// Make sure the last active window gets focus if we opened multiple
-		if (usedWindows.length > 1 && this.windowsState.lastActiveWindow) {
-			let lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
-			if (lastActiveWindw.length) {
-				lastActiveWindw[0].focus();
+		// Make sure to pass focus to one of the windows if we open multiple
+		if (usedWindows.length > 1) {
+			let focusLast = true;
+
+			// Only focus the last active window if the user did not open a specific path via
+			// CLI or API. In those cases we do not want windows to get focus from previous
+			// session but actually one of the windows the user explicitly asked to open.
+			const focusLastActive = !openConfig.forceEmpty && !openConfig.cli._.length && (!openConfig.pathsToOpen || !openConfig.pathsToOpen.length);
+			if (focusLastActive && this.windowsState.lastActiveWindow) {
+				const lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
+				if (lastActiveWindw.length) {
+					lastActiveWindw[0].focus();
+					focusLast = false;
+				}
+			}
+
+			// Otherwise: focus last window we opened
+			if (focusLast) {
+				usedWindows[usedWindows.length - 1].focus();
 			}
 		}
 
@@ -552,7 +566,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle workspaces to open (instructed and to restore)
-		const allWorkspacesToOpen = arrays.distinct([...workspacesToOpen, ...workspacesToRestore], workspace => workspace.id); // prevent duplicates
+		const allWorkspacesToOpen = arrays.distinct([...workspacesToRestore, ...workspacesToOpen], workspace => workspace.id); // prevent duplicates
 		if (allWorkspacesToOpen.length > 0) {
 
 			// Check for existing instances
@@ -590,7 +604,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle folders to open (instructed and to restore)
-		const allFoldersToOpen = arrays.distinct([...foldersToOpen, ...foldersToRestore], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
+		const allFoldersToOpen = arrays.distinct([...foldersToRestore, ...foldersToOpen], folder => isLinux ? folder : folder.toLowerCase()); // prevent duplicates
 		if (allFoldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -754,7 +768,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Warn if the requested path to open does not exist
 			if (!path) {
-				const options: Electron.ShowMessageBoxOptions = {
+				const options: Electron.MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
@@ -1358,6 +1372,10 @@ export class WindowsManager implements IWindowsMainService {
 			return; // only care about untitled workspaces to ask for saving
 		}
 
+		if (e.window.config && !!e.window.config.extensionDevelopmentPath) {
+			return; // do not ask to save workspace when doing extension development
+		}
+
 		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
 			return; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
@@ -1385,7 +1403,7 @@ export class WindowsManager implements IWindowsMainService {
 			buttons.push(save, cancel, dontSave);
 		}
 
-		const options: Electron.ShowMessageBoxOptions = {
+		const options: Electron.MessageBoxOptions = {
 			title: this.environmentService.appNameLong,
 			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
 			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),

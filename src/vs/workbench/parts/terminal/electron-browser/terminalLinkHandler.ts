@@ -89,7 +89,7 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		const wrappedValidationCallback = (uri, element, callback) => {
+		const wrappedValidationCallback = (uri: string, element: HTMLElement, callback) => {
 			this._addTooltipEventListeners(element);
 			if (validationCallback) {
 				validationCallback(uri, element, callback);
@@ -195,7 +195,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _addTooltipEventListeners(element: HTMLElement): void {
-		let timeout = null;
+		let timeout: number = null;
 		let isMessageShowing = false;
 		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
 			element.classList.toggle('active', this._isLinkActivationModifierDown(e));

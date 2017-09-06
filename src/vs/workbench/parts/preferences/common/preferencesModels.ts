@@ -406,7 +406,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}
 			},
 			onArrayBegin: (offset: number, length: number) => {
-				let array = [];
+				let array: any[] = [];
 				onValue(array, offset, length);
 				previousParents.push(currentParent);
 				currentParent = array;
@@ -563,8 +563,8 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 		let settingsPropertyEndsAt = -1;
 		let nodeAfterSettingStartsAt = -1;
 
-		let rootProperties = [];
-		let ancestors = [];
+		let rootProperties: string[] = [];
+		let ancestors: string[] = [];
 		let currentProperty = '';
 
 		visit(content, <JSONVisitor>{

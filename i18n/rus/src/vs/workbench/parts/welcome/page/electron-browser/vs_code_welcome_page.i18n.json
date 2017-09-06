@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Быстро обращайтесь к командам и выполняйте поиск по командам с помощью палитры команд ({0})",
 	"welcomePage.interfaceOverview": "Общие сведения об интерфейсе",
 	"welcomePage.interfaceOverviewDescription": "Используйте визуальное наложение с выделением основных компонентов пользовательского интерфейса.",
+	"welcomePage.deployToAzure": "Развертывание приложений в облако",
+	"welcomePage.deployToAzureDescription": "Узнайте, как развернуть приложения Node в службу приложений Azure",
 	"welcomePage.interactivePlayground": "Интерактивная площадка",
 	"welcomePage.interactivePlaygroundDescription": "Опробуйте основные функции редактора в ходе краткого пошагового руководства."
 }
