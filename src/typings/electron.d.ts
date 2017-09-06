@@ -2645,8 +2645,10 @@ declare namespace Electron {
 		 * at the current mouse cursor position.
 		 * @param x Horizontal coordinate where the menu will be placed.
 		 * @param y Vertical coordinate where the menu will be placed.
+		 * @param positioningItem Number (optional) macOS - The index of the menu item to be positioned
+		 * under the mouse cursor at the specified coordinates. Default is -1.
 		 */
-		popup(browserWindow?: BrowserWindow, x?: number, y?: number): void;
+		popup(browserWindow?: BrowserWindow, options?: { x?: number, y?: number, positioningItem?: number }): void;
 		/**
 		 * Appends the menuItem to the menu.
 		 */
