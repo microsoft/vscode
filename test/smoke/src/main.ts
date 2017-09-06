@@ -143,7 +143,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log('*** Running npm install...');
-	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
 
 	console.log('*** Smoketest setup done!\n');
 }
