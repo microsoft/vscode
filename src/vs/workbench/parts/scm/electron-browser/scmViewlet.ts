@@ -362,7 +362,7 @@ class SourceControlView extends CollapsibleView {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.repository.provider.onDidChange(this.updateList, this, this.disposables);
+		this.repository.provider.onDidChangeResources(this.updateList, this, this.disposables);
 		this.updateList();
 	}
 

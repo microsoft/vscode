@@ -74,8 +74,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 			.filter(g => g.resources.length > 0 || !g.features.hideWhenEmpty);
 	}
 
-	private _onDidChange = new Emitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	private _onDidChangeResources = new Emitter<void>();
+	get onDidChangeResources(): Event<void> { return this._onDidChangeResources.event; }
 
 	private features: SCMProviderFeatures = {};
 
@@ -92,6 +92,9 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
+
+	private _onDidChange = new Emitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	constructor(
 		private proxy: ExtHostSCMShape,
@@ -184,7 +187,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			});
 		}
 
-		this._onDidChange.fire();
+		this._onDidChangeResources.fire();
 	}
 
 	$unregisterGroup(handle: number): void {

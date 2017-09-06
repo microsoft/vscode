@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { filterEvent } from 'vs/base/common/event';
+import { filterEvent, any as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
@@ -31,7 +31,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const changeDisposable = repository.provider.onDidChange(() => this.render());
+		const provider = repository.provider;
+		const onDidChange = anyEvent(provider.onDidChange, provider.onDidChangeResources);
+		const changeDisposable = onDidChange(() => this.render());
 
 		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
