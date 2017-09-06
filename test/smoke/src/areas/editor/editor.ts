@@ -11,6 +11,7 @@ import { Rename } from './rename';
 export class Editor {
 
 	private static VIEW_LINES = '.monaco-editor .view-lines';
+	private static LINE_NUMBERS = '.monaco-editor .margin .margin-view-overlays .line-numbers';
 	private static FOLDING_EXPANDED = '.monaco-editor .margin .margin-view-overlays>:nth-child(${INDEX}) .folding';
 	private static FOLDING_COLLAPSED = `${Editor.FOLDING_EXPANDED}.collapsed`;
 
@@ -65,6 +66,7 @@ export class Editor {
 		const currentLineIndex = await this.getViewLineIndex(line);
 		if (currentLineIndex) {
 			await this.spectron.client.waitForElement(`.monaco-editor .view-overlays>:nth-child(${currentLineIndex}) .current-line`);
+			return;
 		}
 		throw new Error('Cannot find line ' + line);
 	}
@@ -112,7 +114,7 @@ export class Editor {
 	}
 
 	private async getViewLineIndexWithoutWait(line: number): Promise<number | undefined> {
-		const lineNumbers = await this.spectron.webclient.selectorExecute(`.monaco-editor .line-numbers`,
+		const lineNumbers = await this.spectron.webclient.selectorExecute(Editor.LINE_NUMBERS,
 			elements => (Array.isArray(elements) ? elements : [elements]).map(element => element.textContent));
 		for (let index = 0; index < lineNumbers.length; index++) {
 			if (lineNumbers[index] === `${line}`) {
