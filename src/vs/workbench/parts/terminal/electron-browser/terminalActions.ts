@@ -758,7 +758,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 export class QuickOpenTermAction extends Action {
 
 	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Terminal: Switch Active Terminal");
+	public static LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
 
 	constructor(
 		id: string,
