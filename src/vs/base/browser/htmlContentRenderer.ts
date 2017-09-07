@@ -186,7 +186,7 @@ class StringStream {
 	}
 
 	public next(): string {
-		var next = this.peek();
+		const next = this.peek();
 		this.advance();
 		return next;
 	}
@@ -219,7 +219,7 @@ interface IFormatParseTree {
 }
 
 function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: IMouseEvent) => void) {
-	var child: Node;
+	let child: Node;
 
 	if (treeNode.type === FormatType.Text) {
 		child = document.createTextNode(treeNode.content);
@@ -231,7 +231,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionC
 		child = document.createElement('i');
 	}
 	else if (treeNode.type === FormatType.Action) {
-		var a = document.createElement('a');
+		const a = document.createElement('a');
 		a.href = '#';
 		DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionCallback(String(treeNode.index), event);
@@ -259,20 +259,20 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionC
 
 function parseFormattedText(content: string): IFormatParseTree {
 
-	var root: IFormatParseTree = {
+	const root: IFormatParseTree = {
 		type: FormatType.Root,
 		children: []
 	};
 
-	var actionItemIndex = 0;
-	var current = root;
-	var stack: IFormatParseTree[] = [];
-	var stream = new StringStream(content);
+	let actionItemIndex = 0;
+	let current = root;
+	const stack: IFormatParseTree[] = [];
+	const stream = new StringStream(content);
 
 	while (!stream.eos()) {
-		var next = stream.next();
+		let next = stream.next();
 
-		var isEscapedFormatType = (next === '\\' && formatTagType(stream.peek()) !== FormatType.Invalid);
+		const isEscapedFormatType = (next === '\\' && formatTagType(stream.peek()) !== FormatType.Invalid);
 		if (isEscapedFormatType) {
 			next = stream.next(); // unread the backslash if it escapes a format tag type
 		}
@@ -284,11 +284,11 @@ function parseFormattedText(content: string): IFormatParseTree {
 				current = stack.pop();
 			}
 
-			var type = formatTagType(next);
+			const type = formatTagType(next);
 			if (current.type === type || (current.type === FormatType.Action && type === FormatType.ActionClose)) {
 				current = stack.pop();
 			} else {
-				var newCurrent: IFormatParseTree = {
+				const newCurrent: IFormatParseTree = {
 					type: type,
 					children: []
 				};
@@ -313,7 +313,7 @@ function parseFormattedText(content: string): IFormatParseTree {
 
 		} else {
 			if (current.type !== FormatType.Text) {
-				var textCurrent: IFormatParseTree = {
+				const textCurrent: IFormatParseTree = {
 					type: FormatType.Text,
 					content: next
 				};

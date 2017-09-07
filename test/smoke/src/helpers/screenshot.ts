@@ -3,38 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../spectron/application';
-var fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
+import { Application } from 'spectron';
+import { SCREENSHOTS_DIR } from '../spectron/application';
+import { mkdirp } from './utilities';
 
-const __testTime = new Date().toISOString();
+export interface IScreenshot {
+	capture(name: string): Promise<void>;
+}
 
-export class Screenshot {
-	private index: number = 0;
-	private testPath: string;
+export class Screenshot implements IScreenshot {
 
-	constructor(private spectron: SpectronApplication, testName: string, testRetry: number) {
-		const testTime = this.sanitizeFolderName(__testTime);
-		testName = this.sanitizeFolderName(testName);
+	private location: string;
 
-		this.testPath = `test_data/screenshots/${testTime}/${testName}/${testRetry}`;
-		this.createFolder(this.testPath);
+	constructor(private application: Application, private relativeLocation: string = '') {
+		this.relativeLocation = this.sanitizeFolderName(this.relativeLocation);
 	}
 
-	public async capture(): Promise<any> {
-		const image = await this.spectron.app.browserWindow.capturePage();
-		await new Promise((c, e) => fs.writeFile(`${this.testPath}/${this.index++}.png`, image, err => err ? e(err) : c()));
+	public async capture(name: string): Promise<void> {
+		if (!this.location) {
+			await this.createLocation();
+		}
+		const image = await this.application.browserWindow.capturePage();
+		await new Promise((c, e) => fs.writeFile(`${this.location}/${name}.png`, image, err => err ? e(err) : c()));
 	}
 
-	private createFolder(name: string): void {
-		name.split('/').forEach((folderName, i, fullPath) => {
-			const folder = fullPath.slice(0, i + 1).join('/');
-			if (!fs.existsSync(folder)) {
-				fs.mkdirSync(folder);
-			}
-		});
+	private async createLocation(): Promise<void> {
+		this.location = this.relativeLocation ? path.join(SCREENSHOTS_DIR, this.relativeLocation) : SCREENSHOTS_DIR;
+		await mkdirp(this.location);
 	}
 
 	private sanitizeFolderName(name: string): string {
 		return name.replace(/[&*:\/]/g, '');
 	}
+}
+
+export class NullScreenshot implements IScreenshot {
+
+	public async capture(name: string): Promise<void> {
+		return Promise.resolve();
+	}
+
 }

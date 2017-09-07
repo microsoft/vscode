@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Accesso e ricerca rapida di comandi dal riquadro comandi ({0})",
 	"welcomePage.interfaceOverview": "Panoramica dell'interfaccia",
 	"welcomePage.interfaceOverviewDescription": "Immagine in sovrimpressione che evidenzia i principali componenti dell'interfaccia utente",
+	"welcomePage.deployToAzure": "Distribuisci le applicazioni nel cloud",
+	"welcomePage.deployToAzureDescription": "Informazioni sulla distribuzione di app Node in Servizio app di Azure",
 	"welcomePage.interactivePlayground": "Playground interattivo",
 	"welcomePage.interactivePlaygroundDescription": "Breve panoramica delle funzionalità essenziali dell'editor"
 }

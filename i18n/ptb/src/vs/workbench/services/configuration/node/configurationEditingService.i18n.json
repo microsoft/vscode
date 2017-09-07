@@ -7,10 +7,16 @@
 	"open": "Abrir configurações",
 	"close": "Fechar",
 	"saveAndRetry": "Salvar as configurações e tentar novamente",
+	"errorUnknownKey": "Não é possível gravar {0} porque {1} não é uma configuração registrada.",
+	"errorInvalidFolderConfiguration": "Não é possível gravar as configurações da pasta porque {0} não suporta o escopo de recurso de pasta.",
+	"errorInvalidUserTarget": "Não é possível gravar as configurações do usuário porque {0} não oferece suporte para o escopo global.",
+	"errorInvalidFolderTarget": "Não é possível gravar as configurações da pasta porque nenhum recurso é fornecido.",
+	"errorNoWorkspaceOpened": "Não é possível gravar {0} porque nenhum espaço de trabalho está aberto. Por favor, abra um espaço de trabalho primeiro e tente novamente.",
 	"errorInvalidConfiguration": "Não é possível gravar em configurações. Por favor abra **User Settings** para corrigir erros/avisos no arquivo e tente novamente.",
 	"errorInvalidConfigurationWorkspace": "Não é possível gravar em configurações. Por favor abra **Workspace Settings** para corrigir erros/avisos no arquivo e tente novamente.",
 	"errorConfigurationFileDirty": "Não é possível gravar em configurações, porque o arquivo foi alterado. Por favor, salve o arquivo **User Settings** e tente novamente.",
 	"errorConfigurationFileDirtyWorkspace": "Não é possível gravar em configurações, porque o arquivo foi alterado. Por favor, salve o arquivo **Workspace Settings** e tente novamente.",
 	"userTarget": "Configurações de Usuário",
-	"workspaceTarget": "Configurações de Espaço de Trabalho"
+	"workspaceTarget": "Configurações de Espaço de Trabalho",
+	"folderTarget": "Configurações de pasta"
 }

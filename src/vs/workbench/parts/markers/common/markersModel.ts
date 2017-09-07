@@ -15,8 +15,8 @@ import Messages from 'vs/workbench/parts/markers/common/messages';
 import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
-	add(resource: URI, markers: IMarker[]);
-	done();
+	add(resource: URI, markers: IMarker[]): void;
+	done(): void;
 }
 
 export class Resource {
@@ -171,9 +171,9 @@ export class MarkersModel {
 		};
 	}
 
-	public update(filterOptions: FilterOptions);
-	public update(resourceUri: URI, markers: IMarker[]);
-	public update(markers: IMarker[]);
+	public update(filterOptions: FilterOptions): void;
+	public update(resourceUri: URI, markers: IMarker[]): void;
+	public update(markers: IMarker[]): void;
 	public update(arg1?: any, arg2?: any) {
 		if (arg1 instanceof FilterOptions) {
 			this._filterOptions = arg1;

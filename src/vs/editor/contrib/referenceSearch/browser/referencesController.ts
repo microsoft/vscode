@@ -21,7 +21,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
@@ -67,7 +66,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IStorageService private _storageService: IStorageService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@optional(IPeekViewService) private _peekViewService: IPeekViewService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;

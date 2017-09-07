@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "從命令選擇區快速存取及搜尋命令 ({0})",
 	"welcomePage.interfaceOverview": "介面概觀",
 	"welcomePage.interfaceOverviewDescription": "使用視覺覆疊效果強調顯示 UI 的主要元件",
+	"welcomePage.deployToAzure": "佈署應用程式到雲端",
+	"welcomePage.deployToAzureDescription": "了解如何將結點應用程式部署至 Azure App Service",
 	"welcomePage.interactivePlayground": "Interactive Playground",
 	"welcomePage.interactivePlaygroundDescription": "嘗試使用逐步解說短片中的一些基本編輯器功能"
 }

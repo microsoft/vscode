@@ -574,7 +574,7 @@ export class Process implements IProcess {
 	}
 
 	public getAllThreads(): IThread[] {
-		const result = [];
+		const result: IThread[] = [];
 		this.threads.forEach(t => result.push(t));
 		return result;
 	}

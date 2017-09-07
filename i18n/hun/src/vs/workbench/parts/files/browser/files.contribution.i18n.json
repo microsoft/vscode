@@ -39,10 +39,10 @@
 	"dynamicHeight": "Meghatározza, hogy a megnyitott szerkesztőablakok szakasz magassága automatikusan illeszkedjen a megnyitott elemek számához vagy sem.",
 	"autoReveal": "Meghatározza, hogy a fájlkezelőben automatikusan fel legyenek fedve és ki legyenek jelölve a fájlok, amikor megnyitják őket.",
 	"enableDragAndDrop": "Meghatározza, hogy a fájlkezelőben áthelyezhetők-e a fájlok és mappák húzással.",
-	"sortOrder.default": "A fájlok és könyvtárak név szerint vannak rendezve, ABC-sorrendben. A könyvtárak a fájlok előtt vannak listázva.",
-	"sortOrder.mixed": "A fájlok és könyvtárak név szerint vannak rendezve, ABC-sorrendben. A fájlok és a könyvtárak közösen vannak rendezve.",
-	"sortOrder.filesFirst": "A fájlok és könyvtárak név szerint vannak rendezve, ABC-sorrendben. A fájlok a könyvtárak előtt vannak listázva.",
-	"sortOrder.type": "A fájlok és könyvtárak a kiterjesztésük szerint vannak rendezve, ABC-sorrendben. A könyvtárak a fájlok előtt vannak listázva.",
-	"sortOrder.modified": "A fájlok és könyvtárak a legutolsó módosítás dátuma szerint vannak rendezve, csökkenő sorrendben. A könyvtárak a fájlok előtt vannak listázva.",
-	"sortOrder": "Meghatározza a fájlok és könyvtárak rendezési módját a fájlkezelőben."
+	"sortOrder.default": "A fájlok és mappák név szerint vannak rendezve, ABC-sorrendben. A mappák a fájlok előtt vannak listázva.",
+	"sortOrder.mixed": "A fájlok és mappák név szerint vannak rendezve, ABC-sorrendben. A fájlok és a mappák közösen vannak rendezve.",
+	"sortOrder.filesFirst": "A fájlok és mappák név szerint vannak rendezve, ABC-sorrendben. A fájlok a mappák előtt vannak listázva.",
+	"sortOrder.type": "A fájlok és mappák a kiterjesztésük szerint vannak rendezve, ABC-sorrendben. A mappák a fájlok előtt vannak listázva.",
+	"sortOrder.modified": "A fájlok és mappák a legutolsó módosítás dátuma szerint vannak rendezve, csökkenő sorrendben. A mappák a fájlok előtt vannak listázva.",
+	"sortOrder": "Meghatározza a fájlok és mappák rendezési módját a fájlkezelőben. Az alapértelmezett rendezésen túl beállítható 'mixed' (a fájlok és mappák közösen vannak rendezve), 'type' (rendezés fájltípus szerint), 'modified' (rendezés utolsó módosítási dátum szerint) vagy 'filesFirst' (fájlok a mappák elé vannak rendezve) is."
 }

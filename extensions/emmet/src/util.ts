@@ -11,19 +11,19 @@ import { DocumentStreamReader } from './bufferStream';
 import { isStyleSheet } from 'vscode-emmet-helper';
 
 export const LANGUAGE_MODES: Object = {
-	'html': ['!', '.', '}', ':', '*', '$', ']'],
-	'jade': ['!', '.', '}', ':', '*', '$', ']'],
-	'slim': ['!', '.', '}', ':', '*', '$', ']'],
-	'haml': ['!', '.', '}', ':', '*', '$', ']'],
-	'xml': ['.', '}', '*', '$', ']'],
-	'xsl': ['!', '.', '}', '*', '$', ']'],
+	'html': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'jade': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'slim': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'css': [':', ';'],
 	'scss': [':', ';'],
 	'sass': [':'],
 	'less': [':', ';'],
 	'stylus': [':'],
-	'javascriptreact': ['.', '}', '*', '$'],
-	'typescriptreact': ['.', '}', '*', '$']
+	'javascriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'typescriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 // Explicitly map languages that have built-in grammar in VS Code to their parent language
@@ -256,13 +256,26 @@ export function sameNodes(node1: Node, node2: Node): boolean {
 	return (<vscode.Position>node1.start).isEqual(node2.start) && (<vscode.Position>node1.end).isEqual(node2.end);
 }
 
-export function getEmmetConfiguration() {
+export function getEmmetConfiguration(syntax: string) {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
+	const syntaxProfiles = Object.assign({}, emmetConfig['syntaxProfiles'] || {});
+
+	// jsx, xml and xsl syntaxes need to have self closing tags unless otherwise configured by user
+	if (syntax === 'jsx' || syntax === 'xml' || syntax === 'xsl') {
+		syntaxProfiles[syntax] = syntaxProfiles[syntax] || {};
+		if (typeof syntaxProfiles[syntax] === 'object'
+			&& !syntaxProfiles[syntax].hasOwnProperty('self_closing_tag') // Old Emmet format
+			&& !syntaxProfiles[syntax].hasOwnProperty('selfClosingStyle') // Emmet 2.0 format
+		) {
+			syntaxProfiles[syntax]['selfClosingStyle'] = 'xml';
+		}
+	}
+
 	return {
 		preferences: emmetConfig['preferences'],
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
-		syntaxProfiles: emmetConfig['syntaxProfiles'],
+		syntaxProfiles,
 		variables: emmetConfig['variables']
 	};
 }

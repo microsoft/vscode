@@ -565,6 +565,7 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
 	});
 
+
 	test('Transform -> FormatString#resolve', function () {
 
 		// shorthand functions
@@ -588,5 +589,16 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+  });
+  
+	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
+
+		const { placeholders } = new SnippetParser().parse('src="$1"', true);
+		const [first, second] = placeholders;
+
+		assert.equal(placeholders.length, 2);
+		assert.equal(first.index, 1);
+		assert.equal(second.index, 0);
+
 	});
 });

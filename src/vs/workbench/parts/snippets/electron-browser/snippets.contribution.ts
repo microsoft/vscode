@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
-import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
-import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
-
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { fileExists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,10 +16,47 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
-import * as snippetsTracker from './snippetsTracker';
-import * as tmSnippets from './TMSnippets';
-import * as winjs from 'vs/base/common/winjs.base';
-import * as workbenchContributions from 'vs/workbench/common/contributions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LanguageId } from 'vs/editor/common/modes';
+import { TPromise } from 'vs/base/common/winjs.base';
+
+export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
+
+export interface ISnippetsService {
+
+	_serviceBrand: any;
+
+	getSnippets(languageId: LanguageId): TPromise<Snippet[]>;
+
+	getSnippetsSync(languageId: LanguageId): Snippet[];
+}
+
+
+export class Snippet {
+	readonly name: string;
+	readonly prefix: string;
+	readonly description: string;
+	readonly codeSnippet: string;
+	readonly source: string;
+	readonly isBogous?: boolean;
+	readonly isFromExtension?: boolean;
+
+	static compare(a: Snippet, b: Snippet): number {
+		if (a.isFromExtension !== b.isFromExtension) {
+			if (a.isFromExtension) {
+				return 1;
+			} else {
+				return -1;
+			}
+		} else if (a.name > b.name) {
+			return 1;
+		} else if (a.name < b.name) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+}
 
 namespace OpenSnippetsAction {
 
@@ -37,14 +69,14 @@ namespace OpenSnippetsAction {
 		const environmentService = accessor.get(IEnvironmentService);
 		const windowsService = accessor.get(IWindowsService);
 
-		function openFile(filePath: string): winjs.TPromise<void> {
+		function openFile(filePath: string): TPromise<void> {
 			return windowsService.openWindow([filePath], { forceReuseWindow: true });
 		}
 
-		var modeIds = modeService.getRegisteredModes();
-		var picks: IPickOpenEntry[] = [];
+		const modeIds = modeService.getRegisteredModes();
+		let picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
-			var name = modeService.getLanguageName(modeId);
+			const name = modeService.getLanguageName(modeId);
 			if (name) {
 				picks.push({ label: name, id: modeId });
 			}
@@ -55,12 +87,12 @@ namespace OpenSnippetsAction {
 
 		return quickOpenService.pick(picks, { placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language for Snippet") }).then((language) => {
 			if (language) {
-				var snippetPath = join(environmentService.appSettingsHome, 'snippets', language.id + '.json');
+				const snippetPath = join(environmentService.appSettingsHome, 'snippets', language.id + '.json');
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						return openFile(snippetPath);
 					}
-					var defaultContent = [
+					const defaultContent = [
 						'{',
 						'/*',
 						'\t// Place your snippets for ' + language.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
@@ -86,7 +118,7 @@ namespace OpenSnippetsAction {
 					});
 				});
 			}
-			return winjs.TPromise.as(null);
+			return TPromise.as(null);
 		});
 	});
 
@@ -136,11 +168,3 @@ const schema: IJSONSchema = {
 Registry
 	.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution)
 	.registerSchema(schemaId, schema);
-
-Registry
-	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
-	.registerWorkbenchContribution(snippetsTracker.SnippetsTracker);
-
-Registry
-	.as<workbenchContributions.IWorkbenchContributionsRegistry>(workbenchContributions.Extensions.Workbench)
-	.registerWorkbenchContribution(tmSnippets.MainProcessTextMateSnippet);

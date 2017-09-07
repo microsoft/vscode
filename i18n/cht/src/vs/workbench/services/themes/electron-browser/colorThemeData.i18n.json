@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "剖析 JSON 佈景主題檔案時發生問題: {0}",
 	"error.invalidformat.colors": "剖析彩色佈景主題檔案 {0} 時出現問題。屬性 'settings' 不是 'object' 類型。",
-	"error.invalidformat.tokenColors": "剖析彩色佈景主題檔案 {0} 時出現問題。屬性 'tokenColors' 應為指定顏色的陣列，或為通往文字配對佈景主題檔案的路徑",
+	"error.invalidformat.tokenColors": "剖析色彩佈景主題檔案 {0} 時發生問題。屬性 'tokenColors' 應是指定色彩的陣列或是 TextMate 佈景主題檔案的路徑。",
 	"error.plist.invalidformat": "剖析 tmTheme 檔案 {0} 時出現問題。'settings' 不是陣列。",
 	"error.cannotparse": "剖析 tmTheme 檔案 {0} 時發生問題",
 	"error.cannotload": "載入 tmTheme 檔案 {0} 時發生問題: {1}"

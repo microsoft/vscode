@@ -1053,7 +1053,7 @@ namespace ConfigurationProperties {
 		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includePresentation): Tasks.ConfigurationProperties {
+	export function from(this: void, external: ConfigurationProperties, context: ParseContext, includePresentation: boolean): Tasks.ConfigurationProperties {
 		if (!external) {
 			return undefined;
 		}

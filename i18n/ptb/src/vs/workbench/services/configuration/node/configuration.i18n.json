@@ -7,11 +7,14 @@
 	"vscode.extension.contributes.configuration": "Contribui às definições de configuração.",
 	"vscode.extension.contributes.configuration.title": "Um resumo das configurações. Este rótulo será usado no arquivo de configurações como um comentário de separação.",
 	"vscode.extension.contributes.configuration.properties": "Descrição das propriedades de configuração.",
+	"scope.window.description": "Janela de configuração específica que pode ser configurada nas configurações do usuário ou área de trabalho.",
+	"scope.resource.description": "Configuração específica do recurso que pode ser configurada nas configurações do usuário, espaço de trabalho ou pasta.",
+	"scope.description": "Escopo em que a configuração é aplicável. Escopos disponíveis são 'janela' e 'recurso'.",
 	"invalid.type": "Se definido, 'configuration.type' deve ser do tipo 'object'",
 	"invalid.title": "'configuration.title' deve ser um string",
 	"vscode.extension.contributes.defaultConfiguration": "Contribui às definições de configuração padrão do editor por linguagem.",
 	"invalid.properties": "'configuration.properties' deve ser um objeto",
-	"workspaceConfig.id.description": "Identificador de espaço de trabalho. Usado para armazenar o estado interno do espaço de trabalho, que pode ser perdido em mudança.",
-	"workspaceConfig.folders.description": "Lista de pastas a serem carregadas na área de trabalho. Deve ser um caminho de arquivo, por exemplo, 'file:///root/folderA'",
+	"workspaceConfig.folders.description": "Lista de pastas para ser carregada no espaço de trabalho. Deve ser um caminho para um arquivo. Por exemplo '/root/pastaA' ou './pastaA' para um caminho relativo que será determinado de acordo com o local do arquivo no espaço de trabalho.",
+	"workspaceConfig.folder.description": "Um caminho para um arquivo. Por exemplo, '/root /pastaA' ou './pastaA' para um caminho relativo que será determinado de acordo com o local do arquivo no espaço de trabalho.",
 	"workspaceConfig.settings.description": "Configurações de espaço de trabalho"
 }

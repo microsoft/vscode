@@ -11,9 +11,11 @@
 	"ConfigurationParser.unknownMatcherKind": "Avviso: il matcher problemi definito è sconosciuto. I tipi supportati sono string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "Errore: il riferimento a problemMatcher non è valido: {0}\n",
 	"ConfigurationParser.noTaskType": "Errore: la configurazione di tasks deve contenere una proprietà di tipo. La configurazione verrà ignorata.\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "Errore: non ci sono attività registrate di tipo '{0}'. Non è stata installata un'estensione che fornisce un provider di task corrispondente?",
 	"ConfigurationParser.notCustom": "Errore: tasks non è dichiarato come un'attività personalizzata. La configurazione verrà ignorata.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Errore: le attività devono specificare una proprietà taskName. L'attività verrà ignorata.\n{0}\n",
 	"taskConfiguration.shellArgs": "Avviso: l'attività '{0}' è un comando della shell e il nome del comando o uno dei relativi argomenti contiene spazi senza codice di escape. Per garantire la corretta indicazione della riga di comando, unire gli argomenti nel comando.",
 	"taskConfiguration.noCommandOrDependsOn": "Errore: l'attività '{0}' non specifica un comando né una proprietà dependsOn. L'attività verrà ignorata. La sua definizione è:\n{1}",
-	"taskConfiguration.noCommand": "Errore: l'attività '{0}' non definisce un comando. L'attività verrà ignorata. Definizione dell'attività:\n{1}"
+	"taskConfiguration.noCommand": "Errore: l'attività '{0}' non definisce un comando. L'attività verrà ignorata. Definizione dell'attività:\n{1}",
+	"TaskParse.noOsSpecificGlobalTasks": "L'attività versione 2.0.0 non supporta attività specifiche globali del sistema operativo. Convertirle in un'attività con un comando specifico del sistema operativo. Attività interessate:\n{0}"
 }

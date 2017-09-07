@@ -196,6 +196,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			// Update editor options after having set the input. We do this because there can be
 			// editor input specific options (e.g. an ARIA label depending on the input showing)
 			this.updateEditorConfiguration();
+			this._editorContainer.getHTMLElement().setAttribute('aria-label', this.computeAriaLabel());
 		});
 	}
 
@@ -240,7 +241,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 */
 	protected saveTextEditorViewState(key: string): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		let textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (!textEditorViewStateMemento) {
 			textEditorViewStateMemento = Object.create(null);
 			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
@@ -248,7 +249,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorViewState = this.getControl().saveViewState();
 
-		let lastKnownViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		let lastKnownViewState = textEditorViewStateMemento[key];
 		if (!lastKnownViewState) {
 			lastKnownViewState = Object.create(null);
 			textEditorViewStateMemento[key] = lastKnownViewState;
@@ -264,7 +265,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 */
 	protected clearTextEditorViewState(keys: string[]): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
 			keys.forEach(key => delete textEditorViewStateMemento[key]);
 		}
@@ -275,9 +276,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 */
 	protected loadTextEditorViewState(key: string): IEditorViewState {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			const viewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			const viewState = textEditorViewStateMemento[key];
 			if (viewState) {
 				return viewState[this.position];
 			}

@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import paths = require('vs/base/common/paths');
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
@@ -163,7 +163,7 @@ export class OpenIntegratedTerminalAction extends AbstractOpenInTerminalAction {
 	public run(event?: any): TPromise<any> {
 		let pathToOpen = this.getPathToOpen();
 
-		var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+		const instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
 		if (instance) {
 			this.integratedTerminalService.setActiveInstance(instance);
 			this.integratedTerminalService.showPanel(true);

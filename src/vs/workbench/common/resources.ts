@@ -59,7 +59,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 
 export class ResourceGlobMatcher {
 
-	private static readonly NO_ROOT = null;
+	private static readonly NO_ROOT: string = null;
 
 	private _onExpressionChange: Emitter<void>;
 	private toUnbind: IDisposable[];

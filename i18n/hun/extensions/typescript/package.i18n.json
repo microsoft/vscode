@@ -9,7 +9,7 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Függvények kiegészítése paraméterdefiníciójukkal.",
 	"typescript.tsdk.desc": "A tsservert és a lib*.d.ts fájlokat tartalmazó mappa elérési útja.",
-	"typescript.disableAutomaticTypeAcquisition": "Automatikus típusdefiníció-letöltés letiltása. Legalább 2.0.6-os TypeScriptet igényel, és a módosítás után újraindítás szükséges.",
+	"typescript.disableAutomaticTypeAcquisition": "Automatikus típusdefiníció-letöltés letiltása. Legalább 2.0.6-os TypeScriptet igényel.",
 	"typescript.tsserver.log": "Engedélyezi a TS-szerver naplózását egy fájlba. Ez a napló a TS-szerverrel kapcsolatos problémák diagnosztizálására használható. A napló tartalmazhat elérési utakat, forráskódot és más potenciálisan érzékeny, projekttel kapcsolatos adatot.",
 	"typescript.tsserver.trace": "Engedélyezi a TS-szervernek küldött üzenetek naplózását. Ez a napló a TS-szerverrel kapcsolatos problémák diagnosztizálására használható. A napló tartalmazhat elérési utakat, forráskódot és más potenciálisan érzékeny, projekttel kapcsolatos adatot. ",
 	"typescript.validate.enable": "TypeScript-validálás engedélyezése vagy letiltása.",

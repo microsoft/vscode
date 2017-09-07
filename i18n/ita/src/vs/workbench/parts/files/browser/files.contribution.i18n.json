@@ -38,5 +38,11 @@
 	"openEditorsVisible": "Numero di editor visualizzati nel riquadro degli editor aperti. Impostarlo su 0 per nascondere il riquadro.",
 	"dynamicHeight": "Controlla se l'altezza della sezione degli editor aperti deve essere adattata o meno dinamicamente al numero di elementi.",
 	"autoReveal": "Controlla se Esplora risorse deve rivelare automaticamente e selezionare i file durante l'apertura.",
-	"enableDragAndDrop": "Controlla se Esplora risorse deve consentire lo spostamento di file e cartelle tramite trascinamento della selezione."
+	"enableDragAndDrop": "Controlla se Esplora risorse deve consentire lo spostamento di file e cartelle tramite trascinamento della selezione.",
+	"sortOrder.default": "I file e le cartelle vengono ordinati in ordine alfabetico in base al nome. Le cartelle vengono visualizzate prima dei file.",
+	"sortOrder.mixed": "I file e le cartelle vengono ordinati ordine alfabetico in base al nome, in un unico elenco ordinato.",
+	"sortOrder.filesFirst": "I file e le cartelle vengono ordinati in ordine alfabetico in base al nome. I file vengono visualizzati prima delle cartelle.",
+	"sortOrder.type": "I file e le cartelle vengono ordinati in ordine alfabetico in base all'estensione. Le cartelle vengono visualizzate prima dei file.",
+	"sortOrder.modified": "I file e le cartelle vengono ordinati in ordine decrescente in base alla data dell'ultima modifica. Le cartelle vengono visualizzate prima dei file.",
+	"sortOrder": "Controlla l'ordinamento di file e cartelle in Esplora risorse. Oltre all'ordinamento predefinito, è possibile impostare l'ordine su 'mixed' (file e cartelle vengono ordinati insieme), 'type' (in base al tipo di file), 'modified' (in base alla data dell'ultima modifica) o 'filesFirst' (i file vengono ordinati prima delle cartelle)."
 }

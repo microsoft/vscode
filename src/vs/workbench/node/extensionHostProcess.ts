@@ -77,7 +77,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
 			const unhandledPromises: TPromise<any>[] = [];
-			process.on('unhandledRejection', (reason, promise) => {
+			process.on('unhandledRejection', (reason: any, promise: TPromise<any>) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {
 					const idx = unhandledPromises.indexOf(promise);
@@ -88,7 +88,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 					}
 				}, 1000);
 			});
-			process.on('rejectionHandled', promise => {
+			process.on('rejectionHandled', (promise: TPromise<any>) => {
 				const idx = unhandledPromises.indexOf(promise);
 				if (idx >= 0) {
 					unhandledPromises.splice(idx, 1);
@@ -96,7 +96,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 			});
 
 			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function (err) {
+			process.on('uncaughtException', function (err: Error) {
 				onUnexpectedError(err);
 			});
 

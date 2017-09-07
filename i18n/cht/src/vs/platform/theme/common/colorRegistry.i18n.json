@@ -53,6 +53,9 @@
 	"badgeBackground": "標記的背景顏色。標記為小型的訊息標籤,例如搜尋結果的數量。",
 	"badgeForeground": "標記的前景顏色。標記為小型的訊息標籤,例如搜尋結果的數量。",
 	"scrollbarShadow": "指出在捲動該檢視的捲軸陰影。",
+	"scrollbarSliderBackground": "捲軸滑桿的背景顏色。",
+	"scrollbarSliderHoverBackground": "動態顯示時捲軸滑桿的背景顏色。",
+	"scrollbarSliderActiveBackground": "使用中狀態下捲軸滑桿的背景顏色。",
 	"progressBarBackground": "長時間運行進度條的背景色彩.",
 	"editorBackground": "編輯器的背景色彩。",
 	"editorForeground": "編輯器的預設前景色彩。",
@@ -82,5 +85,7 @@
 	"mergeBorder": "內嵌合併衝突中標頭及分隔器的邊界色彩。",
 	"overviewRulerCurrentContentForeground": "目前內嵌合併衝突的概觀尺規前景。",
 	"overviewRulerIncomingContentForeground": "傳入內嵌合併衝突的概觀尺規前景。",
-	"overviewRulerCommonContentForeground": "內嵌合併衝突中的共同上階概觀尺規前景。"
+	"overviewRulerCommonContentForeground": "內嵌合併衝突中的共同上階概觀尺規前景。",
+	"overviewRulerFindMatchForeground": "尋找比對的概觀尺規標記色彩。",
+	"overviewRulerSelectionHighlightForeground": "選取項目醒目提示的概觀尺規標記色彩。"
 }

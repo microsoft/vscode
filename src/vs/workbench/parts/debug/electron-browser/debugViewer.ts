@@ -152,7 +152,10 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+						.done(() => {
+							tree.refresh(element, false);
+							debugService.evaluateWatchExpressions();
+						}, errors.onUnexpectedError);
 				}
 			}
 
@@ -217,7 +220,7 @@ export class BaseDebugController extends DefaultController {
 		tree.setFocus(element);
 
 		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx + 1, y: event.posy };
+			const anchor = { x: event.posx, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {

@@ -10,6 +10,13 @@
 			}
 		},
 		{
+			"scope": "meta.embedded",
+			"settings": {
+				"foreground": "#D4D4D4",
+				"background": "#1E1E1E"
+			}
+		},
+		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"

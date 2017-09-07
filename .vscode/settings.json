@@ -16,7 +16,8 @@
 		".build/**": true,
 		"out*/**": true,
 		"i18n/**": true,
-		"extensions/**/out/**": true
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true
 	},
 	"tslint.enable": true,
 	"lcov.path": [

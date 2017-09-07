@@ -7,8 +7,11 @@
 	"workbench.action.terminal.toggleTerminal": "Activer/désactiver le terminal intégré",
 	"workbench.action.terminal.kill": "Tuer l'instance active du terminal",
 	"workbench.action.terminal.kill.short": "Tuer le terminal",
+	"workbench.action.terminal.quickKill": "Tuer l'instance de terminal",
 	"workbench.action.terminal.copySelection": "Copier la sélection",
 	"workbench.action.terminal.selectAll": "Tout Sélectionner",
+	"workbench.action.terminal.deleteWordLeft": "Supprimer le mot à gauche",
+	"workbench.action.terminal.deleteWordRight": "Supprimer le mot à droite",
 	"workbench.action.terminal.new": "Créer un terminal intégré",
 	"workbench.action.terminal.new.short": "Nouveau terminal",
 	"workbench.action.terminal.focus": "Focus sur le terminal",
@@ -33,5 +36,8 @@
 	"workbench.action.terminal.rename": "Renommer",
 	"workbench.action.terminal.rename.prompt": "Entrer le nom du terminal",
 	"workbench.action.terminal.focusFindWidget": "Focus sur le widget de recherche",
-	"workbench.action.terminal.hideFindWidget": "Masquer le widget de recherche"
+	"workbench.action.terminal.hideFindWidget": "Masquer le widget de recherche",
+	"nextTerminalFindTerm": "Afficher le terme de recherche suivant",
+	"previousTerminalFindTerm": "Afficher le terme de recherche précédent",
+	"quickOpenTerm": "Terminal : Changer de terminal actif"
 }

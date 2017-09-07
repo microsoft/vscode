@@ -11,6 +11,7 @@
 	"ConfigurationParser.unknownMatcherKind": "Uyarı: tanımlanan sorun eşleştirici bilinmiyor. Desteklenen türler: dize | ProblemMatcher | (dize | ProblemMatcher)[].\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "Hata: Geçersiz problemMatcher başvusu: {0}\n",
 	"ConfigurationParser.noTaskType": "Hata: 'tasks' yapılandırması bir 'type' özelliğine sahip olmalıdır. Yapılandırma yok sayılacaktır.\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "Hata: '{0}' olarak kayıtlı bir görev türü yok. İlgili görev sağlayıcısını içeren bir eklentiyi yüklemeyi mi unuttunuz?",
 	"ConfigurationParser.notCustom": "Hata: 'tasks' bir özel görev olarak tanımlanmamış. Yapılandırma yok sayılacaktır.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Hata: 'tasks' bir 'taskName' özelliği belirtmelidir. Görev yok sayılacaktır.\n{0}\n",
 	"taskConfiguration.shellArgs": "Uyarı: '{0}' görevi bir kabuk komutudur ve komut adı veya argümanlarından biri kaçış karakteri içermeyen boşluklar içeriyor. Doğru komut satırı alıntılamasını sağlamak için lütfen argümanları komutlarla birleştirin.",

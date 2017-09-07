@@ -18,78 +18,54 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMode } from 'vs/editor/common/modes';
+import { FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
+const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes");
+
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution, ITextModelContentProvider {
+export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: ResourceMap<() => void>;
 	private toUnbind: IDisposable[];
 	private conflictResolutionContext: IContextKey<boolean>;
+	private activeConflictResolutionResource: URI;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextModelService textModelService: ITextModelService
 	) {
+		this.toUnbind = [];
 		this.messages = new ResourceMap<() => void>();
 		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
-		this.toUnbind = [];
 
-		// Register as text model content provider that supports to load a resource as it actually
-		// is stored on disk as opposed to using the file:// scheme that will return a dirty buffer
-		// if there is one.
-		this.textModelResolverService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, this);
+		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
+		this.toUnbind.push(provider);
+
+		const registrationDisposal = textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider);
+		this.toUnbind.push(registrationDisposal);
 
 		// Hook into model
 		TextFileEditorModel.setSaveErrorHandler(this);
 
 		this.registerListeners();
-	}
-
-	public provideTextContent(resource: URI): TPromise<IModel> {
-		const fileOnDiskResource = URI.file(resource.fsPath);
-
-		// Make sure our file from disk is resolved up to date
-		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
-			let codeEditorModel = this.modelService.getModel(resource);
-			if (codeEditorModel) {
-				this.modelService.updateModel(codeEditorModel, content.value);
-			} else {
-				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
-
-				let mode: TPromise<IMode>;
-				if (fileOnDiskModel) {
-					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
-				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
-				}
-
-				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
-			}
-
-			return codeEditorModel;
-		});
 	}
 
 	public getId(): string {
@@ -104,14 +80,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	private onEditorsChanged(): void {
 		let isActiveEditorSaveConflictResolution = false;
-		const activeEditor = this.editorService.getActiveEditor();
+		let activeConflictResolutionResource: URI;
 
-		if (activeEditor && activeEditor.input instanceof DiffEditorInput && activeEditor.input.originalInput instanceof ResourceEditorInput) {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.input instanceof DiffEditorInput && activeEditor.input.originalInput instanceof ResourceEditorInput && activeEditor.input.modifiedInput instanceof FileEditorInput) {
 			const resource = activeEditor.input.originalInput.getResource();
-			isActiveEditorSaveConflictResolution = resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME;
+			if (resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME) {
+				isActiveEditorSaveConflictResolution = true;
+				activeConflictResolutionResource = activeEditor.input.modifiedInput.getResource();
+			}
 		}
 
 		this.conflictResolutionContext.set(isActiveEditorSaveConflictResolution);
+		this.activeConflictResolutionResource = activeConflictResolutionResource;
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {
@@ -123,12 +104,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 
 	public onSaveError(error: any, model: ITextFileEditorModel): void {
-		let message: IMessageWithAction;
+		let message: IMessageWithAction | string;
 		const resource = model.getResource();
 
 		// Dirty write prevention
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-			message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
+
+			// If the user tried to save from the opened conflict editor, show its message again
+			// Otherwise show the message that will lead the user into the save conflict editor.
+			if (this.activeConflictResolutionResource && this.activeConflictResolutionResource.toString() === model.getResource().toString()) {
+				message = conflictEditorHelp;
+			} else {
+				message = this.instantiationService.createInstance(ResolveSaveConflictMessage, model, null);
+			}
 		}
 
 		// Any other save error
@@ -190,7 +178,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 
 		// Show message and keep function to hide in case the file gets saved/reverted
-		this.messages.set(model.getResource(), this.messageService.show(Severity.Error, message));
+		this.messages.set(model.getResource(), typeof message === 'string' ? this.messageService.show(Severity.Error, message) : this.messageService.show(Severity.Error, message));
 	}
 
 	public dispose(): void {
@@ -239,7 +227,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
 
 						// Inform user
-						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, nls.localize('userGuide', "Use the actions in the editor tool bar to the right to either **undo** your changes or **overwrite** the content on disk with your changes")));
+						pendingResolveSaveConflictMessages.push(this.messageService.show(Severity.Info, conflictEditorHelp));
 					});
 				}
 
@@ -252,6 +240,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
 	const resolverService = accessor.get(ITextModelService);
+	const modelService = accessor.get(IModelService);
 
 	const editor = editorService.getActiveEditor();
 	const input = editor.input;
@@ -263,11 +252,11 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
-		// revert to be able to save
+		// Revert to be able to save
 		return model.revert().then(() => {
 
-			// Restore user value
-			model.textEditorModel.setValue(localModelValue);
+			// Restore user value (without loosing undo stack)
+			modelService.updateModel(model.textEditorModel, localModelValue);
 
 			// Trigger save
 			return model.save().then(() => {
@@ -278,6 +267,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 					// Clean up
 					input.dispose();
 					reference.dispose();
+					editorService.closeEditor(position, input);
 				});
 			});
 		});
@@ -306,6 +296,7 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 				// Clean up
 				input.dispose();
 				reference.dispose();
+				editorService.closeEditor(position, input);
 			});
 		});
 	});

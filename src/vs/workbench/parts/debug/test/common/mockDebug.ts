@@ -83,6 +83,10 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
+	public evaluateWatchExpressions(): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}

@@ -219,7 +219,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return this._visibleLines.onLinesInserted(e);
 	}
 	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		let desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getCurrentViewport(), e.range, e.verticalType);
+		// Using the future viewport here in order to handle multiple
+		// incoming reveal range requests that might all desire to be animated
+		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.range, e.verticalType);
 
 		// validate the new desired scroll top
 		let newScrollPosition = this._context.viewLayout.validateScrollPosition({ scrollTop: desiredScrollTop });
@@ -239,7 +241,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._horizontalRevealRequest = null;
 		}
 
-		if (e.scrollType === ScrollType.Smooth) {
+		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
+		if (e.scrollType === ScrollType.Smooth && scrollTopDelta > this._lineHeight) {
 			this._context.viewLayout.setScrollPositionSmooth(newScrollPosition);
 		} else {
 			this._context.viewLayout.setScrollPositionNow(newScrollPosition);

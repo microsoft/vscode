@@ -1194,7 +1194,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			[positionOneEditors, positionTwoEditors, positionThreeEditors].forEach((editors, index) => {
 				const group = this.stacks.groupAt(index);
 				if (group) {
-					editors.forEach(editor => group.openEditor(editor.input, { pinned: true })); // group could be null if one openeditor call failed!
+
+					// Make sure we are keeping the order as the editors are passed to us. We have to set
+					// an explicit index because otherwise we would put editors in the wrong order
+					// (see https://github.com/Microsoft/vscode/issues/30364)
+					const startingIndex = group.indexOf(group.activeEditor) + 1;
+					editors.forEach((editor, offset) => group.openEditor(editor.input, { pinned: true, index: (startingIndex + offset) }));
 				}
 			});
 

@@ -11,6 +11,7 @@
 	"ConfigurationParser.unknownMatcherKind": "Figyelem: a megadott problémaillesztő ismeretlen. A támogatott típusok: string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
 	"ConfigurationParser.invalidVaraibleReference": "Hiba: érvénytelen problemMatcher-referencia: {0}\n",
 	"ConfigurationParser.noTaskType": "Hiba: a feladatkonfigurációnak rendelkeznie kell type tulajdonsággal. A konfiguráció figyelmen kívül lesz hagyva.\n{0}\n",
+	"ConfigurationParser.noTypeDefinition": "Hiba: nincs '{0}' azonosítójú feladattípus regisztrálva. Elfelejtett telepíteni egy kiegészítőt, ami a feladat szolgáltatásáért felelős?",
 	"ConfigurationParser.notCustom": "Hiba: a feladat nem egyedi feladatként van definiálva. A konfiguráció figyelmen kívül lesz hagyva.\n{0}\n",
 	"ConfigurationParser.noTaskName": "Hiba: a feladathoz meg kell adni a taskName tulajdonságot. A feladat figyelmen kívül lesz hagyva.\n{0}\n",
 	"taskConfiguration.shellArgs": "Figyelmeztetés: a(z) '{0}' feladat egy rendszerparancs, és vagy a parancs nevében vagy az argumentumok egyikében escape nélküli szóköz található. A megfelelő idézőjelezés érdekében olvassza bele az argumentumokat a parancsba.",

@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "Condition qui doit être vraie pour afficher cette vue",
 	"vscode.extension.contributes.views": "Ajoute des vues à l'éditeur",
 	"views.explorer": "Mode Explorateur",
+	"views.debug": "Debug View",
 	"locationId.invalid": "'{0}' n'est pas un emplacement de vue valide"
 }

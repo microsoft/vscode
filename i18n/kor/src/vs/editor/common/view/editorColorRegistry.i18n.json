@@ -8,6 +8,7 @@
 	"lineHighlightBorderBox": "커서 위치의 줄 테두리에 대한 배경색입니다.",
 	"rangeHighlight": "빠른 열기 및 찾기 기능 등을 통해 강조 표시된 영역의 배경색입니다.",
 	"caret": "편집기 커서 색입니다.",
+	"editorCursorBackground": "편집기 커서의 배경색입니다. 블록 커서와 겹치는 글자의 색상을 사용자 정의할 수 있습니다.",
 	"editorWhitespaces": "편집기의 공백 문자 색입니다.",
 	"editorIndentGuides": "편집기 들여쓰기 안내선 색입니다.",
 	"editorLineNumbers": "편집기 줄 번호 색입니다.",
@@ -20,5 +21,9 @@
 	"errorForeground": "편집기 내 오류 표시선의 전경색입니다.",
 	"errorBorder": "편집기 내 오류 표시선의 테두리 색입니다.",
 	"warningForeground": "편집기 내 경고 표시선의 전경색입니다.",
-	"warningBorder": "편집기 내 경고 표시선의 테두리 색입니다."
+	"warningBorder": "편집기 내 경고 표시선의 테두리 색입니다.",
+	"overviewRulerRangeHighlight": "범위 강조 표시의 개요 눈금자 마커 색입니다.",
+	"overviewRuleError": "오류의 개요 눈금자 마커 색입니다.",
+	"overviewRuleWarning": "경고의 개요 눈금자 마커 색입니다.",
+	"overviewRuleInfo": "정보의 개요 눈금자 마커 색입니다."
 }

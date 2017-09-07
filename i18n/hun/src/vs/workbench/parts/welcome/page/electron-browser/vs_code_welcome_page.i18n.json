@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Parancsok gyors listázása és keresése a parancskatalógusban ({0})",
 	"welcomePage.interfaceOverview": "Felhasználói felület áttekintése",
 	"welcomePage.interfaceOverviewDescription": "Fedvény, ami vizuálisan bemutatja a felhasználói felület legfőbb részeit.",
+	"welcomePage.deployToAzure": "Alkalmazások telepítése a felhőbe",
+	"welcomePage.deployToAzureDescription": "Tudja meg, hogyan telepítheti Node-alkalmazásait az Azure App Service-re",
 	"welcomePage.interactivePlayground": "Interaktív játszótér",
 	"welcomePage.interactivePlaygroundDescription": "Próbálja ki a szerkesztő funkcióit egy rövid bemutató keretében!"
 }

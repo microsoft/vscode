@@ -85,5 +85,7 @@
 	"mergeBorder": "Colore bordo su intestazioni e sulla barra di divisione di conflitti di merge in linea.",
 	"overviewRulerCurrentContentForeground": "Colore primo piano righello panoramica attuale per i conflitti di merge in linea.",
 	"overviewRulerIncomingContentForeground": "Colore primo piano del righello panoramica modifiche in arrivo per i conflitti di merge in linea.",
-	"overviewRulerCommonContentForeground": "Colore primo piano righello panoramica dell'antenato comune per i conflitti di merge in linea."
+	"overviewRulerCommonContentForeground": "Colore primo piano righello panoramica dell'antenato comune per i conflitti di merge in linea.",
+	"overviewRulerFindMatchForeground": "Colore del marcatore del righello delle annotazioni per le corrispondenze della ricerca.",
+	"overviewRulerSelectionHighlightForeground": "Colore del marcatore del righello delle annotazioni per le evidenziazioni delle selezioni."
 }

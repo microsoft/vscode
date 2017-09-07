@@ -341,6 +341,7 @@ export class ExtensionHostProcessWorker {
 				parentPid: process.pid,
 				environment: {
 					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
+					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
 					userExtensionsHome: this._environmentService.extensionsPath,

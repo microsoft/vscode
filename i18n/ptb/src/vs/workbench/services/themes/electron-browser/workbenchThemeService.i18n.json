@@ -29,5 +29,13 @@
 	"workbenchColors": "Substitui as cores do tema do tema de cores atualmente selecionado.",
 	"workbenchColors.deprecated": "A configuração não é mais experimental e foi renomeada para 'workbench.colorCustomizations'",
 	"workbenchColors.deprecatedDescription": "Use 'workbench.colorCustomizations'",
-	"editorColors": "Substitui as cores e o estilo da fonte do editor do tema de cores atualmente selecionado."
+	"editorColors": "Substitui as cores e o estilo da fonte do editor do tema de cores atualmente selecionado.",
+	"editorColors.comments": "Define as cores e estilos para os comentários",
+	"editorColors.strings": "Define as cores e estilos para textos literais.",
+	"editorColors.keywords": "Define as cores e estilos para palavras-chave.",
+	"editorColors.numbers": "Define as cores e estilos para literais numéricos.",
+	"editorColors.types": "Define as cores e estilos para declarações de tipo e referências.",
+	"editorColors.functions": "Define as cores e estilos para declarações de funções e referências.",
+	"editorColors.variables": "Define as cores e estilos para declarações de variáveis e referências.",
+	"editorColors.textMateRules": "Define as cores e estilos usando regras de temas textmate (avançado)."
 }

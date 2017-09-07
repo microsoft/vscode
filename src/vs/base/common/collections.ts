@@ -29,7 +29,7 @@ const hasOwnProperty = Object.prototype.hasOwnProperty;
  */
 export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[] {
 	const result: T[] = [];
-	for (var key in from) {
+	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			result.push(from[key]);
 		}
@@ -39,7 +39,7 @@ export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[
 
 export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): number {
 	let count = 0;
-	for (var key in from) {
+	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			count += 1;
 		}

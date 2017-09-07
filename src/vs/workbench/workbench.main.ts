@@ -16,7 +16,7 @@ import 'vs/editor/editor.all';
 import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
 // Views
-import 'vs/workbench/parts/views/browser/viewsExtensionPoint';
+import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
@@ -89,6 +89,9 @@ import 'vs/workbench/parts/codeEditor/codeEditor.contribution';
 import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
+import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
 

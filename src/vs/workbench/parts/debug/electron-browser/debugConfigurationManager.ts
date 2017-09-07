@@ -21,6 +21,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -230,7 +231,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._providers = new Map<number, IDebugConfigurationProvider>();
 		this.adapters = [];
@@ -239,8 +240,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const filtered = this.launches.filter(l => l.workspaceUri.toString() === previousSelectedRoot);
-		const launchToSelect = filtered.length ? filtered[0] : this.launches.length ? this.launches[0] : undefined;
-		this.selectConfiguration(launchToSelect, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		this.selectConfiguration(filtered.length ? filtered[0] : undefined, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 	}
 
 	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
@@ -249,7 +249,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 		this._providers.set(handle, debugConfigurationProvider);
 		const adapter = this.getAdapter(debugConfigurationProvider.type);
-		if (adapter) {
+		// Check if the provider contributes provideDebugConfigurations method
+		if (adapter && debugConfigurationProvider.provideDebugConfigurations) {
 			adapter.hasConfigurationProvider = true;
 		}
 	}
@@ -258,7 +259,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._providers.delete(handle);
 	}
 
-	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any> {
+	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
 
 		// collect all candidates
 		const providers: IDebugConfigurationProvider[] = [];
@@ -338,8 +339,10 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
 			this.initLaunches();
-			const toSelect = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
-			this.selectConfiguration(toSelect);
+			this.selectConfiguration();
+		}));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => {
+			this.selectConfiguration();
 		}));
 
 		this.toDispose.push(lifecycleService.onShutdown(this.store, this));
@@ -369,9 +372,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	public selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void {
+	public selectConfiguration(launch?: ILaunch, name?: string, debugStarted?: boolean): void {
 		const previousLaunch = this._selectedLaunch;
 		const previousName = this._selectedName;
+
+		if (!launch) {
+			launch = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
+		}
 
 		this._selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
@@ -470,6 +477,7 @@ class Launch implements ILaunch {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.name = paths.basename(this.workspaceUri.fsPath);
 	}
@@ -537,57 +545,59 @@ class Launch implements ILaunch {
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		const resource = this.uri;
-		let configFileCreated = false;
+		return this.extensionService.activateByEvent('onDebug').then(() => {
+			const resource = this.uri;
+			let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => content, err => {
+			return this.fileService.resolveContent(resource).then(content => content, err => {
 
-			// launch.json not found: create one by collecting launch configs from debugConfigProviders
+				// launch.json not found: create one by collecting launch configs from debugConfigProviders
 
-			return this.configurationManager.guessAdapter(type).then(adapter => {
-				if (adapter) {
-					return this.configurationManager.provideDebugConfigurations(this.workspaceUri, adapter.type).then(initialConfigs => {
-						return adapter.getInitialConfigurationContent(this.workspaceUri, initialConfigs);
+				return this.configurationManager.guessAdapter(type).then(adapter => {
+					if (adapter) {
+						return this.configurationManager.provideDebugConfigurations(this.workspaceUri, adapter.type).then(initialConfigs => {
+							return adapter.getInitialConfigurationContent(this.workspaceUri, initialConfigs);
+						});
+					} else {
+						return undefined;
+					}
+				}).then(content => {
+
+					if (!content) {
+						return undefined;
+					}
+
+					configFileCreated = true;
+					return this.fileService.updateContent(resource, content).then(() => {
+						// convert string into IContent; see #32135
+						return { value: content };
 					});
-				} else {
-					return undefined;
-				}
+				});
 			}).then(content => {
-
 				if (!content) {
 					return undefined;
 				}
-
-				configFileCreated = true;
-				return this.fileService.updateContent(resource, content).then(() => {
-					// convert string into IContent; see #32135
-					return { value: content };
-				});
-			});
-		}).then(content => {
-			if (!content) {
-				return undefined;
-			}
-			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
-			let startLineNumber = 1;
-			for (let i = 0; i < index; i++) {
-				if (content.value.charAt(i) === '\n') {
-					startLineNumber++;
+				const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+				let startLineNumber = 1;
+				for (let i = 0; i < index; i++) {
+					if (content.value.charAt(i) === '\n') {
+						startLineNumber++;
+					}
 				}
-			}
-			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
+				const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-			return this.editorService.openEditor({
-				resource: resource,
-				options: {
-					forceOpen: true,
-					selection,
-					pinned: configFileCreated, // pin only if config file is created #8727
-					revealIfVisible: true
-				},
-			}, sideBySide);
-		}, (error) => {
-			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+				return this.editorService.openEditor({
+					resource: resource,
+					options: {
+						forceOpen: true,
+						selection,
+						pinned: configFileCreated, // pin only if config file is created #8727
+						revealIfVisible: true
+					},
+				}, sideBySide);
+			}, (error) => {
+				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+			});
 		});
 	}
 }

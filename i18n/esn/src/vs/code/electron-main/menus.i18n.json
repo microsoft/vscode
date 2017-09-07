@@ -34,6 +34,7 @@
 	"miAutoSave": "Guardado automático",
 	"miRevert": "Revertir a&&rchivo",
 	"miCloseWindow": "C&&errar ventana",
+	"miCloseWorkspace": "Cerrar &&área de trabajo",
 	"miCloseFolder": "Cerrar &&carpeta",
 	"miCloseEditor": "&&Cerrar editor",
 	"miExit": "Salir",
@@ -46,6 +47,7 @@
 	"miPreferences": "&&Preferencias",
 	"miReopenClosedEditor": "&&Volver a abrir el editor cerrado",
 	"miMore": "&&Más...",
+	"miClearRecentOpen": "&&Borrar abiertos recientemente",
 	"miUndo": "&&Deshacer",
 	"miRedo": "&&Rehacer",
 	"miCut": "Cortar",
@@ -100,6 +102,7 @@
 	"miHideActivityBar": "Ocultar &&barra de actividades",
 	"miShowActivityBar": "Mostrar &&barra de actividades",
 	"miToggleWordWrap": "Alternar &&ajuste automático de línea",
+	"miToggleMinimap": "Alternar &&minimapa",
 	"miToggleRenderWhitespace": "Alternar &&representación de espacio en blanco",
 	"miToggleRenderControlCharacters": "Alternar caracteres de control &&",
 	"miZoomIn": "&&Ampliar",
@@ -177,5 +180,6 @@
 	"miDownloadingUpdate": "Descargando actualización...",
 	"miInstallingUpdate": "Instalando actualización...",
 	"miCheckForUpdates": "Buscar actualizaciones...",
+	"aboutDetail": "\nVersión: {0}\nConfirmación: {1}\nFecha: {2}\nShell: {3}\nRepresentador: {4}\nNodo {5}\nArquitectura {6}",
 	"okButton": "Aceptar"
 }

@@ -7,8 +7,11 @@
 	"workbench.action.terminal.toggleTerminal": "切換整合式終端機",
 	"workbench.action.terminal.kill": "終止使用中的終端機執行個體",
 	"workbench.action.terminal.kill.short": "終止終端機",
+	"workbench.action.terminal.quickKill": "終止終端機執行個體",
 	"workbench.action.terminal.copySelection": "複製選取項目",
 	"workbench.action.terminal.selectAll": "全選",
+	"workbench.action.terminal.deleteWordLeft": "刪除左方文字",
+	"workbench.action.terminal.deleteWordRight": "刪除右方文字",
 	"workbench.action.terminal.new": "建立新的整合式終端機",
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.focus": "聚焦終端機",
@@ -33,5 +36,8 @@
 	"workbench.action.terminal.rename": "重新命名",
 	"workbench.action.terminal.rename.prompt": "輸入終端機名稱",
 	"workbench.action.terminal.focusFindWidget": "焦點尋找小工具",
-	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具"
+	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具",
+	"nextTerminalFindTerm": "顯示下一個尋找字詞",
+	"previousTerminalFindTerm": "顯示上一個尋找字詞",
+	"quickOpenTerm": "終端機: 切換使用中的終端機"
 }

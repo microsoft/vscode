@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule } from 'EmmetNode';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate } from './util';
+import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration } from './util';
 import { getExpandOptions, extractAbbreviation, extractAbbreviationFromText, isStyleSheet, isAbbreviationValid, getEmmetMode, expandAbbreviation } from 'vscode-emmet-helper';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
@@ -271,9 +271,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
  * Expands abbreviation as detailed in given input.
  */
 function expandAbbr(input: ExpandAbbreviationInput): string {
-	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const expandOptions = getExpandOptions(input.syntax, emmetConfig, input.filter);
-
+	const expandOptions = getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
 	if (input.textToWrap) {
 		if (input.filter && input.filter.indexOf('t') > -1) {

@@ -11,5 +11,6 @@
 	"genericSaveError": "Non è stato possibile salvare '{0}': {1}",
 	"staleSaveError": "Non è stato possibile salvare '{0}': il contenuto sul disco è più recente. Fare clic su **Confronta** per confrontare la versione corrente con quella sul disco.",
 	"compareChanges": "Confronta",
-	"saveConflictDiffLabel": "{0} (su disco) ↔ {1} (in {2}) - Risolvere conflitto in fase di salvataggio"
+	"saveConflictDiffLabel": "{0} (su disco) ↔ {1} (in {2}) - Risolvere conflitto in fase di salvataggio",
+	"userGuide": "Usare le azioni della barra degli strumenti dell'editor a destra per **annullare** le modifiche o per **sovrascrivere** il contenuto su disco con le modifiche"
 }

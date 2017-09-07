@@ -6,9 +6,17 @@
 {
 	"openFolder": "Ouvrir un dossier...",
 	"openFileFolder": "Ouvrir...",
-	"cancel": "Annuler",
 	"addFolderToWorkspace": "Ajouter un dossier à l'espace de travail...",
+	"add": "&&Ajouter",
 	"addFolderToWorkspaceTitle": "Ajouter un dossier à l'espace de travail",
+	"newWorkspace": "Nouvel espace de travail...",
+	"select": "&&Sélectionner",
+	"selectWorkspace": "Sélectionner les dossiers pour l’espace de travail",
 	"removeFolderFromWorkspace": "Supprimer le dossier de l'espace de travail",
-	"save": "&&Enregistrer"
+	"saveWorkspaceAsAction": "Enregistrer l’espace de travail sous...",
+	"saveEmptyWorkspaceNotSupported": "Veuillez d’abord ouvrir un espace de travail pour enregistrer.",
+	"save": "&&Enregistrer",
+	"saveWorkspace": "Enregistrer l’espace de travail",
+	"openWorkspaceAction": "Ouvrir un espace de travail...",
+	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail"
 }

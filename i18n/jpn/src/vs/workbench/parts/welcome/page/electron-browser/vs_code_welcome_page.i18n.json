@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "コマンド パレットからコマンドを検索してすばやくアクセスします ({0})",
 	"welcomePage.interfaceOverview": "インターフェイスの概要",
 	"welcomePage.interfaceOverviewDescription": "UI の主要コンポーネントを解説した視覚オーバーレイを表示します",
+	"welcomePage.deployToAzure": "クラウドにアプリケーションをデプロイ",
+	"welcomePage.deployToAzureDescription": "Node アプリケーションを Azure App Service にデプロイする方法を学ぶ",
 	"welcomePage.interactivePlayground": "対話型プレイグラウンド",
 	"welcomePage.interactivePlaygroundDescription": "エディターの基本機能を簡潔なチュートリアルで体験します"
 }

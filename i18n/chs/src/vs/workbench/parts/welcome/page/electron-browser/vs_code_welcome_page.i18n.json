@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "使用命令面板快速访问和搜索命令 ({0})",
 	"welcomePage.interfaceOverview": "界面概述",
 	"welcomePage.interfaceOverviewDescription": "查看突出显示主要 UI 组件的叠加图",
+	"welcomePage.deployToAzure": "将应用部署到云端",
+	"welcomePage.deployToAzureDescription": "了解如何将你的 Node 应用部署到 Azure 应用服务",
 	"welcomePage.interactivePlayground": "交互式演练场",
 	"welcomePage.interactivePlaygroundDescription": "在简短演练中试用编辑器的基本功能"
 }

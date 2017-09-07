@@ -115,7 +115,7 @@ export class ResourceViewer {
 		descriptor: IResourceDescriptor,
 		container: Builder,
 		scrollbar: DomScrollableElement,
-		openExternal: (URI) => void,
+		openExternal: (uri: URI) => void,
 		metadataClb?: (meta: string) => void
 	): void {
 		// Ensure CSS class

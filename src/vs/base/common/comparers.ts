@@ -59,8 +59,8 @@ export function noIntlCompareFileNames(one: string, other: string): number {
 
 export function compareFileExtensions(one: string, other: string): number {
 	if (intlFileNameCollator) {
-		const oneMatch = one ? FileNameMatch.exec(one) : [];
-		const otherMatch = other ? FileNameMatch.exec(other) : [];
+		const oneMatch = one ? FileNameMatch.exec(one) : [] as RegExpExecArray;
+		const otherMatch = other ? FileNameMatch.exec(other) : [] as RegExpExecArray;
 
 		const oneName = oneMatch[1] || '';
 		const oneExtension = oneMatch[3] || '';
@@ -92,8 +92,8 @@ export function compareFileExtensions(one: string, other: string): number {
 }
 
 function noIntlCompareFileExtensions(one: string, other: string): number {
-	const oneMatch = one ? FileNameMatch.exec(one.toLowerCase()) : [];
-	const otherMatch = other ? FileNameMatch.exec(other.toLowerCase()) : [];
+	const oneMatch = one ? FileNameMatch.exec(one.toLowerCase()) : [] as RegExpExecArray;
+	const otherMatch = other ? FileNameMatch.exec(other.toLowerCase()) : [] as RegExpExecArray;
 
 	const oneName = oneMatch[1] || '';
 	const oneExtension = oneMatch[3] || '';

@@ -7,10 +7,16 @@
 	"open": "Einstellungen öffnen",
 	"close": "Schließen",
 	"saveAndRetry": "Änderungen Speichern und Wiederholen",
+	"errorUnknownKey": "In {0} kann nicht geschrieben werden, weil {1} keine registrierte Konfiguration ist.",
+	"errorInvalidFolderConfiguration": "In die Ordnereinstellungen kann nicht geschrieben werden, weil {0} den Gültigkeitsbereich für Ordnerressourcen nicht unterstützt.",
+	"errorInvalidUserTarget": "In die Benutzereinstellungen kann nicht geschrieben werden, weil {0} den globalen Gültigkeitsbereich nicht unterstützt.",
+	"errorInvalidFolderTarget": "In die Ordnereinstellungen kann nicht geschrieben werden, weil keine Ressource angegeben ist.",
+	"errorNoWorkspaceOpened": "In {0} kann nicht geschrieben werden, weil kein Arbeitsbereich geöffnet ist. Öffnen Sie zuerst einen Arbeitsbereich, und versuchen Sie es noch mal.",
 	"errorInvalidConfiguration": "In die Einstellungen kann nicht geschrieben werden. Öffnen Sie **Benutzereinstellungen**, um Fehler/Warnungen in der Datei zu korrigieren, und versuchen Sie es noch mal.",
 	"errorInvalidConfigurationWorkspace": "In die Einstellungen kann nicht geschrieben werden. Öffnen Sie die **Arbeitsbereichseinstellungen**, um Fehler/Warnungen in der Datei zu korrigieren, und versuchen Sie es noch mal.",
 	"errorConfigurationFileDirty": "In die Einstellungen kann nicht geschrieben werden, weil die Datei geändert wurde. Speichern Sie die Datei **Benutzereinstellungen**, und versuchen Sie es noch mal.",
 	"errorConfigurationFileDirtyWorkspace": "In die Einstellungen kann nicht geschrieben werden, weil die Datei geändert wurde. Speichern Sie die Datei **Arbeitsbereichseinstellungen**, und versuchen Sie es noch mal.",
 	"userTarget": "Benutzereinstellungen",
-	"workspaceTarget": "Arbeitsbereichseinstellungen"
+	"workspaceTarget": "Arbeitsbereichseinstellungen",
+	"folderTarget": "Ordnereinstellungen"
 }

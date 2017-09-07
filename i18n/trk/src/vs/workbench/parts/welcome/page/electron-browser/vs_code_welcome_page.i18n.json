@@ -35,6 +35,8 @@
 	"welcomePage.showCommandsDescription": "Komut Paleti'nden hızlıca komutlara erişin ve arayın ({0})",
 	"welcomePage.interfaceOverview": "Arayüze genel bakış",
 	"welcomePage.interfaceOverviewDescription": "Kullanıcı arayüzünün ana bileşenlerini vurgulayan bir kaplamayı görüntüleyin",
+	"welcomePage.deployToAzure": "Uygulamaları buluta deploy edin",
+	"welcomePage.deployToAzureDescription": "Node uygulamalarınızı Azure Uygulama Hizmeti'ne nasıl deploy edeceğinizi öğrenin",
 	"welcomePage.interactivePlayground": "İnteraktif oyun alanı",
 	"welcomePage.interactivePlaygroundDescription": "Başlıca düzenleyici özelliklerini kısa örneklerle deneyin"
 }

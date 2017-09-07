@@ -26,6 +26,34 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	// need to set in the extension host as well as the completion provider uses it.
 	vscode.languages.setLanguageConfiguration('php', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+		onEnterRules: [
+			{
+				// e.g. /** | */
+				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+				afterText: /^\s*\*\/$/,
+				action: { indentAction: vscode.IndentAction.IndentOutdent, appendText: ' * ' }
+			},
+			{
+				// e.g. /** ...|
+				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+				action: { indentAction: vscode.IndentAction.None, appendText: ' * ' }
+			},
+			{
+				// e.g.  * ...|
+				beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+				action: { indentAction: vscode.IndentAction.None, appendText: '* ' }
+			},
+			{
+				// e.g.  */|
+				beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+				action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			},
+			{
+				// e.g.  *-----*/|
+				beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+				action: { indentAction: vscode.IndentAction.None, removeText: 1 }
+			}
+		]
 	});
 }

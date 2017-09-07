@@ -968,6 +968,7 @@ export class SearchViewlet extends Viewlet {
 			query = this.queryBuilder.text(content, folderResources, options);
 		} catch (err) {
 			onQueryValidationError(err);
+			return;
 		}
 
 		this.validateQuery(query).then(() => {

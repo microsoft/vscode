@@ -32,8 +32,8 @@ export class IPadShowKeyboard implements IEditorContribution {
 	}
 
 	private update(): void {
-		var hasWidget = (!!this.widget);
-		var shouldHaveWidget = (!this.editor.getConfiguration().readOnly);
+		const hasWidget = (!!this.widget);
+		const shouldHaveWidget = (!this.editor.getConfiguration().readOnly);
 
 		if (!hasWidget && shouldHaveWidget) {
 

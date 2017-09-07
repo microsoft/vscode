@@ -201,7 +201,8 @@ export function createApiFactory(
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return Platform.language; },
-			get appName() { return product.nameLong; }
+			get appName() { return product.nameLong; },
+			get appRoot() { return initData.environment.appRoot; },
 		});
 
 		// namespace: extensions
@@ -514,9 +515,9 @@ export function createApiFactory(
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
 			},
-			registerDebugConfigurationProvider: proposedApiFunction(extension, (debugType: string, provider: vscode.DebugConfigurationProvider) => {
+			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
-			}),
+			},
 		};
 
 		// namespace: credentials

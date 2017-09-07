@@ -16,11 +16,9 @@ import { CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 
-
 export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
-	private _currentRange: Range;
 
 	constructor(
 		private _editor: ICommonCodeEditor,
@@ -39,35 +37,25 @@ export class QuickFixOracle {
 	}
 
 	trigger(type: 'manual' | 'auto'): void {
-
-		// get selection from marker or current word
-		// unless the selection is non-empty and manually
-		// requesting code actions
-		const range = (type === 'manual' && this._getRangeOfNonEmptySelection())
-			|| this._getRangeOfMarker()
-			|| this._getRangeOfWord()
-			|| this._editor.getSelection();
-
-		this._createEventAndSignalChange(type, range);
+		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
+		if (type === 'manual') {
+			rangeOrSelection = this._editor.getSelection();
+		}
+		this._createEventAndSignalChange(type, rangeOrSelection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const { uri } = this._editor.getModel();
 		for (const resource of resources) {
 			if (resource.toString() === uri.toString()) {
-				this._currentRange = undefined;
-				this._onCursorChange();
+				this.trigger('auto');
 				return;
 			}
 		}
 	}
 
 	private _onCursorChange(): void {
-		const rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfNonEmptySelection();
-		if (!Range.equalsRange(this._currentRange, rangeOrSelection)) {
-			this._currentRange = rangeOrSelection;
-			this._createEventAndSignalChange('auto', rangeOrSelection);
-		}
+		this.trigger('auto');
 	}
 
 	private _getRangeOfMarker(): Range {
@@ -81,15 +69,33 @@ export class QuickFixOracle {
 		return undefined;
 	}
 
-	private _getRangeOfWord(): Range {
-		const pos = this._editor.getPosition();
-		const info = this._editor.getModel().getWordAtPosition(pos);
-		return info ? new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn) : undefined;
-	}
-
-	private _getRangeOfNonEmptySelection(): Selection {
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(): Selection {
+		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		return !selection.isEmpty() ? selection : undefined;
+		if (selection.isEmpty()) {
+			const { lineNumber, column } = selection.getPosition();
+			const line = model.getLineContent(lineNumber);
+			if (line.length === 0) {
+				// empty line
+				return undefined;
+			} else if (column === 1) {
+				// look only right
+				if (/\s/.test(line[0])) {
+					return undefined;
+				}
+			} else if (column === model.getLineMaxColumn(lineNumber)) {
+				// look only left
+				if (/\s/.test(line[line.length - 1])) {
+					return undefined;
+				}
+			} else {
+				// look left and right
+				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
+					return undefined;
+				}
+			}
+		}
+		return selection;
 	}
 
 	private _createEventAndSignalChange(type: 'auto' | 'manual', rangeOrSelection: Range | Selection): void {

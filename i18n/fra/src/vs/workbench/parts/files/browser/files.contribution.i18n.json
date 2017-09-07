@@ -39,9 +39,10 @@
 	"dynamicHeight": "Contrôle si la hauteur de la section des éditeurs ouverts doit s'adapter dynamiquement ou non au nombre d'éléments.",
 	"autoReveal": "Contrôle si l'Explorateur doit automatiquement afficher et sélectionner les fichiers à l'ouverture.",
 	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer.",
-	"sortOrder.default": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les répertoires sont affichés avant les fichiers.",
-	"sortOrder.mixed": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont imbriquées dans des répertoires.",
-	"sortOrder.filesFirst": "Fichiers et répertoires sont triés par leur nom, dans l’ordre alphabétique. Les fichiers sont affichés avant les répertoires.",
-	"sortOrder.type": "Fichiers et répertoires sont triés par leurs extensions, dans l’ordre alphabétique. Les répertoires sont affichés avant les fichiers.",
-	"sortOrder.modified": "Fichiers et répertoires sont triés par date de dernière modification, dans l’ordre décroissant. Les répertoires sont affichés avant les fichiers."
+	"sortOrder.default": "Les fichiers et dossiers sont triés par nom, dans l’ordre alphabétique. Les dossiers sont affichés avant les fichiers.",
+	"sortOrder.mixed": "Les fichiers et dossiers sont triés par nom, dans l’ordre alphabétique. Les fichiers sont imbriqués dans les dossiers.",
+	"sortOrder.filesFirst": "Les fichiers et dossiers sont triés par nom, dans l’ordre alphabétique. Les fichiers sont affichés avant les dossiers.",
+	"sortOrder.type": "Les fichiers et dossiers sont triés par extension, dans l’ordre alphabétique. Les dossiers sont affichés avant les fichiers.",
+	"sortOrder.modified": "Les fichiers et dossiers sont triés par date de dernière modification, dans l’ordre décroissant. Les dossiers sont affichés avant les fichiers.",
+	"sortOrder": "Contrôle l'ordre de tri des fichiers et dossiers dans l'explorateur. En plus du tri par défaut, vous pouvez définir l'ordre sur 'mixed' (fichiers et dossiers triés combinés), 'type' (par type de fichier), 'modified' (par date de dernière modification) ou 'fileFirst' (trier les fichiers avant les dossiers)."
 }

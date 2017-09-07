@@ -7,9 +7,18 @@
 import URI from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IMode } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 /**
  * Explorer viewlet id.
@@ -105,3 +114,70 @@ export const SortOrderConfiguration = {
 };
 
 export type SortOrder = 'default' | 'mixed' | 'filesFirst' | 'type' | 'modified';
+
+export class FileOnDiskContentProvider implements ITextModelContentProvider {
+	private fileWatcher: IDisposable;
+
+	constructor(
+		@ITextFileService private textFileService: ITextFileService,
+		@IFileService private fileService: IFileService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService
+	) {
+	}
+
+	public provideTextContent(resource: URI): TPromise<IModel> {
+
+		// Make sure our file from disk is resolved up to date
+		return this.resolveEditorModel(resource).then(codeEditorModel => {
+
+			// Make sure to keep contents on disk up to date when it changes
+			if (!this.fileWatcher) {
+				this.fileWatcher = this.fileService.onFileChanges(changes => {
+					if (changes.contains(resource, FileChangeType.UPDATED)) {
+						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
+					}
+				});
+
+				const disposeListener = codeEditorModel.onWillDispose(() => {
+					disposeListener.dispose();
+					this.fileWatcher.dispose();
+					this.fileWatcher = void 0;
+				});
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
+
+		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {
+			let codeEditorModel = this.modelService.getModel(resource);
+			if (codeEditorModel) {
+				this.modelService.updateModel(codeEditorModel, content.value);
+			} else if (createAsNeeded) {
+				const fileOnDiskModel = this.modelService.getModel(fileOnDiskResource);
+
+				let mode: TPromise<IMode>;
+				if (fileOnDiskModel) {
+					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
+				} else {
+					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+				}
+
+				codeEditorModel = this.modelService.createModel(content.value, mode, resource);
+			}
+
+			return codeEditorModel;
+		});
+	}
+
+	public dispose(): void {
+		if (this.fileWatcher) {
+			this.fileWatcher.dispose();
+			this.fileWatcher = void 0;
+		}
+	}
+}

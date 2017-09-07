@@ -85,5 +85,7 @@
 	"mergeBorder": "Cor da borda dos cabeçalhos e separadores estão em conflito de mesclagem em linha.",
 	"overviewRulerCurrentContentForeground": "Cor de fundo de régua de visuaização atual em conflito de mesclagem em linha.",
 	"overviewRulerIncomingContentForeground": "Cor de fundo de régua de visuaização de entrada em conflito de mesclagem em linha.",
-	"overviewRulerCommonContentForeground": "Ancestral comum da cor da régua de visão geral para conflitos de mesclagem inline."
+	"overviewRulerCommonContentForeground": "Ancestral comum da cor da régua de visão geral para conflitos de mesclagem inline.",
+	"overviewRulerFindMatchForeground": "Visão geral da cor do marcador da régua para buscas correspondentes.",
+	"overviewRulerSelectionHighlightForeground": "Visão geral da cor do marcador da régua para a seleção de destaques"
 }

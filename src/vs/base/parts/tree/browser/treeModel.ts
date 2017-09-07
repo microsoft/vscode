@@ -556,7 +556,7 @@ export class Item extends Events.EventEmitter {
 	}
 
 	private mapEachChild<T>(fn: (child: Item) => T): T[] {
-		var result = [];
+		var result: T[] = [];
 		this.forEachChild((child) => {
 			result.push(fn(child));
 		});

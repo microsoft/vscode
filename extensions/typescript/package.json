@@ -120,17 +120,20 @@
         "javascript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%javascript.referencesCodeLens.enabled%"
+          "description": "%javascript.referencesCodeLens.enabled%",
+          "scope": "window"
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.referencesCodeLens.enabled%"
+          "description": "%typescript.referencesCodeLens.enabled%",
+          "scope": "window"
         },
         "typescript.implementationsCodeLens.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.implementationsCodeLens.enabled%"
+          "description": "%typescript.implementationsCodeLens.enabled%",
+          "scope": "window"
         },
         "typescript.tsserver.log": {
           "type": "string",
@@ -141,7 +144,8 @@
             "verbose"
           ],
           "default": "off",
-          "description": "%typescript.tsserver.log%"
+          "description": "%typescript.tsserver.log%",
+          "scope": "window"
         },
         "typescript.tsserver.trace": {
           "type": "string",
@@ -151,182 +155,218 @@
             "verbose"
           ],
           "default": "off",
-          "description": "%typescript.tsserver.trace%"
+          "description": "%typescript.tsserver.trace%",
+          "scope": "window"
         },
         "typescript.useCodeSnippetsOnMethodSuggest": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
+          "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "scope": "resource"
         },
         "typescript.validate.enable": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.validate.enable%"
+          "description": "%typescript.validate.enable%",
+          "scope": "resource"
         },
         "typescript.format.enable": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.format.enable%"
+          "description": "%typescript.format.enable%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterCommaDelimiter%"
+          "description": "%format.insertSpaceAfterCommaDelimiter%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterConstructor": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterConstructor%"
+          "description": "%format.insertSpaceAfterConstructor%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterSemicolonInForStatements%"
+          "description": "%format.insertSpaceAfterSemicolonInForStatements%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceBeforeAndAfterBinaryOperators": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%"
+          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%"
+          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceBeforeFunctionParenthesis": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%",
+          "scope": "resource"
         },
         "typescript.format.insertSpaceAfterTypeAssertion": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterTypeAssertion%"
+          "description": "%format.insertSpaceAfterTypeAssertion%",
+          "scope": "resource"
         },
         "typescript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForFunctions%"
+          "description": "%format.placeOpenBraceOnNewLineForFunctions%",
+          "scope": "resource"
         },
         "typescript.format.placeOpenBraceOnNewLineForControlBlocks": {
           "type": "boolean",
           "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
+          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
+          "scope": "resource"
         },
         "javascript.validate.enable": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.validate.enable%"
+          "description": "%javascript.validate.enable%",
+          "scope": "resource"
         },
         "javascript.format.enable": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.format.enable%"
+          "description": "%javascript.format.enable%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterCommaDelimiter%"
+          "description": "%format.insertSpaceAfterCommaDelimiter%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterConstructor": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterConstructor%"
+          "description": "%format.insertSpaceAfterConstructor%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterSemicolonInForStatements": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterSemicolonInForStatements%"
+          "description": "%format.insertSpaceAfterSemicolonInForStatements%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceBeforeAndAfterBinaryOperators": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%"
+          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%"
+          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceBeforeFunctionParenthesis": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceBeforeFunctionParenthesis%"
+          "description": "%format.insertSpaceBeforeFunctionParenthesis%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
           "type": "boolean",
           "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%",
+          "scope": "resource"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
           "type": "boolean",
           "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%"
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%",
+          "scope": "resource"
         },
         "javascript.format.placeOpenBraceOnNewLineForFunctions": {
           "type": "boolean",
           "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForFunctions%"
+          "description": "%format.placeOpenBraceOnNewLineForFunctions%",
+          "scope": "resource"
         },
         "javascript.format.placeOpenBraceOnNewLineForControlBlocks": {
           "type": "boolean",
           "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
+          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
+          "scope": "resource"
         },
         "jsDocCompletion.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%jsDocCompletion.enabled%"
+          "description": "%jsDocCompletion.enabled%",
+          "scope": "resource"
         },
         "javascript.implicitProjectConfig.checkJs": {
           "type": "boolean",
@@ -337,7 +377,8 @@
         "javascript.nameSuggestions": {
           "type": "boolean",
           "default": true,
-          "description": "%javascript.nameSuggestions%"
+          "description": "%javascript.nameSuggestions%",
+          "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
           "type": "string",
@@ -346,7 +387,8 @@
             "on",
             "off"
           ],
-          "description": "%typescript.tsc.autoDetect%"
+          "description": "%typescript.tsc.autoDetect%",
+          "scope": "resource"
         }
       }
     },

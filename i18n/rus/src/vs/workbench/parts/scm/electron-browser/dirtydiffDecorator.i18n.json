@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "Цвет фона полей редактора для измененных строк.",
 	"editorGutterAddedBackground": "Цвет фона полей редактора для добавленных строк.",
-	"editorGutterDeletedBackground": "Цвет фона полей редактора для удаленных строк."
+	"editorGutterDeletedBackground": "Цвет фона полей редактора для удаленных строк.",
+	"overviewRulerModifiedForeground": "Цвет метки линейки в окне просмотра для измененного содержимого.",
+	"overviewRulerAddedForeground": "Цвет метки линейки в окне просмотра для добавленного содержимого. ",
+	"overviewRulerDeletedForeground": "Цвет метки линейки в окне просмотра для удаленного содержимого. "
 }

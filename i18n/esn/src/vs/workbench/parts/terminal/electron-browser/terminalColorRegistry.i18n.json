@@ -6,5 +6,7 @@
 {
 	"terminal.background": "El color de fondo del terminal, esto permite colorear el terminal de forma diferente al panel.",
 	"terminal.foreground": "El color de primer plano del terminal.",
+	"terminalCursor.foreground": "Color de primer plano del cursor del terminal.",
+	"terminalCursor.background": "Color de fondo del cursor del terminal. Permite personalizar el color de un carácter solapado por un cursor de bloque.",
 	"terminal.ansiColor": "Color ANSI \"{0}\" en el terminal."
 }

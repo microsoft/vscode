@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IGrammar } from 'vscode-textmate';
 import { LanguageId } from 'vs/editor/common/modes';
 
-export var ITextMateService = createDecorator<ITextMateService>('textMateService');
+export const ITextMateService = createDecorator<ITextMateService>('textMateService');
 
 export interface ITextMateService {
 	_serviceBrand: any;

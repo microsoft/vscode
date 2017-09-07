@@ -44,7 +44,7 @@ export interface IViewOptions {
 }
 
 export interface IView extends ee.IEventEmitter {
-	readonly initialSize: number;
+	preferredSize: number;
 	size: number;
 	sizing: ViewSizing;
 	fixedSize: number;
@@ -75,7 +75,7 @@ export abstract class View extends ee.EventEmitter implements IView {
 	protected _fixedSize: number;
 	protected _minimumSize: number;
 
-	constructor(public initialSize: number, opts: IViewOptions) {
+	constructor(public preferredSize: number, opts: IViewOptions) {
 		super();
 
 		this.size = 0;
@@ -275,8 +275,8 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 
 		this.setBodySize(types.isUndefined(opts.bodySize) ? 22 : opts.bodySize);
 
-		if (typeof this.initialSize === 'undefined') {
-			this.initialSize = this._bodySize + this.headerSize;
+		if (typeof this.preferredSize === 'undefined') {
+			this.preferredSize = this._bodySize + this.headerSize;
 		}
 
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
@@ -821,7 +821,7 @@ export class SplitView extends lifecycle.Disposable implements
 		let diff = event.current - this.state.start;
 
 		for (let i = 0; i < this.views.length; i++) {
-			this.views[i].size = this.state.sizes[i];
+			this.views[i].size = this.views[i].preferredSize = this.state.sizes[i];
 		}
 
 		if (diff < 0) {
@@ -857,7 +857,7 @@ export class SplitView extends lifecycle.Disposable implements
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
-				totalWeight += v.initialSize;
+				totalWeight += v.preferredSize;
 			} else {
 				fixedSize += v.fixedSize;
 			}
@@ -870,7 +870,7 @@ export class SplitView extends lifecycle.Disposable implements
 				if (totalWeight === 0) {
 					v.size = flexibleSize;
 				} else {
-					v.size = v.initialSize * flexibleSize / totalWeight;
+					v.size = v.preferredSize * flexibleSize / totalWeight;
 				}
 			} else {
 				v.size = v.fixedSize;

@@ -103,7 +103,7 @@ export class ElectronWindow extends Themable {
 
 		// Handle window.open() calls
 		const $this = this;
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
 			$this.windowsService.openExternal(url);
 
 			return null;

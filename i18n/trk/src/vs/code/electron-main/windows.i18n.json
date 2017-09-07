@@ -7,6 +7,14 @@
 	"ok": "Tamam",
 	"pathNotExistTitle": "Yol yok",
 	"pathNotExistDetail": "'{0}' yolu artık diskte değil.",
+	"openWorkspace": "&&Aç",
+	"openWorkspaceTitle": "Çalışma Alanı Aç",
+	"save": "&&Kaydet",
+	"doNotSave": "Kaydet&&me",
+	"cancel": "İptal",
+	"saveWorkspaceMessage": "Çalışma alanı yapılandırmanızı bir dosya olarak kaydetmek istiyor musunuz?",
+	"saveWorkspaceDetail": "Yeniden açmayı planlıyorsanız, çalışma alanınızı kaydedin.",
+	"saveWorkspace": "Çalışma Alanını Kaydet",
 	"reopen": "Yeniden Aç",
 	"wait": "Beklemeye Devam Et",
 	"close": "Kapat",
@@ -14,6 +22,7 @@
 	"appStalledDetail": "Pencereyi yeniden açabilir, kapatabilir veya bekleyebilirsiniz.",
 	"appCrashed": "Pencere kilitlendi",
 	"appCrashedDetail": "Verdiğimiz rahatsızlıktan dolayı özür dileriz! Pencereyi yeniden açıp kaldığınız yerden devam edebilirsiniz.",
-	"openFile": "Dosya Aç",
-	"openFolder": "Klasör Aç"
+	"open": "Aç",
+	"openFolder": "Klasör Aç",
+	"openFile": "Dosya Aç"
 }

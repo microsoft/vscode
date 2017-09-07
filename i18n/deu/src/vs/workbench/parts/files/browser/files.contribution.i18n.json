@@ -38,5 +38,11 @@
 	"openEditorsVisible": "Die Anzahl der Editoren, die im Bereich \"Geöffnete Editoren\" angezeigt werden. Legen Sie diesen Wert auf 0 fest, um den Bereich auszublenden.",
 	"dynamicHeight": "Steuert, ob sich die Höhe des Abschnitts \"Geöffnete Editoren\" dynamisch an die Anzahl der Elemente anpassen soll.",
 	"autoReveal": "Steuert, ob der Explorer Dateien beim Öffnen automatisch anzeigen und auswählen soll.",
-	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag  Drop zulassen soll."
+	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag  Drop zulassen soll.",
+	"sortOrder.default": "Dateien und Ordner werden nach ihren Namen in alphabetischer Reihenfolge sortiert. Ordner werden vor Dateien angezeigt. ",
+	"sortOrder.mixed": "Dateien und Ordner werden nach ihren Namen in alphabetischer Reihenfolge sortiert. Dateien und Ordner werden vermischt angezeigt.",
+	"sortOrder.filesFirst": "Dateien und Ordner werden nach ihren Namen in alphabetischer Reihenfolge sortiert. Dateien werden vor Ordnern angezeigt.",
+	"sortOrder.type": "Dateien und Ordner werden nach ihren Erweiterungen in alphabetischer Reihenfolge sortiert. Ordner werden vor Dateien angezeigt.",
+	"sortOrder.modified": "Dateien und Ordner werden nach dem letzten Änderungsdatum in absteigender Reihenfolge sortiert. Ordner werden vor Dateien angezeigt.",
+	"sortOrder": "Steuert die Sortierreihenfolge von Dateien und Ordnern im Explorer. Zusätzlich zur Standardsortierreihenfolge können Sie die Reihenfolge auf \"mixed\" (kombinierte Sortierung von Dateien und Ordnern), \"type\" (nach Dateityp), \"modified\" (nach letztem Änderungsdatum) oder \"filesFirst\" (Dateien vor Ordnern anzeigen) festlegen."
 }

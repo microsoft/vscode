@@ -56,7 +56,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
@@ -211,14 +211,14 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
 	constructor(id: string, label: string,
-		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
+		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService,
-		@ITelemetryService telemetryService) {
+		@IExtensionService extensionService: IExtensionService,
+		@ITelemetryService telemetryService: ITelemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService, telemetryService);
@@ -230,14 +230,14 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
 
 	constructor(id: string, label: string,
-		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
+		@ITaskService taskService: ITaskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IExtensionService extensionService,
-		@ITelemetryService telemetryService) {
+		@IExtensionService extensionService: IExtensionService,
+		@ITelemetryService telemetryService: ITelemetryService) {
 		super(id, label, taskService, configurationService, editorService, fileService, contextService,
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService, telemetryService);

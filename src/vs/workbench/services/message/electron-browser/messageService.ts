@@ -41,7 +41,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		let opts: Electron.ShowMessageBoxOptions = {
+		let opts: Electron.MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
 			buttons,
@@ -84,7 +84,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return promise;
 	}
 
-	private showMessageBox(opts: Electron.ShowMessageBoxOptions): number {
+	private showMessageBox(opts: Electron.MessageBoxOptions): number {
 		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
 		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
 

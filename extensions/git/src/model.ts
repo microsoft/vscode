@@ -17,8 +17,16 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string { return path.basename(this.repository.root); }
-	@memoize get description(): string { return path.dirname(this.repository.root); }
+	@memoize get label(): string {
+		return path.basename(this.repository.root);
+	}
+
+	@memoize get description(): string {
+		return [this.repository.headLabel, this.repository.syncLabel]
+			.filter(l => !!l)
+			.join(' ');
+	}
+
 	constructor(public readonly repository: Repository) { }
 }
 
@@ -47,9 +55,39 @@ export class Model {
 
 	private possibleGitRepositoryPaths = new Set<string>();
 
+	private enabled = false;
+	private configurationChangeDisposable: Disposable;
 	private disposables: Disposable[] = [];
 
 	constructor(private git: Git) {
+		const config = workspace.getConfiguration('git');
+		this.enabled = config.get<boolean>('enabled') === true;
+
+		this.configurationChangeDisposable = workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this);
+
+		if (this.enabled) {
+			this.enable();
+		}
+	}
+
+	private onDidChangeConfiguration(): void {
+		const config = workspace.getConfiguration('git');
+		const enabled = config.get<boolean>('enabled') === true;
+
+		if (enabled === this.enabled) {
+			return;
+		}
+
+		this.enabled = enabled;
+
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
 
@@ -65,6 +103,15 @@ export class Model {
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
 
 		this.scanWorkspaceFolders();
+	}
+
+	private disable(): void {
+		const openRepositories = [...this.openRepositories];
+		openRepositories.forEach(r => r.dispose());
+		this.openRepositories = [];
+
+		this.possibleGitRepositoryPaths.clear();
+		this.disposables = dispose(this.disposables);
 	}
 
 	/**
@@ -94,7 +141,7 @@ export class Model {
 			this.tryOpenRepository(path);
 		}
 
-		this.possibleGitRepositoryPaths = new Set<string>();
+		this.possibleGitRepositoryPaths.clear();
 	}
 
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
@@ -246,7 +293,7 @@ export class Model {
 	}
 
 	dispose(): void {
-		[...this.openRepositories].forEach(r => r.dispose());
-		this.disposables = dispose(this.disposables);
+		this.disable();
+		this.configurationChangeDisposable.dispose();
 	}
 }

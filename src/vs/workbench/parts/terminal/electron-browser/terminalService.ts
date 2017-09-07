@@ -225,7 +225,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
-		const opts: Electron.ShowMessageBoxOptions = {
+		const opts: Electron.MessageBoxOptions = {
 			title: product.nameLong,
 			message,
 			type: 'warning',
