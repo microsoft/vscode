@@ -17,7 +17,7 @@ export class Terminal {
 		if (!await this.isVisible()) {
 			await this.spectron.workbench.commandPallette.runCommand('Toggle Integrated Terminal');
 			await this.spectron.client.waitForElement(Terminal.TERMINAL_SELECTOR);
-			await this.waitForText(1, text => text.trim().indexOf('vscode-smoketest-express git:(master)') !== -1);
+			await this.waitForText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1);
 		}
 	}
 
@@ -31,11 +31,16 @@ export class Terminal {
 		await this.spectron.client.keys(['Enter', 'NULL']);
 	}
 
-	public async waitForText(line: number, fn: (text: string) => boolean): Promise<string> {
+	public async waitForTextInLine(line: number, fn: (text: string) => boolean): Promise<string> {
+		const text = await this.waitForText(text => !!text[line]);
+		return text[line];
+	}
+
+	public async waitForText(fn: (text: string[]) => boolean): Promise<string[]> {
 		return this.spectron.client.waitFor(async () => {
 			const terminalText = await this.getTerminalText();
-			if (fn(terminalText[line - 1])) {
-				return terminalText[line - 1];
+			if (fn(terminalText)) {
+				return terminalText;
 			}
 			return undefined;
 		});

@@ -75,18 +75,18 @@ export class SpectronApplication {
 		return this._screenshot;
 	}
 
-	public async start(): Promise<any> {
+	public async start(...args: string[]): Promise<any> {
 		await this.retrieveKeybindings();
-		await this.startApplication();
-		await this.client.windowByIndex(1); // focuses on main renderer window
+		await this.startApplication(args);
 		await this.checkWindowReady();
+		await this.waitForWelcome();
 	}
 
 	public async reload(): Promise<any> {
 		await this.workbench.commandPallette.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
 		await this.wait(.5);
-		await this.client.waitForHTML('[id="workbench.main.container"]');
+		await this.checkWindowReady();
 	}
 
 	public async stop(): Promise<any> {
@@ -99,7 +99,7 @@ export class SpectronApplication {
 		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
-	private async startApplication(): Promise<any> {
+	private async startApplication(moreArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -113,6 +113,8 @@ export class SpectronApplication {
 		args.push('--skip-getting-started');
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${path.join(EXTENSIONS_DIR, new Date().getTime().toString())}`);
+
+		args.push(...moreArgs);
 
 		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
 
@@ -131,7 +133,15 @@ export class SpectronApplication {
 	}
 
 	private async checkWindowReady(): Promise<any> {
+		await this.webclient.waitUntilWindowLoaded();
+		// Spectron opens multiple terminals in Windows platform
+		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
+		await this.client.windowByIndex(1);
+		await this.app.browserWindow.focus();
 		await this.client.waitForHTML('[id="workbench.main.container"]');
+	}
+
+	private async waitForWelcome(): Promise<any> {
 		await this.client.waitForElement('.explorer-folders-view');
 		await this.client.waitForElement(`.editor-container[id="workbench.editor.walkThroughPart"] .welcomePage`);
 	}

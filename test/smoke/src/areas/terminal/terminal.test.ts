@@ -19,7 +19,7 @@ describe('Terminal', () => {
 		const currentLine = await app.workbench.terminal.getCurrentLineNumber();
 		await app.workbench.terminal.runCommand(`echo ${expected}`);
 
-		const actual = await app.workbench.terminal.waitForText(currentLine + 1, text => !!text.trim());
+		const actual = await app.workbench.terminal.waitForTextInLine(currentLine + 1, text => !!text.trim());
 		app.screenshot.capture('Terminal text');
 		assert.equal(actual.trim(), expected);
 	});
