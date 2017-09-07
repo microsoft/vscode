@@ -589,8 +589,8 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
-  });
-  
+	});
+
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
 
 		const { placeholders } = new SnippetParser().parse('src="$1"', true);
