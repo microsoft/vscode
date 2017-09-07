@@ -2975,7 +2975,7 @@ declare module monaco.editor {
 		 * Accept suggestions on ENTER.
 		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
+		acceptSuggestionOnEnter?: boolean | 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
