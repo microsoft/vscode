@@ -79,8 +79,12 @@ process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 process.env.CAPTURE_SCREENSHOT = Object.keys(opts).indexOf('screenshot') ? 'screenshot' : '';
 
-if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+if (process.env.VSCODE_DEV === '1') {
+	process.env.VSCODE_EDITION = 'dev';
+} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
+} else {
+	process.env.VSCODE_EDITION = 'stable';
 }
 
 function getKeybindingPlatform(): string {
