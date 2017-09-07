@@ -63,6 +63,12 @@ describe('Debug', () => {
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7);
 	});
 
+	it('continue', async function () {
+		await app.workbench.debug.continue();
+		setTimeout(() => http.get('http://localhost:3000').on('error', e => void 0), 200);
+		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
+	});
+
 	it('debug console', async function () {
 		const result = await app.workbench.debug.console('2 + 2 \n', 'number');
 		assert.equal(result, '4');
