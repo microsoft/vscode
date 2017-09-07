@@ -5,7 +5,7 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
@@ -22,7 +22,7 @@ export interface IHistoryService {
 	/**
 	 * Add an entry to the navigation stack of the history.
 	 */
-	add(input: IEditorInput, options?: ITextEditorOptions): void;
+	add(input: IEditorInput, selection?: ITextEditorSelection): void;
 
 	/**
 	 * Navigate forwards in history.

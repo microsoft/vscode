@@ -93,7 +93,7 @@ export class TextFileEditor extends BaseTextEditor {
 		if (this.input) {
 			const selection = this.getControl().getSelection();
 			if (selection) {
-				this.historyService.add(this.input, { selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn } });
+				this.historyService.add(this.input, { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn });
 			}
 		}
 

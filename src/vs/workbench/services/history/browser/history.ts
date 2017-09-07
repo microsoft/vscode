@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -36,7 +36,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
  */
 export class EditorState {
 
-	private static EDITOR_SELECTION_THRESHOLD = 5; // number of lines to move in editor to justify for new state
+	private static EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
 	constructor(private _editorInput: IEditorInput, private _selection: Selection) {
 	}
@@ -128,7 +128,7 @@ export abstract class BaseHistoryService {
 
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
-	options?: ITextEditorOptions;
+	selection?: ITextEditorSelection;
 	timestamp: number;
 }
 
@@ -328,11 +328,15 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private navigate(acrossEditors?: boolean): void {
 		const entry = this.stack[this.index];
 
-		let options = entry.options;
-		if (options && !acrossEditors /* ignore line/col options when going across editors */) {
-			options.revealIfOpened = true;
-		} else {
-			options = { revealIfOpened: true };
+		let options: ITextEditorOptions = {
+			revealIfOpened: true // support to navigate across editor groups
+		};
+
+		// Unless we navigate across editors, support selection and
+		// minimize scrolling by setting revealInCenterIfOutsideViewport
+		if (entry.selection && !acrossEditors) {
+			options.selection = entry.selection;
+			options.revealInCenterIfOutsideViewport = true;
 		}
 
 		this.navigatingInStack = true;
@@ -462,16 +466,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		if (!this.currentFileEditorState || this.currentFileEditorState.justifiesNewPushState(stateCandidate, event)) {
 			this.currentFileEditorState = stateCandidate;
 
-			let options: ITextEditorOptions;
+			let selection: ITextEditorSelection;
 
-			const selection = editorControl.getSelection();
-			if (selection) {
-				options = {
-					selection: { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn }
-				};
+			const editorSelection = editorControl.getSelection();
+			if (editorSelection) {
+				selection = { startLineNumber: editorSelection.startLineNumber, startColumn: editorSelection.startColumn };
 			}
 
-			this.add(editor.input, options, true /* from event */);
+			this.add(editor.input, selection, true /* from event */);
 		}
 	}
 
@@ -484,13 +486,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.add(editor.input, void 0, true /* from event */);
 	}
 
-	public add(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
+	public add(input: IEditorInput, selection?: ITextEditorSelection, fromEvent?: boolean): void {
 		if (!this.navigatingInStack) {
-			this.addToStack(input, options, fromEvent);
+			this.addToStack(input, selection, fromEvent);
 		}
 	}
 
-	private addToStack(input: IEditorInput, options?: ITextEditorOptions, fromEvent?: boolean): void {
+	private addToStack(input: IEditorInput, selection?: ITextEditorSelection, fromEvent?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
@@ -502,13 +504,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		let replace = false;
 		if (this.stack[this.index]) {
 			const currentEntry = this.stack[this.index];
-			if (this.matches(input, currentEntry.input) && (this.sameOptions(currentEntry.options, options) || (fromEvent && Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD))) {
+			if (this.matches(input, currentEntry.input) && (this.sameSelection(currentEntry.selection, selection) || (fromEvent && Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD))) {
 				replace = true;
 			}
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, options, timestamp: fromEvent ? Date.now() : void 0 };
+		const entry = { input: stackInput, selection, timestamp: fromEvent ? Date.now() : void 0 };
 
 		// If we are not at the end of history, we remove anything after
 		if (this.stack.length > this.index + 1) {
@@ -553,27 +555,16 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		return input;
 	}
 
-	private sameOptions(optionsA?: ITextEditorOptions, optionsB?: ITextEditorOptions): boolean {
-		if (!optionsA && !optionsB) {
+	private sameSelection(selectionA?: ITextEditorSelection, selectionB?: ITextEditorSelection): boolean {
+		if (!selectionA && !selectionB) {
 			return true;
 		}
 
-		if ((!optionsA && optionsB) || (optionsA && !optionsB)) {
+		if ((!selectionA && selectionB) || (selectionA && !selectionB)) {
 			return false;
 		}
 
-		const s1 = optionsA.selection;
-		const s2 = optionsB.selection;
-
-		if (!s1 && !s2) {
-			return true;
-		}
-
-		if ((!s1 && s2) || (s1 && !s2)) {
-			return false;
-		}
-
-		return s1.startLineNumber === s2.startLineNumber; // we consider the history entry same if we are on the same line
+		return selectionA.startLineNumber === selectionB.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
 	private removeFromStack(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
