@@ -24,8 +24,8 @@ export class StatusBar {
 	constructor(private spectron: SpectronApplication) {
 	}
 
-	public async isVisible(element: StatusBarElement): Promise<boolean> {
-		return this.spectron.client.isVisible(this.getSelector(element));
+	public async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
+		await this.spectron.client.waitForElement(this.getSelector(element));
 	}
 
 	public async clickOn(element: StatusBarElement): Promise<void> {

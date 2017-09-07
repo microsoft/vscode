@@ -12,10 +12,12 @@ describe('Preferences', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('turns off editor line numbers and verifies the live change', async function () {
 		await app.workbench.explorer.openFile('app.js');
 		let lineNumbers = await app.client.waitForElements('.line-numbers');
+		app.screenshot.capture('line numbers');
 		assert.ok(!!lineNumbers.length, 'Line numbers are not present in the editor before disabling them.');
 
 		await app.workbench.settingsEditor.openUserSettings();
@@ -25,18 +27,17 @@ describe('Preferences', () => {
 
 		await app.workbench.selectTab('app.js');
 		lineNumbers = await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
+		app.screenshot.capture('line numbers hidden');
 		assert.ok(!lineNumbers.length, 'Line numbers are still present in the editor after disabling them.');
 	});
 
 	it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
-		let activityBarElement = await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT);
-		assert.ok(activityBarElement, 'Activity bar should be positioned on the left.');
+		assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.LEFT), 'Activity bar should be positioned on the left.');
 
 		await app.workbench.keybindingsEditor.openKeybindings();
 		await app.workbench.keybindingsEditor.updateKeybinding('workbench.action.toggleSidebarPosition', ['Control', 'u', 'NULL'], 'Control+U');
 
 		await app.client.keys(['Control', 'u', 'NULL']);
-		activityBarElement = await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT);
-		assert.ok(activityBarElement, 'Activity bar was not moved to right after toggling its position.');
+		assert.ok(await app.workbench.activitybar.getActivityBar(ActivityBarPosition.RIGHT), 'Activity bar was not moved to right after toggling its position.');
 	});
 });

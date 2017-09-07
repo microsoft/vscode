@@ -13,6 +13,7 @@ describe('Git', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();
@@ -28,6 +29,7 @@ describe('Git', () => {
 		await app.workbench.scm.refreshSCMViewlet();
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
 		const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
+		app.screenshot.capture('changes');
 
 		assert.equal(appJs.name, 'app.js');
 		assert.equal(appJs.type, 'Modified');

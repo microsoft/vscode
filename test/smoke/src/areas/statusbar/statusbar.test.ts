@@ -13,19 +13,20 @@ describe('Statusbar', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('verifies presence of all default status bar elements', async function () {
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.BRANCH_STATUS), 'Branch indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.FEEDBACK_ICON), 'Feedback icon is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SYNC_STATUS), 'Sync indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.PROBLEMS_STATUS), 'Problems indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS), 'Branch indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON), 'Feedback icon is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS), 'Sync indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS), 'Problems indicator is not visible.');
 
 		await app.workbench.quickopen.openFile('app.js');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.ENCODING_STATUS), 'Encoding indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.EOL_STATUS), 'EOL indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.INDENTATION_STATUS), 'Indentation indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.LANGUAGE_STATUS), 'Language indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SELECTION_STATUS), 'Selection indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS), 'Encoding indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS), 'EOL indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS), 'Indentation indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS), 'Language indicator is not visible.');
+		assert.ok(await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS), 'Selection indicator is not visible.');
 	});
 
 	it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {

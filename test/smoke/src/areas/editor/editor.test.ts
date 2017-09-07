@@ -11,6 +11,7 @@ describe('Editor', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('shows correct quick outline', async function () {
 		await app.workbench.quickopen.openFile('www');
@@ -18,6 +19,7 @@ describe('Editor', () => {
 		const outline = await app.workbench.editor.openOutline();
 
 		const symbols = await outline.getQuickOpenElements();
+		app.screenshot.capture('Javascript Outline result');
 		assert.equal(symbols.length, 12, 'Quick outline elements count does not match to expected.');
 	});
 
@@ -27,6 +29,7 @@ describe('Editor', () => {
 		const references = await app.workbench.editor.findReferences('app', 7);
 
 		const countInTitle = await references.getCountFromTitle();
+		app.screenshot.capture('References result');
 		assert.equal(countInTitle, 3, 'References count in widget title is not as expected.');
 		const referencesCount = await references.getCount();
 		assert.equal(referencesCount, 3, 'References count in tree is not as expected.');
@@ -42,6 +45,7 @@ describe('Editor', () => {
 		rename.rename('newApp');
 
 		const actual = await app.client.waitForText(selector, 'newApp');
+		app.screenshot.capture('Rename result');
 		assert.equal(actual, 'newApp');
 	});
 
@@ -75,6 +79,7 @@ describe('Editor', () => {
 		const peek = await app.workbench.editor.peekDefinition('express', 11);
 
 		const definitionFilename = await peek.getFileNameFromTitle();
+		app.screenshot.capture('Peek definition result');
 		assert.equal(definitionFilename, 'index.d.ts', 'Peek result is not as expected.');
 	});
 });

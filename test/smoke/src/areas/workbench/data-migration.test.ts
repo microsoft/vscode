@@ -16,6 +16,7 @@ describe('Data Migration', () => {
 
 	let app: SpectronApplication;
 	afterEach(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('checks if the Untitled file is restored migrating from stable to latest', async function () {
 		const textToType = 'Very dirty file';
@@ -36,6 +37,7 @@ describe('Data Migration', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
+		app.screenshot.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 	});
 
@@ -62,6 +64,7 @@ describe('Data Migration', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen(fileName.split('/')[1]), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
+		app.screenshot.capture(fileName + ' text');
 		assert.ok(actual.startsWith(firstTextPart.concat(secondTextPart)), `${actual} did not start with ${firstTextPart.concat(secondTextPart)}`);
 
 		await Util.removeFile(`${fileName}`);
