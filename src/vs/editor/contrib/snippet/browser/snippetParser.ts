@@ -301,24 +301,20 @@ export class Transform extends Marker {
 	regexp: RegExp;
 
 	resolve(value: string): string {
-		const match = this.regexp.exec(value);
-		if (!match) {
-			// return input string?
-			return '';
-		}
-
-		let ret = '';
-		walk(this.children, marker => {
-			if (marker instanceof FormatString) {
-				let value = match[marker.index];
-				value = marker.resolve(value);
-				ret += value;
-			} else {
-				ret += marker.toString();
+		const _this = this;
+		return value.replace(this.regexp, function () {
+			let ret = '';
+			for (const marker of _this._children) {
+				if (marker instanceof FormatString) {
+					let value = arguments.length - 2 > marker.index ? <string>arguments[marker.index] : '';
+					value = marker.resolve(value);
+					ret += value;
+				} else {
+					ret += marker.toString();
+				}
 			}
-			return true;
+			return ret;
 		});
-		return ret;
 	}
 
 	toString(): string {
