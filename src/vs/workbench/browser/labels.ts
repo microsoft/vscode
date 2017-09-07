@@ -22,6 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export interface IEditorLabel {
 	name: string;
@@ -60,6 +61,27 @@ export class ResourceLabel extends IconLabel {
 	private registerListeners(): void {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
+		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
+	}
+
+	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
+		if (!this.label || !this.label.resource) {
+			return; // only update if label exists
+		}
+
+		if (!e.model.uri) {
+			return; // we need the resource to compare
+		}
+
+		if (e.oldModeId === PLAINTEXT_MODE_ID) {
+			return; // ignore transitions from no mode to specific mode because this happens each time a model is created
+		}
+
+		if (e.model.uri.toString() === this.label.resource.toString()) {
+			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
+				this.render(true);
+			}
+		}
 	}
 
 	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
