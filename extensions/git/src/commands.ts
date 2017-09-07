@@ -1174,6 +1174,19 @@ export class CommandCenter {
 		await repository.sync();
 	}
 
+	@command('git._syncAll')
+	async syncAll(): Promise<void> {
+		await Promise.all(this.model.repositories.map(async repository => {
+			const HEAD = repository.HEAD;
+
+			if (!HEAD || !HEAD.upstream) {
+				return;
+			}
+
+			await repository.sync();
+		}));
+	}
+
 	@command('git.publish', { repository: true })
 	async publish(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;
