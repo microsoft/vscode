@@ -501,6 +501,18 @@ export interface IRawColorInfo {
 
 export type IRawColorFormatMap = [number, string][];
 
+
+export interface IExtHostSuggestion extends modes.ISuggestion {
+	_id: number;
+	_parentId: number;
+}
+
+export interface IExtHostSuggestResult {
+	_id: number;
+	suggestions: IExtHostSuggestion[];
+	incomplete?: boolean;
+}
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]>;
@@ -518,8 +530,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]>;
 	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation>;
 	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult>;
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<IExtHostSuggestResult>;
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
+	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp>;
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
 	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
