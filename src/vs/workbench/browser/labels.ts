@@ -209,15 +209,16 @@ export class FileLabel extends ResourceLabel {
 		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
 	}
 
-	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
-		const hidePath = options.hidePath || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-		const rootProvider: IRootProvider = options.root ? {
+	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		const rootProvider: IRootProvider = (options && options.root) ? {
 			getRoot(): uri { return options.root; },
 			getWorkspace(): { roots: uri[]; } { return { roots: [options.root] }; },
 		} : this.contextService;
+
 		this.setLabel({
 			resource,
-			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
+			name: (options && options.hideLabel) ? void 0 : paths.basename(resource.fsPath),
 			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : void 0
 		}, options);
 	}
