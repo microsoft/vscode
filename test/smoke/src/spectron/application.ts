@@ -112,7 +112,7 @@ export class SpectronApplication {
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		args.push(`--extensions-dir=${path.join(EXTENSIONS_DIR, new Date().getTime().toString())}`);
+		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
 		args.push(...moreArgs);
 

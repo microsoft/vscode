@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
+import * as mkdirp from 'mkdirp';
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, { string: ['build', 'stable-build', 'screenshot'] });
@@ -22,6 +23,8 @@ const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
 const keybindingsPath = path.join(testDataPath, 'keybindings.json');
+const extensionsPath = path.join(testDataPath, 'extensions-dir');
+mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -72,7 +75,7 @@ if (!fs.existsSync(testCodePath)) {
 }
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
-process.env.VSCODE_EXTENSIONS_DIR = path.join(testDataPath, 'extensions-dir');
+process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
 process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots-dir');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;

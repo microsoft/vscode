@@ -5,32 +5,57 @@
 
 import * as assert from 'assert';
 import * as http from 'http';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
+
+	if (app.build === VSCODE_BUILD.DEV) {
+		const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
+
+		const debugPath = path.join(extensionsPath, 'vscode-node-debug');
+		const debugExists = fs.existsSync(debugPath);
+
+		const debug2Path = path.join(extensionsPath, 'vscode-node-debug2');
+		const debug2Exists = fs.existsSync(debug2Path);
+
+		if (!debugExists) {
+			console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
+			return;
+		}
+
+		if (!debug2Exists) {
+			console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
+			return;
+		}
+
+		fs.symlinkSync(debugPath, path.join(EXTENSIONS_DIR, 'vscode-node-debug'));
+		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
+	}
+
 	before(() => app.start());
 	after(() => app.stop());
 
-	if (app.build !== VSCODE_BUILD.DEV) {
-		it('configure launch json', async function () {
+	it('configure launch json', async function () {
 
-			await app.workbench.debug.openDebugViewlet();
-			await app.workbench.openFile('app.js');
-			await app.workbench.debug.configure();
-			const content = await app.workbench.editor.getEditorVisibleText();
-			const json = JSON.parse(stripJsonComments(content));
+		await app.workbench.debug.openDebugViewlet();
+		await app.workbench.openFile('app.js');
+		await app.workbench.debug.configure();
+		const content = await app.workbench.editor.getEditorVisibleText();
+		const json = JSON.parse(stripJsonComments(content));
 
-			assert.equal(json.configurations[0].request, 'launch');
-			assert.equal(json.configurations[0].type, 'node');
-			if (process.platform === 'win32') {
-				assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
-			} else {
-				assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
-			}
-		});
-	}
+		assert.equal(json.configurations[0].request, 'launch');
+		assert.equal(json.configurations[0].type, 'node');
+		if (process.platform === 'win32') {
+			assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
+		} else {
+			assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
+		}
+	});
 
 	it('breakpoints', async function () {
 		await app.workbench.openFile('index.js');
@@ -39,7 +64,7 @@ describe('Debug', () => {
 
 	it('start debugging', async function () {
 		await app.workbench.debug.startDebugging();
-		setTimeout(() => http.get('http://localhost:3000').on('error', e => void 0), 200);
+		setTimeout(() => http.get(`http://localhost:3000`).on('error', e => void 0), 400);
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 
@@ -64,7 +89,7 @@ describe('Debug', () => {
 
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-		setTimeout(() => http.get('http://localhost:3000').on('error', e => void 0), 200);
+		setTimeout(() => http.get(`http://localhost:3000`).on('error', e => void 0), 400);
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 

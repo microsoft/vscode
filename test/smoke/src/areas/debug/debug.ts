@@ -23,7 +23,9 @@ const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
 const TOOLBAR_HIDDEN = `.debug-actions-widget.builder-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
-const CONSOLE_OUTPUT = `.repl .input-output-pair .output.expression`;
+const CONSOLE_OUTPUT = `.repl .output.expression`;
+const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression`;
+const SCOPE = `${VIEWLET} .debug-variables .scope`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor.focused';
 
@@ -86,7 +88,7 @@ export class Debug extends Viewlet {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		});;
+		});
 	}
 
 	async focusStackFrame(name: string): Promise<any> {
@@ -99,12 +101,14 @@ export class Debug extends Viewlet {
 		await this.spectron.workbench.commandPallette.runCommand('Debug: Focus Debug Console');
 		await this.spectron.client.waitForElement(REPL_FOCUSED);
 		await this.spectron.client.type(text);
-		await this.spectron.client.waitForElement(CONSOLE_OUTPUT + ` .${type}`);
+		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT + ` .${type}`);
 
-		return this.getLastConsoleOutput();
+		const result = await this.getConsoleOutput();
+		return result[result.length - 1] || '';
 	}
 
 	async getLocalVariableCount(): Promise<number> {
+		await this.spectron.client.waitForElement(SCOPE);
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
 	}
 
@@ -126,14 +130,14 @@ export class Debug extends Viewlet {
 		return result.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
 	}
 
-	private async getLastConsoleOutput(): Promise<string> {
+	private async getConsoleOutput(): Promise<string[]> {
 		const result = await this.spectron.webclient.selectorExecute(CONSOLE_OUTPUT,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
 				const value = element.querySelector('.value') as HTMLElement;
-				return value.textContent;
-			})
+				return value && value.textContent;
+			}).filter(line => !!line)
 		);
 
-		return result.pop();
+		return result;
 	}
 }
