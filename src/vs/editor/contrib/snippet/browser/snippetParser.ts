@@ -941,7 +941,7 @@ export class SnippetParser {
 			// ${1:+<if>}
 			let ifValue = this._until(TokenType.CurlyClose);
 			if (ifValue) {
-				parent.appendChild(new FormatString(Number(index), undefined, undefined, ifValue));
+				parent.appendChild(new FormatString(Number(index), undefined, ifValue, undefined));
 				return true;
 			}
 
