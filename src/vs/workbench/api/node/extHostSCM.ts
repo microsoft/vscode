@@ -180,6 +180,33 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._onDidUpdateResourceStates.fire();
 	}
 
+	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
+	private _disposables: IDisposable[] = [];
+
+	constructor(
+		private _proxy: MainThreadSCMShape,
+		private _commands: ExtHostCommands,
+		private _sourceControlHandle: number,
+		private _id: string,
+		private _label: string,
+	) {
+		this._proxy.$registerGroup(_sourceControlHandle, this.handle, _id, _label);
+	}
+
+	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
+		return this._resourceStatesMap.get(handle);
+	}
+
+	async $executeResourceCommand(handle: number): TPromise<void> {
+		const command = this._resourceStatesCommandsMap.get(handle);
+
+		if (!command) {
+			return;
+		}
+
+		this._commands.executeCommand(command.command, ...command.arguments);
+	}
+
 	_takeResourceStateSnapshot(): SCMRawResourceSplice[] {
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
@@ -238,33 +265,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 		this._resourceSnapshot = snapshot;
 		return splices;
-	}
-
-	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
-	private _disposables: IDisposable[] = [];
-
-	constructor(
-		private _proxy: MainThreadSCMShape,
-		private _commands: ExtHostCommands,
-		private _sourceControlHandle: number,
-		private _id: string,
-		private _label: string,
-	) {
-		this._proxy.$registerGroup(_sourceControlHandle, this.handle, _id, _label);
-	}
-
-	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
-		return this._resourceStatesMap.get(handle);
-	}
-
-	async $executeResourceCommand(handle: number): TPromise<void> {
-		const command = this._resourceStatesCommandsMap.get(handle);
-
-		if (!command) {
-			return;
-		}
-
-		this._commands.executeCommand(command.command, ...command.arguments);
 	}
 
 	dispose(): void {
