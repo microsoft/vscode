@@ -73,8 +73,8 @@ export class ResourceLabel extends IconLabel {
 			return; // we need the resource to compare
 		}
 
-		if (e.oldModeId === PLAINTEXT_MODE_ID) {
-			return; // ignore transitions from no mode to specific mode because this happens each time a model is created
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 		}
 
 		if (e.model.uri.toString() === this.label.resource.toString()) {
