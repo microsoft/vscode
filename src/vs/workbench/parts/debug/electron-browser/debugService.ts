@@ -639,47 +639,55 @@ export class DebugService implements debug.IDebugService {
 
 				return manager.getStartSessionCommand(config ? config.type : undefined).then<any>(commandAndType => {
 
-					if (!config) {
-						// no-folder workspace
+					// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
+					// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
+					let type: string;
+
+					if (config) {
+						type = config.type;
+					} else {
+						// a no-folder workspace has no launch.config
 						config = <debug.IConfig>{};
-						if (commandAndType && commandAndType.type) {
-							config.type = commandAndType.type;
-						}
+					}
+
+					if (!type && commandAndType && commandAndType.type) {
+						type = commandAndType.type;
 					}
 
 					if (noDebug) {
 						config.noDebug = true;
 					}
 
-					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, config).then(config => {
+					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, type, config).then(config => {
 
-						// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
-						if (commandAndType && commandAndType.command) {
-							const defaultConfig = noDebug ? { noDebug: true } : {};
-							return this.commandService.executeCommand(commandAndType.command, config || defaultConfig, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
-								if (launch) {
-									if (result && result.status === 'initialConfiguration') {
-										return launch.openConfigFile(false, commandAndType.type);
+						// a falsy config indicates an aborted launch
+						if (config) {
+
+							// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
+							if (commandAndType && commandAndType.command) {
+								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
+									if (launch) {
+										if (result && result.status === 'initialConfiguration') {
+											return launch.openConfigFile(false, commandAndType.type);
+										}
+
+										if (result && result.status === 'saveConfiguration') {
+											return this.fileService.updateContent(launch.uri, result.content).then(() => launch.openConfigFile(false));
+										}
 									}
+									return <TPromise>undefined;
+								});
+							}
+							// end of deprecation
 
-									if (result && result.status === 'saveConfiguration') {
-										return this.fileService.updateContent(launch.uri, result.content).then(() => launch.openConfigFile(false));
-									}
-								}
-								return <TPromise>undefined;
-							});
+							if (config.type) {
+								return this.createProcess(root, config);
+							}
+
+							if (launch && commandAndType) {
+								return launch.openConfigFile(false, commandAndType.type);
+							}
 						}
-						// end of deprecation
-
-						if (config.type) {
-							// TODO@AW: handle the 'initialConfiguration' and 'saveConfiguration' cases from above!
-							return this.createProcess(root, config);
-						}
-
-						if (launch && commandAndType) {
-							return launch.openConfigFile(false, commandAndType.type);
-						}
-
 						return undefined;
 					});
 				});
