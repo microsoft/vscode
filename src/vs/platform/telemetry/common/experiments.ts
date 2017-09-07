@@ -84,6 +84,5 @@ function splitRandom(random: number): [number, boolean] {
 }
 
 function getExperimentsOverrides(configurationService: IConfigurationService): IExperiments {
-	const config: any = configurationService.getConfiguration('telemetry');
-	return config && config.experiments || {};
+	return configurationService.getConfiguration<any>('experiments') || {};
 }
