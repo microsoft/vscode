@@ -259,12 +259,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._providers.delete(handle);
 	}
 
-	public resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
+	public resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
 
 		// collect all candidates
 		const providers: IDebugConfigurationProvider[] = [];
 		this._providers.forEach(provider => {
-			if (provider.type === debugConfiguration.type && provider.resolveDebugConfiguration) {
+			if (provider.type === type && provider.resolveDebugConfiguration) {
 				providers.push(provider);
 			}
 		});
@@ -272,7 +272,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		// pipe the config through the promises sequentially
 		return providers.reduce((promise, provider) => {
 			return promise.then(config => {
-				return provider.resolveDebugConfiguration(folderUri, config);
+				if (config) {
+					return provider.resolveDebugConfiguration(folderUri, config);
+				} else {
+					return Promise.resolve(config);
+				}
 			});
 		}, TPromise.as(debugConfiguration));
 	}

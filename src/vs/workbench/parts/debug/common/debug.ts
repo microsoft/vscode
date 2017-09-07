@@ -375,8 +375,8 @@ export interface IRawAdapter extends IRawEnvAdapter {
 
 export interface IDebugConfigurationProvider {
 	type: string;
-	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
-	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<any[]>;
+	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
+	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 }
 
 export interface IConfigurationManager {
@@ -410,7 +410,7 @@ export interface IConfigurationManager {
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
-	resolveDebugConfiguration(folderUri: uri | undefined, debugConfiguration: any): TPromise<any>;
+	resolveDebugConfiguration(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
 }
 
 export interface ILaunch {
