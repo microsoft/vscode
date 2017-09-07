@@ -61,6 +61,13 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
+	// macOS Native Tabs
+	showPreviousWindowTab(): TPromise<void>;
+	showNextWindowTab(): TPromise<void>;
+	moveWindowTabToNewWindow(): TPromise<void>;
+	mergeAllWindowTabs(): TPromise<void>;
+	toggleWindowTabsBar(): TPromise<void>;
+
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;

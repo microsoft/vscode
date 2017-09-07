@@ -900,14 +900,15 @@ export class CodeMenu {
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsService.getWindowCount() > 0 });
 		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
 
+		this.nativeTabMenuItems = [];
 		const nativeTabMenuItems: Electron.MenuItem[] = [];
 		if (this.currentEnableNativeTabs) {
 			const hasMultipleWindows = this.windowsService.getWindowCount() > 1;
 
-			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mShowPreviousTab', "Show Previous Tab"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('selectPreviousTab:') }));
-			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mShowNextTab', "Show Next Tab"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('selectNextTab:') }));
-			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('moveTabToNewWindow:') }));
-			this.nativeTabMenuItems.push(new MenuItem({ label: nls.localize('mMergeAllWindows', "Merge All Windows"), enabled: hasMultipleWindows, click: () => Menu.sendActionToFirstResponder('mergeAllWindows:') }));
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowPreviousTab', "Show Previous Tab"), 'workbench.action.showPreviousWindowTab', hasMultipleWindows));
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mShowNextTab', "Show Next Tab"), 'workbench.action.showNextWindowTab', hasMultipleWindows));
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMoveTabToNewWindow', "Move Tab to New Window"), 'workbench.action.moveWindowTabToNewWindow', hasMultipleWindows));
+			this.nativeTabMenuItems.push(this.createMenuItem(nls.localize('mMergeAllWindows', "Merge All Windows"), 'workbench.action.mergeAllWindowTabs', hasMultipleWindows));
 
 			nativeTabMenuItems.push(__separator__(), ...this.nativeTabMenuItems);
 		} else {

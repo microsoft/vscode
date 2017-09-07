@@ -1130,6 +1130,26 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
+	showPreviousWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showNextWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	moveWindowTabToNewWindow(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	mergeAllWindowTabs(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleWindowTabsBar(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
 	openExternal(url: string): TPromise<boolean> {
