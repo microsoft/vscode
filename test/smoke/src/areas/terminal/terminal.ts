@@ -17,7 +17,7 @@ export class Terminal {
 		if (!await this.isVisible()) {
 			await this.spectron.workbench.commandPallette.runCommand('Toggle Integrated Terminal');
 			await this.spectron.client.waitForElement(Terminal.TERMINAL_SELECTOR);
-			await this.waitForText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1);
+			await this.waitForTerminalText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1);
 		}
 	}
 
@@ -26,17 +26,19 @@ export class Terminal {
 		return !!element;
 	}
 
-	public async runCommand(commandText: string): Promise<void> {
+	public async runCommand(commandText: string): Promise<number> {
 		await this.spectron.client.type(commandText);
+		const currentLineNumber = await this.getCurrentLineNumber();
 		await this.spectron.client.keys(['Enter', 'NULL']);
+		return currentLineNumber + 1;
 	}
 
 	public async waitForTextInLine(line: number, fn: (text: string) => boolean): Promise<string> {
-		const text = await this.waitForText(text => !!text[line]);
-		return text[line];
+		const terminalText = await this.waitForTerminalText(terminalText => fn(terminalText[line - 1]));
+		return terminalText[line - 1];
 	}
 
-	public async waitForText(fn: (text: string[]) => boolean): Promise<string[]> {
+	public async waitForTerminalText(fn: (text: string[]) => boolean): Promise<string[]> {
 		return this.spectron.client.waitFor(async () => {
 			const terminalText = await this.getTerminalText();
 			if (fn(terminalText)) {

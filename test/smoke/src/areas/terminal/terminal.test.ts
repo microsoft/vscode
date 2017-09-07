@@ -16,11 +16,9 @@ describe('Terminal', () => {
 		const expected = new Date().getTime().toString();
 		await app.workbench.terminal.showTerminal();
 
-		const currentLine = await app.workbench.terminal.getCurrentLineNumber();
-		await app.workbench.terminal.runCommand(`echo ${expected}`);
+		const resultLineNumber = await app.workbench.terminal.runCommand(`echo ${expected}`);
 
-		const actual = await app.workbench.terminal.waitForTextInLine(currentLine + 1, text => !!text.trim());
-		app.screenshot.capture('Terminal text');
+		const actual = await app.workbench.terminal.waitForTextInLine(resultLineNumber, text => text.trim() === expected);
 		assert.equal(actual.trim(), expected);
 	});
 });
