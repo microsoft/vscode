@@ -36,7 +36,7 @@ step "Configure environment" \
 	configureEnvironment
 
 function runSmokeTest {
-	cd test/smoke && sudo -u testuser ../../node_modules/.bin/mocha --build "$AGENT_BUILDDIRECTORY/VSCode-linux-x64/code-insiders"
+	cd test/smoke && sudo -i -u testuser ../../node_modules/.bin/mocha --build "$AGENT_BUILDDIRECTORY/VSCode-linux-x64/code-insiders"
 }
 
 step "Run smoke test" \
