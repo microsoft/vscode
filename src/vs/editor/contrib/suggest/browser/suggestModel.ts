@@ -146,6 +146,7 @@ export class SuggestModel implements IDisposable {
 	dispose(): void {
 		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener, this.triggerRefilter]);
 		this.toDispose = dispose(this.toDispose);
+		dispose(this.completionModel);
 		this.cancel();
 	}
 
@@ -224,6 +225,7 @@ export class SuggestModel implements IDisposable {
 		}
 
 		this._state = State.Idle;
+		dispose(this.completionModel);
 		this.completionModel = null;
 		this.context = null;
 
@@ -366,6 +368,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			const ctx = new LineContext(model, this.editor.getPosition(), auto);
+			dispose(this.completionModel);
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0

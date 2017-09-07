@@ -6,8 +6,9 @@
 'use strict';
 
 import { fuzzyScore } from 'vs/base/common/filters';
-import { ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
+import { isDisposable } from 'vs/base/common/lifecycle';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -47,6 +48,18 @@ export class CompletionModel {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
 		} else if (snippetConfig === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
+		}
+	}
+
+	dispose(): void {
+		const seen = new Set<ISuggestResult>();
+		for (const { container } of this._items) {
+			if (!seen.has(container)) {
+				seen.add(container);
+				if (isDisposable(container)) {
+					container.dispose();
+				}
+			}
 		}
 	}
 

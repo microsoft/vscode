@@ -244,6 +244,7 @@ export interface ISuggestion {
 export interface ISuggestResult {
 	suggestions: ISuggestion[];
 	incomplete?: boolean;
+	dispose?(): void;
 }
 
 /**
