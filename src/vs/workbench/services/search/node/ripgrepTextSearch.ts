@@ -363,17 +363,17 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
-interface IRgGlobResult {
+export interface IRgGlobResult {
 	globArgs: string[];
 	siblingClauses: glob.IExpression;
 }
 
-function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression, excludesToSkip: Set<string>): IRgGlobResult {
+export function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
 		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
-		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder, excludesToSkip);
+		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs && folderQuery.folder, excludesToSkip);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
 			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
@@ -383,18 +383,18 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	return { globArgs, siblingClauses };
 }
 
-function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
+export function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression, absoluteGlobs = true): string[] {
 	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
 		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
-		const result = globExprsToRgGlobs(totalIncludePattern, folderQuery.folder);
+		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs && folderQuery.folder);
 		globArgs.push(...result.globArgs);
 	});
 
 	return globArgs;
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression, folder: string, excludesToSkip?: Set<string>): IRgGlobResult {
+function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, excludesToSkip?: Set<string>): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
@@ -404,7 +404,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string, excludes
 			}
 
 			const value = patterns[key];
-			key = getAbsoluteGlob(folder, key);
+			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(fixDriveC(key));
@@ -427,11 +427,9 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string, excludes
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolute = paths.isAbsolute(key) ?
+	return paths.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
-
-	return trimTrailingSlash(absolute);
 }
 
 function trimTrailingSlash(str: string): string {

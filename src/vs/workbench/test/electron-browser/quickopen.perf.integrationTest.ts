@@ -12,6 +12,7 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+import { IExperimentService, IExperiments } from 'vs/platform/telemetry/common/experiments';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -66,9 +67,11 @@ suite('QuickOpen performance (integration)', () => {
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
+		const experimentService = new TestExperimentService();
 		const configurationService = new SimpleConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
+			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
@@ -177,3 +180,15 @@ class TestTelemetryService implements ITelemetryService {
 		});
 	}
 };
+
+class TestExperimentService implements IExperimentService {
+
+	_serviceBrand: any;
+
+	getExperiments(): IExperiments {
+		return {
+			ripgrepQuickSearch: true,
+			deployToAzureQuickLink: false
+		};
+	}
+}
