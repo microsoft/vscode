@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';

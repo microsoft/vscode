@@ -8,34 +8,39 @@ import * as assert from 'assert';
 import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Localization', () => {
+	let app: SpectronApplication = new SpectronApplication();
+	if (app.build === VSCODE_BUILD.DEV) {
+		return;
+	}
 
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		if (app.build === VSCODE_BUILD.DEV) {
-			return;
-		}
-		await app.start();
+		await app.start('--locale=DE');
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
+		app.screenshot.capture('Open editors title');
 		assert.equal(text.toLowerCase(), 'geöffnete editoren');
 
 		await app.workbench.search.openSearchViewlet();
 		text = await app.workbench.search.getTitle();
+		app.screenshot.capture('Search title');
 		assert.equal(text.toLowerCase(), 'suchen');
 
 		await app.workbench.scm.openSCMViewlet();
 		text = await app.workbench.scm.getTitle();
-		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
+		app.screenshot.capture('Scm title');
+		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: vscode-smoketest-express (git)');
 
 		await app.workbench.debug.openDebugViewlet();
 		text = await app.workbench.debug.getTitle();
-		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: git');
+		app.screenshot.capture('Debug title');
+		assert.equal(text.toLowerCase(), 'debuggen');
 
 		await app.workbench.extensions.openExtensionsViewlet();
 		text = await app.workbench.extensions.getTitle();
-		assert.equal(text.toLowerCase(), 'nach erweiterungen im marketplace suchen');
+		app.screenshot.capture('Extensions title');
+		assert.equal(text.toLowerCase(), 'erweiterungen: marketplace');
 	});
 });

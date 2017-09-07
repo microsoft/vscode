@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -18,7 +18,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadTelemetryShape, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IRawColorFormatMap, IMainContext, IExtHostSuggestResult, IExtHostSuggestion } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -471,24 +471,28 @@ class SuggestAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _commands: CommandsConverter;
-	private _heapService: ExtHostHeapService;
 	private _provider: vscode.CompletionItemProvider;
 
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CompletionItemProvider) {
+	private _cache = new Map<number, vscode.CompletionItem[]>();
+	private _idPool = 0;
+
+	constructor(documents: ExtHostDocuments, commands: CommandsConverter, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
 		this._commands = commands;
-		this._heapService = heapService;
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
+	provideCompletionItems(resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
-			const result: modes.ISuggestResult = {
+			const _id = this._idPool++;
+
+			const result: IExtHostSuggestResult = {
+				_id,
 				suggestions: [],
 			};
 
@@ -509,19 +513,15 @@ class SuggestAdapter {
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
 				.with({ end: pos });
 
-			for (const item of list.items) {
-
-				const suggestion = this._convertCompletionItem(item, pos, wordRangeBeforePos);
-
-				// bad completion item
-				if (!suggestion) {
-					// converter did warn
-					continue;
+			for (let i = 0; i < list.items.length; i++) {
+				const suggestion = this._convertCompletionItem(list.items[i], pos, wordRangeBeforePos, i, _id);
+				// check for bad completion item
+				// for the converter did warn
+				if (suggestion) {
+					result.suggestions.push(suggestion);
 				}
-
-				ObjectIdentifier.mixin(suggestion, this._heapService.keep(item));
-				result.suggestions.push(suggestion);
 			}
+			this._cache.set(_id, list.items);
 
 			return result;
 		});
@@ -533,8 +533,8 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		const id = ObjectIdentifier.of(suggestion);
-		const item = this._heapService.get<CompletionItem>(id);
+		const { _parentId, _id } = (<IExtHostSuggestion>suggestion);
+		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
 			return TPromise.as(suggestion);
 		}
@@ -548,7 +548,7 @@ class SuggestAdapter {
 			const doc = this._documents.getDocumentData(resource).document;
 			const pos = TypeConverters.toPosition(position);
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
-			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos);
+			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
 				mixin(suggestion, newSuggestion, true);
 			}
@@ -557,13 +557,20 @@ class SuggestAdapter {
 		});
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
+	releaseCompletionItems(id: number): any {
+		this._cache.delete(id);
+	}
+
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): IExtHostSuggestion {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
-		const result: modes.ISuggestion = {
+		const result: IExtHostSuggestion = {
+			//
+			_id,
+			_parentId,
 			//
 			label: item.label,
 			type: TypeConverters.CompletionItemKind.from(item.kind),
@@ -994,17 +1001,21 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new SuggestAdapter(this._documents, this._commands.converter, this._heapService, provider));
+		this._adapter.set(handle, new SuggestAdapter(this._documents, this._commands.converter, provider));
 		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<IExtHostSuggestResult> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position));
 	}
 
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(resource, position, suggestion));
+	}
+
+	$releaseCompletionItems(handle: number, id: number): void {
+		this._withAdapter(handle, SuggestAdapter, adapter => adapter.releaseCompletionItems(id));
 	}
 
 	// --- parameter hints

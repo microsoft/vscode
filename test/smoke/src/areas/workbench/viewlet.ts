@@ -12,7 +12,7 @@ export abstract class Viewlet {
 	}
 
 	public async getTitle(): Promise<string> {
-		return this.spectron.client.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > .title');
+		return this.spectron.client.waitForText('.monaco-workbench-container .part.sidebar > .title > .title-label > span');
 	}
 
 }

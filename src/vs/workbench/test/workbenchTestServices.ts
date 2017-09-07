@@ -24,7 +24,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
@@ -253,7 +253,7 @@ export class TestHistoryService implements IHistoryService {
 	public reopenLastClosedEditor(): void {
 	}
 
-	public add(input: IEditorInput, options?: ITextEditorOptions): void {
+	public add(input: IEditorInput, selection?: ITextEditorSelection): void {
 	}
 
 	public forward(acrossEditors?: boolean): void {
@@ -1127,6 +1127,26 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	showItemInFolder(path: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showPreviousWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showNextWindowTab(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	moveWindowTabToNewWindow(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	mergeAllWindowTabs(): Promise<void> {
+		return TPromise.as(void 0);
+	}
+
+	toggleWindowTabsBar(): Promise<void> {
 		return TPromise.as(void 0);
 	}
 

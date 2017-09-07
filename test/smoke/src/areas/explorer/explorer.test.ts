@@ -10,6 +10,7 @@ describe('Explorer', () => {
 	let app: SpectronApplication;
 	before(() => { app = new SpectronApplication(); return app.start(); });
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('quick open search produces correct result', async function () {
 		await app.workbench.quickopen.openQuickOpen();
@@ -17,6 +18,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
+		app.screenshot.capture('Quick open result');
 		assert.equal(elements.length, 7, 'There are 7 elements in quick open');
 	});
 
@@ -27,6 +29,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
+		app.screenshot.capture('fuzzy match result');
 		assert.equal(elements.length, 3, 'There are 3 elements in quick open');
 	});
 });

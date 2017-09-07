@@ -275,17 +275,19 @@ export interface IEditorOptions {
 	inactive?: boolean;
 }
 
+export interface ITextEditorSelection {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber?: number;
+	endColumn?: number;
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	selection?: {
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber?: number;
-		endColumn?: number;
-	};
+	selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.

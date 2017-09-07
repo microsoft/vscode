@@ -382,6 +382,9 @@ export function createApiFactory(
 			}),
 			showOpenDialog: proposedApiFunction(extension, options => {
 				return extHostDialogs.showOpenDialog(options);
+			}),
+			showSaveDialog: proposedApiFunction(extension, options => {
+				return extHostDialogs.showSaveDialog(options);
 			})
 		};
 

@@ -14,7 +14,7 @@ import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCo
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

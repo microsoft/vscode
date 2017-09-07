@@ -78,7 +78,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 			this.workbenchActions[descriptor.id] = descriptor;
 			registerWorkbenchCommandFromAction(descriptor);
 
-			let meta: IActionMeta = { alias };
+			const meta: IActionMeta = { alias };
 			if (typeof category === 'string') {
 				meta.category = category;
 			}
@@ -125,11 +125,11 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 Registry.add(Extensions.WorkbenchActions, new WorkbenchActionRegistry());
 
 function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): void {
-	let when = descriptor.keybindingContext;
-	let weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
-	let keybindings = descriptor.keybindings;
+	const when = descriptor.keybindingContext;
+	const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
+	const keybindings = descriptor.keybindings;
 
-	let desc: ICommandAndKeybindingRule = {
+	const desc: ICommandAndKeybindingRule = {
 		id: descriptor.id,
 		handler: createCommandHandler(descriptor),
 		weight: weight,
@@ -144,13 +144,12 @@ function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): v
 	KeybindingsRegistry.registerCommandAndKeybindingRule(desc);
 }
 
-export function createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
+function createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
 	return (accessor, args) => {
-
-		let messageService = accessor.get(IMessageService);
-		let instantiationService = accessor.get(IInstantiationService);
-		let telemetryService = accessor.get(ITelemetryService);
-		let partService = accessor.get(IPartService);
+		const messageService = accessor.get(IMessageService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const partService = accessor.get(IPartService);
 
 		TPromise.as(triggerAndDisposeAction(instantiationService, telemetryService, partService, descriptor, args)).done(null, (err) => {
 			messageService.show(Severity.Error, err);
@@ -158,8 +157,8 @@ export function createCommandHandler(descriptor: SyncActionDescriptor): ICommand
 	};
 }
 
-export function triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
-	let actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
+function triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
+	const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 	actionInstance.label = descriptor.label || actionInstance.label;
 
 	// don't run the action when not enabled

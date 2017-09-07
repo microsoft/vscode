@@ -1555,3 +1555,93 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 		return TPromise.as(true);
 	}
 }
+
+export class ShowPreviousWindowTab extends Action {
+
+	public static ID = 'workbench.action.showPreviousWindowTab';
+	public static LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.showPreviousWindowTab().then(() => true);
+	}
+}
+
+export class ShowNextWindowTab extends Action {
+
+	public static ID = 'workbench.action.showNextWindowTab';
+	public static LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.showNextWindowTab().then(() => true);
+	}
+}
+
+export class MoveWindowTabToNewWindow extends Action {
+
+	public static ID = 'workbench.action.moveWindowTabToNewWindow';
+	public static LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.moveWindowTabToNewWindow().then(() => true);
+	}
+}
+
+export class MergeAllWindowTabs extends Action {
+
+	public static ID = 'workbench.action.mergeAllWindowTabs';
+	public static LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.mergeAllWindowTabs().then(() => true);
+	}
+}
+
+export class ToggleWindowTabsBar extends Action {
+
+	public static ID = 'workbench.action.toggleWindowTabsBar';
+	public static LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.toggleWindowTabsBar().then(() => true);
+	}
+}

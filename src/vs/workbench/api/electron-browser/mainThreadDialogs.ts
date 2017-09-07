@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOptions } from '../node/extHost.protocol';
+import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 
@@ -24,27 +24,41 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]> {
+	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]> {
 		// TODO@joh what about remote dev setup?
-		if (options.uri && options.uri.scheme !== 'file') {
+		if (options.defaultResource && options.defaultResource.scheme !== 'file') {
 			return TPromise.wrapError(new Error('bad path'));
 		}
 		return new TPromise<string[]>(resolve => {
-			this._windowService.showOpenDialog(MainThreadDialogs._convertOptions(options), filenames => {
-				resolve(isFalsyOrEmpty(filenames) ? undefined : filenames);
-			});
+			this._windowService.showOpenDialog(
+				MainThreadDialogs._convertOpenOptions(options),
+				filenames => resolve(isFalsyOrEmpty(filenames) ? undefined : filenames)
+			);
 		});
 	}
 
-	private static _convertOptions(options: MainThreadDialogOptions): Electron.OpenDialogOptions {
+	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string> {
+		// TODO@joh what about remote dev setup?
+		if (options.defaultResource && options.defaultResource.scheme !== 'file') {
+			return TPromise.wrapError(new Error('bad path'));
+		}
+		return new TPromise<string>(resolve => {
+			this._windowService.showSaveDialog(
+				MainThreadDialogs._convertSaveOptions(options),
+				filename => resolve(!filename ? undefined : filename)
+			);
+		});
+	}
+
+	private static _convertOpenOptions(options: MainThreadDialogOpenOptions): Electron.OpenDialogOptions {
 		const result: Electron.OpenDialogOptions = {
 			properties: ['createDirectory']
 		};
 		if (options.openLabel) {
 			result.buttonLabel = options.openLabel;
 		}
-		if (options.uri) {
-			result.defaultPath = options.uri.fsPath;
+		if (options.defaultResource) {
+			result.defaultPath = options.defaultResource.fsPath;
 		}
 		if (!options.openFiles && !options.openFolders) {
 			options.openFiles = true;
@@ -57,6 +71,19 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		}
 		if (options.openMany) {
 			result.properties.push('multiSelections');
+		}
+		return result;
+	}
+
+	private static _convertSaveOptions(options: MainThreadDialogSaveOptions): Electron.SaveDialogOptions {
+		const result: Electron.SaveDialogOptions = {
+
+		};
+		if (options.defaultResource) {
+			result.defaultPath = options.defaultResource.fsPath;
+		}
+		if (options.saveLabel) {
+			result.buttonLabel = options.saveLabel;
 		}
 		return result;
 	}

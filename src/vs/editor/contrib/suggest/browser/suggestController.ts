@@ -104,10 +104,7 @@ export class SuggestController implements IEditorContribution {
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
-			acceptSuggestionsOnEnter.set(
-				acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart'
-				|| (<any /*migrate from old world*/>acceptSuggestionOnEnter) === true
-			);
+			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();

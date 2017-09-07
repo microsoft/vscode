@@ -22,7 +22,4 @@ step "Build minified & upload source maps" \
 	npm run gulp -- vscode-darwin-min
 
 step "Run smoke test" \
-	pushd test/smoke
-	npm install
-	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
-	popd
+	npm run smoketest --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron" --screenshot

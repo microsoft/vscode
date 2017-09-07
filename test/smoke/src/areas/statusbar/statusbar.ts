@@ -20,12 +20,14 @@ export enum StatusBarElement {
 export class StatusBar {
 
 	private readonly mainSelector = 'div[id="workbench.parts.statusbar"]';
+	private readonly leftSelector = '.statusbar-item.left';
+	private readonly rightSelector = '.statusbar-item.right';
 
 	constructor(private spectron: SpectronApplication) {
 	}
 
-	public async isVisible(element: StatusBarElement): Promise<boolean> {
-		return this.spectron.client.isVisible(this.getSelector(element));
+	public async waitForStatusbarElement(element: StatusBarElement): Promise<void> {
+		await this.spectron.client.waitForElement(this.getSelector(element));
 	}
 
 	public async clickOn(element: StatusBarElement): Promise<void> {
@@ -43,23 +45,23 @@ export class StatusBar {
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `${this.mainSelector} .octicon.octicon-git-branch`;
+				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
-				return `${this.mainSelector} .octicon.octicon-sync`;
+				return `${this.mainSelector} ${this.leftSelector} .octicon.octicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
-				return `${this.mainSelector} .task-statusbar-item[title="Problems"]`;
+				return `${this.mainSelector} ${this.leftSelector} .task-statusbar-item[title="Problems"]`;
 			case StatusBarElement.SELECTION_STATUS:
-				return `${this.mainSelector} .editor-status-selection`;
+				return `${this.mainSelector} ${this.rightSelector} .editor-status-selection`;
 			case StatusBarElement.INDENTATION_STATUS:
-				return `${this.mainSelector} .editor-status-indentation`;
+				return `${this.mainSelector} ${this.rightSelector} .editor-status-indentation`;
 			case StatusBarElement.ENCODING_STATUS:
-				return `${this.mainSelector} .editor-status-encoding`;
+				return `${this.mainSelector} ${this.rightSelector} .editor-status-encoding`;
 			case StatusBarElement.EOL_STATUS:
-				return `${this.mainSelector} .editor-status-eol`;
+				return `${this.mainSelector} ${this.rightSelector} .editor-status-eol`;
 			case StatusBarElement.LANGUAGE_STATUS:
-				return `${this.mainSelector} .editor-status-mode`;
+				return `${this.mainSelector} ${this.rightSelector} .editor-status-mode`;
 			case StatusBarElement.FEEDBACK_ICON:
-				return `${this.mainSelector} .dropdown.send-feedback`;
+				return `${this.mainSelector} ${this.rightSelector} .dropdown.send-feedback`;
 			default:
 				throw new Error(element);
 		}

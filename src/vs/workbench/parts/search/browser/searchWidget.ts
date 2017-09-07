@@ -128,11 +128,6 @@ export class SearchWidget extends Widget {
 	}
 
 	public focus(select: boolean = true, focusReplace: boolean = false): void {
-		if ((!focusReplace && this.searchInput.inputBox.hasFocus())
-			|| (focusReplace && this.replaceInput.hasFocus())) {
-			return;
-		}
-
 		if (focusReplace && this.isReplaceShown()) {
 			this.replaceInput.focus();
 			if (select) {

@@ -10,22 +10,25 @@ import { StatusBarElement } from './statusbar';
 
 
 describe('Statusbar', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	let app: SpectronApplication = new SpectronApplication();
+	before(() => app.start());
 	after(() => app.stop());
+	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('verifies presence of all default status bar elements', async function () {
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.BRANCH_STATUS), 'Branch indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.FEEDBACK_ICON), 'Feedback icon is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SYNC_STATUS), 'Sync indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.PROBLEMS_STATUS), 'Problems indicator is not visible.');
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
+		if (app.build !== VSCODE_BUILD.DEV) {
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
+		}
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
 		await app.workbench.quickopen.openFile('app.js');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.ENCODING_STATUS), 'Encoding indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.EOL_STATUS), 'EOL indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.INDENTATION_STATUS), 'Indentation indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.LANGUAGE_STATUS), 'Language indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SELECTION_STATUS), 'Selection indicator is not visible.');
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
 	});
 
 	it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
@@ -53,13 +56,12 @@ describe('Statusbar', () => {
 		assert.ok(await app.workbench.problems.isVisible());
 	});
 
-	it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-		if (app.build === VSCODE_BUILD.DEV) {
-			return;
-		}
-		await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-		assert.ok(!!await app.client.waitForElement('.feedback-form'));
-	});
+	if (app.build !== VSCODE_BUILD.DEV) {
+		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
+			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
+			assert.ok(!!await app.client.waitForElement('.feedback-form'));
+		});
+	}
 
 	it(`checks if 'Go to Line' works if called from the status bar`, async function () {
 		await app.workbench.quickopen.openFile('app.js');

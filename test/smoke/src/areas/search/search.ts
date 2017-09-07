@@ -17,21 +17,21 @@ export class Search extends Viewlet {
 	public async openSearchViewlet(): Promise<any> {
 		if (!await this.isSearchViewletFocused()) {
 			await this.spectron.command('workbench.view.search');
-			await this.spectron.client.waitForElement(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+			await this.spectron.client.waitForElement(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input`);
 		}
 	}
 
 	public async isSearchViewletFocused(): Promise<boolean> {
-		const element = await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		const element = await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input`);
 		return !!element;
 	}
 
 	public async searchFor(text: string): Promise<void> {
-		const searchBoxSelector = `${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox input[placeholder="Search"]`;
+		const searchBoxSelector = `${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox input`;
 
 		await this.spectron.client.clearElement(searchBoxSelector);
 		await this.spectron.client.click(searchBoxSelector);
-		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input`);
 
 		await this.spectron.client.keys(text);
 
@@ -39,8 +39,8 @@ export class Search extends Viewlet {
 	}
 
 	public async submitSearch(): Promise<void> {
-		await this.spectron.client.click(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox input[placeholder="Search"]`);
-		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input[placeholder="Search"]`);
+		await this.spectron.client.click(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox input`);
+		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .search-widget .search-container .monaco-inputbox.synthetic-focus input`);
 		await this.spectron.client.keys(['NULL', 'Enter', 'NULL'], false);
 		await this.spectron.client.element(`${Search.SEARCH_VIEWLET_XPATH} .messages[aria-hidden="false"]`);
 	}
