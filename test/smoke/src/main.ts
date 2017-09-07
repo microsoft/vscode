@@ -12,7 +12,7 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 
 const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build'] });
+const opts = minimist(args, { string: ['build', 'stable-build', 'screenshot'] });
 
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -73,9 +73,11 @@ if (!fs.existsSync(testCodePath)) {
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
 process.env.VSCODE_EXTENSIONS_DIR = path.join(testDataPath, 'extensions-dir');
+process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots-dir');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
+process.env.CAPTURE_SCREENSHOT = Object.keys(opts).indexOf('screenshot') ? 'screenshot' : '';
 
 if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';

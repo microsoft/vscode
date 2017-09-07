@@ -5,7 +5,7 @@
 
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { SpectronClient } from './client';
-import { NullScreenshot, IScreenshot } from '../helpers/screenshot';
+import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,6 +17,8 @@ export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
 export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
+export const CAPTURE_SCREENSHOT = !!process.env.CAPTURE_SCREENSHOT;
+export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
 
 export enum VSCODE_BUILD {
 	DEV,
@@ -66,6 +68,11 @@ export class SpectronApplication {
 
 	public get workbench(): Workbench {
 		return this._workbench;
+	}
+
+	public createScreenshotCapturer(currentTest: Mocha.ITest): IScreenshot {
+		this._screenshot = CAPTURE_SCREENSHOT ? new Screenshot(this.spectron, currentTest.fullTitle()) : new NullScreenshot();
+		return this._screenshot;
 	}
 
 	public async start(): Promise<any> {
@@ -118,8 +125,8 @@ export class SpectronApplication {
 		});
 		await this.spectron.start();
 
-		this._screenshot = new NullScreenshot();
-		this._client = new SpectronClient(this.spectron, this.screenshot);
+		this._screenshot = CAPTURE_SCREENSHOT ? new Screenshot(this.spectron) : new NullScreenshot();
+		this._client = new SpectronClient(this.spectron, this);
 		this._workbench = new Workbench(this);
 	}
 

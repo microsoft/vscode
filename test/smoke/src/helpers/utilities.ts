@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var fs = require('fs');
+import * as fs from 'fs';
+import { dirname } from 'path';
 var rimraf = require('rimraf');
 
 /**
@@ -55,4 +56,46 @@ export class Util {
 			}
 		}
 	}
+}
+
+export function nfcall<R>(fn: Function, ...args): Promise<R> {
+	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
+
+export async function mkdirp(path: string, mode?: number): Promise<boolean> {
+	const mkdir = async () => {
+		try {
+			await nfcall(fs.mkdir, path, mode);
+		} catch (err) {
+			if (err.code === 'EEXIST') {
+				const stat = await nfcall<fs.Stats>(fs.stat, path);
+
+				if (stat.isDirectory) {
+					return;
+				}
+
+				throw new Error(`'${path}' exists and is not a directory.`);
+			}
+
+			throw err;
+		}
+	};
+
+	// is root?
+	if (path === dirname(path)) {
+		return true;
+	}
+
+	try {
+		await mkdir();
+	} catch (err) {
+		if (err.code !== 'ENOENT') {
+			throw err;
+		}
+
+		await mkdirp(dirname(path), mode);
+		await mkdir();
+	}
+
+	return true;
 }
