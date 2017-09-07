@@ -114,16 +114,22 @@ export interface MainThreadDiagnosticsShape extends IDisposable {
 	$clear(owner: string): TPromise<any>;
 }
 
-export interface MainThreadDialogOptions {
-	uri?: URI;
+export interface MainThreadDialogOpenOptions {
+	defaultResource?: URI;
 	openLabel?: string;
 	openFiles?: boolean;
 	openFolders?: boolean;
 	openMany?: boolean;
 }
 
+export interface MainThreadDialogSaveOptions {
+	defaultResource?: URI;
+	saveLabel?: string;
+}
+
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {

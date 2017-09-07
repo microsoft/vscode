@@ -8,15 +8,21 @@
 declare module 'vscode' {
 
 	export interface OpenDialogOptions {
-		uri?: Uri;
+		defaultResource?: Uri;
+		openLabel?: string;
 		openFiles?: boolean;
 		openFolders?: boolean;
 		openMany?: boolean;
 	}
 
-	export namespace window {
+	export interface SaveDialogOptions {
+		defaultResource?: Uri;
+		saveLabel?: string;
+	}
 
+	export namespace window {
 		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
+		export function showSaveDialog(options: OpenDialogOptions): Thenable<Uri>;
 	}
 
 	// todo@joh discover files etc

@@ -21,4 +21,10 @@ export class ExtHostDialogs {
 			return filepaths && filepaths.map(URI.file);
 		});
 	}
+
+	showSaveDialog(options: vscode.SaveDialogOptions): Thenable<URI> {
+		return this._proxy.$showSaveDialog(<any>options).then(filepath => {
+			return filepath && URI.file(filepath);
+		});
+	}
 }
