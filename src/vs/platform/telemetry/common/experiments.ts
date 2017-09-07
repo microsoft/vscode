@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -43,6 +44,10 @@ export class ExperimentService implements IExperimentService {
 
 function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): IExperiments {
 	const experiments = splitExperimentsRandomness(storageService);
+	if (platform.isWindows) {
+		// Ripgrep triggers MsMpEng.exe (https://github.com/BurntSushi/ripgrep/issues/600)
+		experiments.ripgrepQuickSearch = false;
+	}
 	return applyOverrides(experiments, configurationService);
 }
 
