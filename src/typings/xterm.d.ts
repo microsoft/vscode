@@ -136,12 +136,12 @@ interface ILinkMatcherOptions {
 	/**
 	 * A callback that fires when the mouse hovers over a link.
 	 */
-	hoverStartCallback?: (event: MouseEvent, uri: string) => boolean | void;
+	tooltipCallback?: (event: MouseEvent, uri: string) => boolean | void;
 
 	/**
 	 * A callback that fires when the mouse leaves a link that was hovered.
 	 */
-	hoverEndCallback?: (event: MouseEvent, uri: string) => boolean | void;
+	leaveCallback?: (event: MouseEvent, uri: string) => boolean | void;
 
 	/**
 	 * The priority of the link matcher, this defines the order in which the link
