@@ -61,7 +61,7 @@ export class ResourceLabel extends IconLabel {
 	private registerListeners(): void {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
-		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
+		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
 	}
 
 	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
@@ -79,7 +79,7 @@ export class ResourceLabel extends IconLabel {
 
 		if (e.model.uri.toString() === this.label.resource.toString()) {
 			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
-				this.render(true);
+				this.render(true); // update if the language id of the model has changed from our last known state
 			}
 		}
 	}
