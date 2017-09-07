@@ -7921,11 +7921,9 @@ declare module 'electron' {
 	export = electron;
 }
 
-// ### BEGIN VSCODE CHANGE ###
-// interface NodeRequireFunction {
-// 	(moduleName: 'electron'): Electron.AllElectron;
-// }
-// ### END VSCODE CHANGE ###
+interface NodeRequireFunction {
+	(moduleName: 'electron'): Electron.AllElectron;
+}
 
 interface File {
 	/**
