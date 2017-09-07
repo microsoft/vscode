@@ -441,7 +441,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const startTime = new Date().getTime();
 			/* __GDPR__
 			   "galleryService:downloadVSIX" : {
-				  "duration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth," },
+				  "duration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				  "${include}": [
 					 "${GalleryExtensionTelemetryData}"
 				  ]
