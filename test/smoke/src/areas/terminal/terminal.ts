@@ -26,11 +26,9 @@ export class Terminal {
 		return !!element;
 	}
 
-	public async runCommand(commandText: string): Promise<number> {
+	public async runCommand(commandText: string): Promise<void> {
 		await this.spectron.client.type(commandText);
-		const currentLineNumber = await this.getCurrentLineNumber();
 		await this.spectron.client.keys(['Enter', 'NULL']);
-		return currentLineNumber + 1;
 	}
 
 	public async waitForTextInLine(line: number, fn: (text: string) => boolean): Promise<string> {

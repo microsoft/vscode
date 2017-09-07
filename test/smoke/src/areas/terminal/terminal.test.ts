@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Terminal', () => {
@@ -16,9 +15,8 @@ describe('Terminal', () => {
 		const expected = new Date().getTime().toString();
 		await app.workbench.terminal.showTerminal();
 
-		const resultLineNumber = await app.workbench.terminal.runCommand(`echo ${expected}`);
+		await app.workbench.terminal.runCommand(`echo ${expected}`);
 
-		const actual = await app.workbench.terminal.waitForTextInLine(resultLineNumber, text => text.trim() === expected);
-		assert.equal(actual.trim(), expected);
+		await app.workbench.terminal.waitForTerminalText(terminalText => !!terminalText[terminalText.length - 2] && terminalText[terminalText.length - 2].trim() === expected);
 	});
 });
