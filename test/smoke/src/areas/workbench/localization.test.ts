@@ -8,16 +8,15 @@ import * as assert from 'assert';
 import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Localization', () => {
+	let app: SpectronApplication = new SpectronApplication();
+	if (app.build === VSCODE_BUILD.DEV) {
+		return;
+	}
 
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); });
 	after(() => app.stop());
 	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		if (app.build === VSCODE_BUILD.DEV) {
-			return;
-		}
 		await app.start();
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();

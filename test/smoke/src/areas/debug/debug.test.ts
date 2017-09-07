@@ -9,29 +9,28 @@ import * as stripJsonComments from 'strip-json-comments';
 import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Debug', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	let app: SpectronApplication = new SpectronApplication();
+	before(() => app.start());
 	after(() => app.stop());
 
-	it('configure launch json', async function () {
-		if (app.build === VSCODE_BUILD.DEV) {
-			return;
-		}
+	if (app.build !== VSCODE_BUILD.DEV) {
+		it('configure launch json', async function () {
 
-		await app.workbench.debug.openDebugViewlet();
-		await app.workbench.openFile('app.js');
-		await app.workbench.debug.configure();
-		const content = await app.workbench.editor.getEditorVisibleText();
-		const json = JSON.parse(stripJsonComments(content));
+			await app.workbench.debug.openDebugViewlet();
+			await app.workbench.openFile('app.js');
+			await app.workbench.debug.configure();
+			const content = await app.workbench.editor.getEditorVisibleText();
+			const json = JSON.parse(stripJsonComments(content));
 
-		assert.equal(json.configurations[0].request, 'launch');
-		assert.equal(json.configurations[0].type, 'node');
-		if (process.platform === 'win32') {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
-		} else {
-			assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
-		}
-	});
+			assert.equal(json.configurations[0].request, 'launch');
+			assert.equal(json.configurations[0].type, 'node');
+			if (process.platform === 'win32') {
+				assert.equal(json.configurations[0].program, '${workspaceRoot}\\bin\\www');
+			} else {
+				assert.equal(json.configurations[0].program, '${workspaceRoot}/bin/www');
+			}
+		});
+	}
 
 	it('breakpoints', async function () {
 		await app.workbench.openFile('index.js');
