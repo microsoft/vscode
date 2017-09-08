@@ -16,11 +16,13 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService } from './search';
+import { IRawSearch, IFolderSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedFileMatch, IRawSearchService, ITelemetryEvent } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService, IDebugParams } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -33,10 +35,12 @@ export class SearchService implements ISearchService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 		this.registerSearchResultProvider(this.diskSearch);
+		this.forwardTelemetry();
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
@@ -206,6 +210,13 @@ export class SearchService implements ISearchService {
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.diskSearch.clearCache(cacheKey);
 	}
+
+	private forwardTelemetry() {
+		this.diskSearch.fetchTelemetry()
+			.then(null, onUnexpectedError, event => {
+				this.telemetryService.publicLog(event.eventName, event.data);
+			});
+	}
 }
 
 export class DiskSearch implements ISearchResultProvider {
@@ -326,5 +337,9 @@ export class DiskSearch implements ISearchResultProvider {
 
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.raw.clearCache(cacheKey);
+	}
+
+	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
+		return this.raw.fetchTelemetry();
 	}
 }
