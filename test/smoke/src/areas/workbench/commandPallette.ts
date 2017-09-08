@@ -3,20 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../../spectron/application';
 import { QuickOpen } from '../quickopen/quickopen';
+
+const QUICK_OPEN_INPUT = '.quick-open-widget .quick-open-input input';
+const QUICK_OPEN_FOCUSED_ELEMENT = '.quick-open-widget .quick-open-tree .monaco-tree-row.focused .monaco-highlighted-label';
 
 export class CommandPallette extends QuickOpen {
 
-	constructor(spectron: SpectronApplication) {
-		super(spectron);
-	}
-
 	public async runCommand(commandText: string): Promise<void> {
+		// run command
 		await this.spectron.command('workbench.action.showCommands');
+
+		// wait for quick open
 		await this.waitForQuickOpenOpened();
-		await this.spectron.client.type(commandText);
-		await this.spectron.client.waitForText(`div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row:nth-child(1) .quick-open-entry a.label-name span.monaco-highlighted-label span.highlight`, commandText);
-		await this.spectron.client.waitAndClick(`div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row:nth-child(1) .quick-open-entry`);
+
+		// type the text
+		await this.spectron.client.keys([commandText, 'NULL']);
+
+		// wait for text to be in input box
+		await this.spectron.client.waitForValue(QUICK_OPEN_INPUT, `>${commandText}`);
+
+		// wait for best choice to be focused
+		await this.spectron.client.waitForTextContent(QUICK_OPEN_FOCUSED_ELEMENT, commandText);
+
+		// wait and click on best choice
+		await this.spectron.client.waitAndClick(QUICK_OPEN_FOCUSED_ELEMENT);
 	}
 }
