@@ -300,6 +300,12 @@ export class ExtensionService implements IExtensionService {
 				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
 			];
 
+			/* __GDPR__
+			   "extensionsScanned" : {
+				  "totalCount" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "disabledCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			   }
+			 */
 			this._telemetryService.publicLog('extensionsScanned', {
 				totalCount: installedExtensions.length,
 				disabledCount: disabledExtensions.length
@@ -347,6 +353,14 @@ export class ExtensionService implements IExtensionService {
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
+			/* __GDPR__
+			   "extensionsMessage" : {
+				  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "extensionPointId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "message": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			   }
+			 */
 			this._telemetryService.publicLog('extensionsMessage', {
 				type, extensionId, extensionPointId, message
 			});

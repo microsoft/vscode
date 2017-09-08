@@ -144,6 +144,34 @@ export class WorkspaceStats {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
+	/* __GDPR__FRAGMENT__
+	   "WorkspaceTags" : {
+		  "workbench.filesToOpen" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workbench.filesToCreate" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workbench.filesToDiff" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "workbench.roots" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.empty" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.grunt" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.gulp" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.jake" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.tsconfig" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.jsconfig" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.config.xml" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.vsc.extension" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.ASP5" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.sln" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.unity" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.npm" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.bower" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.yeoman.code.ext" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.cordova.high" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.cordova.low" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.xamarin.android" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.xamarin.ios" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.android.cpp" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" },
+		  "workbench.reactNative" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
@@ -245,6 +273,13 @@ export class WorkspaceStats {
 
 	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
+			/* __GDPR__
+			   "workspace.tags" : {
+				   "${include}": [
+					  "${WorkspaceTags}"
+				   ]
+			   }
+			 */
 			this.telemetryService.publicLog('workspce.tags', tags);
 		}, error => onUnexpectedError(error));
 	}
@@ -261,6 +296,11 @@ export class WorkspaceStats {
 			const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 			const list: string[] = [];
 			set.forEach(item => list.push(item));
+			/* __GDPR__
+			   "workspace.remotes" : {
+				  "domains" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('workspace.remotes', { domains: list.sort() });
 		}, onUnexpectedError);
 	}
@@ -273,9 +313,21 @@ export class WorkspaceStats {
 				content => getHashedRemotes(content.value),
 				err => [] // ignore missing or binary file
 			);
-		})).then(hashedRemotes => this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes }), onUnexpectedError);
+		})).then(hashedRemotes => {
+			/* __GDPR__
+			   "workspace.hashedRemotes" : {
+				  "remotes" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" }
+			   }
+			 */
+			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
+		}, onUnexpectedError);
 	}
 
+	/* __GDPR__FRAGMENT__
+	   "AzureTags" : {
+		  "node" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	private reportAzureNode(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		// TODO: should also work for `node_modules` folders several levels down
 		const uris = workspaceUris.map(workspaceUri => {
@@ -296,6 +348,12 @@ export class WorkspaceStats {
 			});
 	}
 
+
+	/* __GDPR__FRAGMENT__
+	   "AzureTags" : {
+		  "java" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	private reportAzureJava(workspaceUris: URI[], tags: Tags): TPromise<Tags> {
 		return TPromise.join(workspaceUris.map(workspaceUri => {
 			const path = workspaceUri.path;
@@ -318,6 +376,13 @@ export class WorkspaceStats {
 			return this.reportAzureJava(uris, tags);
 		}).then((tags) => {
 			if (Object.keys(tags).length) {
+				/* __GDPR__
+				   "workspace.azure" : {
+					   "${include}": [
+						  "${AzureTags}"
+					   ]
+				   }
+				 */
 				this.telemetryService.publicLog('workspace.azure', tags);
 			}
 		}).then(null, onUnexpectedError);

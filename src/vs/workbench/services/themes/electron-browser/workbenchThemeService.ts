@@ -642,6 +642,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (themeData) {
 			let key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
+				/* __GDPR__
+				   "activatePlugin" : {
+					  "id" : { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					  "name": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+					  "isBuiltin": { "endPoint": ",none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "publisherDisplayName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+					  "themeId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+				   }
+				 */
 				this.telemetryService.publicLog('activatePlugin', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
