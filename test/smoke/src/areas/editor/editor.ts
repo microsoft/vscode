@@ -73,7 +73,7 @@ export class Editor {
 
 	public async getSelector(term: string, line: number): Promise<string> {
 		const lineIndex = await this.getViewLineIndex(line);
-		const classNames = await this.spectron.client.waitFor(() => this.getClassSelectors(term, lineIndex), classNames => classNames && !!classNames.length);
+		const classNames = await this.spectron.client.waitFor(() => this.getClassSelectors(term, lineIndex), classNames => classNames && !!classNames.length, 'Getting class names for editor lines');
 		return `${Editor.VIEW_LINES}>:nth-child(${lineIndex}) span span.${classNames[0]}`;
 	}
 
@@ -90,7 +90,7 @@ export class Editor {
 	}
 
 	public async waitUntilHidden(line: number): Promise<void> {
-		await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line), lineNumber => lineNumber === undefined);
+		await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line), lineNumber => lineNumber === undefined, 'Waiting until line number is hidden');
 	}
 
 	public async waitUntilShown(line: number): Promise<void> {
@@ -110,7 +110,7 @@ export class Editor {
 	}
 
 	private async getViewLineIndex(line: number): Promise<number> {
-		return await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line));
+		return await this.spectron.client.waitFor<number>(() => this.getViewLineIndexWithoutWait(line), void 0, 'Getting line index');
 	}
 
 	private async getViewLineIndexWithoutWait(line: number): Promise<number | undefined> {

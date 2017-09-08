@@ -88,7 +88,7 @@ export class Debug extends Viewlet {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		});
+		}, void 0, 'Waiting for Stack Frame');
 	}
 
 	async focusStackFrame(name: string): Promise<any> {

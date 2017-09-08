@@ -43,7 +43,7 @@ export class Terminal {
 				return terminalText;
 			}
 			return undefined;
-		});
+		}, void 0, 'Getting terminal text');
 	}
 
 	public getCurrentLineNumber(): Promise<number> {

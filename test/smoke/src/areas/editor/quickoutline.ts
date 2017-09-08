@@ -23,6 +23,6 @@ export class QuickOutline extends QuickOpen {
 				}
 			}
 			await this.closeQuickOpen();
-		});
+		}, undefined, 'Opening Outline');
 	}
 }

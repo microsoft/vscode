@@ -38,7 +38,7 @@ export class SCM extends Viewlet {
 		return await this.spectron.client.waitFor(async () => {
 			const changes = await this.getChanges();
 			return changes.filter(func)[0];
-		});
+		}, void 0, 'Getting changes');
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
