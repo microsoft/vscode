@@ -270,7 +270,7 @@ export class SaveParticipant implements ISaveParticipant {
 			   "saveParticipantStats" : {
 			   }
 			 */
-			// TODO: We need to move off dynamic property names as we can't declare them statically in the registry.
+			// GDPR__TODO: We need to move off dynamic property names as we can't declare them statically in the registry.
 			this._telemetryService.publicLog('saveParticipantStats', stats);
 		});
 	}

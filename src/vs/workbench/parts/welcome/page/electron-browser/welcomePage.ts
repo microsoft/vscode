@@ -148,6 +148,32 @@ interface Strings {
 	extensionNotFound: string;
 }
 
+/* __GDPR__
+   "installExtension" : {
+	   "${include}": [
+		  "${WelcomePageInstall-1}"
+	   ]
+   }
+ */
+/* __GDPR__
+   "installedExtension" : {
+	   "${include}": [
+		  "${WelcomePageInstalled-1}",
+		  "${WelcomePageInstalled-2}",
+		  "${WelcomePageInstalled-3}",
+		  "${WelcomePageInstalled-4}",
+		  "${WelcomePageInstalled-5}",
+		  "${WelcomePageInstalled-6}"
+	   ]
+   }
+ */
+/* __GDPR__
+   "detailsExtension" : {
+	   "${include}": [
+		  "${WelcomePageDetails-1}"
+	   ]
+   }
+ */
 const extensionPackStrings: Strings = {
 	installEvent: 'installExtension',
 	installedEvent: 'installedExtension',
@@ -159,6 +185,32 @@ const extensionPackStrings: Strings = {
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
 
+/* __GDPR__
+   "installKeymap" : {
+	   "${include}": [
+		  "${WelcomePageInstall-1}"
+	   ]
+   }
+ */
+/* __GDPR__
+   "installedKeymap" : {
+	   "${include}": [
+		  "${WelcomePageInstalled-1}",
+		  "${WelcomePageInstalled-2}",
+		  "${WelcomePageInstalled-3}",
+		  "${WelcomePageInstalled-4}",
+		  "${WelcomePageInstalled-5}",
+		  "${WelcomePageInstalled-6}"
+	   ]
+   }
+ */
+/* __GDPR__
+   "detailsKeymap" : {
+	   "${include}": [
+		  "${WelcomePageDetails-1}"
+	   ]
+   }
+ */
 const keymapStrings: Strings = {
 	installEvent: 'installKeymap',
 	installedEvent: 'installedKeymap',
@@ -271,6 +323,12 @@ class WelcomePage {
 				a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, tildifiedParentFolder));
 				a.href = 'javascript:void(0)';
 				a.addEventListener('click', e => {
+					/* __GDPR__
+					   "workbenchActionExecuted" : {
+						  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					   }
+					 */
 					this.telemetryService.publicLog('workbenchActionExecuted', {
 						id: 'openRecentFolder',
 						from: telemetryFrom
@@ -350,6 +408,12 @@ class WelcomePage {
 	}
 
 	private installExtension(extensionSuggestion: ExtensionSuggestion, strings: Strings): void {
+		/* __GDPR__FRAGMENT__
+		   "WelcomePageInstall-1" : {
+			  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "extensionsId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		this.telemetryService.publicLog(strings.installEvent, {
 			from: telemetryFrom,
 			extensionId: extensionSuggestion.id,
@@ -357,6 +421,13 @@ class WelcomePage {
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const installedExtension = arrays.first(extensions, extension => extension.identifier === extensionSuggestion.id);
 			if (installedExtension && installedExtension.globallyEnabled) {
+				/* __GDPR__FRAGMENT__
+				   "WelcomePageInstalled-1" : {
+					  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				   }
+				 */
 				this.telemetryService.publicLog(strings.installedEvent, {
 					from: telemetryFrom,
 					extensionId: extensionSuggestion.id,
@@ -399,6 +470,13 @@ class WelcomePage {
 									if (found) {
 										return this.extensionEnablementService.setEnablement(extensionSuggestion.id, true)
 											.then(() => {
+												/* __GDPR__FRAGMENT__
+												   "WelcomePageInstalled-2" : {
+													  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+												   }
+												 */
 												this.telemetryService.publicLog(strings.installedEvent, {
 													from: telemetryFrom,
 													extensionId: extensionSuggestion.id,
@@ -407,6 +485,13 @@ class WelcomePage {
 												return this.windowService.reloadWindow();
 											});
 									} else {
+										/* __GDPR__FRAGMENT__
+										   "WelcomePageInstalled-3" : {
+											  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+										   }
+										 */
 										this.telemetryService.publicLog(strings.installedEvent, {
 											from: telemetryFrom,
 											extensionId: extensionSuggestion.id,
@@ -417,6 +502,14 @@ class WelcomePage {
 									}
 								});
 							}).then(null, err => {
+								/* __GDPR__FRAGMENT__
+								   "WelcomePageInstalled-4" : {
+									  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+									  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+								   }
+								 */
 								this.telemetryService.publicLog(strings.installedEvent, {
 									from: telemetryFrom,
 									extensionId: extensionSuggestion.id,
@@ -428,6 +521,12 @@ class WelcomePage {
 						return TPromise.as(true);
 					}),
 					new Action('details', localize('details', "Details"), null, true, () => {
+						/* __GDPR__FRAGMENT__
+						   "WelcomePageDetails-1" : {
+							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog(strings.detailsEvent, {
 							from: telemetryFrom,
 							extensionId: extensionSuggestion.id,
@@ -438,6 +537,13 @@ class WelcomePage {
 						return TPromise.as(false);
 					}),
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
+						/* __GDPR__FRAGMENT__
+						   "WelcomePageInstalled-5" : {
+							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog(strings.installedEvent, {
 							from: telemetryFrom,
 							extensionId: extensionSuggestion.id,
@@ -448,6 +554,14 @@ class WelcomePage {
 				]
 			});
 		}).then(null, err => {
+			/* __GDPR__FRAGMENT__
+			   "WelcomePageInstalled-6" : {
+				  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "outcome": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			   }
+			 */
 			this.telemetryService.publicLog(strings.installedEvent, {
 				from: telemetryFrom,
 				extensionId: extensionSuggestion.id,

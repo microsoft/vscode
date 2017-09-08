@@ -107,7 +107,6 @@ export interface IResult {
 	  "autoSaveApplicationChange": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
    }
  */
-
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;

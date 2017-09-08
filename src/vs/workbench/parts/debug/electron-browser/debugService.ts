@@ -341,7 +341,7 @@ export class DebugService implements debug.IDebugService {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
 				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
-					// TODO Need to move off dynamic event names or properties. They cannot be registered upfront.
+					// GDPR__TODO Need to move off dynamic event names or properties. They cannot be registered upfront.
 					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
