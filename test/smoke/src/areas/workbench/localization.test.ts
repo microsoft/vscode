@@ -14,10 +14,10 @@ describe('Localization', () => {
 	}
 
 	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 		await app.start('Localization', ['--locale=DE']);
+		app.screenCapturer.testName = this.currentTest.title;
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
 		await app.screenCapturer.capture('Open editors title');
