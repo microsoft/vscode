@@ -9,6 +9,7 @@ export class Terminal {
 
 	static TERMINAL_SELECTOR = '.panel.integrated-terminal';
 	static TERMINAL_ROWS_SELECTOR = `${Terminal.TERMINAL_SELECTOR} .xterm-rows > div`;
+	static TERMINAL_CURSOR = `${Terminal.TERMINAL_SELECTOR} .terminal-cursor`;
 
 	constructor(private spectron: SpectronApplication) {
 	}
@@ -16,8 +17,8 @@ export class Terminal {
 	public async showTerminal(): Promise<void> {
 		if (!await this.isVisible()) {
 			await this.spectron.workbench.commandPallette.runCommand('View: Toggle Integrated Terminal');
-			await this.spectron.client.waitForElement(Terminal.TERMINAL_SELECTOR);
-			await this.waitForTerminalText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1, 'Waiting for Terminal to be ready');
+			await this.spectron.client.waitForElement(Terminal.TERMINAL_CURSOR);
+			await this.waitForTerminalText(text => text.length > 0, 'Waiting for Terminal to be ready');
 		}
 	}
 
