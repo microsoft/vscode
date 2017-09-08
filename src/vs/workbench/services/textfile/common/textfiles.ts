@@ -100,6 +100,14 @@ export interface IResult {
 	success?: boolean;
 }
 
+/* __GDPR__FRAGMENT__
+   "IAutoSaveConfiguration" : {
+	  "autoSaveDelay" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "autoSaveFocusChange": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "autoSaveApplicationChange": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+   }
+ */
+
 export interface IAutoSaveConfiguration {
 	autoSaveDelay: number;
 	autoSaveFocusChange: boolean;
