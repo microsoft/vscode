@@ -32,11 +32,6 @@ export class Terminal {
 		await this.spectron.client.keys(['Enter', 'NULL']);
 	}
 
-	public async waitForTextInLine(line: number, fn: (text: string) => boolean): Promise<string> {
-		const terminalText = await this.waitForTerminalText(terminalText => fn(terminalText[line - 1]), 'Waiting for Text in line ' + line);
-		return terminalText[line - 1];
-	}
-
 	public async waitForTerminalText(fn: (text: string[]) => boolean, timeOutDescription: string = 'Getting Terminal Text'): Promise<string[]> {
 		return this.spectron.client.waitFor(async () => {
 			const terminalText = await this.getTerminalText();

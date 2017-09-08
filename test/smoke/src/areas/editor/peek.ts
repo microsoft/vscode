@@ -34,7 +34,6 @@ export class References {
 		await this.spectron.client.waitForText(References.REFERENCES_TITLE_FILE_NAME, file);
 	}
 
-
 	public async close(): Promise<void> {
 		await this.spectron.client.keys(['Escape', 'NULL']);
 		await this.spectron.client.waitForElement(References.REFERENCES_WIDGET, element => !element);
