@@ -20,7 +20,6 @@ const [, , ...args] = process.argv;
 const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots'] });
 
 opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
-mkdirp.sync(opts.screenshots);
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
