@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/f53f2fc2c3f52468b6d205b8c2bbf79aca95f5b2",
+	"version": "https://github.com/atom/language-php/commit/efab9c83b91c02f04b8cfd0236e0239e14c4af52",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
