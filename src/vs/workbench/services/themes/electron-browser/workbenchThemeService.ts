@@ -646,7 +646,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				   "activatePlugin" : {
 					  "id" : { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 					  "name": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					  "isBuiltin": { "endPoint": ",none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "publisherDisplayName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
 					  "themeId": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 				   }
