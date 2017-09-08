@@ -5,22 +5,17 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover, IColor, IColorFormatter } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
@@ -166,22 +161,20 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _hoverOperation: HoverOperation<HoverPart[]>;
 	private _highlightDecorations: string[];
 	private _isChangingDecorations: boolean;
-	private _openerService: IOpenerService;
-	private _modeService: IModeService;
+	private _markdownRenderer: MarkdownRenderer;
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget;
 
 	private renderDisposable: IDisposable = EmptyDisposable;
 	private toDispose: IDisposable[];
 
-	constructor(editor: ICodeEditor, openerService: IOpenerService, modeService: IModeService) {
+	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
-		this._openerService = openerService || NullOpenerService;
-		this._modeService = modeService;
+		this._markdownRenderer = markdownRenderner;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -312,24 +305,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				msg.contents
 					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
-						const renderedContents = renderMarkdown(contents, {
-							actionCallback: (content) => {
-								this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-							},
-							codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
-								// In markdown,
-								// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-								// it is possible no alias is given in which case we fall back to the current editor lang
-								const modeId = languageAlias
-									? this._modeService.getModeIdForLanguageName(languageAlias)
-									: this._editor.getModel().getLanguageIdentifier().language;
-
-								return this._modeService.getOrCreateMode(modeId).then(_ => {
-									return tokenizeToString(value, modeId);
-								});
-							}
-						});
-
+						const renderedContents = this._markdownRenderer.render(contents);
 						fragment.appendChild($('div.hover-row', null, renderedContents));
 					});
 			} else {
