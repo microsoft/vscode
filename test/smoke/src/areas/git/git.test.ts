@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication } from '../../spectron/application';
+import * as cp from 'child_process';
+import { SpectronApplication, WORKSPACE_PATH } from '../../spectron/application';
 
 const DIFF_EDITOR_LINE_INSERT = '.monaco-diff-editor .editor.modified .line-insert';
 const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[title$="Synchronize Changes"]';
@@ -57,14 +58,22 @@ describe('Git', () => {
 		await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
 	});
 
-	it(`stages, commits change to 'app.js' locally and verifies outgoing change`, async function () {
+	it(`stages, commits changes and verifies outgoing change`, async function () {
 		await app.workbench.scm.openSCMViewlet();
 
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Modified');
 		await app.workbench.scm.stage(appJs);
 		await app.workbench.scm.waitForChange(c => c.name === 'app.js' && c.type === 'Index Modified');
 
-		await app.workbench.scm.commit('hello world');
+		await app.workbench.scm.commit('first commit');
 		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
+
+		await app.command('Stage All Changes');
+		await app.workbench.scm.waitForChange(c => c.name === 'index.jade' && c.type === 'Index Modified');
+
+		await app.workbench.scm.commit('second commit');
+		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 2↑');
+
+		cp.execSync('git reset --hard origin/master', { cwd: WORKSPACE_PATH });
 	});
 });
