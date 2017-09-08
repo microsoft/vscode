@@ -315,6 +315,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				const color = new Color(rgba);
 
 				const model = new ColorPickerModel(color, 0);
+				const originalText = this._editor.getModel().getValueInRange(msg.range);
+				model.guessColorFormat(color, originalText);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio);
 
 				const editorModel = this._editor.getModel();

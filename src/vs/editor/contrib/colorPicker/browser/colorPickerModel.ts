@@ -55,6 +55,15 @@ export class ColorPickerModel {
 		this._onDidChangeFormatter.fire(this.formatter);
 	}
 
+	guessColorFormat(color: Color, originalText: string): void {
+		for (let i = 0; i < this.formatters.length; i++) {
+			if (originalText === this.formatters[i].format(color)) {
+				this.formatterIndex = i;
+				break;
+			}
+		}
+	}
+
 	flushColor(): void {
 		this._onColorFlushed.fire(this._color);
 	}
