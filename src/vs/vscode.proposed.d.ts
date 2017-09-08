@@ -22,7 +22,7 @@ declare module 'vscode' {
 
 	export namespace window {
 		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
-		export function showSaveDialog(options: OpenDialogOptions): Thenable<Uri>;
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri>;
 	}
 
 	// todo@joh discover files etc

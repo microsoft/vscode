@@ -22,7 +22,7 @@ import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
-import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem } from './search';
+import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 
 export class SearchService implements IRawSearchService {
@@ -32,6 +32,8 @@ export class SearchService implements IRawSearchService {
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	private textSearchWorkerProvider: TextSearchWorkerProvider;
+
+	private telemetryPipe: (event: ITelemetryEvent) => void;
 
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
@@ -140,6 +142,12 @@ export class SearchService implements IRawSearchService {
 			searchPromise = this.doSearch(engine, -1)
 				.then(result => {
 					c([result, results]);
+					if (this.telemetryPipe) {
+						this.telemetryPipe({
+							eventName: 'fileSearch',
+							data: result.stats
+						});
+					}
 				}, e, progress => {
 					if (Array.isArray(progress)) {
 						results = progress;
@@ -367,6 +375,14 @@ export class SearchService implements IRawSearchService {
 	public clearCache(cacheKey: string): TPromise<void> {
 		delete this.caches[cacheKey];
 		return TPromise.as(undefined);
+	}
+
+	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
+		return new PPromise((c, e, p) => {
+			this.telemetryPipe = p;
+		}, () => {
+			this.telemetryPipe = null;
+		});
 	}
 
 	private preventCancellation<C, P>(promise: PPromise<C, P>): PPromise<C, P> {

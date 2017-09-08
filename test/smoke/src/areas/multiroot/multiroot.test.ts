@@ -14,22 +14,22 @@ describe('Multi Root', () => {
 		return;
 	}
 
-	before(() => app.start());
+	before(() => app.start('Multi Root'));
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('shows results from all folders', async function () {
 		let quickOpen = new QuickOpen(app);
 		await quickOpen.openQuickOpen();
 		await app.client.type('*.*');
 		const elements = await quickOpen.getQuickOpenElements();
-		app.screenshot.capture('quick open result');
+		await app.screenCapturer.capture('quick open result');
 		assert.equal(elements.length, 6);
 	});
 
 	it('shows workspace name in title', async function () {
 		const title = await new Window(app).getTitle();
-		app.screenshot.capture('window title');
+		await app.screenCapturer.capture('window title');
 		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 	});
 });

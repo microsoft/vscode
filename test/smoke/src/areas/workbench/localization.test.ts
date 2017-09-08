@@ -14,33 +14,33 @@ describe('Localization', () => {
 	}
 
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		await app.start('--locale=DE');
+		await app.start('Localization', ['--locale=DE']);
+		app.screenCapturer.testName = 'DE locale test';
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
-		app.screenshot.capture('Open editors title');
+		await app.screenCapturer.capture('Open editors title');
 		assert.equal(text.toLowerCase(), 'geöffnete editoren');
 
 		await app.workbench.search.openSearchViewlet();
 		text = await app.workbench.search.getTitle();
-		app.screenshot.capture('Search title');
+		await app.screenCapturer.capture('Search title');
 		assert.equal(text.toLowerCase(), 'suchen');
 
 		await app.workbench.scm.openSCMViewlet();
 		text = await app.workbench.scm.getTitle();
-		app.screenshot.capture('Scm title');
+		await app.screenCapturer.capture('Scm title');
 		assert.equal(text.toLowerCase(), 'quellcodeverwaltung: vscode-smoketest-express (git)');
 
 		await app.workbench.debug.openDebugViewlet();
 		text = await app.workbench.debug.getTitle();
-		app.screenshot.capture('Debug title');
+		await app.screenCapturer.capture('Debug title');
 		assert.equal(text.toLowerCase(), 'debuggen');
 
 		await app.workbench.extensions.openExtensionsViewlet();
 		text = await app.workbench.extensions.getTitle();
-		app.screenshot.capture('Extensions title');
-		assert.equal(text.toLowerCase(), 'erweiterungen: marketplace');
+		await app.screenCapturer.capture('Extensions title');
+		assert.equal(text.toLowerCase(), 'erweiterungen');
 	});
 });

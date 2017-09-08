@@ -38,7 +38,7 @@ export class QuickOpen {
 	}
 
 	protected waitForQuickOpenOpened(): Promise<Element> {
-		return this.spectron.client.waitForElement('div.quick-open-widget[aria-hidden="false"]');
+		return this.spectron.client.waitForElement('.quick-open-widget .quick-open-input input:focus');
 	}
 
 	protected waitForQuickOpenClosed(): Promise<Element> {

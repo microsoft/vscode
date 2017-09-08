@@ -5,44 +5,35 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
 import { Application } from 'spectron';
 import { SCREENSHOTS_DIR } from '../spectron/application';
-import { mkdirp } from './utilities';
 
-export interface IScreenshot {
-	capture(name: string): Promise<void>;
+function sanitize(name: string): string {
+	return name.replace(/[&*:\/]/g, '');
 }
 
-export class Screenshot implements IScreenshot {
+export class ScreenCapturer {
 
-	private location: string;
+	private static counter = 0;
+	testName: string = 'default';
 
-	constructor(private application: Application, private relativeLocation: string = '') {
-		this.relativeLocation = this.sanitizeFolderName(this.relativeLocation);
-	}
+	constructor(private application: Application, private suiteName: string) { }
 
-	public async capture(name: string): Promise<void> {
-		if (!this.location) {
-			await this.createLocation();
+	async capture(name: string): Promise<void> {
+		if (!SCREENSHOTS_DIR) {
+			return;
 		}
+
 		const image = await this.application.browserWindow.capturePage();
-		await new Promise((c, e) => fs.writeFile(`${this.location}/${name}.png`, image, err => err ? e(err) : c()));
+		const screenshotPath = path.join(
+			SCREENSHOTS_DIR,
+			sanitize(this.suiteName),
+			sanitize(this.testName),
+			`${ScreenCapturer.counter++}-${sanitize(name)}.png`
+		);
+
+		await new Promise((c, e) => mkdirp(path.dirname(screenshotPath), err => err ? e(err) : c()));
+		await new Promise((c, e) => fs.writeFile(screenshotPath, image, err => err ? e(err) : c()));
 	}
-
-	private async createLocation(): Promise<void> {
-		this.location = this.relativeLocation ? path.join(SCREENSHOTS_DIR, this.relativeLocation) : SCREENSHOTS_DIR;
-		await mkdirp(this.location);
-	}
-
-	private sanitizeFolderName(name: string): string {
-		return name.replace(/[&*:\/]/g, '');
-	}
-}
-
-export class NullScreenshot implements IScreenshot {
-
-	public async capture(name: string): Promise<void> {
-		return Promise.resolve();
-	}
-
 }

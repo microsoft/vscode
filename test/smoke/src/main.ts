@@ -12,12 +12,14 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 
-const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build', 'screenshot'] });
-
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', code => code === 0 && rimraf.sync(testDataPath));
+process.once('exit', () => rimraf.sync(testDataPath));
+
+const [, , ...args] = process.argv;
+const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots'] });
+
+opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
@@ -76,11 +78,10 @@ if (!fs.existsSync(testCodePath)) {
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
 process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
-process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots-dir');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-process.env.CAPTURE_SCREENSHOT = Object.keys(opts).indexOf('screenshot') !== -1 ? 'screenshot' : '';
+process.env.SCREENSHOTS_DIR = opts.screenshots || '';
 
 if (process.env.VSCODE_DEV === '1') {
 	process.env.VSCODE_EDITION = 'dev';
@@ -106,7 +107,7 @@ function toUri(path: string): string {
 	return `file://${path}`;
 }
 
-async function main(): Promise<void> {
+async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
@@ -176,20 +177,20 @@ console.warn = function suppressWebdriverWarnings(message) {
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
-	await main();
+	await setup();
 });
 
-import './areas/css/css.test';
+// import './areas/workbench/data-migration.test';
+import './areas/workbench/data-loss.test';
 import './areas/explorer/explorer.test';
 import './areas/preferences/preferences.test';
-import './areas/editor/editor.test';
-import './areas/multiroot/multiroot.test';
-import './areas/extensions/extensions.test';
 import './areas/search/search.test';
-import './areas/workbench/data-loss.test';
-import './areas/git/git.test';
-import './areas/statusbar/statusbar.test';
-import './areas/workbench/localization.test';
-import './areas/terminal/terminal.test';
+import './areas/multiroot/multiroot.test';
+import './areas/css/css.test';
+import './areas/editor/editor.test';
 import './areas/debug/debug.test';
-// import './areas/workbench/data-migration.test';
+import './areas/git/git.test';
+import './areas/terminal/terminal.test';
+import './areas/statusbar/statusbar.test';
+import './areas/extensions/extensions.test';
+import './areas/workbench/localization.test';

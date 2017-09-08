@@ -47,7 +47,7 @@ export function renderFormattedText(formattedText: string, options: RenderOption
  * @param content a html element description
  * @param actionCallback a callback function for any action links in the string. Argument is the zero-based index of the clicked action.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): Node {
+export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
 	const { codeBlockRenderer, actionCallback } = options;

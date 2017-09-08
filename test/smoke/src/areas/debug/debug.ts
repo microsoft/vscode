@@ -47,39 +47,41 @@ export class Debug extends Viewlet {
 	}
 
 	async configure(): Promise<any> {
-		await this.spectron.client.click(CONFIGURE);
+		await this.spectron.client.waitAndClick(CONFIGURE);
 		await this.spectron.workbench.waitForEditorFocus('launch.json');
 	}
 
 	async setBreakpointOnLine(lineNumber: number): Promise<any> {
+		await this.spectron.client.waitForElement(`${GLYPH_AREA}(${lineNumber})`);
 		await this.spectron.client.leftClick(`${GLYPH_AREA}(${lineNumber})`, 5, 5);
 		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
 	}
 
 	async startDebugging(): Promise<any> {
-		await this.spectron.client.click(START);
+		await this.spectron.client.waitAndClick(START);
 		await this.spectron.client.waitForElement(PAUSE);
 		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
 	}
 
 	async stepOver(): Promise<any> {
-		await this.spectron.client.click(STEP_OVER);
+		await this.spectron.client.waitAndClick(STEP_OVER);
 	}
 
 	async stepIn(): Promise<any> {
-		await this.spectron.client.click(STEP_IN);
+		await this.spectron.client.waitAndClick(STEP_IN);
 	}
 
 	async stepOut(): Promise<any> {
-		await this.spectron.client.click(STEP_OUT);
+		await this.spectron.client.waitAndClick(STEP_OUT);
 	}
 
 	async continue(): Promise<any> {
-		await this.spectron.client.click(CONTINUE);
+		await this.spectron.client.waitAndClick(CONTINUE);
+		await this.waitForStackFrameLength(0);
 	}
 
 	async stopDebugging(): Promise<any> {
-		await this.spectron.client.click(STOP);
+		await this.spectron.client.waitAndClick(STOP);
 		await this.spectron.client.waitForElement(TOOLBAR_HIDDEN);
 		await this.spectron.client.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
@@ -88,7 +90,11 @@ export class Debug extends Viewlet {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		});
+		}, void 0, 'Waiting for Stack Frame');
+	}
+
+	async waitForStackFrameLength(length: number): Promise<any> {
+		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
 	}
 
 	async focusStackFrame(name: string): Promise<any> {
@@ -112,6 +118,11 @@ export class Debug extends Viewlet {
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
 	}
 
+	async getStackFramesLength(): Promise<number> {
+		const stackFrames = await this.getStackFrames();
+		return stackFrames.length;
+	}
+
 	private async getStackFrames(): Promise<IStackFrame[]> {
 		const result = await this.spectron.webclient.selectorExecute(STACK_FRAME,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
@@ -127,7 +138,12 @@ export class Debug extends Viewlet {
 			})
 		);
 
-		return result.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
+		if (!Array.isArray(result)) {
+			return [];
+		}
+
+		return result
+			.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
 	}
 
 	private async getConsoleOutput(): Promise<string[]> {

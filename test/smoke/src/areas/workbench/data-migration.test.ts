@@ -16,14 +16,14 @@ describe('Data Migration', () => {
 
 	let app: SpectronApplication;
 	afterEach(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
 
 	it('checks if the Untitled file is restored migrating from stable to latest', async function () {
 		const textToType = 'Very dirty file';
 		console.log(STABLE_PATH);
 		// Setting up stable version
 		let app = new SpectronApplication(STABLE_PATH);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Untitled is restorted';
 
 		await app.workbench.newUntitledFile();
 		await app.client.type(textToType);
@@ -33,11 +33,12 @@ describe('Data Migration', () => {
 		// Checking latest version for the restored state
 
 		app = new SpectronApplication(LATEST_PATH);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Untitled is restorted';
 
 		assert.ok(await app.workbench.waitForActiveOpen('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture('Untitled file text');
+		await app.screenCapturer.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 	});
 
@@ -48,7 +49,8 @@ describe('Data Migration', () => {
 		// Setting up stable version
 		let app = new SpectronApplication(STABLE_PATH, fileName);
 		await Util.removeFile(`${fileName}`);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
 		await app.workbench.waitForActiveOpen(fileName);
 		await app.client.type(firstTextPart);
@@ -60,11 +62,12 @@ describe('Data Migration', () => {
 
 		// Checking latest version for the restored state
 		app = new SpectronApplication(LATEST_PATH);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
 		assert.ok(await app.workbench.waitForActiveOpen(fileName.split('/')[1]), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture(fileName + ' text');
+		await app.screenCapturer.capture(fileName + ' text');
 		assert.ok(actual.startsWith(firstTextPart.concat(secondTextPart)), `${actual} did not start with ${firstTextPart.concat(secondTextPart)}`);
 
 		await Util.removeFile(`${fileName}`);
@@ -73,7 +76,8 @@ describe('Data Migration', () => {
 	it('cheks if opened tabs are restored migrating from stable to latest', async function () {
 		const fileName1 = 'app.js', fileName2 = 'jsconfig.json', fileName3 = 'readme.md';
 		let app = new SpectronApplication(STABLE_PATH);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Opened tabs are restored';
 
 		await app.workbench.quickopen.openFile(fileName1);
 		await app.workbench.quickopen.openFile(fileName2);
@@ -81,7 +85,8 @@ describe('Data Migration', () => {
 		await app.stop();
 
 		app = new SpectronApplication(LATEST_PATH);
-		await app.start();
+		await app.start('Data Migration');
+		app.screenCapturer.testName = 'Opened tabs are restored';
 
 		assert.ok(await app.workbench.waitForOpen(fileName1), `${fileName1} tab was not restored after migration.`);
 		assert.ok(await app.workbench.waitForOpen(fileName2), `${fileName2} tab was not restored after migration.`);

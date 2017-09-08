@@ -8,9 +8,9 @@ import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Extensions', () => {
 	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start());
+	before(() => app.start('Extensions'));
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	if (app.build !== VSCODE_BUILD.DEV) {
 		it(`install and activate vscode-smoketest-check extension`, async function () {
@@ -25,7 +25,7 @@ describe('Extensions', () => {
 			await app.workbench.commandPallette.runCommand('Smoke Test Check');
 
 			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-			app.screenshot.capture('Statusbar');
+			await app.screenCapturer.capture('Statusbar');
 			assert.equal(statusbarText, 'VS Code Smoke Test Check');
 		});
 	}

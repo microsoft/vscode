@@ -18,7 +18,7 @@ import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/pl
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { EditorLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -56,7 +56,7 @@ export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
 	private activeTab: HTMLElement;
-	private editorLabels: EditorLabel[];
+	private editorLabels: ResourceLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
@@ -452,7 +452,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(tabContainer, 'tab');
 
 		// Tab Editor Label
-		const editorLabel = this.instantiationService.createInstance(EditorLabel, tabContainer, void 0);
+		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
 		this.editorLabels.push(editorLabel);
 
 		// Tab Close

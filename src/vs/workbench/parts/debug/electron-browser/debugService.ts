@@ -712,9 +712,17 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-					const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-						nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+					let message: string;
+					if (config.request !== 'attach' && config.request !== 'launch') {
+						message = config.request ? nls.localize('debugRequestNotSupported', "Configured debug request '{0}' is not supported", config.request)
+							: nls.localize('debugRequesMissing', "Debug request is missing in the chosen launch configuration");
+
+					} else {
+						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					}
+
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
@@ -769,6 +777,7 @@ export class DebugService implements debug.IDebugService {
 	private doCreateProcess(root: uri, configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
 		configuration.__sessionId = sessionId;
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
+		this.inDebugMode.set(true);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -844,7 +853,6 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
-				this.inDebugMode.set(true);
 				this.debugType.set(configuration.type);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
@@ -878,6 +886,9 @@ export class DebugService implements debug.IDebugService {
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+				}
+				if (this.model.getReplElements().length === 0) {
+					this.inDebugMode.reset();
 				}
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);

@@ -183,9 +183,14 @@ export class ExtensionHostProcessWorker {
 
 				// Print out extension host output
 				onDebouncedOutput(data => {
-					console.group('Extension Host');
-					console.log(data.data, ...data.format);
-					console.groupEnd();
+					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
+					if (inspectorUrlIndex >= 0) {
+						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
+					} else {
+						console.group('Extension Host');
+						console.log(data.data, ...data.format);
+						console.groupEnd();
+					}
 				});
 
 				// Support logging from extension host

@@ -1,4 +1,4 @@
-// Type definitions for Electron 1.7.3
+// Type definitions for Electron 1.7.7
 // Project: http://electron.atom.io/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -28,16 +28,15 @@ declare namespace Electron {
 
 	}
 
-interface Event extends GlobalEvent {
-	preventDefault: () => void;
-	sender: WebContents;
-	returnValue: any;
-	ctrlKey?: boolean;
-	metaKey?: boolean;
-	shiftKey?: boolean;
-	altKey?: boolean;
-}
-
+	interface Event extends GlobalEvent {
+		preventDefault: () => void;
+		sender: WebContents;
+		returnValue: any;
+		ctrlKey?: boolean;
+		metaKey?: boolean;
+		shiftKey?: boolean;
+		altKey?: boolean;
+	}
 	interface CommonInterface {
 		clipboard: Electron.Clipboard;
 		crashReporter: Electron.CrashReporter;
@@ -335,9 +334,9 @@ interface Event extends GlobalEvent {
 			authInfo: AuthInfo,
 			callback: (username: string, password: string) => void) => void): this;
 		/**
-     	* Emitted when the user clicks the native macOS new tab button. The new tab button
-		* is only visible if the current BrowserWindow has a tabbingIdentifier
-		*/
+		 * Emitted when the user clicks the native macOS new tab button. The new tab button
+		 * is only visible if the current BrowserWindow has a tabbingIdentifier
+		 */
 		on(event: 'new-window-for-tab', listener: (event: Event) => void): this;
 		once(event: 'new-window-for-tab', listener: (event: Event) => void): this;
 		addListener(event: 'new-window-for-tab', listener: (event: Event) => void): this;
@@ -477,10 +476,21 @@ interface Event extends GlobalEvent {
 		 */
 		clearRecentDocuments(): void;
 		/**
+		 * By default, Chromium disables 3D APIs (e.g. WebGL) until restart on a per domain
+		 * basis if the GPU processes crashes too frequently. This function disables that
+		 * behaviour. This method can only be called before app is ready.
+		 */
+		disableDomainBlockingFor3DAPIs(): void;
+		/**
 		 * Disables hardware acceleration for current app. This method can only be called
 		 * before app is ready.
 		 */
 		disableHardwareAcceleration(): void;
+		/**
+		 * Enables mixed sandbox mode on the app. This method can only be called before app
+		 * is ready.
+		 */
+		enableMixedSandbox(): void;
 		/**
 		 * Exits immediately with exitCode.  exitCode defaults to 0. All windows will be
 		 * closed immediately without asking user and the before-quit and will-quit events
@@ -561,20 +571,21 @@ interface Event extends GlobalEvent {
 		 * This method makes your application a Single Instance Application - instead of
 		 * allowing multiple instances of your app to run, this will ensure that only a
 		 * single instance of your app is running, and other instances signal this instance
-		 * and exit. callback will be called with callback(argv, workingDirectory) when a
-		 * second instance has been executed. argv is an Array of the second instance's
-		 * command line arguments, and workingDirectory is its current working directory.
-		 * Usually applications respond to this by making their primary window focused and
-		 * non-minimized. The callback is guaranteed to be executed after the ready event
-		 * of app gets emitted. This method returns false if your process is the primary
-		 * instance of the application and your app should continue loading. And returns
-		 * true if your process has sent its parameters to another instance, and you should
-		 * immediately quit. On macOS the system enforces single instance automatically
-		 * when users try to open a second instance of your app in Finder, and the
-		 * open-file and open-url events will be emitted for that. However when users start
-		 * your app in command line the system's single instance mechanism will be bypassed
-		 * and you have to use this method to ensure single instance. An example of
-		 * activating the window of primary instance when a second instance starts:
+		 * and exit. callback will be called by the first instance with callback(argv,
+		 * workingDirectory) when a second instance has been executed. argv is an Array of
+		 * the second instance's command line arguments, and workingDirectory is its
+		 * current working directory. Usually applications respond to this by making their
+		 * primary window focused and non-minimized. The callback is guaranteed to be
+		 * executed after the ready event of app gets emitted. This method returns false if
+		 * your process is the primary instance of the application and your app should
+		 * continue loading. And returns true if your process has sent its parameters to
+		 * another instance, and you should immediately quit. On macOS the system enforces
+		 * single instance automatically when users try to open a second instance of your
+		 * app in Finder, and the open-file and open-url events will be emitted for that.
+		 * However when users start your app in command line the system's single instance
+		 * mechanism will be bypassed and you have to use this method to ensure single
+		 * instance. An example of activating the window of primary instance when a second
+		 * instance starts:
 		 */
 		makeSingleInstance(callback: (argv: string[], workingDirectory: string) => void): boolean;
 		/**
@@ -662,7 +673,7 @@ interface Event extends GlobalEvent {
 		 * and pass arguments that specify your application name. For example: Note: This
 		 * API has no effect on MAS builds.
 		 */
-		setLoginItemSettings(settings: Settings, path?: string, args?: string[]): void;
+		setLoginItemSettings(settings: Settings): void;
 		/**
 		 * Overrides the current application's name.
 		 */
@@ -787,6 +798,7 @@ interface Event extends GlobalEvent {
 		// Docs: http://electron.atom.io/docs/api/browser-view
 
 		constructor(options?: BrowserViewConstructorOptions);
+		static fromId(id: number): BrowserView;
 		setAutoResize(options: AutoResizeOptions): void;
 		setBackgroundColor(color: string): void;
 		/**
@@ -915,6 +927,13 @@ interface Event extends GlobalEvent {
 		addListener(event: 'moved', listener: Function): this;
 		removeListener(event: 'moved', listener: Function): this;
 		/**
+		 * Emitted when the native new tab button is clicked.
+		 */
+		on(event: 'new-window-for-tab', listener: Function): this;
+		once(event: 'new-window-for-tab', listener: Function): this;
+		addListener(event: 'new-window-for-tab', listener: Function): this;
+		removeListener(event: 'new-window-for-tab', listener: Function): this;
+		/**
 		 * Emitted when the document changed its title, calling event.preventDefault() will
 		 * prevent the native window's title from changing.
 		 */
@@ -1041,6 +1060,12 @@ interface Event extends GlobalEvent {
 		 * module is emitted.
 		 */
 		static addDevToolsExtension(path: string): void;
+		/**
+		 * Adds Chrome extension located at path, and returns extension's name. The method
+		 * will also not return if the extension's manifest is missing or incomplete. Note:
+		 * This API cannot be called before the ready event of the app module is emitted.
+		 */
+		static addExtension(path: string): void;
 		static fromId(id: number): BrowserWindow;
 		static fromWebContents(webContents: WebContents): BrowserWindow;
 		static getAllWindows(): BrowserWindow[];
@@ -1049,12 +1074,22 @@ interface Event extends GlobalEvent {
 		 * This API cannot be called before the ready event of the app module is emitted.
 		 */
 		static getDevToolsExtensions(): DevToolsExtensions;
+		/**
+		 * Note: This API cannot be called before the ready event of the app module is
+		 * emitted.
+		 */
+		static getExtensions(): Extensions;
 		static getFocusedWindow(): BrowserWindow;
 		/**
 		 * Remove a DevTools extension by name. Note: This API cannot be called before the
 		 * ready event of the app module is emitted.
 		 */
 		static removeDevToolsExtension(name: string): void;
+		/**
+		 * Remove a Chrome extension by name. Note: This API cannot be called before the
+		 * ready event of the app module is emitted.
+		 */
+		static removeExtension(name: string): void;
 		/**
 		 * Removes focus from the window.
 		 */
@@ -1309,7 +1344,7 @@ interface Event extends GlobalEvent {
 		 * Sets the menu as the window's menu bar, setting it to null will remove the menu
 		 * bar.
 		 */
-		setMenu(menu: Menu): void;
+		setMenu(menu: Menu | null): void;
 		/**
 		 * Sets whether the menu bar should be visible. If the menu bar is auto-hide, users
 		 * can still bring up the menu bar by pressing the single Alt key.
@@ -2005,11 +2040,11 @@ interface Event extends GlobalEvent {
 		 */
 		getUploadToServer(): boolean;
 		/**
-		 * Set an extra parameter to set be sent with the crash report. The values
-		 * specified here will be sent in addition to any values set via the extra option
-		 * when start was called. This API is only available on macOS, if you need to
-		 * add/update extra parameters on Linux and Windows after your first call to start
-		 * you can call start again with the updated extra options.
+		 * Set an extra parameter to be sent with the crash report. The values specified
+		 * here will be sent in addition to any values set via the extra option when start
+		 * was called. This API is only available on macOS, if you need to add/update extra
+		 * parameters on Linux and Windows after your first call to start you can call
+		 * start again with the updated extra options.
 		 */
 		setExtraParameter(key: string, value: string): void;
 		/**
@@ -2620,7 +2655,7 @@ interface Event extends GlobalEvent {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): void;
+		sendSync(channel: string, ...args: any[]): any;
 		/**
 		 * Like ipcRenderer.send but the event will be sent to the <webview> element in the
 		 * host page instead of the main process.
@@ -2699,6 +2734,7 @@ interface Event extends GlobalEvent {
 
 		/**
 		 * The maximum amount of memory that has ever been pinned to actual physical RAM.
+		 * On macOS its value will always be 0.
 		 */
 		peakWorkingSetSize: number;
 		/**
@@ -2883,6 +2919,26 @@ interface Event extends GlobalEvent {
 
 		// Docs: http://electron.atom.io/docs/api/notification
 
+		on(event: 'action', listener: (event: Event,
+			/**
+			 * The index of the action that was activated
+			 */
+			index: number) => void): this;
+		once(event: 'action', listener: (event: Event,
+			/**
+			 * The index of the action that was activated
+			 */
+			index: number) => void): this;
+		addListener(event: 'action', listener: (event: Event,
+			/**
+			 * The index of the action that was activated
+			 */
+			index: number) => void): this;
+		removeListener(event: 'action', listener: (event: Event,
+			/**
+			 * The index of the action that was activated
+			 */
+			index: number) => void): this;
 		/**
 		 * Emitted when the notification is clicked by the user.
 		 */
@@ -2941,6 +2997,20 @@ interface Event extends GlobalEvent {
 		 * the OS will display it.
 		 */
 		show(): void;
+	}
+
+	interface NotificationAction {
+
+		// Docs: http://electron.atom.io/docs/api/structures/notification-action
+
+		/**
+		 * The label for the given action.
+		 */
+		text?: string;
+		/**
+		 * The type of action, can be button.
+		 */
+		type: ('button');
 	}
 
 	interface Point {
@@ -3139,14 +3209,20 @@ interface Event extends GlobalEvent {
 
 		// Docs: http://electron.atom.io/docs/api/structures/rectangle
 
+		/**
+		 * The height of the rectangle (must be an integer)
+		 */
 		height: number;
+		/**
+		 * The width of the rectangle (must be an integer)
+		 */
 		width: number;
 		/**
-		 * The x coordinate of the origin of the rectangle
+		 * The x coordinate of the origin of the rectangle (must be an integer)
 		 */
 		x: number;
 		/**
-		 * The y coordinate of the origin of the rectangle
+		 * The y coordinate of the origin of the rectangle (must be an integer)
 		 */
 		y: number;
 	}
@@ -3763,7 +3839,7 @@ interface Event extends GlobalEvent {
 
 		// Docs: http://electron.atom.io/docs/api/touch-bar
 
-		constructor(items: TouchBarButton | TouchBarColorPicker | TouchBarGroup | TouchBarLabel | TouchBarPopover | TouchBarScrubber | TouchBarSegmentedControl | TouchBarSlider | TouchBarSpacer);
+		constructor(options: TouchBarConstructorOptions);
 		escapeItem: any;
 		static TouchBarButton: typeof TouchBarButton;
 		static TouchBarColorPicker: typeof TouchBarColorPicker;
@@ -3922,6 +3998,52 @@ interface Event extends GlobalEvent {
 			 * the dropped text string
 			 */
 			text: string) => void): this;
+		/**
+		 * Emitted when the mouse enters the tray icon.
+		 */
+		on(event: 'mouse-enter', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		once(event: 'mouse-enter', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		addListener(event: 'mouse-enter', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		removeListener(event: 'mouse-enter', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		/**
+		 * Emitted when the mouse exits the tray icon.
+		 */
+		on(event: 'mouse-leave', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		once(event: 'mouse-leave', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		addListener(event: 'mouse-leave', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
+		removeListener(event: 'mouse-leave', listener: (event: Event,
+			/**
+			 * The position of the event
+			 */
+			position: Point) => void): this;
 		/**
 		 * Emitted when the tray icon is right clicked.
 		 */
@@ -4100,8 +4222,8 @@ interface Event extends GlobalEvent {
 		static getFocusedWebContents(): WebContents;
 		/**
 		 * Emitted before dispatching the keydown and keyup events in the page. Calling
-		 * event.preventDefault will prevent the page keydown/keyup events from being
-		 * dispatched.
+		 * event.preventDefault will prevent the page keydown/keyup events and the menu
+		 * shortcuts. To only prevent the menu shortcuts, use setIgnoreMenuShortcuts:
 		 */
 		on(event: 'before-input-event', listener: (event: Event,
 			/**
@@ -4823,13 +4945,13 @@ interface Event extends GlobalEvent {
 		 * called with callback(image). The image is an instance of NativeImage that stores
 		 * data of the snapshot. Omitting rect will capture the whole visible page.
 		 */
-		capturePage(callback: (image: NativeImage) => void): void;
+		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
 		/**
 		 * Captures a snapshot of the page within rect. Upon completion callback will be
 		 * called with callback(image). The image is an instance of NativeImage that stores
 		 * data of the snapshot. Omitting rect will capture the whole visible page.
 		 */
-		capturePage(rect: Rectangle, callback: (image: NativeImage) => void): void;
+		capturePage(callback: (image: NativeImage) => void): void;
 		/**
 		 * Clears the navigation history.
 		 */
@@ -4886,6 +5008,10 @@ interface Event extends GlobalEvent {
 		 * request can be obtained by subscribing to found-in-page event.
 		 */
 		findInPage(text: string, options?: FindInPageOptions): void;
+		/**
+		 * Focuses the web page.
+		 */
+		focus(): void;
 		getFrameRate(): number;
 		getOSProcessId(): number;
 		/**
@@ -5049,6 +5175,10 @@ interface Event extends GlobalEvent {
 		 * Only values between 1 and 60 are accepted.
 		 */
 		setFrameRate(fps: number): void;
+		/**
+		 * Ignore application menu shortcuts while this web contents is focused.
+		 */
+		setIgnoreMenuShortcuts(ignore: boolean): void;
 		/**
 		 * Sets the maximum and minimum layout-based (i.e. non-visual) zoom level.
 		 */
@@ -6022,6 +6152,11 @@ interface Event extends GlobalEvent {
 		 */
 		titleBarStyle?: ('default' | 'hidden' | 'hidden-inset' | 'hiddenInset' | 'customButtonsOnHover');
 		/**
+		 * Shows the title in the tile bar in full screen mode on macOS for all
+		 * titleBarStyle options. Default is false.
+		 */
+		fullscreenWindowTitle?: boolean;
+		/**
 		 * Use WS_THICKFRAME style for frameless windows on Windows, which adds standard
 		 * window frame. Setting it to false will remove window shadow and window
 		 * animations. Default is true.
@@ -6043,7 +6178,9 @@ interface Event extends GlobalEvent {
 		zoomToPageWidth?: boolean;
 		/**
 		 * Tab group name, allows opening the window as a native tab on macOS 10.12+.
-		 * Windows with the same tabbing identifier will be grouped together.
+		 * Windows with the same tabbing identifier will be grouped together. This also
+		 * adds a native new tab button to your window's tab bar and allows your app and
+		 * window to receive the new-window-for-tab event.
 		 */
 		tabbingIdentifier?: string;
 		/**
@@ -6076,16 +6213,16 @@ interface Event extends GlobalEvent {
 		/**
 		 * Should follow window.location.origin’s representation scheme://host:port.
 		 */
-		origin: string;
+		origin?: string;
 		/**
 		 * The types of storages to clear, can contain: appcache, cookies, filesystem,
 		 * indexdb, localstorage, shadercache, websql, serviceworkers
 		 */
-		storages: string[];
+		storages?: string[];
 		/**
 		 * The types of quotas to clear, can contain: temporary, persistent, syncable.
 		 */
-		quotas: string[];
+		quotas?: string[];
 	}
 
 	interface CommandLine {
@@ -6436,6 +6573,9 @@ interface Event extends GlobalEvent {
 		 * Upload rate in Bps. Defaults to 0 which will disable upload throttling.
 		 */
 		uploadThroughput?: number;
+	}
+
+	interface Extensions {
 	}
 
 	interface FileIconOptions {
@@ -6821,7 +6961,12 @@ interface Event extends GlobalEvent {
 		 */
 		title: string;
 		/**
-		 * The body text of the notification, which will be displayed below the title
+		 * A subtitle for the notification, which will be displayed below the title.
+		 */
+		subtitle?: string;
+		/**
+		 * The body text of the notification, which will be displayed below the title or
+		 * subtitle
 		 */
 		body: string;
 		/**
@@ -6840,6 +6985,15 @@ interface Event extends GlobalEvent {
 		 * The placeholder to write in the inline reply input field.
 		 */
 		replyPlaceholder?: string;
+		/**
+		 * The name of the sound file to play when the notification is shown.
+		 */
+		sound?: string;
+		/**
+		 * Actions to add to the notification. Please read the available actions and
+		 * limitations in the NotificationAction documentation
+		 */
+		actions?: NotificationAction[];
 	}
 
 	interface OnBeforeRedirectDetails {
@@ -7002,7 +7156,7 @@ interface Event extends GlobalEvent {
 		 * Contains which features the dialog should use. The following values are
 		 * supported:
 		 */
-		properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases'>;
+		properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
 		/**
 		 * Message to display above input boxes.
 		 */
@@ -7098,11 +7252,11 @@ interface Event extends GlobalEvent {
 		/**
 		 * Don't ask user for print settings. Default is false.
 		 */
-		silent: boolean;
+		silent?: boolean;
 		/**
 		 * Also prints the background color and image of the web page. Default is false.
 		 */
-		printBackground: boolean;
+		printBackground?: boolean;
 		/**
 		 * Set the printer device name to use. Default is ''.
 		 */
@@ -7305,6 +7459,9 @@ interface Event extends GlobalEvent {
 
 	interface SaveDialogOptions {
 		title?: string;
+		/**
+		 * Absolute directory path, absolute file path, or file name to use by default.
+		 */
 		defaultPath?: string;
 		/**
 		 * Custom label for the confirmation button, when left empty the default label will
@@ -7339,6 +7496,15 @@ interface Event extends GlobalEvent {
 		 * opened to know the current value. This setting is only supported on macOS.
 		 */
 		openAsHidden?: boolean;
+		/**
+		 * The executable to launch at login. Defaults to process.execPath.
+		 */
+		path?: string;
+		/**
+		 * The command-line arguments to pass to the executable. Defaults to an empty
+		 * array. Take care to wrap paths in quotes.
+		 */
+		args?: string[];
 	}
 
 	interface SizeOptions {
@@ -7448,6 +7614,11 @@ interface Event extends GlobalEvent {
 		 * Function to call when a color is selected.
 		 */
 		change?: (color: string) => void;
+	}
+
+	interface TouchBarConstructorOptions {
+		items: TouchBarButton | TouchBarColorPicker | TouchBarGroup | TouchBarLabel | TouchBarPopover | TouchBarScrubber | TouchBarSegmentedControl | TouchBarSlider | TouchBarSpacer;
+		escapeItem?: TouchBarButton | TouchBarColorPicker | TouchBarGroup | TouchBarLabel | TouchBarPopover | TouchBarScrubber | TouchBarSegmentedControl | TouchBarSlider | TouchBarSpacer;
 	}
 
 	interface TouchBarGroupConstructorOptions {
@@ -7583,13 +7754,13 @@ interface Event extends GlobalEvent {
 
 	interface Versions {
 		/**
-		 * A String representing Electron's version string.
-		 */
-		electron?: string;
-		/**
 		 * A String representing Chrome's version string.
 		 */
 		chrome?: string;
+		/**
+		 * A String representing Electron's version string.
+		 */
+		electron?: string;
 	}
 
 	interface WillNavigateEvent extends Event {
@@ -7856,7 +8027,8 @@ interface Event extends GlobalEvent {
 		 */
 		contextIsolation?: boolean;
 		/**
-		 * Whether to use native window.open(). Defaults to false.
+		 * Whether to use native window.open(). Defaults to false. This option is currently
+		 * experimental.
 		 */
 		nativeWindowOpen?: boolean;
 		/**
@@ -7997,9 +8169,35 @@ declare namespace NodeJS {
 		 */
 		noAsar?: boolean;
 		/**
+		 * A Boolean that controls whether or not deprecation warnings are printed to
+		 * stderr. Setting this to true will silence deprecation warnings.  This property
+		 * is used instead of the --no-deprecation command line flag.
+		 */
+		noDeprecation?: boolean;
+		/**
 		 * A String representing the path to the resources directory.
 		 */
 		resourcesPath?: string;
+		/**
+		 * A Boolean that controls whether or not deprecation warnings will be thrown as
+		 * exceptions.  Setting this to true will throw errors for deprecations.  This
+		 * property is used instead of the --throw-deprecation command line flag.
+		 */
+		throwDeprecation?: boolean;
+		/**
+		 * A Boolean that controls whether or not deprecations printed to stderr include
+		 * their stack trace.  Setting this to true will print  stack traces for
+		 * deprecations. This property is instead of the --trace-deprecation command line
+		 * flag.
+		 */
+		traceDeprecation?: boolean;
+		/**
+		 * A Boolean that controls whether or not process warnings printed to stderr
+		 * include their stack trace.  Setting this to true will print stack traces for
+		 * process warnings (including deprecations).  This property is instead of the
+		 * --trace-warnings command line flag.
+		 */
+		traceProcessWarnings?: boolean;
 		/**
 		 * A String representing the current process's type, can be "browser" (i.e. main
 		 * process) or "renderer".

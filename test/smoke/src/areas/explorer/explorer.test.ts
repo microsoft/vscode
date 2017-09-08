@@ -8,9 +8,9 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Explorer', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
 		await app.workbench.quickopen.openQuickOpen();
@@ -18,7 +18,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
-		app.screenshot.capture('Quick open result');
+		await app.screenCapturer.capture('Quick open result');
 		assert.equal(elements.length, 7, 'There are 7 elements in quick open');
 	});
 
@@ -29,7 +29,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
-		app.screenshot.capture('fuzzy match result');
+		await app.screenCapturer.capture('fuzzy match result');
 		assert.equal(elements.length, 3, 'There are 3 elements in quick open');
 	});
 });

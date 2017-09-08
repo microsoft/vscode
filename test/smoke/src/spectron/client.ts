@@ -36,6 +36,12 @@ export class SpectronClient {
 		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
 	}
 
+	public async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
+		accept = accept ? accept : result => textContent !== void 0 ? textContent === result : !!result;
+		const fn = async () => await this.spectron.client.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
+		return this.waitFor(fn, accept, `getTextContent with selector ${selector}`);
+	}
+
 	public async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
 		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
 		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
@@ -85,6 +91,10 @@ export class SpectronClient {
 	public async waitForElement(selector: string, accept: (result: Element | undefined) => boolean = result => !!result): Promise<Element> {
 		return this.waitFor<RawResult<Element>>(() => this.spectron.client.element(selector), result => accept(result ? result.value : void 0), `element with selector ${selector}`)
 			.then(result => result.value);
+	}
+
+	public async waitForVisibility(selector: string, accept: (result: boolean) => boolean = result => result): Promise<any> {
+		return this.waitFor(() => this.spectron.client.isVisible(selector), accept, `isVisible with selector ${selector}`);
 	}
 
 	public async element(selector: string): Promise<Element> {
@@ -142,14 +152,15 @@ export class SpectronClient {
 
 		while (true) {
 			if (trial > this.retryCount) {
-				await this.application.screenshot.capture(timeoutMessage || ('' + this.captureIndex++));
-				throw new Error(`${timeoutMessage}: Timed out after ${this.retryCount * this.retryDuration} seconds.`);
+				await this.application.screenCapturer.capture('' + this.captureIndex++);
+				throw new Error(`${timeoutMessage}: Timed out after ${(this.retryCount * this.retryDuration) / 1000} seconds.`);
 			}
 
 			let result;
 			try {
 				result = await func();
 			} catch (e) {
+				// console.log(e);
 			}
 
 			if (accept(result)) {

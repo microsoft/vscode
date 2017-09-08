@@ -811,7 +811,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): vscode.SignatureHelp {
-				return new types.SignatureHelp();
+				return {
+					signatures: [],
+					activeParameter: 0,
+					activeSignature: 0
+				};
 			}
 		}, []));
 

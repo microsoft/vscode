@@ -25,6 +25,7 @@ import { Snippet, ISnippetsService } from 'vs/workbench/parts/snippets/electron-
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 namespace schema {
 
@@ -241,7 +242,7 @@ export class SnippetSuggestion implements ISuggestion {
 	label: string;
 	detail: string;
 	insertText: string;
-	documentation: string;
+	documentation: MarkdownString;
 	overwriteBefore: number;
 	sortText: string;
 	noAutoAccept: boolean;
@@ -263,7 +264,7 @@ export class SnippetSuggestion implements ISuggestion {
 	}
 
 	resolve(): this {
-		this.documentation = new SnippetParser().text(this.snippet.codeSnippet);
+		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
 		return this;
 	}
 

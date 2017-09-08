@@ -8,6 +8,7 @@
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IExpression } from 'vs/base/common/glob';
 import { IProgress, ILineMatch, IPatternInfo, ISearchStats, ISearchLog } from 'vs/platform/search/common/search';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IFolderSearch {
 	folder: string;
@@ -31,10 +32,16 @@ export interface IRawSearch {
 	disregardIgnoreFiles?: boolean;
 }
 
+export interface ITelemetryEvent {
+	eventName: string;
+	data: ITelemetryData;
+}
+
 export interface IRawSearchService {
 	fileSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	textSearch(search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	clearCache(cacheKey: string): TPromise<void>;
+	fetchTelemetry(): PPromise<void, ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {

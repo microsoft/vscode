@@ -229,7 +229,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any>;
 	$registerNavigateTypeSupport(handle: number): TPromise<any>;
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any>;
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any>;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any>;

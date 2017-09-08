@@ -7,9 +7,9 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Terminal', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Terminal'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`opens terminal, runs 'echo' and verifies the output`, async function () {
 		const expected = new Date().getTime().toString();
@@ -17,6 +17,14 @@ describe('Terminal', () => {
 
 		await app.workbench.terminal.runCommand(`echo ${expected}`);
 
-		await app.workbench.terminal.waitForTerminalText(terminalText => !!terminalText[terminalText.length - 2] && terminalText[terminalText.length - 2].trim() === expected);
+		await app.workbench.terminal.waitForTerminalText(terminalText => {
+			// Last line will not contain the output
+			for (let index = terminalText.length - 2; index >= 0; index--) {
+				if (!!terminalText[index] && terminalText[index].trim() === expected) {
+					return true;
+				}
+			}
+			return false;
+		});
 	});
 });

@@ -136,7 +136,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		);
 
 		if (!folder) {
-			return normalize(path);
+			return path;
 		}
 
 		if (typeof includeWorkspace === 'undefined') {
@@ -147,7 +147,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (includeWorkspace) {
 			result = `${folder.name}/${result}`;
 		}
-		return normalize(result);
+		return normalize(result, true);
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
