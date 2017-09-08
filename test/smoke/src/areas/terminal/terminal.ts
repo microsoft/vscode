@@ -17,7 +17,7 @@ export class Terminal {
 		if (!await this.isVisible()) {
 			await this.spectron.workbench.commandPallette.runCommand('View: Toggle Integrated Terminal');
 			await this.spectron.client.waitForElement(Terminal.TERMINAL_SELECTOR);
-			await this.waitForTerminalText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1);
+			await this.waitForTerminalText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1, 'Waiting for Terminal to be ready');
 		}
 	}
 
@@ -32,18 +32,18 @@ export class Terminal {
 	}
 
 	public async waitForTextInLine(line: number, fn: (text: string) => boolean): Promise<string> {
-		const terminalText = await this.waitForTerminalText(terminalText => fn(terminalText[line - 1]));
+		const terminalText = await this.waitForTerminalText(terminalText => fn(terminalText[line - 1]), 'Waiting for Text in line ' + line);
 		return terminalText[line - 1];
 	}
 
-	public async waitForTerminalText(fn: (text: string[]) => boolean): Promise<string[]> {
+	public async waitForTerminalText(fn: (text: string[]) => boolean, timeOutDescription: string = 'Getting Terminal Text'): Promise<string[]> {
 		return this.spectron.client.waitFor(async () => {
 			const terminalText = await this.getTerminalText();
 			if (fn(terminalText)) {
 				return terminalText;
 			}
 			return undefined;
-		}, void 0, 'Getting terminal text');
+		}, void 0, timeOutDescription);
 	}
 
 	public getCurrentLineNumber(): Promise<number> {
