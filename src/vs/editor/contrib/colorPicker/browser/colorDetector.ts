@@ -12,9 +12,9 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { ColorProviderRegistry, IColorRange } from 'vs/editor/common/modes';
+import { ColorProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { getColors } from 'vs/editor/contrib/colorPicker/common/color';
+import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/common/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_DECORATORS = 500;
@@ -32,7 +32,7 @@ export class ColorDetector implements IEditorContribution {
 	private _timeoutPromise: TPromise<void>;
 
 	private _decorationsIds: string[] = [];
-	private _colorRanges = new Map<string, IColorRange>();
+	private _colorDatas = new Map<string, IColorData>();
 
 	private _colorDecoratorIds: string[] = [];
 	private _decorationsTypes: { [key: string]: boolean } = {};
@@ -146,35 +146,29 @@ export class ColorDetector implements IEditorContribution {
 		this._localToDispose = dispose(this._localToDispose);
 	}
 
-	private updateDecorations(colorInfos: IColorRange[]): void {
-		const decorations = colorInfos.map(c => ({
+	private updateDecorations(colorDatas: IColorData[]): void {
+		const decorations = colorDatas.map(c => ({
 			range: {
-				startLineNumber: c.range.startLineNumber,
-				startColumn: c.range.startColumn,
-				endLineNumber: c.range.endLineNumber,
-				endColumn: c.range.endColumn
+				startLineNumber: c.colorRange.range.startLineNumber,
+				startColumn: c.colorRange.range.startColumn,
+				endLineNumber: c.colorRange.range.endLineNumber,
+				endColumn: c.colorRange.range.endColumn
 			},
 			options: {}
 		}));
 
-		const colorRanges = colorInfos.map(c => ({
-			range: c.range,
-			color: c.color,
-			formatters: c.formatters
-		}));
-
 		this._decorationsIds = this._editor.deltaDecorations(this._decorationsIds, decorations);
 
-		this._colorRanges = new Map<string, IColorRange>();
-		this._decorationsIds.forEach((id, i) => this._colorRanges.set(id, colorRanges[i]));
+		this._colorDatas = new Map<string, IColorData>();
+		this._decorationsIds.forEach((id, i) => this._colorDatas.set(id, colorDatas[i]));
 	}
 
-	private updateColorDecorators(colorInfos: IColorRange[]): void {
+	private updateColorDecorators(colorInfos: IColorData[]): void {
 		let decorations = [];
 		let newDecorationsTypes: { [key: string]: boolean } = {};
 
 		for (let i = 0; i < colorInfos.length && decorations.length < MAX_DECORATORS; i++) {
-			const { red, green, blue, alpha } = colorInfos[i].color;
+			const { red, green, blue, alpha } = colorInfos[i].colorRange.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 			let subKey = hash(rgba).toString(16);
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
@@ -201,10 +195,10 @@ export class ColorDetector implements IEditorContribution {
 			newDecorationsTypes[key] = true;
 			decorations.push({
 				range: {
-					startLineNumber: colorInfos[i].range.startLineNumber,
-					startColumn: colorInfos[i].range.startColumn,
-					endLineNumber: colorInfos[i].range.endLineNumber,
-					endColumn: colorInfos[i].range.endColumn
+					startLineNumber: colorInfos[i].colorRange.range.startLineNumber,
+					startColumn: colorInfos[i].colorRange.range.startColumn,
+					endLineNumber: colorInfos[i].colorRange.range.endLineNumber,
+					endColumn: colorInfos[i].colorRange.range.endColumn
 				},
 				options: this._codeEditorService.resolveDecorationOptions(key, true)
 			});
@@ -228,15 +222,15 @@ export class ColorDetector implements IEditorContribution {
 		}
 	}
 
-	getColorRange(position: Position): IColorRange | null {
+	getColorData(position: Position): IColorData | null {
 		const decorations = this._editor.getModel()
 			.getDecorationsInRange(Range.fromPositions(position, position))
-			.filter(d => this._colorRanges.has(d.id));
+			.filter(d => this._colorDatas.has(d.id));
 
 		if (decorations.length === 0) {
 			return null;
 		}
 
-		return this._colorRanges.get(decorations[0].id);
+		return this._colorDatas.get(decorations[0].id);
 	}
 }
