@@ -38,8 +38,11 @@ step "Build minified" {
 }
 
 step "Run smoke test" {
+	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketests-screenshots"
+	Remove-Item -Recurse -Force $Screenshots
+
 	exec { & Push-Location test\smoke }
-	exec { & .\node_modules\.bin/mocha --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch\Code - Insiders.exe" --screenshot }
+	exec { & .\node_modules\.bin/mocha --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch\Code - Insiders.exe" --screenshots "$Screenshots" }
 	exec { & Pop-Location }
 }
 

@@ -22,8 +22,11 @@ step "Build minified & upload source maps" \
 	npm run gulp -- vscode-darwin-min
 
 function runSmokeTest {
+	SCREENSHOTS="$AGENT_BUILDDIRECTORY/smoketest-screenshots"
+	rm -rf $SCREENSHOTS
+
 	cd $BUILD_SOURCESDIRECTORY/test/smoke && \
-		./node_modules/.bin/mocha --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron" --screenshot
+		./node_modules/.bin/mocha --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"  --screenshots $SCREENSHOTS
 }
 
 step "Run smoke test" \

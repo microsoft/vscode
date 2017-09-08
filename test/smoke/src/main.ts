@@ -11,14 +11,16 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
-import { ncp } from 'ncp';
-
-const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build'], boolean: ['screenshot'] });
 
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', code => code === 0 && rimraf.sync(testDataPath));
+process.once('exit', () => rimraf.sync(testDataPath));
+
+const [, , ...args] = process.argv;
+const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots'] });
+
+opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
+mkdirp.sync(opts.screenshots);
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
@@ -77,11 +79,10 @@ if (!fs.existsSync(testCodePath)) {
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
 process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
-process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-process.env.CAPTURE_SCREENSHOT = opts.screenshot ? '1' : '';
+process.env.SCREENSHOTS_DIR = opts.screenshots || '';
 
 if (process.env.VSCODE_DEV === '1') {
 	process.env.VSCODE_EDITION = 'dev';
@@ -179,19 +180,6 @@ before(async function () {
 	this.timeout(2 * 60 * 1000);
 	await setup();
 });
-
-async function teardown(): Promise<void> {
-	const screenshotsSourcePath = process.env.SCREENSHOTS_DIR;
-
-	if (process.env.CAPTURE_SCREENSHOT && screenshotsSourcePath) {
-		const screenshotsDestinationPath = path.join(repoPath, '..', 'smoketest-screenshots');
-
-		rimraf.sync(screenshotsDestinationPath);
-		await new Promise((c, e) => ncp(screenshotsSourcePath, screenshotsDestinationPath, err => err ? e(err) : c()));
-	}
-}
-
-after(teardown);
 
 // import './areas/workbench/data-migration.test';
 import './areas/workbench/data-loss.test';

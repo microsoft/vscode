@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { Application } from 'spectron';
-import { SCREENSHOTS_DIR, CAPTURE_SCREENSHOT } from '../spectron/application';
+import { SCREENSHOTS_DIR } from '../spectron/application';
 
 function sanitize(name: string): string {
 	return name.replace(/[&*:\/]/g, '');
@@ -21,7 +21,7 @@ export class ScreenCapturer {
 	constructor(private application: Application, private suiteName: string) { }
 
 	async capture(name: string): Promise<void> {
-		if (!CAPTURE_SCREENSHOT) {
+		if (!SCREENSHOTS_DIR) {
 			return;
 		}
 

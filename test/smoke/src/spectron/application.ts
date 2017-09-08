@@ -18,7 +18,6 @@ export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
 export const USER_DIR = process.env.VSCODE_USER_DIR as string;
 export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
 export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
-export const CAPTURE_SCREENSHOT = !!process.env.CAPTURE_SCREENSHOT;
 export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
 
 export enum VSCODE_BUILD {
