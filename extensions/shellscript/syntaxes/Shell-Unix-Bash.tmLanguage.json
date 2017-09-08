@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/ba95d7b742caef130911d878f42f66bdd80181e4",
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/c23c9e472b681db58d7f982f616144b8a34c5ee4",
 	"fileTypes": [
 		"sh",
 		"bash",
@@ -848,7 +848,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.for-loop.shell",
 					"patterns": [
 						{
@@ -866,7 +866,7 @@
 							"name": "variable.other.loop.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -886,7 +886,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.while-loop.shell",
 					"patterns": [
 						{
@@ -904,7 +904,7 @@
 							"name": "variable.other.loop.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -924,7 +924,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(esac)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(esac)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.case-block.shell",
 					"patterns": [
 						{
@@ -934,7 +934,7 @@
 									"name": "keyword.control.shell"
 								}
 							},
-							"end": "(?<=^|;|&|\\s)(?=(?:esac)(?:\\s|;|&|$))",
+							"end": "(?<=^|;|&|\\s)(?=(?:esac)(?:\\s|;|&|$|\\)))",
 							"name": "meta.scope.case-body.shell",
 							"patterns": [
 								{
@@ -961,7 +961,7 @@
 						}
 					},
 					"comment": "Restrict match to avoid matching in lines like `dd if=/dev/sda1 …`",
-					"end": "(?<=^|;|&|\\s)(fi)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(fi)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
