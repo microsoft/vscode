@@ -323,6 +323,12 @@ export class PreferencesEditor extends BaseEditor {
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
 			this.latestEmptyFilters = [];
+			// TODO need to move off dynamic properties as they cannot be statically be registered
+			/* __GDPR__
+			   "defaultSettings.filter" : {
+				  "emptyFilters" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 		}
 	}

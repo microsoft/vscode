@@ -254,6 +254,11 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 
+		/* __GDPR__FRAGMENT__
+		   "EditorTelemetryDescriptor" : {
+			  "resource": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		return descriptor;
 	}
 

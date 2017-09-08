@@ -148,6 +148,11 @@ export class MarkersPanel extends Panel {
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
 			const marker: Marker = element;
+			/* __GDPR__
+			   "problems.marker.opened" : {
+				  "source" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
 			this.editorService.openEditor({
 				resource: marker.resource,

@@ -552,6 +552,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
 
+		/* __GDPR__
+		   "quickOpenWidgetShown" : {
+			  "mode" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "quickNavigate": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 
 		// Trigger onOpen
