@@ -15,7 +15,7 @@ export class Terminal {
 
 	public async showTerminal(): Promise<void> {
 		if (!await this.isVisible()) {
-			await this.spectron.workbench.commandPallette.runCommand('Toggle Integrated Terminal');
+			await this.spectron.workbench.commandPallette.runCommand('View: Toggle Integrated Terminal');
 			await this.spectron.client.waitForElement(Terminal.TERMINAL_SELECTOR);
 			await this.waitForTerminalText(text => !!text[text.length - 1] && text[text.length - 1].trim().indexOf('vscode-smoketest-express') !== -1);
 		}
