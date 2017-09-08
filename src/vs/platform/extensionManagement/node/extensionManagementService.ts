@@ -45,7 +45,7 @@ function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; me
 	});
 }
 
-function validate(zipPath: string): TPromise<IExtensionManifest> {
+export function validateLocalExtension(zipPath: string): TPromise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(({ manifest }) => TPromise.as(manifest));
@@ -102,7 +102,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	install(zipPath: string): TPromise<void> {
 		zipPath = path.resolve(zipPath);
 
-		return validate(zipPath).then<void>(manifest => {
+		return validateLocalExtension(zipPath).then<void>(manifest => {
 			const id = getLocalExtensionIdFromManifest(manifest);
 
 			return this.isObsolete(id).then(isObsolete => {
@@ -262,7 +262,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		};
 
 		return this.galleryService.download(extension)
-			.then(zipPath => validate(zipPath).then(() => zipPath))
+			.then(zipPath => validateLocalExtension(zipPath).then(() => zipPath))
 			.then(zipPath => this.installExtension(zipPath, id, metadata));
 	}
 
