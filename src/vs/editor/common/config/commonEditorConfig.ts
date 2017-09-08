@@ -598,6 +598,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.colorDecorators,
 			'description': nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.")
 		},
+		'editor.lightbulb.enabled': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
+			'description': nls.localize('codeActions', "Enables the code action lightbulb")
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,

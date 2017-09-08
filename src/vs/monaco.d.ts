@@ -2684,6 +2684,17 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor minimap
+	 */
+	export interface IEditorLightbulbOptions {
+		/**
+		 * Enable the lightbulb code action.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
+	/**
 	 * Configuration options for the editor.
 	 */
 	export interface IEditorOptions {
@@ -3019,6 +3030,10 @@ declare module monaco.editor {
 		 */
 		codeLens?: boolean;
 		/**
+		 * Control the behavior and rendering of the code action lightbulb.
+		 */
+		lightbulb?: IEditorLightbulbOptions;
+		/**
 		 * Enable code folding
 		 * Defaults to true in vscode and to false in monaco-editor.
 		 */
@@ -3296,6 +3311,7 @@ declare module monaco.editor {
 		readonly matchBrackets: boolean;
 		readonly find: InternalEditorFindOptions;
 		readonly colorDecorators: boolean;
+		readonly lightbulbEnabled: boolean;
 	}
 
 	/**
