@@ -4230,6 +4230,23 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * Undefined if provider was not triggered by a character.
+		 */
+		triggerCharacter?: string;
+	}
+
+	export type ProviderCompletionItems = (document: editor.IReadOnlyModel, position: Position, token: CancellationToken) => CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+
+	export type ProviderCompletionItemsForContext = (document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken) => CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+
+	/**
 	 * The completion item provider interface defines the contract between extensions and
 	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
@@ -4245,7 +4262,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems: ProviderCompletionItems | ProviderCompletionItemsForContext;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).

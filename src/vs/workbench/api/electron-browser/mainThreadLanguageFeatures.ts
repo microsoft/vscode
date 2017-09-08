@@ -233,8 +233,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters,
-			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position)).then(result => {
+			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position, context)).then(result => {
 					if (!result) {
 						return result;
 					}

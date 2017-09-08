@@ -250,11 +250,18 @@ export interface ISuggestResult {
 /**
  * @internal
  */
+export interface SuggestContext {
+	triggerCharacter?: string;
+}
+
+/**
+ * @internal
+ */
 export interface ISuggestSupport {
 
 	triggerCharacters?: string[];
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
+	provideCompletionItems(model: editorCommon.IModel, position: Position, context: SuggestContext, token: CancellationToken): ISuggestResult | Thenable<ISuggestResult>;
 
 	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
