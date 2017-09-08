@@ -87,6 +87,10 @@ export class SpectronClient {
 			.then(result => result.value);
 	}
 
+	public async waitForVisibility(selector: string, accept: (result: boolean) => boolean = result => result): Promise<any> {
+		return this.waitFor(() => this.spectron.client.isVisible(selector), accept, `isVisible with selector ${selector}`);
+	}
+
 	public async element(selector: string): Promise<Element> {
 		return this.spectron.client.element(selector)
 			.then(result => result.value);
