@@ -14,6 +14,8 @@ echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 function configureEnvironment {
 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
 	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
+	mkdir -p $AGENT_BUILDDIRECTORY/smoketest-screenshots
+	chown -R testuser $AGENT_BUILDDIRECTORY/smoketest-screenshots
 }
 
 function runSmokeTest {
