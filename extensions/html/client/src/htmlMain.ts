@@ -87,13 +87,13 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			resolveColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
 				switch (colorFormat) {
 					case ColorFormat.RGB:
 						if (color.alpha === 1) {
 							return `rgb(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)})`;
 						} else {
-							return `rgb(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${color.alpha})`;
+							return `rgba(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${color.alpha})`;
 						}
 					case ColorFormat.HEX:
 						if (color.alpha === 1) {

@@ -19,7 +19,7 @@ export class RGBFormatter implements IColorFormatter {
 		if (rgb.a === 1) {
 			return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
 		} else {
-			return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgb.a})`;
+			return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${rgb.a})`;
 		}
 	}
 }

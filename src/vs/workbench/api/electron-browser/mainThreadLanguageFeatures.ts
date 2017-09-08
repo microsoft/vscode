@@ -306,7 +306,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 					});
 			},
 			resolveColor: (color, format, token) => {
-				return wireCancellationToken(token, proxy.$resolveColor(handle, color, format));
+				return wireCancellationToken(token, proxy.$resolveDocumentColor(handle, color, format));
 			}
 		});
 

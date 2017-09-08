@@ -132,7 +132,7 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			resolveColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
 				if (color.alpha === 1) {
 					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
 				} else {

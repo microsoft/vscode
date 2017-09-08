@@ -155,7 +155,7 @@ declare module 'vscode' {
 		/**
 		 * Provide the string representation for a color.
 		 */
-		resolveColor(color: Color, colorFormat: ColorFormat): ProviderResult<string>;
+		resolveDocumentColor(color: Color, colorFormat: ColorFormat): ProviderResult<string>;
 	}
 
 	export namespace languages {

@@ -730,7 +730,7 @@ class ColorProviderAdapter {
 	}
 
 	resolveColor(color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
-		return asWinJsPromise(token => this._provider.resolveColor(color, colorFormat));
+		return asWinJsPromise(token => this._provider.resolveDocumentColor(color, colorFormat));
 	}
 }
 
@@ -1042,7 +1042,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.provideColors(resource));
 	}
 
-	$resolveColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
+	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string> {
 		return this._withAdapter(handle, ColorProviderAdapter, adapter => adapter.resolveColor(color, colorFormat));
 	}
 
