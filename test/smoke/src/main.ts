@@ -11,9 +11,10 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
+import { ncp } from 'ncp';
 
 const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build', 'screenshot'] });
+const opts = minimist(args, { string: ['build', 'stable-build'], boolean: ['screenshot'] });
 
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -76,11 +77,11 @@ if (!fs.existsSync(testCodePath)) {
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
 process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
-process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots-dir');
+process.env.SCREENSHOTS_DIR = path.join(testDataPath, 'screenshots');
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
-process.env.CAPTURE_SCREENSHOT = Object.keys(opts).indexOf('screenshot') !== -1 ? 'screenshot' : '';
+process.env.CAPTURE_SCREENSHOT = opts.screenshot ? '1' : '';
 
 if (process.env.VSCODE_DEV === '1') {
 	process.env.VSCODE_EDITION = 'dev';
@@ -106,7 +107,7 @@ function toUri(path: string): string {
 	return `file://${path}`;
 }
 
-async function main(): Promise<void> {
+async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
@@ -176,8 +177,21 @@ console.warn = function suppressWebdriverWarnings(message) {
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
-	await main();
+	await setup();
 });
+
+async function teardown(): Promise<void> {
+	const screenshotsSourcePath = process.env.SCREENSHOTS_DIR;
+
+	if (process.env.CAPTURE_SCREENSHOT && screenshotsSourcePath) {
+		const screenshotsDestinationPath = path.join(repoPath, '..', 'smoketest-screenshots');
+
+		rimraf.sync(screenshotsDestinationPath);
+		await new Promise((c, e) => ncp(screenshotsSourcePath, screenshotsDestinationPath, err => err ? e(err) : c()));
+	}
+}
+
+after(teardown);
 
 // import './areas/workbench/data-migration.test';
 import './areas/workbench/data-loss.test';
