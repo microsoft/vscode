@@ -20,7 +20,19 @@ export class LinkDetector {
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
+		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g,
+
+		// Regular Expression for filepaths from C# extension
+		// eg: at app1.Program.Foo() in c:\temp\dotnet\app1\Program.foo.cs:line 9
+		// eg: at app1.Program.Foo() in c:\temp folder\dotnet\app1\Program.cs:line 9
+		// eg: at app3.Program.Main(String[] args) in /Users/janraj/temp/app3/Program.cs:line 9
+		new RegExp('(' +
+			'(?:([a-zA-Z]:)|[\\]*|[\/]+)' + // Rooted file starting with c: or \\ or /
+			'(?:[\\/][^<>\\/\'\"\[\]:]*)+' + // File path
+			')' +
+			':line\ ' +	// ends with :line literal
+			'(\d+)$', // Line number
+			'mg')
 	];
 
 	constructor(
