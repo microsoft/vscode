@@ -316,7 +316,7 @@ export class WorkspaceStats {
 		})).then(hashedRemotes => {
 			/* __GDPR__
 			   "workspace.hashedRemotes" : {
-				  "remotes" : { "endPoint": "none", "classification": "CustomerData", "purpose": "FeatureInsight" }
+				  "remotes" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			   }
 			 */
 			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
