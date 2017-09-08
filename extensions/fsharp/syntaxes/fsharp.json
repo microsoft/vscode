@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/f2e3c30f0ebfcc89fb78ad908701159f20516812",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/826aa0690b4a1fb536485cc2806fa73b451fcee7",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"fileTypes": [
@@ -145,7 +145,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\([^\\s-]*\\)|[_[:alpha:]]([_[:alpha:]0-9,\\._]|(?<=,)\\s)*)",
+					"begin": "\\b(val mutable|val|let mutable|let inline|let|member|static member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\([^-]*\\)|\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]|(?<=,)\\s)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]|(?<=,)\\s)*)",
 					"end": "((``.*``)|(with)|=|$)",
 					"beginCaptures": {
 						"1": {
