@@ -2613,7 +2613,7 @@ declare module 'vscode' {
 		/**
 		 * A human-readable string that represents a doc-comment.
 		 */
-		documentation?: string;
+		documentation?: string | MarkdownString;
 
 		/**
 		 * A string that should be used when comparing this item

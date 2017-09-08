@@ -354,7 +354,7 @@ export namespace Suggest {
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
 		result.detail = suggestion.detail;
-		result.documentation = suggestion.documentation;
+		result.documentation = typeof suggestion.documentation === 'string' ? suggestion.documentation : MarkdownString.to(suggestion.documentation);
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 

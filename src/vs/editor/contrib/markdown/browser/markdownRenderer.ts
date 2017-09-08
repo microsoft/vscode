@@ -39,12 +39,17 @@ export class MarkdownRenderer {
 
 				return this._modeService.getOrCreateMode(modeId).then(_ => {
 					return tokenizeToString(value, modeId);
+				}).then(code => {
+					return `<span style="font-family: ${editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
 			}
 		};
 	}
 
 	render(markdown: IMarkdownString, options?: RenderOptions): HTMLElement {
+		if (!markdown) {
+			return document.createElement('span');
+		}
 		if (options) {
 			return renderMarkdown(markdown, { ...options, ...this._options });
 		} else {

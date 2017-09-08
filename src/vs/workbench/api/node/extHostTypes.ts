@@ -892,7 +892,7 @@ export class CompletionItem {
 	label: string;
 	kind: CompletionItemKind;
 	detail: string;
-	documentation: string;
+	documentation: string | vscode.MarkdownString;
 	sortText: string;
 	filterText: string;
 	insertText: string | SnippetString;
