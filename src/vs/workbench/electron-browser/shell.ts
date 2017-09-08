@@ -215,7 +215,7 @@ export class WorkbenchShell {
 			  "restoredViewlet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "restoredEditors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "pinnedViewlets": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "startupKind": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "startupKind": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog('workspaceLoad', {
