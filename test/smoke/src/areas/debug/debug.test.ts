@@ -39,9 +39,9 @@ describe('Debug', () => {
 
 	before(() => app.start('Debug'));
 	after(() => app.stop());
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('configure launch json', async function () {
-
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
