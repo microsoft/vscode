@@ -11,9 +11,9 @@ import { StatusBarElement } from './statusbar';
 
 describe('Statusbar', () => {
 	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start());
+	before(() => app.start('Statusbar'));
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('verifies presence of all default status bar elements', async function () {
 		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);

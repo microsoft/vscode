@@ -37,7 +37,7 @@ describe('Debug', () => {
 		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
 	}
 
-	before(() => app.start());
+	before(() => app.start('Debug'));
 	after(() => app.stop());
 
 	it('configure launch json', async function () {

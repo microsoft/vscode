@@ -8,9 +8,9 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Search', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Search'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('searches for body & checks for correct result number', async function () {
 		await app.workbench.search.openSearchViewlet();
@@ -18,7 +18,7 @@ describe('Search', () => {
 
 		const result = await app.workbench.search.getResultText();
 
-		await app.screenshot.capture('Search result');
+		await app.screenCapturer.capture('Search result');
 		assert.equal(result, '7 results in 4 files');
 	});
 
@@ -34,7 +34,7 @@ describe('Search', () => {
 		await app.workbench.search.setFilesToIncludeTextAndSearch('');
 		await app.workbench.search.hideQueryDetails();
 
-		await app.screenshot.capture('Search result with file includes');
+		await app.screenCapturer.capture('Search result with file includes');
 		assert.equal(results, '4 results in 1 file');
 	});
 
@@ -45,7 +45,7 @@ describe('Search', () => {
 		await app.workbench.search.removeFileMatch(1);
 
 		const result = await app.workbench.search.getResultText();
-		await app.screenshot.capture('Search result after removing');
+		await app.screenCapturer.capture('Search result after removing');
 		assert.equal(result, '3 results in 3 files', 'Result number after dismissal does not match to expected.');
 	});
 
@@ -58,7 +58,7 @@ describe('Search', () => {
 		await app.workbench.saveOpenedFile();
 
 		const result = await app.workbench.search.getResultText();
-		await app.screenshot.capture('Replace result');
+		await app.screenCapturer.capture('Replace result');
 		assert.equal(result, '3 results in 3 files', 'Result number after replacemenet does not match to expected.');
 	});
 });

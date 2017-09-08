@@ -5,7 +5,7 @@
 
 import { Application, SpectronClient as WebClient } from 'spectron';
 import { SpectronClient } from './client';
-import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
+import { ScreenCapturer } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
@@ -34,7 +34,7 @@ export class SpectronApplication {
 
 	private _client: SpectronClient;
 	private _workbench: Workbench;
-	private _screenshot: IScreenshot;
+	private _screenCapturer: ScreenCapturer;
 	private spectron: Application;
 	private keybindings: any[];
 
@@ -63,23 +63,18 @@ export class SpectronApplication {
 		return this.spectron.client;
 	}
 
-	public get screenshot(): IScreenshot {
-		return this._screenshot;
+	public get screenCapturer(): ScreenCapturer {
+		return this._screenCapturer;
 	}
 
 	public get workbench(): Workbench {
 		return this._workbench;
 	}
 
-	public createScreenshotCapturer(currentTest: Mocha.ITest): IScreenshot {
-		this._screenshot = CAPTURE_SCREENSHOT ? new Screenshot(this.spectron, currentTest.fullTitle()) : new NullScreenshot();
-		return this._screenshot;
-	}
-
-	public async start(...args: string[]): Promise<any> {
+	public async start(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
-		await this.startApplication(args);
+		await this.startApplication(testSuiteName, codeArgs);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
 	}
@@ -101,7 +96,7 @@ export class SpectronApplication {
 		return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 	}
 
-	private async startApplication(moreArgs: string[] = []): Promise<any> {
+	private async startApplication(testSuiteName: string, codeArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -116,7 +111,7 @@ export class SpectronApplication {
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
 
-		args.push(...moreArgs);
+		args.push(...codeArgs);
 
 		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, new Date().getTime().toString())}`);
 
@@ -129,7 +124,7 @@ export class SpectronApplication {
 		});
 		await this.spectron.start();
 
-		this._screenshot = CAPTURE_SCREENSHOT ? new Screenshot(this.spectron) : new NullScreenshot();
+		this._screenCapturer = new ScreenCapturer(this.spectron, testSuiteName);
 		this._client = new SpectronClient(this.spectron, this);
 		this._workbench = new Workbench(this);
 	}

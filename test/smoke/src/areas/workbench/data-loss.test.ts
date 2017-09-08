@@ -8,9 +8,9 @@ import { SpectronApplication } from '../../spectron/application';
 
 describe('Dataloss', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Dataloss'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {
 		const textToType = 'Hello, Code', textToTypeInUntitled = 'Hello, Unitled Code', fileName = 'readme.md', untitled = 'Untitled-1';
@@ -23,13 +23,13 @@ describe('Dataloss', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
 		let actual = await app.workbench.editor.getEditorFirstLineText();
-		await app.screenshot.capture(fileName + ' text');
+		await app.screenCapturer.capture(fileName + ' text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 
 		assert.ok(await app.workbench.waitForOpen(untitled, true), `${untitled} tab is not present after reopening.`);
 		await app.workbench.selectTab('Untitled-1', true);
 		actual = await app.workbench.editor.getEditorFirstLineText();
-		await app.screenshot.capture('Untitled file text');
+		await app.screenCapturer.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
 	});
 });

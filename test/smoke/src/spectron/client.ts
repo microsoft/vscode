@@ -152,7 +152,7 @@ export class SpectronClient {
 
 		while (true) {
 			if (trial > this.retryCount) {
-				await this.application.screenshot.capture('' + this.captureIndex++);
+				await this.application.screenCapturer.capture('' + this.captureIndex++);
 				throw new Error(`${timeoutMessage}: Timed out after ${this.retryCount * this.retryDuration} seconds.`);
 			}
 

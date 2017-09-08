@@ -12,9 +12,9 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 
 describe('Git', () => {
 	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start(); });
+	before(() => { app = new SpectronApplication(); return app.start('Git'); });
 	after(() => app.stop());
-	beforeEach(function () { app.createScreenshotCapturer(this.currentTest); });
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('reflects working tree changes', async function () {
 		await app.workbench.scm.openSCMViewlet();
@@ -30,7 +30,7 @@ describe('Git', () => {
 		await app.workbench.scm.refreshSCMViewlet();
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
 		const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
-		await app.screenshot.capture('changes');
+		await app.screenCapturer.capture('changes');
 
 		assert.equal(appJs.name, 'app.js');
 		assert.equal(appJs.type, 'Modified');
