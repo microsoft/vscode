@@ -368,7 +368,7 @@ export class TabsTitleControl extends TitleControl {
 				const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
 				// identify duplicate descriptions, while filtering out invalid descriptions
 				for (const label of duplicateTitles) {
-					if (typeof label.description !== 'string') {
+					if (typeof label.description !== 'string' || !label.description) {
 						label.description = '';
 					} else {
 						getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
@@ -394,9 +394,19 @@ export class TabsTitleControl extends TitleControl {
 					});
 				}
 
-				// shorten descriptions
+				// obtain final set of descriptions
 				const descriptions: string[] = [];
 				mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
+
+				// remove descriptions if all descriptions are the same
+				if (descriptions.length === 1) {
+					for (const label of mapDescriptionToDuplicates.get(descriptions[0])) {
+						label.description = '';
+					}
+					return;
+				}
+
+				// shorten descriptions
 				const shortenedDescriptions = shorten(descriptions);
 				descriptions.forEach((description, i) => {
 					const duplicateDescriptions = mapDescriptionToDuplicates.get(description);
