@@ -171,6 +171,11 @@ export class WalkThroughInput extends EditorInput {
 	private resolveTelemetry() {
 		if (!this.resolveTime) {
 			this.resolveTime = Date.now();
+			/* __GDPR__
+			   "resolvingInput" : {
+				  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('resolvingInput', {
 				target: this.getTelemetryFrom(),
 			});
@@ -179,6 +184,15 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposeTelemetry(reason?: ShutdownReason) {
 		if (this.resolveTime) {
+			/* __GDPR__
+			   "disposingInput" : {
+				  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "timeSpent": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				  "reason": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "maxTopScroll": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "maxBottomScroll": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('disposingInput', {
 				target: this.getTelemetryFrom(),
 				timeSpent: (Date.now() - this.resolveTime) / 60,
