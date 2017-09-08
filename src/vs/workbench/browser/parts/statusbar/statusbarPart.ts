@@ -293,6 +293,12 @@ class StatusBarEntryItem implements IStatusbarItem {
 			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
 
 			if (action.enabled) {
+				/* __GDPR__
+				   "workbenchActionExecuted" : {
+					  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				   }
+				 */
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
 				(action.run() || TPromise.as(null)).done(() => {
 					action.dispose();

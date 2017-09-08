@@ -170,6 +170,12 @@ function triggerAndDisposeAction(instantitationService: IInstantiationService, t
 
 	const from = args && args.from || 'keybinding';
 	if (telemetryService) {
+		/* __GDPR__
+		   "workbenchActionExecuted" : {
+			  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		telemetryService.publicLog('workbenchActionExecuted', { id: actionInstance.id, from });
 	}
 

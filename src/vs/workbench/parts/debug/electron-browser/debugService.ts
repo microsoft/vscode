@@ -341,6 +341,7 @@ export class DebugService implements debug.IDebugService {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				// and the user opted in telemetry
 				if (session.customTelemetryService && this.telemetryService.isOptedIn) {
+					// TODO Need to move off dynamic event names or properties. They cannot be registered upfront.
 					session.customTelemetryService.publicLog(event.body.output, event.body.data);
 				}
 
@@ -607,6 +608,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
+		/* __GDPR__
+		   "debugService/addReplExpression" : {}
+		 */
 		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
@@ -909,6 +913,17 @@ export class DebugService implements debug.IDebugService {
 				}
 				this.updateStateAndEmit(session.getId(), debug.State.Running);
 
+				/* __GDPR__
+				   "debugSessionStart" : {
+					  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "breakpointCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "exceptionBreakpoints": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					  "watchExpressionsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "extensionName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": ",FeatureInsight" },
+					  "launchJsonExists": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				   }
+				 */
 				return this.telemetryService.publicLog('debugSessionStart', {
 					type: configuration.type,
 					breakpointCount: this.model.getBreakpoints().length,
@@ -925,6 +940,12 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				const errorMessage = error instanceof Error ? error.message : error;
+				/* __GDPR__
+				   "debugMisconfiguration" : {
+					  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "error": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				   }
+				 */
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });
 				this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 				if (!session.disconnected) {
@@ -1039,6 +1060,15 @@ export class DebugService implements debug.IDebugService {
 	private onSessionEnd(session: RawDebugSession): void {
 		const bpsExist = this.model.getBreakpoints().length > 0;
 		const process = this.model.getProcesses().filter(p => p.getId() === session.getId()).pop();
+		/* __GDPR__
+		   "debugSessionStop" : {
+			  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "success": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "sessionLengthInSeconds": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "breakpointCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "watchExpressionsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		this.telemetryService.publicLog('debugSessionStop', {
 			type: process && process.configuration.type,
 			success: session.emittedStopped || !bpsExist,

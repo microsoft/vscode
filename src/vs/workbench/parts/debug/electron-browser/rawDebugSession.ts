@@ -164,8 +164,18 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				const errorMessage = errorResponse ? errorResponse.message : '';
 				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
 				if (error && error.sendTelemetry) {
+					/* __GDPR__
+					   "debugProtocolErrorResponse" : {
+						  "error" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					   }
+					 */
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					if (this.customTelemetryService) {
+						/* __GDPR__
+						   "debugProtocolErrorResponse" : {
+						   	"error" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						*/
 						this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 					}
 				}

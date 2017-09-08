@@ -32,6 +32,12 @@ export class NodeCachedDataManager {
 
 			// log each failure separately
 			if (err) {
+				/* __GDPR__
+				   "cachedDataError" : {
+					  "errorCode" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					  "path": { "endPoint": "none", "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
+				   }
+				 */
 				this._telemetryService.publicLog('cachedDataError', {
 					errorCode: err.errorCode,
 					path: basename(err.path)
@@ -40,6 +46,13 @@ export class NodeCachedDataManager {
 		}
 
 		// log summary
+		/* __GDPR__
+		   "cachedDataInfo" : {
+			  "didRequestCachedData" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "didRejectCachedData": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+			  "didProduceCachedData": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		   }
+		 */
 		this._telemetryService.publicLog('cachedDataInfo', {
 			didRequestCachedData: Boolean(global.require.getConfig().nodeCachedDataDir),
 			didRejectCachedData,

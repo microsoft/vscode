@@ -309,6 +309,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 				// Log in telemetry
 				if (this.telemetryService) {
+					/* __GDPR__
+					   "workbenchActionExecuted" : {
+						  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					   }
+					 */
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: this.nameForTelemetry });
 				}
 			});

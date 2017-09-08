@@ -72,6 +72,19 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			newKeymap: newKeymap.identifier,
 			oldKeymaps: oldKeymaps.map(k => k.identifier)
 		};
+		/* __GDPR__FRAGMENT__
+		   "KeyMapsData" : {
+			  "newKeymap" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "oldKeymaps": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
+		/* __GDPR__
+		   "disableOtherKeymapsConfirmation" : {
+			   "${include}": [
+				  "${KeyMapsData}"
+			   ]
+		   }
+		 */
 		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
 		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
@@ -82,6 +95,14 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			.then(value => {
 				const confirmed = value === 0;
 				telemetryData['confirmed'] = confirmed;
+				/* __GDPR__
+				   "disableOtherKeymaps" : {
+					  "confirmed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "${include}": [
+						 "${keyMapsData}"
+					  ]
+				   }
+				 */
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
@@ -153,11 +174,19 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		extensionService.onReady().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
+				/* __GDPR__
+				   "betterMergeDisabled" : {}
+				 */
 				telemetryService.publicLog('betterMergeDisabled');
 				messageService.show(Severity.Info, {
 					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
 					actions: [
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
+							/* __GDPR__
+							   "betterMergeUninstall" : {
+								  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							   }
+							 */
 							telemetryService.publicLog('betterMergeUninstall', {
 								outcome: 'uninstall',
 							});
@@ -167,6 +196,11 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 							});
 						}),
 						new Action('later', localize('later', "Later"), null, true, () => {
+							/* __GDPR__
+							   "betterMergeUninstall" : {
+								  "outcome" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							   }
+							 */
 							telemetryService.publicLog('betterMergeUninstall', {
 								outcome: 'later',
 							});

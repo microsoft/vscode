@@ -93,6 +93,12 @@ export class WalkThroughInput extends EditorInput {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		descriptor['resource'] = telemetryURIDescriptor(this.options.resource);
+		/* __GDPR__FRAGMENT__
+		   "EditorTelemetryDescriptor" : {
+			  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "resource": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		   }
+		 */
 		return descriptor;
 	}
 

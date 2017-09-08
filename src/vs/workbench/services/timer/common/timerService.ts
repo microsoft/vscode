@@ -15,6 +15,25 @@ export interface IMemoryInfo {
 	sharedBytes: number;
 }
 
+/* __GDPR__FRAGMENT__
+   "IStartupMetrics" : {
+	  "version" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "ellapsed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers2" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "platform" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "release" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "arch" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "totalmem" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "meminfo" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "initialStartup" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "hasAccessibilitySupport" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "isVMLikelyhood" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "emptyWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "loadavg" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+   }
+ */
 export interface IStartupMetrics {
 	version: number;
 	ellapsed: number;

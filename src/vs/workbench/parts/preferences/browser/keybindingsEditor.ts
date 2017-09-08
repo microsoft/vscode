@@ -521,6 +521,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
 			this.latestEmptyFilters = [];
+			// TODO need to move off dynamic properties as they cannot be statically registered
+			/* __GDPR__
+			   "keybindings.filter" : {
+				  "emptyFilters" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('keybindings.filter', data);
 		}
 	}
@@ -535,6 +541,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
+		// TODO need to move off dynamic event names and properties as they cannot be registered statically
 		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 
