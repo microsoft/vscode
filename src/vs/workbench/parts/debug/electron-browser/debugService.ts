@@ -915,12 +915,12 @@ export class DebugService implements debug.IDebugService {
 
 				/* __GDPR__
 				   "debugSessionStart" : {
-					  "type" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "breakpointCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "exceptionBreakpoints": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
 					  "watchExpressionsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "extensionName": { "endPoint": "none", "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
-					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": ",FeatureInsight" },
+					  "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "launchJsonExists": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				   }
 				 */
