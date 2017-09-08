@@ -53,7 +53,6 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -567,7 +566,7 @@ export function createApiFactory(
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
-			MarkdownString: MarkdownString,
+			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
