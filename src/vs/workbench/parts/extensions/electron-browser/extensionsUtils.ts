@@ -99,7 +99,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				   "disableOtherKeymaps" : {
 					  "confirmed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					  "${include}": [
-						 "${keyMapsData}"
+						 "${KeyMapsData}"
 					  ]
 				   }
 				 */
