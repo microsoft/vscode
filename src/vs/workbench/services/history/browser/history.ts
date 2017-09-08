@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
 import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -84,11 +84,17 @@ interface ISerializedFileHistoryEntry {
 	resourceJSON: object;
 }
 
+interface IEditorIdentifier {
+	editor: IEditorInput;
+	position: GroupPosition;
+}
+
 export abstract class BaseHistoryService {
 
 	protected toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
+	private lastActiveEditor: IEditorIdentifier;
 
 	constructor(
 		protected editorGroupService: IEditorGroupService,
@@ -102,12 +108,17 @@ export abstract class BaseHistoryService {
 	}
 
 	private onEditorsChanged(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditor)) {
+			return; // return if the active editor is still the same
+		}
+
+		// Remember as last active editor (can be undefined if none opened)
+		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, position: activeEditor.position } : void 0;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
 		this.activeEditorListeners = [];
-
-		const activeEditor = this.editorService.getActiveEditor();
 
 		// Propagate to history
 		this.handleActiveEditorChange(activeEditor);
@@ -119,6 +130,18 @@ export abstract class BaseHistoryService {
 				this.handleEditorSelectionChangeEvent(activeEditor, event);
 			}));
 		}
+	}
+
+	private matchesEditor(identifier: IEditorIdentifier, editor?: IBaseEditor): boolean {
+		if (!editor) {
+			return false;
+		}
+
+		if (identifier.position !== editor.position) {
+			return false;
+		}
+
+		return identifier.editor.matches(editor.input);
 	}
 
 	protected abstract handleExcludesChange(): void;
