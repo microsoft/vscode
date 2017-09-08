@@ -36,6 +36,12 @@ export class SpectronClient {
 		return this.waitFor(() => this.spectron.client.getText(selector), accept, `getText with selector ${selector}`);
 	}
 
+	public async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
+		accept = accept ? accept : result => textContent !== void 0 ? textContent === result : !!result;
+		const fn = async () => await this.spectron.client.selectorExecute(selector, div => Array.isArray(div) ? div[0].textContent : div.textContent);
+		return this.waitFor(fn, accept, `getTextContent with selector ${selector}`);
+	}
+
 	public async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
 		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
 		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
@@ -154,6 +160,7 @@ export class SpectronClient {
 			try {
 				result = await func();
 			} catch (e) {
+				// console.log(e);
 			}
 
 			if (accept(result)) {
