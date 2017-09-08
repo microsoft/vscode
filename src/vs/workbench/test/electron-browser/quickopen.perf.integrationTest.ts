@@ -111,11 +111,11 @@ suite('QuickOpen performance (integration)', () => {
 		}
 
 		function popEvent() {
-			const events = telemetryService.events;
+			const events = telemetryService.events
+				.filter(event => event.name === 'openAnything');
 			assert.strictEqual(events.length, 1);
 			const event = events[0];
-			events.length = 0;
-			assert.strictEqual(event.name, 'openAnything');
+			telemetryService.events.length = 0;
 			return event;
 		}
 
