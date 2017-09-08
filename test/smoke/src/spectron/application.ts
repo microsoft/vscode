@@ -8,6 +8,7 @@ import { SpectronClient } from './client';
 import { NullScreenshot, IScreenshot, Screenshot } from '../helpers/screenshot';
 import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import * as path from 'path';
 
 export const LATEST_PATH = process.env.VSCODE_PATH as string;
@@ -77,6 +78,7 @@ export class SpectronApplication {
 
 	public async start(...args: string[]): Promise<any> {
 		await this.retrieveKeybindings();
+		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
 		await this.startApplication(args);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
