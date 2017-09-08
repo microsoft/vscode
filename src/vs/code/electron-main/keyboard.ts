@@ -65,9 +65,9 @@ export class KeyboardLayoutMonitor {
 	}
 
 	private _readIsISOKeyboard(): boolean {
-		if (isMacintosh) {
-			return nativeKeymap.isISOKeyboard();
-		}
+		// if (isMacintosh) {
+		// 	return nativeKeymap.isISOKeyboard();
+		// }
 		return false;
 	}
 
