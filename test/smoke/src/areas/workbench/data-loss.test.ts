@@ -20,13 +20,14 @@ describe('Dataloss', () => {
 		await app.client.type(textToType);
 
 		await app.reload();
+		await app.screenCapturer.capture('After reload');
 
-		assert.ok(await app.workbench.waitForActiveOpen(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
+		await app.workbench.waitForActiveOpen(fileName, true);
 		let actual = await app.workbench.editor.getEditorFirstLineText();
 		await app.screenCapturer.capture(fileName + ' text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 
-		assert.ok(await app.workbench.waitForOpen(untitled, true), `${untitled} tab is not present after reopening.`);
+		await app.workbench.waitForOpen(untitled, true);
 		await app.workbench.selectTab('Untitled-1', true);
 		actual = await app.workbench.editor.getEditorFirstLineText();
 		await app.screenCapturer.capture('Untitled file text');

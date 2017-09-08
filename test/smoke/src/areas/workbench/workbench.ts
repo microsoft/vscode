@@ -6,7 +6,6 @@
 import { SpectronApplication } from '../../spectron/application';
 import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
-import { Element } from 'webdriverio';
 import { QuickOpen } from '../quickopen/quickopen';
 import { Extensions } from '../extensions/extensions';
 import { CommandPallette } from './commandPallette';
@@ -65,14 +64,14 @@ export class Workbench {
 		return this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty', element => !element);
 	}
 
-	public async selectTab(tabName: string, untitled: boolean = false): Promise<any> {
+	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
 		await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
 		await this.waitForActiveOpen(tabName);
-		return this.waitForEditorFocus(tabName, untitled);
+		await this.waitForEditorFocus(tabName, untitled);
 	}
 
-	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<Element> {
-		return this.spectron.client.waitForElement(`.editor-container[aria-label="${fileName}. ${untitled ? 'Untitled file text editor.' : 'Text file editor.'}, Group 1."] .monaco-editor.focused`);
+	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
+		await this.spectron.client.waitForElement(`.editor-container[aria-label="${fileName}. ${untitled ? 'Untitled file text editor.' : 'Text file editor.'}, Group 1."] .monaco-editor.focused`);
 	}
 
 	public async waitForActiveOpen(fileName: string, isDirty: boolean = false): Promise<boolean> {
@@ -83,7 +82,7 @@ export class Workbench {
 		return this.spectron.client.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`).then(() => true);
 	}
 
-	public async newUntitledFile(): Promise<any> {
+	public async newUntitledFile(): Promise<void> {
 		await this.spectron.command('workbench.action.files.newUntitledFile');
 		await this.waitForActiveOpen('Untitled-1');
 		await this.waitForEditorFocus('Untitled-1', true);
