@@ -755,7 +755,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onWillCloseEditor = new Emitter<EditorCloseEvent>();
 		this._onEditorClosed = new Emitter<EditorCloseEvent>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed, this._onWillCloseEditor);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorOpened, this._onEditorClosed, this._onWillCloseEditor);
 
 		this.registerListeners();
 	}

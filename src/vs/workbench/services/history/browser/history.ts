@@ -56,22 +56,22 @@ export class TextEditorState {
 	}
 
 	public justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
+		if (event && event.source === 'api') {
+			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
+		}
+
 		if (!this._editorInput.matches(other._editorInput)) {
-			return true; // push different editor inputs
+			return true; // different editor inputs
 		}
 
 		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
 			return true; // unknown selections
 		}
 
-		if (event && event.source === 'api') {
-			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
-		}
-
-		const myLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
+		const thisLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
 		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
 
-		if (Math.abs(myLineNumber - otherLineNumber) < TextEditorState.EDITOR_SELECTION_THRESHOLD) {
+		if (Math.abs(thisLineNumber - otherLineNumber) < TextEditorState.EDITOR_SELECTION_THRESHOLD) {
 			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 
@@ -151,7 +151,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private static MAX_HISTORY_ITEMS = 200;
 	private static MAX_STACK_ITEMS = 20;
 	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
-	private static MERGE_EVENT_CHANGES_THRESHOLD = 100;
+	private static MERGE_EVENT_CHANGES_THRESHOLD = 300;
 
 	private stack: IStackEntry[];
 	private index: number;
@@ -275,6 +275,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			if (!this.matches(currentEntry.input, previousEntry.input)) {
 				this.setIndex(currentIndex);
 				this.navigate(true /* across editors */);
+
 				break;
 			}
 		}
@@ -316,6 +317,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			if (!this.matches(currentEntry.input, previousEntry.input)) {
 				this.setIndex(currentIndex);
 				this.navigate(true /* across editors */);
+
 				break;
 			}
 		}
@@ -334,7 +336,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private navigate(acrossEditors?: boolean): void {
 		const entry = this.stack[this.index];
 
-		let options: ITextEditorOptions = {
+		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
 
@@ -450,20 +452,24 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text editor
 			}
-
-			return;
 		}
 
-		if (control && editor.input) {
-			this.handleTextEditorEvent(editor, control, event);
+		// normal navigation not part of history navigation
+		else {
 
-			return;
-		}
+			// navigation inside text editor
+			if (control && editor.input) {
+				this.handleTextEditorEvent(editor, control, event);
+			}
 
-		this.currentTextEditorState = null; // at this time we have no active text editor view state
+			// navigation to non-text editor
+			else {
+				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-		if (editor && editor.input) {
-			this.handleNonTextEditorEvent(editor);
+				if (editor && editor.input) {
+					this.handleNonTextEditorEvent(editor);
+				}
+			}
 		}
 	}
 
@@ -521,7 +527,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 				replace = true;
 			} else {
 				const currentEntry = this.stack[this.index];
-				if (this.matches(input, currentEntry.input) && (this.sameSelection(currentEntry.selection, selection) || (Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD))) {
+				if (this.matches(input, currentEntry.input) &&													// and: entry of same input
+					(
+						this.sameSelection(currentEntry.selection, selection) ||								// and: entry has same selection
+						(Date.now() - currentEntry.timestamp < HistoryService.MERGE_EVENT_CHANGES_THRESHOLD)	// or: entry occured very fast and is likely not human
+					)
+				) {
 					replace = true;
 				}
 			}
