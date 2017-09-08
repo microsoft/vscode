@@ -1,7 +1,9 @@
 # VS Code Automated Smoke Testing
 
 ## Framework
-* Smoke tests are written using the [Spectron](https://electron.atom.io/spectron/) and [Mocha](https://mochajs.org/) frameworks. Spectron is used to control the lifecycle of VS Code and also to query the DOM nodes of VS Code renderer window using the [WebriverIO](http://webdriver.io/) API that is wrapped in Spectron API. Mocha is used to launch them.
+* Smoke tests are written using the [Spectron](https://electron.atom.io/spectron/) and [Mocha](https://mochajs.org/) frameworks.
+* Spectron is used to control the lifecycle of VS Code and also to query the DOM elements of VS Code renderer window using the [WebriverIO](http://webdriver.io/) API that is wrapped in Spectron API.
+* Mocha is used to launch the smoke tests.
 
 ## Code Organization
 * All smoke test code is present under `/test/smoke/` folder. Code is organized into indvidual areas. Each area contains a facade to to access it functionality and a test file to test it. For e.g. `debug` area has `debug.ts` facade class that provides utility methods to access debug functionalities. It also has `debug.test.ts` that tests the debug functionalities.
