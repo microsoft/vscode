@@ -18,7 +18,7 @@ describe('Search', () => {
 
 		const result = await app.workbench.search.getResultText();
 
-		app.screenshot.capture('Search result');
+		await app.screenshot.capture('Search result');
 		assert.equal(result, '7 results in 4 files');
 	});
 
@@ -34,7 +34,7 @@ describe('Search', () => {
 		await app.workbench.search.setFilesToIncludeTextAndSearch('');
 		await app.workbench.search.hideQueryDetails();
 
-		app.screenshot.capture('Search result with file includes');
+		await app.screenshot.capture('Search result with file includes');
 		assert.equal(results, '4 results in 1 file');
 	});
 
@@ -45,7 +45,7 @@ describe('Search', () => {
 		await app.workbench.search.removeFileMatch(1);
 
 		const result = await app.workbench.search.getResultText();
-		app.screenshot.capture('Search result after removing');
+		await app.screenshot.capture('Search result after removing');
 		assert.equal(result, '3 results in 3 files', 'Result number after dismissal does not match to expected.');
 	});
 
@@ -58,7 +58,7 @@ describe('Search', () => {
 		await app.workbench.saveOpenedFile();
 
 		const result = await app.workbench.search.getResultText();
-		app.screenshot.capture('Replace result');
+		await app.screenshot.capture('Replace result');
 		assert.equal(result, '3 results in 3 files', 'Result number after replacemenet does not match to expected.');
 	});
 });

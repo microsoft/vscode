@@ -23,13 +23,13 @@ describe('Multi Root', () => {
 		await quickOpen.openQuickOpen();
 		await app.client.type('*.*');
 		const elements = await quickOpen.getQuickOpenElements();
-		app.screenshot.capture('quick open result');
+		await app.screenshot.capture('quick open result');
 		assert.equal(elements.length, 6);
 	});
 
 	it('shows workspace name in title', async function () {
 		const title = await new Window(app).getTitle();
-		app.screenshot.capture('window title');
+		await app.screenshot.capture('window title');
 		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 	});
 });

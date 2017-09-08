@@ -25,7 +25,7 @@ describe('Extensions', () => {
 			await app.workbench.commandPallette.runCommand('Smoke Test Check');
 
 			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-			app.screenshot.capture('Statusbar');
+			await app.screenshot.capture('Statusbar');
 			assert.equal(statusbarText, 'VS Code Smoke Test Check');
 		});
 	}

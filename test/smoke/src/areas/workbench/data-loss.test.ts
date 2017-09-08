@@ -23,13 +23,13 @@ describe('Dataloss', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
 		let actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture(fileName + ' text');
+		await app.screenshot.capture(fileName + ' text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 
 		assert.ok(await app.workbench.waitForOpen(untitled, true), `${untitled} tab is not present after reopening.`);
 		await app.workbench.selectTab('Untitled-1', true);
 		actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture('Untitled file text');
+		await app.screenshot.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
 	});
 });

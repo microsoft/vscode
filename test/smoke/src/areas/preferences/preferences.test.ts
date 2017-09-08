@@ -17,7 +17,7 @@ describe('Preferences', () => {
 	it('turns off editor line numbers and verifies the live change', async function () {
 		await app.workbench.explorer.openFile('app.js');
 		let lineNumbers = await app.client.waitForElements('.line-numbers');
-		app.screenshot.capture('line numbers');
+		await app.screenshot.capture('line numbers');
 		assert.ok(!!lineNumbers.length, 'Line numbers are not present in the editor before disabling them.');
 
 		await app.workbench.settingsEditor.openUserSettings();
@@ -27,7 +27,7 @@ describe('Preferences', () => {
 
 		await app.workbench.selectTab('app.js');
 		lineNumbers = await app.client.waitForElements('.line-numbers', result => !result || result.length === 0);
-		app.screenshot.capture('line numbers hidden');
+		await app.screenshot.capture('line numbers hidden');
 		assert.ok(!lineNumbers.length, 'Line numbers are still present in the editor after disabling them.');
 	});
 

@@ -37,7 +37,7 @@ describe('Data Migration', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture('Untitled file text');
+		await app.screenshot.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 	});
 
@@ -64,7 +64,7 @@ describe('Data Migration', () => {
 
 		assert.ok(await app.workbench.waitForActiveOpen(fileName.split('/')[1]), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
-		app.screenshot.capture(fileName + ' text');
+		await app.screenshot.capture(fileName + ' text');
 		assert.ok(actual.startsWith(firstTextPart.concat(secondTextPart)), `${actual} did not start with ${firstTextPart.concat(secondTextPart)}`);
 
 		await Util.removeFile(`${fileName}`);

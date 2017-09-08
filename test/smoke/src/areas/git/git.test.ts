@@ -30,7 +30,7 @@ describe('Git', () => {
 		await app.workbench.scm.refreshSCMViewlet();
 		const appJs = await app.workbench.scm.waitForChange(c => c.name === 'app.js');
 		const indexJade = await app.workbench.scm.waitForChange(c => c.name === 'index.jade');
-		app.screenshot.capture('changes');
+		await app.screenshot.capture('changes');
 
 		assert.equal(appJs.name, 'app.js');
 		assert.equal(appJs.type, 'Modified');
