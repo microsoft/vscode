@@ -153,6 +153,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().lineHeight, 1.2, 'editor.lineHeight should be 1.2 when terminal.integrated.lineHeight not set');
+		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
 });
