@@ -469,6 +469,10 @@ class RenameAdapter {
 
 class SuggestAdapter {
 
+	static supportsResolving(provider: vscode.CompletionItemProvider): boolean {
+		return typeof provider.resolveCompletionItem === 'function';
+	}
+
 	private _documents: ExtHostDocuments;
 	private _commands: CommandsConverter;
 	private _provider: vscode.CompletionItemProvider;
@@ -1002,7 +1006,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new SuggestAdapter(this._documents, this._commands.converter, provider));
-		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters);
+		this._proxy.$registerSuggestSupport(handle, selector, triggerCharacters, SuggestAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
