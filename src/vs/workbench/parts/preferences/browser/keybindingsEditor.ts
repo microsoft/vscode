@@ -523,7 +523,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 			   "keybindings.filter" : {
-				  "filter": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+				  "filter": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				  "emptyFilters" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */

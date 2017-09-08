@@ -325,7 +325,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 			   "defaultSettings.filter" : {
-				   "filter": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				  "filter": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				  "emptyFilters" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			 */
