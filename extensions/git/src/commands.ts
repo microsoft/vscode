@@ -257,11 +257,13 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(): Promise<void> {
-		const url = await window.showInputBox({
-			prompt: localize('repourl', "Repository URL"),
-			ignoreFocusOut: true
-		});
+	async clone(url?: string): Promise<void> {
+		if (!url) {
+			url = await window.showInputBox({
+				prompt: localize('repourl', "Repository URL"),
+				ignoreFocusOut: true
+			});
+		}
 
 		if (!url) {
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
