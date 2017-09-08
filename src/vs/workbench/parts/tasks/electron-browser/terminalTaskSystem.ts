@@ -410,6 +410,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					success: true,
 					exitCode: summary.exitCode
 				};
+				/* __GDPR__
+				   "taskService" : {
+					   "${include}": [
+						  "${TelemetryEvent}"
+					   ]
+					}
+				 */
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}
@@ -423,6 +430,13 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 					command: this.getSanitizedCommand(executedCommand),
 					success: false
 				};
+				/* __GDPR__
+				   "taskService" : {
+					   "${include}": [
+						  "${TelemetryEvent}"
+					   ]
+				   }
+				 */
 				this.telemetryService.publicLog(TerminalTaskSystem.TelemetryEventName, telemetryEvent);
 			} catch (error) {
 			}

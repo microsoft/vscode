@@ -32,6 +32,16 @@ interface ISearchWithRange {
 	range: IRange;
 }
 
+/* __GDPR__FRAGMENT__
+   "ITimerEventData" : {
+	  "searchLength" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "symbols": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+   }
+ */
 interface ITimerEventData {
 	searchLength: number;
 	unsortedResultDuration: number;
@@ -209,6 +219,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						files: fileModel.stats,
 					});
 
+					/* __GDPR__
+					   "openAnything" : {
+						  "duration" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						  "${include}": [
+							 "${ITimerEventData}"
+						  ]
+					   }
+					 */
 					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 				});
 

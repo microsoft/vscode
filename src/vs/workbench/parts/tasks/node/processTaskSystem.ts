@@ -146,16 +146,37 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		try {
 			let result = this.doExecuteTask(task, telemetryEvent);
 			result.promise = result.promise.then((success) => {
+				/* __GDPR__
+				   "taskService" : {
+					   "${include}": [
+						  "${TelemetryEvent}"
+					   ]
+				   }
+				 */
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return success;
 			}, (err: any) => {
 				telemetryEvent.success = false;
+				/* __GDPR__
+				   "taskService" : {
+					   "${include}": [
+						  "${TelemetryEvent}"
+					   ]
+				   }
+				 */
 				this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 				return TPromise.wrapError<ITaskSummary>(err);
 			});
 			return result;
 		} catch (err) {
 			telemetryEvent.success = false;
+			/* __GDPR__
+			   "taskService" : {
+				   "${include}": [
+					  "${TelemetryEvent}"
+				   ]
+			   }
+			 */
 			this.telemetryService.publicLog(ProcessTaskSystem.TelemetryEventName, telemetryEvent);
 			if (err instanceof TaskError) {
 				throw err;

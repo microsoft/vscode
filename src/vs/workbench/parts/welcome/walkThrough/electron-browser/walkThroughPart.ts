@@ -178,6 +178,13 @@ export class WalkThroughPart extends BaseEditor {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						let scrollTarget = this.content.querySelector(node.hash);
+						/* __GDPR__
+						   "revealInDocument" : {
+							  "hash" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "broken": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog('revealInDocument', {
 							hash: node.hash,
 							broken: !scrollTarget,
@@ -209,6 +216,12 @@ export class WalkThroughPart extends BaseEditor {
 
 	private open(uri: URI) {
 		if (uri.scheme === 'http' || uri.scheme === 'https') {
+			/* __GDPR__
+			   "openExternal" : {
+				  "uri" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			 */
 			this.telemetryService.publicLog('openExternal', {
 				uri: uri.toString(true),
 				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
@@ -389,6 +402,13 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+						/* __GDPR__
+						   "walkThroughSnippetInteraction" : {
+							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
@@ -396,6 +416,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+						/* __GDPR__
+						   "walkThroughSnippetInteraction" : {
+							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
@@ -403,6 +430,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+						/* __GDPR__
+						   "walkThroughSnippetInteraction" : {
+							  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "type": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						   }
+						 */
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
