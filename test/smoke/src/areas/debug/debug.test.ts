@@ -64,7 +64,15 @@ describe('Debug', () => {
 
 	it('start debugging', async function () {
 		await app.workbench.debug.startDebugging();
-		setTimeout(() => http.get(`http://localhost:3000`).on('error', e => void 0), 400);
+
+		await new Promise(c => {
+			setTimeout(() => {
+				http.get(`http://localhost:3000`)
+					.on('error', e => void 0);
+				c();
+			}, 400);
+		});
+
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 
@@ -87,9 +95,18 @@ describe('Debug', () => {
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7);
 	});
 
+
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-		setTimeout(() => http.get(`http://localhost:3000`).on('error', e => void 0), 400);
+
+		await new Promise(c => {
+			setTimeout(() => {
+				http.get(`http://localhost:3000`)
+					.on('error', e => void 0);
+				c();
+			}, 400);
+		});
+
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 

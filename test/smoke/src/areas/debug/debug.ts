@@ -76,6 +76,7 @@ export class Debug extends Viewlet {
 
 	async continue(): Promise<any> {
 		await this.spectron.client.click(CONTINUE);
+		await this.waitForStackFrameLength(0);
 	}
 
 	async stopDebugging(): Promise<any> {
@@ -89,6 +90,10 @@ export class Debug extends Viewlet {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
 		}, void 0, 'Waiting for Stack Frame');
+	}
+
+	async waitForStackFrameLength(length: number): Promise<any> {
+		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
 	}
 
 	async focusStackFrame(name: string): Promise<any> {
@@ -112,6 +117,11 @@ export class Debug extends Viewlet {
 		return await this.spectron.webclient.selectorExecute(VARIABLE, div => (Array.isArray(div) ? div : [div]).length);
 	}
 
+	async getStackFramesLength(): Promise<number> {
+		const stackFrames = await this.getStackFrames();
+		return stackFrames.length;
+	}
+
 	private async getStackFrames(): Promise<IStackFrame[]> {
 		const result = await this.spectron.webclient.selectorExecute(STACK_FRAME,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
@@ -127,7 +137,12 @@ export class Debug extends Viewlet {
 			})
 		);
 
-		return result.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
+		if (!Array.isArray(result)) {
+			return [];
+		}
+
+		return result
+			.map(({ name, lineNumber, element }) => ({ name, lineNumber, id: element.ELEMENT }));
 	}
 
 	private async getConsoleOutput(): Promise<string[]> {
