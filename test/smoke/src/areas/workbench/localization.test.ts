@@ -41,6 +41,6 @@ describe('Localization', () => {
 		await app.workbench.extensions.openExtensionsViewlet();
 		text = await app.workbench.extensions.getTitle();
 		app.screenshot.capture('Extensions title');
-		assert.equal(text.toLowerCase(), 'erweiterungen: marketplace');
+		assert.equal(text.toLowerCase(), 'erweiterungen');
 	});
 });
