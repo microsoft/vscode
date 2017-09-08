@@ -38,7 +38,7 @@ export class QuickFixOracle {
 
 	trigger(type: 'manual' | 'auto'): void {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
-		if (type === 'manual') {
+		if (!rangeOrSelection && type === 'manual') {
 			rangeOrSelection = this._editor.getSelection();
 		}
 		this._createEventAndSignalChange(type, rangeOrSelection);
