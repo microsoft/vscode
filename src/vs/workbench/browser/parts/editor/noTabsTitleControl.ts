@@ -10,13 +10,13 @@ import errors = require('vs/base/common/errors');
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { EditorLabel } from 'vs/workbench/browser/labels';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
-	private editorLabel: EditorLabel;
+	private editorLabel: ResourceLabel;
 
 	public setContext(group: IEditorGroup): void {
 		super.setContext(group);
@@ -36,7 +36,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this.toUnbind.push(DOM.addDisposableListener(this.titleContainer, DOM.EventType.CLICK, (e: MouseEvent) => this.onTitleClick(e)));
 
 		// Editor Label
-		this.editorLabel = this.instantiationService.createInstance(EditorLabel, this.titleContainer, void 0);
+		this.editorLabel = this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0);
 		this.toUnbind.push(this.editorLabel);
 		this.toUnbind.push(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 

@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
 
-export interface IEditorLabel {
+export interface IResourceLabel {
 	name: string;
 	description?: string;
 	resource?: uri;
@@ -36,7 +36,7 @@ export interface IResourceLabelOptions extends IIconLabelOptions {
 
 export class ResourceLabel extends IconLabel {
 	private toDispose: IDisposable[];
-	private label: IEditorLabel;
+	private label: IResourceLabel;
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
@@ -84,7 +84,7 @@ export class ResourceLabel extends IconLabel {
 		}
 	}
 
-	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
+	public setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
 		const hasResourceChanged = this.hasResourceChanged(label, options);
 
 		this.label = label;
@@ -93,7 +93,7 @@ export class ResourceLabel extends IconLabel {
 		this.render(hasResourceChanged);
 	}
 
-	private hasResourceChanged(label: IEditorLabel, options: IResourceLabelOptions): boolean {
+	private hasResourceChanged(label: IResourceLabel, options: IResourceLabelOptions): boolean {
 		const newResource = label ? label.resource : void 0;
 		const oldResource = this.label ? this.label.resource : void 0;
 
