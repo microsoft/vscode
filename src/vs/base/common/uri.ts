@@ -301,8 +301,20 @@ export default class URI {
 			parts.push('//');
 		}
 		if (authority) {
+			let idx = authority.indexOf('@');
+			if (idx !== -1) {
+				const userinfo = authority.substr(0, idx);
+				authority = authority.substr(idx + 1);
+				idx = userinfo.indexOf(':');
+				if (idx === -1) {
+					parts.push(encoder(userinfo));
+				} else {
+					parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
+				}
+				parts.push('@');
+			}
 			authority = authority.toLowerCase();
-			let idx = authority.indexOf(':');
+			idx = authority.indexOf(':');
 			if (idx === -1) {
 				parts.push(encoder(authority));
 			} else {
