@@ -595,6 +595,15 @@ export class ExtHostTextEditor2 extends ExtHostTextEditor {
 					for (const call of stackTrace) {
 						const extension = index.findSubstr(call.getFileName());
 						if (extension) {
+							/* __GDPR__
+							   "usesCommandLink" : {
+								  "extension" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								  "from": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								  "${include}": [
+									 "${MainThreadData}"
+								  ]
+							   }
+							 */
 							this._mainThreadTelemetry.$publicLog('usesCommandLink', {
 								extension: extension.id,
 								from: 'decoration',

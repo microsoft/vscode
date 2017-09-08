@@ -281,6 +281,13 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> {
 		let event = getTelemetryActivationEvent(extensionDescription);
+		/* __GDPR__
+		   "activatePlugin" : {
+			   "${include}": [
+				  "${TelemetryActivationEvent}"
+			   ]
+		   }
+		 */
 		this._mainThreadTelemetry.$publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE

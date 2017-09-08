@@ -274,7 +274,7 @@ export class WorkspaceStats {
 	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
 			/* __GDPR__
-			   "workspace.tags" : {
+			   "workspce.tags" : {
 				   "${include}": [
 					  "${WorkspaceTags}"
 				   ]

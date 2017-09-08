@@ -68,16 +68,17 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
-		const telemetryData: { [key: string]: any; } = {
-			newKeymap: newKeymap.identifier,
-			oldKeymaps: oldKeymaps.map(k => k.identifier)
-		};
 		/* __GDPR__FRAGMENT__
 		   "KeyMapsData" : {
 			  "newKeymap" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "oldKeymaps": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
+		const telemetryData: { [key: string]: any; } = {
+			newKeymap: newKeymap.identifier,
+			oldKeymaps: oldKeymaps.map(k => k.identifier)
+		};
+
 		/* __GDPR__
 		   "disableOtherKeymapsConfirmation" : {
 			   "${include}": [
