@@ -15,7 +15,11 @@ suite('ExtHostWorkspace', function () {
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
-		assert.equal(actual, expected && normalize(expected, true));
+		if (actual === expected) {
+			assert.ok(true);
+		} else {
+			assert.equal(actual, normalize(expected, true));
+		}
 	}
 
 	test('asRelativePath', function () {
