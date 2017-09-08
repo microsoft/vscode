@@ -712,9 +712,17 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-					const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-						nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+					let message: string;
+					if (config.request !== 'attach' && config.request !== 'launch') {
+						message = config.request ? nls.localize('debugRequestNotSupported', "Configured debug request '{0}' is not supported", config.request)
+							: nls.localize('debugRequesMissing', "Debug request is missing in the chosen launch configuration");
+
+					} else {
+						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					}
+
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
