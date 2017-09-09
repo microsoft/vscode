@@ -320,7 +320,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
 		/* __GDPR__
 		   "keyboardLayout" : {
-			  "currentKeyboardLayout" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   "currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
 		   }
 		 */
 		telemetryService.publicLog('keyboardLayout', {

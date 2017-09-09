@@ -42,12 +42,28 @@ declare module 'native-keymap' {
 
 	export function getKeyMap(): IKeyboardMapping;
 
+	/* __GDPR__FRAGMENT__
+	   "IKeyboardLayoutInfo" : {
+		  "name" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "id": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "text": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	export interface IWindowsKeyboardLayoutInfo {
 		name: string;
 		id: string;
 		text: string;
 	}
 
+	/* __GDPR__FRAGMENT__
+	   "IKeyboardLayoutInfo" : {
+		  "model" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "layout": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "variant": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "options": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "rules": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	export interface ILinuxKeyboardLayoutInfo {
 		model: string;
 		layout: string;
@@ -56,6 +72,12 @@ declare module 'native-keymap' {
 		rules: string;
 	}
 
+	/* __GDPR__FRAGMENT__
+	   "IKeyboardLayoutInfo" : {
+		  "id" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		  "lang": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	   }
+	 */
 	export interface IMacKeyboardLayoutInfo {
 		id: string;
 		lang: string;

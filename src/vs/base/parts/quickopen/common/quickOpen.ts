@@ -6,6 +6,11 @@
 
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
+/* __GDPR__FRAGMENT__
+   "IQuickNavigateConfiguration" : {
+	  "keybindings" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+   }
+ */
 export interface IQuickNavigateConfiguration {
 	keybindings: ResolvedKeybinding[];
 }

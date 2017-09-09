@@ -96,7 +96,7 @@ export class WalkThroughInput extends EditorInput {
 		/* __GDPR__FRAGMENT__
 		   "EditorTelemetryDescriptor" : {
 			  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "resource": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
 		   }
 		 */
 		return descriptor;

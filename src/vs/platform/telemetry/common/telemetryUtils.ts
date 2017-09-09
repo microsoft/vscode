@@ -66,6 +66,13 @@ export function anonymize(input: string): string {
 	return r;
 }
 
+/* __GDPR__FRAGMENT__
+   "URIDescriptor" : {
+	  "mimeType" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "ext": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "path": { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" }
+   }
+ */
 export interface URIDescriptor {
 	mimeType?: string;
 	ext?: string;

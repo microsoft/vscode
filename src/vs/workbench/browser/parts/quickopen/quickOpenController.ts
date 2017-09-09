@@ -555,7 +555,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		/* __GDPR__
 		   "quickOpenWidgetShown" : {
 			  "mode" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "quickNavigate": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "quickNavigate": { "${inline}": [ "${IQuickNavigateConfiguration}" ] }
 		   }
 		 */
 		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });

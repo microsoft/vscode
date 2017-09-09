@@ -411,7 +411,7 @@ class WelcomePage {
 		/* __GDPR__FRAGMENT__
 		   "WelcomePageInstall-1" : {
 			  "from" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "extensionsId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "extensionId": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }
 		 */
 		this.telemetryService.publicLog(strings.installEvent, {
