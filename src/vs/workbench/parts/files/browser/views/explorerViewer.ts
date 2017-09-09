@@ -569,6 +569,9 @@ export class FileSorter implements ISorter {
 	public compare(tree: ITree, statA: FileStat, statB: FileStat): number {
 
 		// Do not sort roots
+		if (statA.isRoot && statB.isRoot) {
+			return statA.rootIndex - statB.rootIndex;
+		}
 		if (statA.isRoot) {
 			return -1;
 		}
