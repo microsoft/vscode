@@ -160,6 +160,7 @@ export class SpectronClient {
 			try {
 				result = await func();
 			} catch (e) {
+				this.application.screenCapturer.capture('waitFor timeout');
 				// console.log(e);
 			}
 

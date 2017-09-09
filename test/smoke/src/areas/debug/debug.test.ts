@@ -46,14 +46,11 @@ describe('Debug', () => {
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
 		const content = await app.workbench.editor.getEditorVisibleText();
-		let json: any;
 
-		try {
-			json = JSON.parse(stripJsonComments(content));
-		} catch (err) {
-			console.error('Expected JSON, got:', content);
-			throw err;
-		}
+		// TODO@isidor: sometimes on the linux build agent,
+		// you get the contents of app.js here, so everything
+		// blows up
+		const json = JSON.parse(stripJsonComments(content));
 
 		assert.equal(json.configurations[0].request, 'launch');
 		assert.equal(json.configurations[0].type, 'node');
