@@ -46,7 +46,14 @@ describe('Debug', () => {
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
 		const content = await app.workbench.editor.getEditorVisibleText();
-		const json = JSON.parse(stripJsonComments(content));
+		let json: any;
+
+		try {
+			json = JSON.parse(stripJsonComments(content));
+		} catch (err) {
+			console.error('Expected JSON, got:', content);
+			throw err;
+		}
 
 		assert.equal(json.configurations[0].request, 'launch');
 		assert.equal(json.configurations[0].type, 'node');
