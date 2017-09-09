@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorRange, Color, ColorFormat } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
@@ -55,11 +55,6 @@ interface JSONSchemaSettings {
 	url?: string;
 	schema?: any;
 }
-
-const ColorFormat_HEX = {
-	opaque: '"#{red:X}{green:X}{blue:X}"',
-	transparent: '"#{red:X}{green:X}{blue:X}{alpha:X}"'
-};
 
 export function activate(context: ExtensionContext) {
 
@@ -121,6 +116,10 @@ export function activate(context: ExtensionContext) {
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
+		var _toTwoDigitHex = function (n: number): string {
+			const r = n.toString(16);
+			return r.length !== 2 ? '0' + r : r;
+		};
 		// register color provider
 		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
 			provideDocumentColors(document: TextDocument): Thenable<ColorRange[]> {
@@ -129,9 +128,16 @@ export function activate(context: ExtensionContext) {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
 						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color, [ColorFormat_HEX]);
+						return new ColorRange(range, color);
 					});
 				});
+			},
+			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+				if (color.alpha === 1) {
+					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
+				} else {
+					return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
+				}
 			}
 		}));
 	});

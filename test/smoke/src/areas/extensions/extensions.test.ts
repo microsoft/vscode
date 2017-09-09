@@ -4,33 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
 
 describe('Extensions', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	let app: SpectronApplication = new SpectronApplication();
+	before(() => app.start('Extensions'));
 	after(() => app.stop());
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
-	it(`install and activate vscode-smoketest-check extension`, async function () {
-		if (app.inDevMode) {
-			return;
-		}
-		const extensionName = 'vscode-smoketest-check';
-		await app.workbench.extensions.openExtensionsViewlet();
+	if (app.build !== VSCODE_BUILD.DEV) {
+		it(`install and activate vscode-smoketest-check extension`, async function () {
+			const extensionName = 'vscode-smoketest-check';
+			await app.workbench.extensions.openExtensionsViewlet();
 
-		const installed = await app.workbench.extensions.installExtension(extensionName);
+			const installed = await app.workbench.extensions.installExtension(extensionName);
+			assert.ok(installed);
 
-		assert.ok(installed);
+			await app.reload();
+			await app.workbench.extensions.waitForExtensionsViewlet();
+			await app.workbench.commandPallette.runCommand('Smoke Test Check');
 
-		await app.reload();
-		await app.workbench.extensions.waitForExtensionsViewlet();
-		await app.workbench.commandPallette.runCommand('Smoke Test Check');
-
-
-		const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
-		assert.equal(statusbarText, 'VS Code Smoke Test Check');
-	});
+			const statusbarText = await app.workbench.statusbar.getStatusbarTextByTitle('smoke test');
+			await app.screenCapturer.capture('Statusbar');
+			assert.equal(statusbarText, 'VS Code Smoke Test Check');
+		});
+	}
 });

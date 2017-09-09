@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Explorer', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(() => { app = new SpectronApplication(); return app.start('Explorer'); });
 	after(() => app.stop());
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
 	it('quick open search produces correct result', async function () {
 		await app.workbench.quickopen.openQuickOpen();
@@ -20,6 +18,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
+		await app.screenCapturer.capture('Quick open result');
 		assert.equal(elements.length, 7, 'There are 7 elements in quick open');
 	});
 
@@ -30,6 +29,7 @@ describe('Explorer', () => {
 		const elements = await app.workbench.quickopen.getQuickOpenElements();
 		await app.client.keys(['Escape', 'NULL']);
 
+		await app.screenCapturer.capture('fuzzy match result');
 		assert.equal(elements.length, 3, 'There are 3 elements in quick open');
 	});
 });

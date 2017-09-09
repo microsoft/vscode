@@ -141,6 +141,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		});
 
 		this._editor.setSelections(newSelections);
+		this._editor.revealRange(newSelections[0]);
 	}
 
 	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({

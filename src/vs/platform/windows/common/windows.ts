@@ -61,6 +61,13 @@ export interface IWindowsService {
 	quit(): TPromise<void>;
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
+	// macOS Native Tabs
+	showPreviousWindowTab(): TPromise<void>;
+	showNextWindowTab(): TPromise<void>;
+	moveWindowTabToNewWindow(): TPromise<void>;
+	mergeAllWindowTabs(): TPromise<void>;
+	toggleWindowTabsBar(): TPromise<void>;
+
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;
@@ -113,7 +120,7 @@ export interface IWindowService {
 	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
+	showMessageBox(options: Electron.MessageBoxOptions): number;
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
 	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
 }

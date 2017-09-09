@@ -44,7 +44,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
-import { ITreeItem } from 'vs/workbench/parts/views/common/views';
+import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
@@ -114,16 +114,22 @@ export interface MainThreadDiagnosticsShape extends IDisposable {
 	$clear(owner: string): TPromise<any>;
 }
 
-export interface MainThreadDialogOptions {
-	uri?: URI;
+export interface MainThreadDialogOpenOptions {
+	defaultResource?: URI;
 	openLabel?: string;
 	openFiles?: boolean;
 	openFolders?: boolean;
 	openMany?: boolean;
 }
 
+export interface MainThreadDialogSaveOptions {
+	defaultResource?: URI;
+	saveLabel?: string;
+}
+
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOptions): TPromise<string[]>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
@@ -223,10 +229,9 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any>;
 	$registerNavigateTypeSupport(handle: number): TPromise<any>;
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any>;
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any>;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any>;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any>;
 }
@@ -330,11 +335,21 @@ export interface SCMGroupFeatures {
 export type SCMRawResource = [
 	number /*handle*/,
 	string /*resourceUri*/,
-	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
 	boolean /*faded*/
+];
+
+export type SCMRawResourceSplice = [
+	number /* start */,
+	number /* delete count */,
+	SCMRawResource[]
+];
+
+export type SCMRawResourceSplices = [
+	number, /*handle*/
+	SCMRawResourceSplice[]
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
@@ -345,8 +360,9 @@ export interface MainThreadSCMShape extends IDisposable {
 	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
-	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
+
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 }
@@ -484,11 +500,19 @@ export interface ExtHostHeapServiceShape {
 }
 export interface IRawColorInfo {
 	color: [number, number, number, number];
-	availableFormats: (number | [number, number])[];
 	range: IRange;
 }
 
-export type IRawColorFormatMap = [number, string][];
+export interface IExtHostSuggestion extends modes.ISuggestion {
+	_id: number;
+	_parentId: number;
+}
+
+export interface IExtHostSuggestResult {
+	_id: number;
+	suggestions: IExtHostSuggestion[];
+	incomplete?: boolean;
+}
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
@@ -507,12 +531,14 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]>;
 	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation>;
 	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult>;
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<IExtHostSuggestResult>;
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
+	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp>;
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
-	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
+	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -528,6 +554,7 @@ export interface ExtHostTerminalServiceShape {
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 }
 
 export interface ExtHostTaskShape {

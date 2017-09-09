@@ -8,15 +8,21 @@
 declare module 'vscode' {
 
 	export interface OpenDialogOptions {
-		uri?: Uri;
+		defaultResource?: Uri;
+		openLabel?: string;
 		openFiles?: boolean;
 		openFolders?: boolean;
 		openMany?: boolean;
 	}
 
-	export namespace window {
+	export interface SaveDialogOptions {
+		defaultResource?: Uri;
+		saveLabel?: string;
+	}
 
+	export namespace window {
 		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[]>;
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri>;
 	}
 
 	// todo@joh discover files etc
@@ -96,71 +102,16 @@ declare module 'vscode' {
 		readonly alpha: number;
 
 		constructor(red: number, green: number, blue: number, alpha: number);
-
-		/**
-		 * Creates a color from the HSLA space.
-		 *
-		 * @param hue The hue component in the range [0-1].
-		 * @param saturation The saturation component in the range [0-1].
-		 * @param luminance The luminance component in the range [0-1].
-		 * @param alpha The alpha component in the range [0-1].
-		 */
-		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
-
-		/**
-		 * Creates a color by from a hex string. Supported formats are: #RRGGBB, #RRGGBBAA, #RGB, #RGBA.
-		 * <code>null</code> is returned if the string does not match one of the supported formats.
-		 * @param hex a string to parse
-		 */
-		static fromHex(hex: string): Color | null;
 	}
 
 	/**
-	 * A color format is either a single format or a combination of two
-	 * formats: an opaque one and a transparent one. The format itself
-	 * is a string representation of how the color can be formatted. It
-	 * supports the use of placeholders, similar to how snippets work.
-	 * Each placeholder, surrounded by curly braces `{}`, requires a
-	 * variable name and can optionally specify a number format and range
-	 * for that variable's value.
-	 *
-	 * Supported variables:
-	 *  - `red`
-	 *  - `green`
-	 *  - `blue`
-	 *  - `hue`
-	 *  - `saturation`
-	 *  - `luminance`
-	 *  - `alpha`
-	 *
-	 * Supported number formats:
-	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
-	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
-	 *  - `d`, decimal. Default range is `[0-255]`.
-	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
-	 *
-	 * The default number format is float. The default number range is `[0-1]`.
-	 *
-	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
-	 * different formats would format it:
-	 *
-	 *  - CSS RGB
-	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
-	 *   - Output: `rgb(255, 127, 0)`
-	 *
-	 *  - CSS RGBA
-	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
-	 *   - Output: `rgba(255, 127, 0, 1)`
-	 *
-	 *  - CSS Hexadecimal
-	 *   - Format: `#{red:X}{green:X}{blue:X}`
-	 *   - Output: `#FF7F00`
-	 *
-	 *  - CSS HSLA
-	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
-	 *   - Output: `hsla(30, 100%, 50%, 1)`
+	 * Represents a color format
 	 */
-	export type ColorFormat = string | { opaque: string, transparent: string };
+	export enum ColorFormat {
+		RGB = 0,
+		HEX = 1,
+		HSL = 2
+	}
 
 	/**
 	 * Represents a color range from a document.
@@ -178,18 +129,13 @@ declare module 'vscode' {
 		color: Color;
 
 		/**
-		 * The other formats this color range supports the color to be formatted in.
-		 */
-		availableFormats: ColorFormat[];
-
-		/**
 		 * Creates a new color range.
 		 *
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
 		 * @param format The format in which this color is currently formatted.
 		 */
-		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
+		constructor(range: Range, color: Color);
 	}
 
 	/**
@@ -206,6 +152,10 @@ declare module 'vscode' {
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
+		/**
+		 * Provide the string representation for a color.
+		 */
+		resolveDocumentColor(color: Color, colorFormat: ColorFormat): ProviderResult<string>;
 	}
 
 	export namespace languages {

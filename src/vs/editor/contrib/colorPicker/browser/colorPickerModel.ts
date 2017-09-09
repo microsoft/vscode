@@ -6,10 +6,7 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { IColorFormatter } from 'vs/editor/common/modes';
-
-function canFormat(formatter: IColorFormatter, color: Color): boolean {
-	return color.isOpaque() || formatter.supportsTransparency;
-}
+import { HexFormatter, HSLFormatter, RGBFormatter } from '../common/colorFormatter';
 
 export class ColorPickerModel {
 
@@ -26,7 +23,6 @@ export class ColorPickerModel {
 		}
 
 		this._color = color;
-		this._checkFormat();
 		this._onDidChangeColor.fire(color);
 	}
 
@@ -43,46 +39,32 @@ export class ColorPickerModel {
 	private _onDidChangeFormatter = new Emitter<IColorFormatter>();
 	readonly onDidChangeFormatter: Event<IColorFormatter> = this._onDidChangeFormatter.event;
 
-	constructor(color: Color, availableFormatters: IColorFormatter[], private formatterIndex: number) {
-		if (availableFormatters.length === 0) {
-			throw new Error('Color picker needs formats');
-		}
-
-		if (formatterIndex < 0 || formatterIndex >= availableFormatters.length) {
-			throw new Error('Formatter index out of bounds');
-		}
-
+	constructor(color: Color, private formatterIndex: number) {
 		this.originalColor = color;
-		this.formatters = availableFormatters;
 		this._color = color;
+		this.formatters = [
+			new RGBFormatter(),
+			new HexFormatter(),
+			new HSLFormatter()
+		];
 	}
 
 	selectNextColorFormat(): void {
-		const oldFomatterIndex = this.formatterIndex;
-		this._checkFormat((this.formatterIndex + 1) % this.formatters.length);
-		if (oldFomatterIndex !== this.formatterIndex) {
-			this.flushColor();
+		this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
+		this.flushColor();
+		this._onDidChangeFormatter.fire(this.formatter);
+	}
+
+	guessColorFormat(color: Color, originalText: string): void {
+		for (let i = 0; i < this.formatters.length; i++) {
+			if (originalText === this.formatters[i].format(color)) {
+				this.formatterIndex = i;
+				break;
+			}
 		}
 	}
 
 	flushColor(): void {
 		this._onColorFlushed.fire(this._color);
-	}
-
-	private _checkFormat(start = this.formatterIndex): void {
-		let isNewFormat = this.formatterIndex !== start;
-		this.formatterIndex = start;
-
-		while (!canFormat(this.formatter, this._color)) {
-			this.formatterIndex = (this.formatterIndex + 1) % this.formatters.length;
-
-			if (this.formatterIndex === start) {
-				return;
-			}
-		}
-
-		if (isNewFormat) {
-			this._onDidChangeFormatter.fire(this.formatter);
-		}
 	}
 }

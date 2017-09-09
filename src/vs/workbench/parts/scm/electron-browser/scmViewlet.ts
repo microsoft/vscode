@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -36,14 +36,13 @@ import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionIt
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
 import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
@@ -121,7 +120,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.resources.length);
+		template.count.setCount(group.resourceCollection.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
@@ -227,10 +226,6 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	getTemplateId(element: ISCMResourceGroup | ISCMResource) {
 		return isSCMResource(element) ? ResourceRenderer.TEMPLATE_ID : ResourceGroupRenderer.TEMPLATE_ID;
 	}
-}
-
-function resourceSorter(a: ISCMResource, b: ISCMResource): number {
-	return comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath);
 }
 
 class SourceControlViewDescriptor implements IViewDescriptor {
@@ -362,7 +357,7 @@ class SourceControlView extends CollapsibleView {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.repository.provider.onDidChange(this.updateList, this, this.disposables);
+		this.repository.provider.onDidChangeResources(this.updateList, this, this.disposables);
 		this.updateList();
 	}
 
@@ -411,18 +406,19 @@ class SourceControlView extends CollapsibleView {
 
 	private updateList(): void {
 		const elements = this.repository.provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
+			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
+				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
+					return r;
+				}
+
+				return [...r, g, ...g.resourceCollection.resources];
+			}, []);
 
 		this.list.splice(0, this.list.length, elements);
 	}
 
 	private open(e: ISCMResource): void {
-		if (!e.command) {
-			return;
-		}
-
-		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
-			.done(undefined, onUnexpectedError);
+		e.open().done(undefined, onUnexpectedError);
 	}
 
 	private pin(): void {

@@ -50,12 +50,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			type: debugType
 		};
 		if (hasProvide) {
-			provider.provideDebugConfigurations = (folder: URI | undefined) => {
+			provider.provideDebugConfigurations = folder => {
 				return this._proxy.$provideDebugConfigurations(handle, folder);
 			};
 		}
 		if (hasResolve) {
-			provider.resolveDebugConfiguration = (folder: URI | undefined, debugConfiguration: any) => {
+			provider.resolveDebugConfiguration = (folder, debugConfiguration) => {
 				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
 			};
 		}

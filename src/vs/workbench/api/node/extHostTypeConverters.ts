@@ -354,7 +354,7 @@ export namespace Suggest {
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
 		result.detail = suggestion.detail;
-		result.documentation = suggestion.documentation;
+		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
@@ -381,14 +381,56 @@ export namespace Suggest {
 	}
 };
 
-export namespace SignatureHelp {
+export namespace ParameterInformation {
+	export function from(info: types.ParameterInformation): modes.ParameterInformation {
+		return {
+			label: info.label,
+			documentation: info.documentation && MarkdownString.from(info.documentation)
+		};
+	}
+	export function to(info: modes.ParameterInformation): types.ParameterInformation {
+		return {
+			label: info.label,
+			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation
+		};
+	}
+}
 
-	export function from(signatureHelp: types.SignatureHelp): modes.SignatureHelp {
-		return signatureHelp;
+export namespace SignatureInformation {
+
+	export function from(info: types.SignatureInformation): modes.SignatureInformation {
+		return {
+			label: info.label,
+			documentation: info.documentation && MarkdownString.from(info.documentation),
+			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
+		};
 	}
 
-	export function to(hints: modes.SignatureHelp): types.SignatureHelp {
-		return hints;
+	export function to(info: modes.SignatureInformation): types.SignatureInformation {
+		return {
+			label: info.label,
+			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
+			parameters: info.parameters && info.parameters.map(ParameterInformation.to)
+		};
+	}
+}
+
+export namespace SignatureHelp {
+
+	export function from(help: types.SignatureHelp): modes.SignatureHelp {
+		return {
+			activeSignature: help.activeSignature,
+			activeParameter: help.activeParameter,
+			signatures: help.signatures && help.signatures.map(SignatureInformation.from)
+		};
+	}
+
+	export function to(help: modes.SignatureHelp): types.SignatureHelp {
+		return {
+			activeSignature: help.activeSignature,
+			activeParameter: help.activeParameter,
+			signatures: help.signatures && help.signatures.map(SignatureInformation.to)
+		};
 	}
 }
 

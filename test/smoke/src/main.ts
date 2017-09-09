@@ -10,18 +10,23 @@ import * as path from 'path';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
-
-const [, , ...args] = process.argv;
-const opts = minimist(args, { string: ['build', 'stable-build'] });
+import * as mkdirp from 'mkdirp';
 
 const tmpDir = tmp.dirSync() as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
-process.once('exit', code => code === 0 && rimraf.sync(testDataPath));
+process.once('exit', () => rimraf.sync(testDataPath));
+
+const [, , ...args] = process.argv;
+const opts = minimist(args, { string: ['build', 'stable-build', 'screenshots'] });
+
+opts.screenshots = opts.screenshots === '' ? path.join(testDataPath, 'screenshots') : opts.screenshots;
 
 const workspacePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const testRepoLocalDir = path.join(testDataPath, 'vscode-smoketest-express');
 const keybindingsPath = path.join(testDataPath, 'keybindings.json');
+const extensionsPath = path.join(testDataPath, 'extensions-dir');
+mkdirp.sync(extensionsPath);
 
 function fail(errorMessage): void {
 	console.error(errorMessage);
@@ -72,13 +77,18 @@ if (!fs.existsSync(testCodePath)) {
 }
 
 process.env.VSCODE_USER_DIR = path.join(testDataPath, 'user-dir');
-process.env.VSCODE_EXTENSIONS_DIR = path.join(testDataPath, 'extensions-dir');
+process.env.VSCODE_EXTENSIONS_DIR = extensionsPath;
 process.env.SMOKETEST_REPO = testRepoLocalDir;
 process.env.VSCODE_WORKSPACE_PATH = workspacePath;
 process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
+process.env.SCREENSHOTS_DIR = opts.screenshots || '';
 
-if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+if (process.env.VSCODE_DEV === '1') {
+	process.env.VSCODE_EDITION = 'dev';
+} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
 	process.env.VSCODE_EDITION = 'insiders';
+} else {
+	process.env.VSCODE_EDITION = 'stable';
 }
 
 function getKeybindingPlatform(): string {
@@ -97,7 +107,7 @@ function toUri(path: string): string {
 	return `file://${path}`;
 }
 
-async function main(): Promise<void> {
+async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
@@ -139,7 +149,7 @@ async function main(): Promise<void> {
 	}
 
 	console.log('*** Running npm install...');
-	// cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
+	cp.execSync('npm install', { cwd: testRepoLocalDir, stdio: 'inherit' });
 
 	console.log('*** Smoketest setup done!\n');
 }
@@ -164,15 +174,23 @@ console.warn = function suppressWebdriverWarnings(message) {
 	warn.apply(console, arguments);
 };
 
-before(async () => main());
+before(async function () {
+	// allow two minutes for setup
+	this.timeout(2 * 60 * 1000);
+	await setup();
+});
 
-import './areas/css/css.test';
+// import './areas/workbench/data-migration.test';
+import './areas/workbench/data-loss.test';
 import './areas/explorer/explorer.test';
 import './areas/preferences/preferences.test';
-import './areas/multiroot/multiroot.test';
-import './areas/extensions/extensions.test';
 import './areas/search/search.test';
-import './areas/workbench/data-loss.test';
+import './areas/multiroot/multiroot.test';
+import './areas/css/css.test';
+import './areas/editor/editor.test';
+import './areas/debug/debug.test';
 import './areas/git/git.test';
+import './areas/terminal/terminal.test';
 import './areas/statusbar/statusbar.test';
-// import './areas/workbench/data-migration.test';
+import './areas/extensions/extensions.test';
+import './areas/workbench/localization.test';

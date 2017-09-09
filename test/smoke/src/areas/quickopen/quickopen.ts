@@ -29,7 +29,7 @@ export class QuickOpen {
 
 	public async openFile(fileName: string): Promise<void> {
 		await this.openQuickOpen();
-		await this.spectron.type(fileName);
+		await this.spectron.client.type(fileName);
 		await this.getQuickOpenElements();
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.spectron.client.waitForElement(`.tabs-container div[aria-selected="true"][aria-label="${fileName}, tab"]`);
@@ -38,7 +38,7 @@ export class QuickOpen {
 	}
 
 	protected waitForQuickOpenOpened(): Promise<Element> {
-		return this.spectron.client.waitForElement('div.quick-open-widget[aria-hidden="false"]');
+		return this.spectron.client.waitForElement('.quick-open-widget .quick-open-input input:focus');
 	}
 
 	protected waitForQuickOpenClosed(): Promise<Element> {
@@ -51,7 +51,7 @@ export class QuickOpen {
 	}
 
 	public async submit(text: string): Promise<void> {
-		await this.spectron.type(text);
+		await this.spectron.client.type(text);
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.waitForQuickOpenClosed();
 	}

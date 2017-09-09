@@ -17,8 +17,16 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string { return path.basename(this.repository.root); }
-	@memoize get description(): string { return path.dirname(this.repository.root); }
+	@memoize get label(): string {
+		return path.basename(this.repository.root);
+	}
+
+	@memoize get description(): string {
+		return [this.repository.headLabel, this.repository.syncLabel]
+			.filter(l => !!l)
+			.join(' ');
+	}
+
 	constructor(public readonly repository: Repository) { }
 }
 

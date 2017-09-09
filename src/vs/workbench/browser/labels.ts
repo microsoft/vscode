@@ -22,8 +22,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind } from 'vs/platform/files/common/files';
+import { IModel } from 'vs/editor/common/editorCommon';
 
-export interface IEditorLabel {
+export interface IResourceLabel {
 	name: string;
 	description?: string;
 	resource?: uri;
@@ -35,7 +36,7 @@ export interface IResourceLabelOptions extends IIconLabelOptions {
 
 export class ResourceLabel extends IconLabel {
 	private toDispose: IDisposable[];
-	private label: IEditorLabel;
+	private label: IResourceLabel;
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
@@ -60,9 +61,30 @@ export class ResourceLabel extends IconLabel {
 	private registerListeners(): void {
 		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
+		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
 	}
 
-	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
+	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
+		if (!this.label || !this.label.resource) {
+			return; // only update if label exists
+		}
+
+		if (!e.model.uri) {
+			return; // we need the resource to compare
+		}
+
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
+		}
+
+		if (e.model.uri.toString() === this.label.resource.toString()) {
+			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
+				this.render(true); // update if the language id of the model has changed from our last known state
+			}
+		}
+	}
+
+	public setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
 		const hasResourceChanged = this.hasResourceChanged(label, options);
 
 		this.label = label;
@@ -71,7 +93,7 @@ export class ResourceLabel extends IconLabel {
 		this.render(hasResourceChanged);
 	}
 
-	private hasResourceChanged(label: IEditorLabel, options: IResourceLabelOptions): boolean {
+	private hasResourceChanged(label: IResourceLabel, options: IResourceLabelOptions): boolean {
 		const newResource = label ? label.resource : void 0;
 		const oldResource = this.label ? this.label.resource : void 0;
 
@@ -187,15 +209,16 @@ export class FileLabel extends ResourceLabel {
 		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
 	}
 
-	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
-		const hidePath = options.hidePath || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-		const rootProvider: IRootProvider = options.root ? {
+	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		const rootProvider: IRootProvider = (options && options.root) ? {
 			getRoot(): uri { return options.root; },
 			getWorkspace(): { roots: uri[]; } { return { roots: [options.root] }; },
 		} : this.contextService;
+
 		this.setLabel({
 			resource,
-			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
+			name: (options && options.hideLabel) ? void 0 : paths.basename(resource.fsPath),
 			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : void 0
 		}, options);
 	}

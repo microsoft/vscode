@@ -55,7 +55,7 @@ export class QueryBuilder {
 			}
 		}
 
-		const useRipgrep = !folderResources || folderResources.every(folder => {
+		const useRipgrep = type === QueryType.File ? options.useRipgrep : !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
 			return folderConfig.search.useRipgrep;
 		});

@@ -329,6 +329,23 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
+	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+		const result = window.showInputBox({
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return 'Cannot set empty description';
+				}
+				return null;
+			}
+		}).then(value => {
+			assert.equal(value, undefined);
+		});
+
+		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.all([result, exec]);
+	});
+
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 

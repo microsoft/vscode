@@ -21,10 +21,11 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { watch } from 'fs';
 import { SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISnippet, ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet, ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 namespace schema {
 
@@ -84,8 +85,8 @@ class SnippetsService implements ISnippetsService {
 	readonly _serviceBrand: any;
 
 	private readonly _pendingExtensionSnippets = new Map<LanguageId, [IExtensionPointUser<any>, string][]>();
-	private readonly _extensionSnippets = new Map<LanguageId, ISnippet[]>();
-	private readonly _userSnippets = new Map<LanguageId, ISnippet[]>();
+	private readonly _extensionSnippets = new Map<LanguageId, Snippet[]>();
+	private readonly _userSnippets = new Map<LanguageId, Snippet[]>();
 	private readonly _userSnippetsFolder: string;
 	private readonly _disposables: IDisposable[] = [];
 
@@ -105,8 +106,8 @@ class SnippetsService implements ISnippetsService {
 		dispose(this._disposables);
 	}
 
-	async getSnippets(languageId: LanguageId): TPromise<ISnippet[]> {
-		let result: ISnippet[] = [];
+	async getSnippets(languageId: LanguageId): TPromise<Snippet[]> {
+		let result: Snippet[] = [];
 		await TPromise.join([
 			this._extensionService.onReady(),
 			this._getOrLoadUserSnippets(languageId, result),
@@ -115,7 +116,7 @@ class SnippetsService implements ISnippetsService {
 		return result;
 	}
 
-	getSnippetsSync(languageId: LanguageId): ISnippet[] {
+	getSnippetsSync(languageId: LanguageId): Snippet[] {
 		// just kick off snippet loading for this language such
 		// that subseqent calls to this method return more
 		// correct results
@@ -147,7 +148,7 @@ class SnippetsService implements ISnippetsService {
 		});
 	}
 
-	private async _getOrLoadExtensionSnippets(languageId: LanguageId, bucket: ISnippet[]): TPromise<void> {
+	private async _getOrLoadExtensionSnippets(languageId: LanguageId, bucket: Snippet[]): TPromise<void> {
 
 		if (this._extensionSnippets.has(languageId)) {
 			bucket.push(...this._extensionSnippets.get(languageId));
@@ -189,7 +190,7 @@ class SnippetsService implements ISnippetsService {
 
 	// --- user snippet logic ---
 
-	private async _getOrLoadUserSnippets(languageId: LanguageId, bucket: ISnippet[]): TPromise<void> {
+	private async _getOrLoadUserSnippets(languageId: LanguageId, bucket: Snippet[]): TPromise<void> {
 		let snippets = this._userSnippets.get(languageId);
 		if (snippets === undefined) {
 			try {
@@ -241,7 +242,7 @@ export class SnippetSuggestion implements ISuggestion {
 	label: string;
 	detail: string;
 	insertText: string;
-	documentation: string;
+	documentation: MarkdownString;
 	overwriteBefore: number;
 	sortText: string;
 	noAutoAccept: boolean;
@@ -249,7 +250,7 @@ export class SnippetSuggestion implements ISuggestion {
 	snippetType: SnippetType;
 
 	constructor(
-		readonly snippet: ISnippet,
+		readonly snippet: Snippet,
 		overwriteBefore: number
 	) {
 		this.label = snippet.prefix;
@@ -263,7 +264,7 @@ export class SnippetSuggestion implements ISuggestion {
 	}
 
 	resolve(): this {
-		this.documentation = new SnippetParser().text(this.snippet.codeSnippet);
+		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
 		return this;
 	}
 

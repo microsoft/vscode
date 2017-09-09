@@ -94,7 +94,51 @@ suite('Arrays', () => {
 		}
 	});
 
-	test('delta', function () {
+	test('sortedDiff', function () {
+		function compare(a: number, b: number): number {
+			return a - b;
+		}
+
+		let d = arrays.sortedDiff([1, 2, 4], [], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 3, inserted: [] }
+		]);
+
+		d = arrays.sortedDiff([], [1, 2, 4], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 0, inserted: [1, 2, 4] }
+		]);
+
+		d = arrays.sortedDiff([1, 2, 4], [1, 2, 4], compare);
+		assert.deepEqual(d, []);
+
+		d = arrays.sortedDiff([1, 2, 4], [2, 3, 4, 5], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 1, inserted: [] },
+			{ start: 2, deleteCount: 0, inserted: [3] },
+			{ start: 3, deleteCount: 0, inserted: [5] },
+		]);
+
+		d = arrays.sortedDiff([2, 3, 4, 5], [1, 2, 4], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 0, inserted: [1] },
+			{ start: 1, deleteCount: 1, inserted: [] },
+			{ start: 3, deleteCount: 1, inserted: [] },
+		]);
+
+		d = arrays.sortedDiff([1, 3, 5, 7], [5, 9, 11], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 2, inserted: [] },
+			{ start: 3, deleteCount: 1, inserted: [9, 11] }
+		]);
+
+		d = arrays.sortedDiff([1, 3, 7], [5, 9, 11], compare);
+		assert.deepEqual(d, [
+			{ start: 0, deleteCount: 3, inserted: [5, 9, 11] }
+		]);
+	});
+
+	test('delta sorted arrays', function () {
 		function compare(a: number, b: number): number {
 			return a - b;
 		}

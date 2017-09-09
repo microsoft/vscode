@@ -226,7 +226,7 @@ export interface ISuggestion {
 	insertText: string;
 	type: SuggestionType;
 	detail?: string;
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	filterText?: string;
 	sortText?: string;
 	noAutoAccept?: boolean;
@@ -244,6 +244,7 @@ export interface ISuggestion {
 export interface ISuggestResult {
 	suggestions: ISuggestion[];
 	incomplete?: boolean;
+	dispose?(): void;
 }
 
 /**
@@ -284,7 +285,7 @@ export interface ParameterInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 }
 /**
  * Represents the signature of something callable. A signature
@@ -301,7 +302,7 @@ export interface SignatureInformation {
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string;
+	documentation?: string | IMarkdownString;
 	/**
 	 * The parameters of this signature.
 	 */
@@ -679,11 +680,22 @@ export interface IColor {
 }
 
 /**
+ * Represents a color format
+ */
+export enum ColorFormat {
+	RGB = 0,
+	HEX = 1,
+	HSL = 2
+}
+
+/**
  * A color formatter.
+ * @internal
  */
 export interface IColorFormatter {
 	readonly supportsTransparency: boolean;
-	format(color: IColor): string;
+	readonly colorFormat: ColorFormat;
+	format(color: Color): string;
 }
 
 /**
@@ -700,11 +712,6 @@ export interface IColorRange {
 	 * The color represented in this range.
 	 */
 	color: IColor;
-
-	/**
-	 * The available formats for this specific color.
-	 */
-	formatters: IColorFormatter[];
 }
 
 /**
@@ -715,6 +722,10 @@ export interface DocumentColorProvider {
 	 * Provides the color ranges for a specific model.
 	 */
 	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+	/**
+	 * Provide the string representation for a color.
+	 */
+	resolveColor(color: IColor, colorFormat: ColorFormat, token: CancellationToken): string | Thenable<string>;
 }
 
 export interface IResourceEdit {

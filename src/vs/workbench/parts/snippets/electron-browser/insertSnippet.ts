@@ -12,12 +12,12 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 interface ISnippetPick extends IPickOpenEntry {
-	snippet: ISnippet;
+	snippet: Snippet;
 }
 
 class Args {
@@ -75,7 +75,7 @@ class InsertSnippetAction extends EditorAction {
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
-		return new TPromise<ISnippet>(async (resolve, reject) => {
+		return new TPromise<Snippet>(async (resolve, reject) => {
 
 			if (snippet) {
 				return resolve({
@@ -114,13 +114,23 @@ class InsertSnippetAction extends EditorAction {
 				});
 			} else {
 				// let user pick a snippet
-				const picks: ISnippetPick[] = (await snippetService.getSnippets(languageId)).map(snippet => {
-					return {
+				const snippets = (await snippetService.getSnippets(languageId)).sort(Snippet.compare);
+				const picks: ISnippetPick[] = [];
+				let prevSnippet: Snippet;
+				for (const snippet of snippets) {
+					const pick: ISnippetPick = {
 						label: snippet.prefix,
 						detail: snippet.description,
 						snippet
 					};
-				});
+					if (!snippet.isFromExtension && !prevSnippet) {
+						pick.separator = { label: nls.localize('sep.userSnippet', "User Snippets") };
+					} else if (snippet.isFromExtension && (!prevSnippet || !prevSnippet.isFromExtension)) {
+						pick.separator = { label: nls.localize('sep.extSnippet', "Extension Snippets") };
+					}
+					picks.push(pick);
+					prevSnippet = snippet;
+				}
 				return quickOpenService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
 		}).then(snippet => {

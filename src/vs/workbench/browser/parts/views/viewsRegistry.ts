@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { IViewConstructorSignature } from 'vs/workbench/parts/views/browser/views';
-import { ITreeViewDataProvider } from 'vs/workbench/parts/views/common/views';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ITreeViewDataProvider } from 'vs/workbench/common/views';
+import { IViewConstructorSignature } from 'vs/workbench/browser/parts/views/views';
 
 export class ViewLocation {
 

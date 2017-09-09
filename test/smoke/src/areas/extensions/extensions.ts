@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
-export class Extensions {
+export class Extensions extends Viewlet {
 
-	constructor(private spectron: SpectronApplication) {
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
 	}
 
 	public async openExtensionsViewlet(): Promise<any> {
@@ -16,15 +18,15 @@ export class Extensions {
 	}
 
 	public async waitForExtensionsViewlet(): Promise<any> {
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus[placeholder="Search Extensions in Marketplace"]');
+		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
 	}
 
 	public async searchForExtension(name: string): Promise<any> {
-		const searchBoxSelector = 'div.extensions-viewlet[id="workbench.view.extensions"] .search-box[placeholder="Search Extensions in Marketplace"]';
+		const searchBoxSelector = 'div.extensions-viewlet[id="workbench.view.extensions"] .search-box';
 
 		await this.spectron.client.clearElement(searchBoxSelector);
 		await this.spectron.client.click(searchBoxSelector);
-		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus[placeholder="Search Extensions in Marketplace"]');
+		await this.spectron.client.waitForElement('div.extensions-viewlet[id="workbench.view.extensions"] .search-box.synthetic-focus');
 		await this.spectron.client.keys(name);
 
 	}

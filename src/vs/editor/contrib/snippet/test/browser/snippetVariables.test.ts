@@ -135,4 +135,33 @@ suite('Snippet Variables Resolver', function () {
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
+
+
+	function assertVariableResolve2(input: string, expected: string, varValue?: string) {
+		const snippet = new SnippetParser().parse(input)
+			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
+
+		const actual = snippet.toString();
+		assert.equal(actual, expected);
+	}
+
+	test('Variable Snippet Transform', function () {
+
+		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
+		snippet.resolveVariables(resolver);
+		assert.equal(snippet.toString(), 'name=text');
+
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
+		assertVariableResolve2('${Foo/(.*)/${1:+Bar}/img}', 'Bar');
+
+		//https://github.com/Microsoft/vscode/issues/33162
+		assertVariableResolve2('export default class ${TM_FILENAME/(\\w+)\\.js/$1/g}', 'export default class FooFile', 'FooFile.js');
+
+		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global
+		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/}', 'FARbarfoobar'); // first match
+		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match
+
+		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
+	});
 });

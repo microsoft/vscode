@@ -26,6 +26,9 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 
 const $ = dom.$;
 
@@ -170,6 +173,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static ID = 'editor.widget.parameterHintsWidget';
 
+	private markdownRenderer: MarkdownRenderer;
 	private model: ParameterHintsModel;
 	private keyVisible: IContextKey<boolean>;
 	private keyMultipleSignatures: IContextKey<boolean>;
@@ -187,7 +191,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
-	constructor(private editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(
+		private editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
+		@IModeService modeService: IModeService,
+	) {
+		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
 		this.model = new ParameterHintsModel(editor);
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -325,14 +335,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
-			documentation.textContent = activeParameter.documentation;
+			if (typeof activeParameter.documentation === 'string') {
+				documentation.textContent = activeParameter.documentation;
+			} else {
+				documentation.appendChild(this.markdownRenderer.render(activeParameter.documentation));
+			}
 			dom.append(this.docs, $('p', null, documentation));
 		}
 
 		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
-		if (signature.documentation) {
+		if (typeof signature.documentation === 'string') {
 			dom.append(this.docs, $('p', null, signature.documentation));
+		} else {
+			dom.append(this.docs, this.markdownRenderer.render(signature.documentation));
 		}
 
 		let currentOverload = String(this.currentSignature + 1);

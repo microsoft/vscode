@@ -8,8 +8,8 @@ import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { TreeView } from 'vs/workbench/parts/views/browser/treeView';
+import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 namespace schema {

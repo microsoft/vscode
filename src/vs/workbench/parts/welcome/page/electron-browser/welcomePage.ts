@@ -8,6 +8,7 @@ import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
+import product from 'vs/platform/node/product';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -320,6 +321,12 @@ class WelcomePage {
 			container.querySelector('.showInterfaceOverview').remove();
 		} else {
 			container.querySelector('.deployToAzure').remove();
+		}
+
+		if (product.quality !== 'stable') {
+			container.querySelector('.stable-only').remove();
+		} else {
+			container.querySelector('.insiders-only').remove();
 		}
 	}
 

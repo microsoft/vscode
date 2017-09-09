@@ -26,12 +26,14 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
+import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
 enum Traversal {
 	Node = 1,
 	MacFind,
 	WindowsDir,
-	LinuxFind
+	LinuxFind,
+	Ripgrep
 }
 
 interface IDirectoryEntry {
@@ -151,16 +153,19 @@ export class FileWalker {
 
 			let traverse = this.nodeJSTraversal;
 			if (!this.maxFilesize) {
-				if (platform.isMacintosh) {
+				if (this.config.useRipgrep) {
+					this.traversal = Traversal.Ripgrep;
+					traverse = this.cmdTraversal;
+				} else if (platform.isMacintosh) {
 					this.traversal = Traversal.MacFind;
-					traverse = this.findTraversal;
+					traverse = this.cmdTraversal;
 					// Disable 'dir' for now (#11181, #11179, #11183, #11182).
 				} /* else if (platform.isWindows) {
 					this.traversal = Traversal.WindowsDir;
 					traverse = this.windowsDirTraversal;
 				} */ else if (platform.isLinux) {
 					this.traversal = Traversal.LinuxFind;
-					traverse = this.findTraversal;
+					traverse = this.cmdTraversal;
 				}
 			}
 
@@ -200,7 +205,7 @@ export class FileWalker {
 		}
 	}
 
-	private findTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
+	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 		const isMac = platform.isMacintosh;
 		let done = (err?: Error) => {
@@ -210,7 +215,8 @@ export class FileWalker {
 		let leftover = '';
 		let first = true;
 		const tree = this.initDirectoryTree();
-		const cmd = this.spawnFindCmd(folderQuery);
+		const useRipgrep = this.config.useRipgrep;
+		const cmd = useRipgrep ? spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder)).cmd : this.spawnFindCmd(folderQuery);
 		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
@@ -219,7 +225,7 @@ export class FileWalker {
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
-			const relativeFiles = normalized.split('\n./');
+			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
 			if (first && normalized.length >= 2) {
 				first = false;
 				relativeFiles[0] = relativeFiles[0].trim().substr(2);
@@ -240,6 +246,7 @@ export class FileWalker {
 				return;
 			}
 
+			// TODO: Optimize siblings clauses with ripgrep here.
 			this.addDirectoryEntries(tree, rootFolder, relativeFiles, onResult);
 
 			if (last) {

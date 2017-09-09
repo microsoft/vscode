@@ -124,7 +124,7 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBox(options: Electron.ShowMessageBoxOptions): number {
+	showMessageBox(options: Electron.MessageBoxOptions): number {
 		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
 	}
 

@@ -34,6 +34,7 @@
         json: [],
         languages basic: [],
         markdown: [],
+        merge-conflict: [ chrmarti ],
         perf-profile: [],
         php: [ roblourens ],
         search: [ roblourens ],

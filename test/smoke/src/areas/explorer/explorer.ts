@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
-export class Explorer {
 
-	constructor(private spectron: SpectronApplication) {
+export class Explorer extends Viewlet {
+
+	private static EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
+	private static OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title span`;
+
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
 	}
 
 	public openExplorerView(): Promise<any> {
 		return this.spectron.command('workbench.view.explorer');
+	}
+
+	public getOpenEditorsViewTitle(): Promise<string> {
+		return this.spectron.client.waitForText(Explorer.OPEN_EDITORS_VIEW);
 	}
 
 	public async openFile(fileName: string): Promise<any> {

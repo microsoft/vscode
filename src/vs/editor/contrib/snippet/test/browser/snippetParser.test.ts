@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('SnippetParser', () => {
 
@@ -51,7 +50,7 @@ suite('SnippetParser', () => {
 		scanner.text('$foo-bar');
 		assert.equal(scanner.next().type, TokenType.Dollar);
 		assert.equal(scanner.next().type, TokenType.VariableName);
-		assert.equal(scanner.next().type, TokenType.Format);
+		assert.equal(scanner.next().type, TokenType.Dash);
 		assert.equal(scanner.next().type, TokenType.VariableName);
 		assert.equal(scanner.next().type, TokenType.EOF);
 
@@ -208,6 +207,37 @@ suite('SnippetParser', () => {
 
 		assertTextAndMarker('${name:value', '${name:value', Text);
 		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
+	});
+
+	test('Parser, variable transforms', function () {
+		assertTextAndMarker('${foo///}', '', Variable);
+		assertTextAndMarker('${foo/regex/format/gmi}', '', Variable);
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/}', '', Variable);
+
+		// invalid regex
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/GMI}', '${foo/([A-Z][a-z])/format/GMI}', Text);
+		assertTextAndMarker('${foo/([A-Z][a-z])/format/funky}', '${foo/([A-Z][a-z])/format/funky}', Text);
+		assertTextAndMarker('${foo/([A-Z][a-z]/format/}', '${foo/([A-Z][a-z]/format/}', Text);
+
+		// tricky regex
+		assertTextAndMarker('${foo/m\\/atch/$1/i}', '', Variable);
+		assertMarker('${foo/regex\/format/options}', Text);
+
+		// incomplete
+		assertTextAndMarker('${foo///', '${foo///', Text);
+		assertTextAndMarker('${foo/regex/format/options', '${foo/regex/format/options', Text);
+
+		// format string
+		assertMarker('${foo/.*/${0:fooo}/i}', Variable);
+		assertMarker('${foo/.*/${1}/i}', Variable);
+		assertMarker('${foo/.*/$1/i}', Variable);
+		assertMarker('${foo/.*/This-$1-encloses/i}', Variable);
+		assertMarker('${foo/.*/complex${1:else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:-else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:+if}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:?if:else}/i}', Variable);
+		assertMarker('${foo/.*/complex${1:/upcase}/i}', Variable);
+
 	});
 
 	test('Parser, placeholder with choice', () => {
@@ -535,6 +565,32 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
 	});
 
+
+	test('Transform -> FormatString#resolve', function () {
+
+		// shorthand functions
+		assert.equal(new FormatString(1, 'upcase').resolve('foo'), 'FOO');
+		assert.equal(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
+		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
+		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
+		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
+
+		// if
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(undefined), '');
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve(''), '');
+		assert.equal(new FormatString(1, undefined, 'foo', undefined).resolve('bar'), 'foo');
+
+		// else
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve(''), 'foo');
+		assert.equal(new FormatString(1, undefined, undefined, 'foo').resolve('bar'), 'bar');
+
+		// if-else
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
+		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+	});
+
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
 
 		const { placeholders } = new SnippetParser().parse('src="$1"', true);
@@ -543,5 +599,6 @@ suite('SnippetParser', () => {
 		assert.equal(placeholders.length, 2);
 		assert.equal(first.index, 1);
 		assert.equal(second.index, 0);
+
 	});
 });

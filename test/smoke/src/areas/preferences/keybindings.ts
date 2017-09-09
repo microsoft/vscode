@@ -17,7 +17,7 @@ export class KeybindingsEditor {
 	}
 
 	public async search(text: string, select: boolean = false): Promise<void> {
-		await this.spectron.type(text);
+		await this.spectron.client.type(text);
 		if (select) {
 			await this.spectron.client.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item');
 			await this.spectron.client.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');

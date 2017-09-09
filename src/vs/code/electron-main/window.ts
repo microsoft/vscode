@@ -130,7 +130,7 @@ export class CodeWindow implements ICodeWindow {
 			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
 		}
 
-		const options: Electron.BrowserWindowOptions = {
+		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -320,7 +320,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Prevent loading of svgs
-		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
 				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
@@ -331,7 +331,7 @@ export class CodeWindow implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null, (details, callback) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
@@ -388,7 +388,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Window Failed to load
-		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
+		this._win.webContents.on('did-fail-load', (event: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
 			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
@@ -437,7 +437,7 @@ export class CodeWindow implements ICodeWindow {
 	};
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command, (e: Electron.Event, cmd: string) => {
+		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}

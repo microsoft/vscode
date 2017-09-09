@@ -5,13 +5,16 @@
 
 import * as assert from 'assert';
 import { SpectronApplication } from '../../spectron/application';
+import { Viewlet } from '../workbench/viewlet';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
+const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
 const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title$="${name}"]`;
+const SCM_RESOURCE_GROUP_COMMAND_CLICK = name => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 export interface Change {
 	id: string;
@@ -20,9 +23,11 @@ export interface Change {
 	actions: { id: string, title: string; }[];
 }
 
-export class SCM {
+export class SCM extends Viewlet {
 
-	constructor(private spectron: SpectronApplication) { }
+	constructor(spectron: SpectronApplication) {
+		super(spectron);
+	}
 
 	async openSCMViewlet(): Promise<any> {
 		await this.spectron.command('workbench.view.scm');
@@ -33,7 +38,7 @@ export class SCM {
 		return await this.spectron.client.waitFor(async () => {
 			const changes = await this.getChanges();
 			return changes.filter(func)[0];
-		});
+		}, void 0, 'Getting changes');
 	}
 
 	async refreshSCMViewlet(): Promise<any> {
@@ -79,6 +84,10 @@ export class SCM {
 		await this.spectron.client.spectron.client.elementIdClick(action.id);
 	}
 
+	async stageAll(): Promise<void> {
+		await this.spectron.client.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
+	}
+
 	async unstage(change: Change): Promise<void> {
 		const action = change.actions.filter(a => a.title === 'Unstage Changes')[0];
 		assert(action);
@@ -87,7 +96,7 @@ export class SCM {
 
 	async commit(message: string): Promise<void> {
 		await this.spectron.client.click(SCM_INPUT);
-		await this.spectron.type(message);
+		await this.spectron.client.type(message);
 		await this.spectron.client.click(COMMIT_COMMAND);
 	}
 }

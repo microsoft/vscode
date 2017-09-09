@@ -4,53 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
-import { QuickOutline } from '../editor/quickoutline';
-import { SettingsEditor } from '../preferences/settings';
 
 describe('CSS', () => {
 	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
-	});
+	before(function () { app = new SpectronApplication(); return app.start('CSS'); });
 	after(() => app.stop());
+	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
 
-	it('verifies quick outline', async function () {
+	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');
-		const outline = new QuickOutline(app);
-		await outline.openSymbols();
-		const elements = await app.client.waitForElements(QuickOutline.QUICK_OPEN_ENTRY_SELECTOR, elements => elements.length === 2);
-		assert.ok(elements, `Did not find two outline elements`);
+		const outline = await app.workbench.editor.openOutline();
+		const elements = await outline.getQuickOpenElements();
+		await app.screenCapturer.capture('CSS Outline result');
+		assert.equal(elements.length, 2, `Did not find two outline elements`);
 	});
 
-	it('verifies warnings for the empty rule', async function () {
+	it('verifies warnings for the empty rule', async () => {
 		await app.workbench.quickopen.openFile('style.css');
 		await app.client.waitForElement(`.monaco-editor.focused`);
-		await app.type('.foo{}');
+		await app.client.type('.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
+		await app.screenCapturer.capture('CSS Warning in editor');
 		assert.ok(warning, `Warning squiggle is not shown in 'style.css'.`);
 
-		const problems = new Problems(app);
-		await problems.showProblemsView();
+		await app.workbench.problems.showProblemsView();
 		warning = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
+		await app.screenCapturer.capture('CSS Warning in problems view');
 		assert.ok(warning, 'Warning does not appear in Problems view.');
-		await problems.hideProblemsView();
+		await app.workbench.problems.hideProblemsView();
 	});
 
-	it('verifies that warning becomes an error once setting changed', async function () {
-		await new SettingsEditor(app).addUserSetting('css.lint.emptyRules', '"error"');
+	it('verifies that warning becomes an error once setting changed', async () => {
+		await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
-		await app.type('.foo{}');
+		await app.client.type('.foo{}');
 
 		let error = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
+		await app.screenCapturer.capture('CSS Error in editor');
 		assert.ok(error, `Warning squiggle is not shown in 'style.css'.`);
 
 		const problems = new Problems(app);
 		await problems.showProblemsView();
 		error = await app.client.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
+		await app.screenCapturer.capture('CSS Error in probles view');
 		assert.ok(error, 'Warning does not appear in Problems view.');
 		await problems.hideProblemsView();
 	});

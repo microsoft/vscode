@@ -31,6 +31,11 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'removeFromRecentlyOpened', arg: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]): TPromise<void>;
 	call(command: 'clearRecentlyOpened'): TPromise<void>;
 	call(command: 'getRecentlyOpened', arg: number): TPromise<IRecentlyOpened>;
+	call(command: 'showPreviousWindowTab', arg: number): TPromise<void>;
+	call(command: 'showNextWindowTab', arg: number): TPromise<void>;
+	call(command: 'moveWindowTabToNewWindow', arg: number): TPromise<void>;
+	call(command: 'mergeAllWindowTabs', arg: number): TPromise<void>;
+	call(command: 'toggleWindowTabsBar', arg: number): TPromise<void>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
@@ -87,6 +92,11 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'addRecentlyOpened': return this.service.addRecentlyOpened(arg);
 			case 'removeFromRecentlyOpened': return this.service.removeFromRecentlyOpened(arg);
 			case 'clearRecentlyOpened': return this.service.clearRecentlyOpened();
+			case 'showPreviousWindowTab': return this.service.showPreviousWindowTab();
+			case 'showNextWindowTab': return this.service.showNextWindowTab();
+			case 'moveWindowTabToNewWindow': return this.service.moveWindowTabToNewWindow();
+			case 'mergeAllWindowTabs': return this.service.mergeAllWindowTabs();
+			case 'toggleWindowTabsBar': return this.service.toggleWindowTabsBar();
 			case 'getRecentlyOpened': return this.service.getRecentlyOpened(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
 			case 'closeWindow': return this.service.closeWindow(arg);
@@ -191,6 +201,26 @@ export class WindowsChannelClient implements IWindowsService {
 
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
 		return this.channel.call('getRecentlyOpened', windowId);
+	}
+
+	showPreviousWindowTab(): TPromise<void> {
+		return this.channel.call('showPreviousWindowTab');
+	}
+
+	showNextWindowTab(): TPromise<void> {
+		return this.channel.call('showNextWindowTab');
+	}
+
+	moveWindowTabToNewWindow(): TPromise<void> {
+		return this.channel.call('moveWindowTabToNewWindow');
+	}
+
+	mergeAllWindowTabs(): TPromise<void> {
+		return this.channel.call('mergeAllWindowTabs');
+	}
+
+	toggleWindowTabsBar(): TPromise<void> {
+		return this.channel.call('toggleWindowTabsBar');
 	}
 
 	focusWindow(windowId: number): TPromise<void> {

@@ -739,5 +739,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
+		ColorFormat: modes.ColorFormat
 	};
 }

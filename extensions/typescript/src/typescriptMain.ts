@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -174,7 +174,8 @@ class LanguageProvider {
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 
-	private typingsStatus: TypingsStatus;
+	private readonly typingsStatus: TypingsStatus;
+	private readonly ataProgressReporter: AtaProgressReporter;
 	private toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
@@ -196,7 +197,7 @@ class LanguageProvider {
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
 		this.typingsStatus = new TypingsStatus(client);
-		new AtaProgressReporter(client);
+		this.ataProgressReporter = new AtaProgressReporter(client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -225,6 +226,7 @@ class LanguageProvider {
 		}
 
 		this.typingsStatus.dispose();
+		this.ataProgressReporter.dispose();
 		this.currentDiagnostics.dispose();
 		this.bufferSyncSupport.dispose();
 	}
@@ -511,10 +513,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		return !!this.findLanguage(file);
 	}
 
-	public goToProjectConfig(
+	public async goToProjectConfig(
 		isTypeScriptProject: boolean,
 		resource: Uri
-	): Thenable<TextEditor | undefined> | undefined {
+	): Promise<void> {
 		const rootPath = this.client.getWorkspaceRootForResource(resource);
 		if (!rootPath) {
 			window.showInformationMessage(
@@ -534,49 +536,46 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		return this.client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs).then(res => {
-			if (!res || !res.body) {
-				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'))
-					.then(() => void 0);
-			}
+		const res = await this.client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs);
+		if (!res || !res.body) {
+			window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+			return;
+		}
 
-			const { configFileName } = res.body;
-			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-				return workspace.openTextDocument(configFileName)
-					.then(doc =>
-						window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
-			}
+		const { configFileName } = res.body;
+		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+			const doc = await workspace.openTextDocument(configFileName);
+			window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined);
+			return;
+		}
 
-			return window.showInformationMessage<ProjectConfigMessageItem>(
-				(isTypeScriptProject
-					? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
-					: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
-				), {
-					title: isTypeScriptProject
-						? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-						: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-					id: ProjectConfigAction.CreateConfig
-				}, {
-					title: localize('typescript.projectConfigLearnMore', 'Learn More'),
-					id: ProjectConfigAction.LearnMore
-				}).then(selected => {
-					switch (selected && selected.id) {
-						case ProjectConfigAction.CreateConfig:
-							return openOrCreateConfigFile(isTypeScriptProject, rootPath);
+		const selected = await window.showInformationMessage<ProjectConfigMessageItem>(
+			(isTypeScriptProject
+				? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
+				: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
+			), {
+				title: isTypeScriptProject
+					? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+					: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+				id: ProjectConfigAction.CreateConfig
+			}, {
+				title: localize('typescript.projectConfigLearnMore', 'Learn More'),
+				id: ProjectConfigAction.LearnMore
+			});
 
-						case ProjectConfigAction.LearnMore:
-							if (isTypeScriptProject) {
-								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
-							} else {
-								commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
-							}
-							return;
+		switch (selected && selected.id) {
+			case ProjectConfigAction.CreateConfig:
+				openOrCreateConfigFile(isTypeScriptProject, rootPath);
+				return;
 
-						default:
-							return Promise.resolve(undefined);
-					}
-				});
-		});
+			case ProjectConfigAction.LearnMore:
+				if (isTypeScriptProject) {
+					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
+				} else {
+					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
+				}
+				return;
+		}
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
@@ -634,8 +633,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		// TODO: restore opening trigger file?
-		//     body.triggerFile ? this.findLanguage(body.triggerFile)
 		(this.findLanguage(body.configFile)).then(language => {
 			if (!language) {
 				return;

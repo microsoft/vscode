@@ -7,7 +7,6 @@
 import * as crypto from 'crypto';
 
 import URI from 'vs/base/common/uri';
-import { Color as BaseColor, HSLA } from 'vs/base/common/color';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
@@ -824,12 +823,33 @@ export class CodeLens {
 	}
 }
 
+export class MarkdownString {
+
+	value: string;
+	isTrusted?: boolean;
+
+	constructor(value?: string) {
+		this.value = value || '';
+	}
+
+	appendText(value: string): MarkdownString {
+		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+		return this;
+	}
+
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+}
+
 export class ParameterInformation {
 
 	label: string;
-	documentation?: string;
+	documentation?: string | MarkdownString;
 
-	constructor(label: string, documentation?: string) {
+	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}
@@ -838,10 +858,10 @@ export class ParameterInformation {
 export class SignatureInformation {
 
 	label: string;
-	documentation?: string;
+	documentation?: string | MarkdownString;
 	parameters: ParameterInformation[];
 
-	constructor(label: string, documentation?: string) {
+	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 		this.parameters = [];
@@ -892,7 +912,7 @@ export class CompletionItem {
 	label: string;
 	kind: CompletionItemKind;
 	detail: string;
-	documentation: string;
+	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
 	insertText: string | SnippetString;
@@ -1031,20 +1051,6 @@ export class Color {
 		this.blue = blue;
 		this.alpha = alpha;
 	}
-
-	static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color {
-		const color = new BaseColor(new HSLA(hue, saturation, luminance, alpha)).rgba;
-		return new Color(color.r, color.g, color.b, color.a);
-	}
-
-	static fromHex(hex: string): Color | null {
-		let baseColor = BaseColor.Format.CSS.parseHex(hex);
-		if (baseColor) {
-			const rgba = baseColor.rgba;
-			return new Color(rgba.r, rgba.g, rgba.b, rgba.a);
-		}
-		return null;
-	}
 }
 
 export type IColorFormat = string | { opaque: string, transparent: string };
@@ -1054,22 +1060,22 @@ export class ColorRange {
 
 	color: Color;
 
-	availableFormats: IColorFormat[];
-
-	constructor(range: Range, color: Color, availableFormats: IColorFormat[]) {
+	constructor(range: Range, color: Color) {
 		if (color && !(color instanceof Color)) {
 			throw illegalArgument('color');
-		}
-		if (availableFormats && !Array.isArray(availableFormats)) {
-			throw illegalArgument('availableFormats');
 		}
 		if (!Range.isRange(range) || range.isEmpty) {
 			throw illegalArgument('range');
 		}
 		this.range = range;
 		this.color = color;
-		this.availableFormats = availableFormats;
 	}
+}
+
+export enum ColorFormat {
+	RGB = 0,
+	HEX = 1,
+	HSL = 2
 }
 
 export enum TaskRevealKind {

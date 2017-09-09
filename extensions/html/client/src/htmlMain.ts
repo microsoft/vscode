@@ -6,11 +6,12 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorRange } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorRange, ColorFormat } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import * as convert from 'color-convert';
 
 import { ConfigurationFeature } from 'vscode-languageclient/lib/proposed';
 import { DocumentColorRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -27,18 +28,6 @@ interface IPackageInfo {
 	version: string;
 	aiKey: string;
 }
-
-const CSSColorFormats = {
-	Hex: '#{red:X}{green:X}{blue:X}',
-	RGB: {
-		opaque: 'rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})',
-		transparent: 'rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})'
-	},
-	HSL: {
-		opaque: 'hsl({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%)',
-		transparent: 'hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})'
-	}
-};
 
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
@@ -79,6 +68,11 @@ export function activate(context: ExtensionContext) {
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
 	client.registerFeature(new ConfigurationFeature(client));
 
+	var _toTwoDigitHex = function (n: number): string {
+		const r = n.toString(16);
+		return r.length !== 2 ? '0' + r : r;
+	};
+
 	let disposable = client.start();
 	toDispose.push(disposable);
 	client.onReady().then(() => {
@@ -89,9 +83,32 @@ export function activate(context: ExtensionContext) {
 					return symbols.map(symbol => {
 						let range = client.protocol2CodeConverter.asRange(symbol.range);
 						let color = new Color(symbol.color.red * 255, symbol.color.green * 255, symbol.color.blue * 255, symbol.color.alpha);
-						return new ColorRange(range, color, [CSSColorFormats.Hex, CSSColorFormats.RGB, CSSColorFormats.HSL]);
+						return new ColorRange(range, color);
 					});
 				});
+			},
+			resolveDocumentColor(color: Color, colorFormat: ColorFormat): Thenable<string> | string {
+				switch (colorFormat) {
+					case ColorFormat.RGB:
+						if (color.alpha === 1) {
+							return `rgb(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)})`;
+						} else {
+							return `rgba(${Math.round(color.red * 255)}, ${Math.round(color.green * 255)}, ${Math.round(color.blue * 255)}, ${color.alpha})`;
+						}
+					case ColorFormat.HEX:
+						if (color.alpha === 1) {
+							return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}`;
+						} else {
+							return `#${_toTwoDigitHex(Math.round(color.red * 255))}${_toTwoDigitHex(Math.round(color.green * 255))}${_toTwoDigitHex(Math.round(color.blue * 255))}${_toTwoDigitHex(Math.round(color.alpha * 255))}`;
+						}
+					case ColorFormat.HSL:
+						const hsl = convert.rgb.hsl(Math.round(color.red * 255), Math.round(color.green * 255), Math.round(color.blue * 255));
+						if (color.alpha === 1) {
+							return `hsl(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%)`;
+						} else {
+							return `hsla(${hsl[0]}, ${hsl[1]}%, ${hsl[2]}%, ${color.alpha})`;
+						}
+				}
 			}
 		});
 		toDispose.push(disposable);

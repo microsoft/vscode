@@ -78,7 +78,7 @@ export class ContextMenuService implements IContextMenuService {
 
 				menu.append(submenu);
 			} else {
-				const options: Electron.MenuItemOptions = {
+				const options: Electron.MenuItemConstructorOptions = {
 					label: unmnemonicLabel(e.label),
 					checked: !!e.checked || !!e.radio,
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,

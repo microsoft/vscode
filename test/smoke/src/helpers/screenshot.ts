@@ -3,51 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SpectronApplication } from '../spectron/application';
-var fs = require('fs');
+import * as path from 'path';
+import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
+import { Application } from 'spectron';
+import { SCREENSHOTS_DIR } from '../spectron/application';
 
-const __testTime = new Date().toISOString();
-
-export interface IScreenshot {
-	capture(): Promise<void>;
+function sanitize(name: string): string {
+	return name.replace(/[&*:\/]/g, '');
 }
 
-export class Screenshot implements IScreenshot {
+export class ScreenCapturer {
 
-	private index: number = 0;
-	private testPath: string;
+	private static counter = 0;
+	testName: string = 'default';
 
-	constructor(private spectron: SpectronApplication, testName: string, testRetry: number) {
-		const testTime = this.sanitizeFolderName(__testTime);
-		testName = this.sanitizeFolderName(testName);
+	constructor(private application: Application, private suiteName: string) { }
 
-		this.testPath = `test_data/screenshots/${testTime}/${testName}/${testRetry}`;
-		this.createFolder(this.testPath);
+	async capture(name: string): Promise<void> {
+		if (!SCREENSHOTS_DIR) {
+			return;
+		}
+
+		const image = await this.application.browserWindow.capturePage();
+		const screenshotPath = path.join(
+			SCREENSHOTS_DIR,
+			sanitize(this.suiteName),
+			sanitize(this.testName),
+			`${ScreenCapturer.counter++}-${sanitize(name)}.png`
+		);
+
+		await new Promise((c, e) => mkdirp(path.dirname(screenshotPath), err => err ? e(err) : c()));
+		await new Promise((c, e) => fs.writeFile(screenshotPath, image, err => err ? e(err) : c()));
 	}
-
-	public async capture(): Promise<void> {
-		const image = await this.spectron.app.browserWindow.capturePage();
-		await new Promise((c, e) => fs.writeFile(`${this.testPath}/${this.index++}.png`, image, err => err ? e(err) : c()));
-	}
-
-	private createFolder(name: string): void {
-		name.split('/').forEach((folderName, i, fullPath) => {
-			const folder = fullPath.slice(0, i + 1).join('/');
-			if (!fs.existsSync(folder)) {
-				fs.mkdirSync(folder);
-			}
-		});
-	}
-
-	private sanitizeFolderName(name: string): string {
-		return name.replace(/[&*:\/]/g, '');
-	}
-}
-
-export class NullScreenshot implements IScreenshot {
-
-	public async capture(): Promise<void> {
-		return Promise.resolve();
-	}
-
 }
