@@ -640,10 +640,14 @@ export class SearchViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		let selectedText = this.getSearchTextFromEditor();
-		if (selectedText) {
-			this.searchWidget.searchInput.setValue(selectedText);
+		// If focus is inside the search viewlet, don't add the selected text to the search widget
+		if (!(document.activeElement.compareDocumentPosition(this.domNode.getHTMLElement()) & Node.DOCUMENT_POSITION_CONTAINS)) {
+			const selectedText = this.getSearchTextFromEditor();
+			if (selectedText) {
+				this.searchWidget.searchInput.setValue(selectedText);
+			}
 		}
+
 		this.searchWidget.focus();
 	}
 
