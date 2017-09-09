@@ -70,7 +70,16 @@ export enum QueryType {
 	File = 1,
 	Text = 2
 }
-
+/* __GDPR__FRAGMENT__
+   "IPatternInfo" : {
+	  "pattern" : { "endPoint": "none", "classification": "CustomerContent", "purpose": "FeatureInsight" },
+	  "isRegExp": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isWordMatch": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "wordSeparators": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isMultiline": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	  "isCaseSensitive": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+   }
+ */
 export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;

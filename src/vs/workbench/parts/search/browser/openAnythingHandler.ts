@@ -38,10 +38,44 @@ interface ISearchWithRange {
 	  "unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "symbols": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	  "symbols.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.traversal": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.errors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fileWalkStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.fileWalkResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.directoriesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.filesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdForkStartTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdForkResultTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cmdResultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheLookupStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheFilterStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheLookupResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.cacheEntryCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.traversal": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.errors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.fileWalkStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.fileWalkResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.directoriesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.filesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cmdForkStartTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cmdForkResultTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cmdResultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cacheLookupStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cacheFilterStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cacheLookupResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "files.joined.cacheEntryCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
    }
  */
+// GDPR__TODO joined seems to be recursive
 interface ITimerEventData {
 	searchLength: number;
 	unsortedResultDuration: number;

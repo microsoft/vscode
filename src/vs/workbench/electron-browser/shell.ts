@@ -202,7 +202,10 @@ export class WorkbenchShell {
 		/* __GDPR__
 		   "workspaceLoad" : {
 			  "userAgent" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "windowSize": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.innerHeight": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.innerWidth": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.outerHeight": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "windowSize.outerWidth": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "emptyWorkbench": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "workbench.filesToOpen": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "workbench.filesToCreate": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -210,7 +213,7 @@ export class WorkbenchShell {
 			  "customKeybindingsCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "theme": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "language": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-			  "experiments": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "BusinessInsight" },
+			  "experiments": { "${inline}": [ "${IExperiments}" ] },
 			  "pinnedViewlets": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "restoredViewlet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "restoredEditors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },

@@ -354,6 +354,12 @@ export class WalkThroughPart extends BaseEditor {
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
+					/* __GDPR__FRAGMENT__
+					   "EditorTelemetryData" : {
+						  "target" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						  "snippet": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					   }
+					 */
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i

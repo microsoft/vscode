@@ -773,7 +773,7 @@ export class SearchModel extends Disposable {
 		   "searchresultsShown" : {
 			  "count" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			  "fileCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			  "options": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			  "options": { "${inline}": [ "${IPatternInfo}" ] },
 			  "duration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 			  "useRipgrep": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		   }

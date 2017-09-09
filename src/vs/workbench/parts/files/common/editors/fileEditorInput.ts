@@ -279,7 +279,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 		/* __GDPR__FRAGMENT__
 		   "EditorTelemetryDescriptor" : {
-			  "resource": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			  "resource": { "${inline}": [ "${URIDescriptor}" ] }
 		   }
 		 */
 		return descriptor;

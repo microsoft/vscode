@@ -387,6 +387,21 @@ function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: Exten
 }
 
 function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+	/* __GDPR__FRAGMENT__
+	   "TelemetryActivationEvent" : {
+		   "id": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "name": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "publisherDisplayName": { "endPoint": "none", "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		   "activationEvents": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		   "isBuiltin": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		   "${wildcard}": [
+			   {
+			      "${prefix}": "contribution.",
+			      "${property}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			   }
+			]
+	   }
+	 */
 	let event = {
 		id: extensionDescription.id,
 		name: extensionDescription.name,

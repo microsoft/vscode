@@ -8,6 +8,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
 
+/* __GDPR__FRAGMENT__
+   "IMemoryInfo" : {
+	  "workingSetSize" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "peakWorkingSetSize": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "privateBytes": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "sharedBytes": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+   }
+ */
 export interface IMemoryInfo {
 	workingSetSize: number;
 	peakWorkingSetSize: number;
@@ -19,14 +27,25 @@ export interface IMemoryInfo {
    "IStartupMetrics" : {
 	  "version" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "ellapsed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "timers" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedAppReady" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWindowLoad" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWindowLoadToRequire" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedExtensions" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedExtensionsReady" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedRequire" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedViewletRestore" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedEditorRestore" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedWorkbench" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "timers.ellapsedTimersToTimersComputed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "timers2" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "platform" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "release" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "arch" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "totalmem" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "meminfo" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "cpus" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "meminfo" : { "${inline}": [ "${IMemoryInfo}" ] },
+	  "cpus.count" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus.speed" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+	  "cpus.model" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "initialStartup" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "hasAccessibilitySupport" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "isVMLikelyhood" : { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -49,6 +68,7 @@ export interface IStartupMetrics {
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
 	};
+	// GDPR__TODO: Dynamic property set with timer2, cannot be declared in the registry
 	timers2: { [name: string]: number };
 	platform: string;
 	release: string;
