@@ -15,12 +15,11 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, IRawColorFormatMap, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ColorFormatter, CombinedColorFormatter } from 'vs/editor/contrib/colorPicker/common/colorFormatter';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
@@ -30,7 +29,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	private _heapService: IHeapService;
 	private _modeService: IModeService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
-	private _formatters: Map<number, ColorFormatter>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -40,7 +38,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;
-		this._formatters = new Map<number, ColorFormatter>();
 	}
 
 	dispose(): void {
@@ -293,14 +290,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return wireCancellationToken(token, proxy.$provideDocumentColors(handle, model.uri))
 					.then(documentColors => {
 						return documentColors.map(documentColor => {
-							const formatters = documentColor.availableFormats.map(f => {
-								if (typeof f === 'number') {
-									return this._formatters.get(f);
-								} else {
-									return new CombinedColorFormatter(this._formatters.get(f[0]), this._formatters.get(f[1]));
-								}
-							});
-
 							const [red, green, blue, alpha] = documentColor.color;
 							const color = {
 								red: red / 255.0,
@@ -311,19 +300,16 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 							return {
 								color,
-								formatters,
 								range: documentColor.range
 							};
 						});
 					});
+			},
+			resolveColor: (color, format, token) => {
+				return wireCancellationToken(token, proxy.$resolveDocumentColor(handle, color, format));
 			}
 		});
 
-		return TPromise.as(null);
-	}
-
-	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any> {
-		formats.forEach(f => this._formatters.set(f[0], new ColorFormatter(f[1])));
 		return TPromise.as(null);
 	}
 

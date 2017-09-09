@@ -680,11 +680,22 @@ export interface IColor {
 }
 
 /**
+ * Represents a color format
+ */
+export enum ColorFormat {
+	RGB = 0,
+	HEX = 1,
+	HSL = 2
+}
+
+/**
  * A color formatter.
+ * @internal
  */
 export interface IColorFormatter {
 	readonly supportsTransparency: boolean;
-	format(color: IColor): string;
+	readonly colorFormat: ColorFormat;
+	format(color: Color): string;
 }
 
 /**
@@ -701,11 +712,6 @@ export interface IColorRange {
 	 * The color represented in this range.
 	 */
 	color: IColor;
-
-	/**
-	 * The available formats for this specific color.
-	 */
-	formatters: IColorFormatter[];
 }
 
 /**
@@ -716,6 +722,10 @@ export interface DocumentColorProvider {
 	 * Provides the color ranges for a specific model.
 	 */
 	provideColorRanges(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
+	/**
+	 * Provide the string representation for a color.
+	 */
+	resolveColor(color: IColor, colorFormat: ColorFormat, token: CancellationToken): string | Thenable<string>;
 }
 
 export interface IResourceEdit {

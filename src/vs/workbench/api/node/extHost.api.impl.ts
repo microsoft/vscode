@@ -551,6 +551,7 @@ export function createApiFactory(
 			CancellationTokenSource: CancellationTokenSource,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
+			ColorFormat: extHostTypes.ColorFormat,
 			ColorRange: extHostTypes.ColorRange,
 			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,

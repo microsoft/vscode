@@ -232,7 +232,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any>;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerColorFormats(formats: IRawColorFormatMap): TPromise<any>;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any>;
 }
@@ -501,12 +500,8 @@ export interface ExtHostHeapServiceShape {
 }
 export interface IRawColorInfo {
 	color: [number, number, number, number];
-	availableFormats: (number | [number, number])[];
 	range: IRange;
 }
-
-export type IRawColorFormatMap = [number, string][];
-
 
 export interface IExtHostSuggestion extends modes.ISuggestion {
 	_id: number;
@@ -541,8 +536,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp>;
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
-	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
+	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
+	$resolveDocumentColor(handle: number, color: modes.IColor, colorFormat: modes.ColorFormat): TPromise<string>;
 }
 
 export interface ExtHostQuickOpenShape {

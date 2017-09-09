@@ -2,6 +2,11 @@
   "name": "html",
   "version": "0.1.0",
   "dependencies": {
+    "color-convert": {
+      "version": "0.5.3",
+      "from": "color-convert@>=0.5.0 <0.6.0",
+      "resolved": "https://registry.npmjs.org/color-convert/-/color-convert-0.5.3.tgz"
+    },
     "applicationinsights": {
       "version": "0.18.0",
       "from": "applicationinsights@0.18.0",
