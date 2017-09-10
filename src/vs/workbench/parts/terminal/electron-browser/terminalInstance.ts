@@ -31,12 +31,13 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import pkg from 'vs/platform/node/package';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -950,19 +951,17 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-		if (!backgroundColor) {
-			// Background color is optional, so fall back to editor background color
-			backgroundColor = theme.getColor(editorBackground);
-		}
-		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR);
-		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR);
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
+		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
+		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
 
 		return {
 			background: backgroundColor ? backgroundColor.toString() : null,
 			foreground: foregroundColor ? foregroundColor.toString() : null,
 			cursor: cursorColor ? cursorColor.toString() : null,
 			cursorAccent: cursorAccentColor ? cursorAccentColor.toString() : null,
+			selection: selectionColor ? selectionColor.toString() : null,
 			black: theme.getColor(ansiColorIdentifiers[0]).toString(),
 			red: theme.getColor(ansiColorIdentifiers[1]).toString(),
 			green: theme.getColor(ansiColorIdentifiers[2]).toString(),
