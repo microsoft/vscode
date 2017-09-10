@@ -41,12 +41,15 @@
 	height: 100%;
 }
 
-.monaco-workbench .panel.integrated-terminal .xterm-viewport {
-	/* Align the viewport to the bottom of the panel, just like the terminal */
+.monaco-workbench .panel.integrated-terminal .xterm-viewport,
+.monaco-workbench .panel.integrated-terminal canvas {
+	/* Align the viewport and canvases to the bottom of the panel */
 	position: absolute;
 	right: -20px;
 	bottom: 0;
 	left: 0;
+	/* Disable upstream's style */
+	top: auto;
 }
 
 .monaco-workbench .panel.integrated-terminal {
@@ -65,6 +68,39 @@
 .monaco-workbench .panel.integrated-terminal .xterm a.active {
 	cursor: pointer;
 	text-decoration: underline;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm {
+	position: relative;
+	height: 100%;
+	user-select: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm:focus {
+	/* Hide outline when focus jumps from xterm to the text area */
+	outline: none;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
+	display: block;
+	content: "";
+	border: 2px solid #f38518;
+	position: absolute;
+	left: -5px;
+	top: 0;
+	right: -5px;
+	bottom: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
+	position: absolute;
+	top: 0;
+}
+
+.monaco-workbench .panel.integrated-terminal .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
 }
 
 /* Terminal actions */

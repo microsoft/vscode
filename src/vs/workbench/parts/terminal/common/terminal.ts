@@ -58,12 +58,12 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
+	// enableBold: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
-	fontLigatures: boolean;
+	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
@@ -91,7 +91,7 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
 	charWidth: number;
 	charHeight: number;

@@ -572,9 +572,9 @@
       "resolved": "https://registry.npmjs.org/windows-process-tree/-/windows-process-tree-0.1.3.tgz"
     },
     "xterm": {
-      "version": "2.9.1",
-      "from": "Tyriar/xterm.js#vscode-release/1.16",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#d383d25c4e879578a2dabc3381f039b246abb34b"
+      "version": "3.0.0",
+      "from": "Tyriar/xterm.js#vscode-release/1.17",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#fb7de4e8d90d20a94d3847ea857b5394a09bd771"
     },
     "yauzl": {
       "version": "2.8.0",
