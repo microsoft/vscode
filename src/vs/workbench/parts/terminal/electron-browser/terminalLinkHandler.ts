@@ -161,7 +161,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
-		console.log('validate');
 		// this._resolvePath(link).then(resolvedLink => {
 		// 	if (resolvedLink) {
 		// 		this._addTooltipEventListeners(element);
@@ -172,7 +171,6 @@ export class TerminalLinkHandler {
 	}
 
 	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
-		console.log('validate');
 		// this._addTooltipEventListeners(element);
 		callback(true);
 	}
