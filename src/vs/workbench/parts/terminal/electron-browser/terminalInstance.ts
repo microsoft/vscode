@@ -886,13 +886,16 @@ export class TerminalInstance implements ITerminalInstance {
 			return;
 		}
 		if (this._xterm) {
-			// TODO: Support lineHeight
-			// TODO: Support lineHeight, font* changes
-			// TODO: Only do this when there's a change
 			const font = this._configHelper.getFont();
-			this._xterm.setOption('lineHeight', font.lineHeight);
-			this._xterm.setOption('fontSize', font.fontSize);
-			this._xterm.setOption('fontFamily', font.fontFamily);
+			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+				this._xterm.setOption('lineHeight', font.lineHeight);
+			}
+			if (this._xterm.getOption('fontSize') !== font.fontSize) {
+				this._xterm.setOption('fontSize', font.fontSize);
+			}
+			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+				this._xterm.setOption('fontFamily', font.fontFamily);
+			}
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
