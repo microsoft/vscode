@@ -14,7 +14,6 @@ export class SpectronClient {
 
 	private readonly retryCount = 50;
 	private readonly retryDuration = 100; // in milliseconds
-	private captureIndex = 1;
 
 	constructor(public spectron: Application, private application: SpectronApplication) {
 	}
@@ -152,7 +151,7 @@ export class SpectronClient {
 
 		while (true) {
 			if (trial > this.retryCount) {
-				await this.application.screenCapturer.capture('' + this.captureIndex++);
+				this.application.screenCapturer.capture('timeout');
 				throw new Error(`${timeoutMessage}: Timed out after ${(this.retryCount * this.retryDuration) / 1000} seconds.`);
 			}
 
@@ -160,7 +159,6 @@ export class SpectronClient {
 			try {
 				result = await func();
 			} catch (e) {
-				this.application.screenCapturer.capture('waitFor timeout');
 				// console.log(e);
 			}
 
