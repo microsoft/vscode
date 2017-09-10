@@ -75,7 +75,7 @@ export class TabsTitleControl extends TitleControl {
 		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
 		@IFileService private fileService: IFileService,
-		@IWorkspacesService private workspacesService: IWorkspacesService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -351,30 +351,29 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		if (shortenDuplicates) {
-			// identify duplicate titles
+			// gather duplicate titles, while filtering out invalid descriptions
 			const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
 			for (const label of labels) {
-				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
+				if (typeof label.description === 'string' && label.description) {
+					getOrSet(mapTitleToDuplicates, label.name, []).push(label);
+				} else {
+					label.description = '';
+				}
 			}
 
 			// identify duplicate titles and shorten descriptions
 			mapTitleToDuplicates.forEach(duplicateTitles => {
-				// don't display a description unless the title is duplicated
+				// remove description if the title isn't duplicated
 				if (duplicateTitles.length === 1) {
 					duplicateTitles[0].description = '';
 					return;
 				}
 
+				// identify duplicate descriptions
 				const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
-				// identify duplicate descriptions, while filtering out invalid descriptions
 				for (const label of duplicateTitles) {
-					if (typeof label.description !== 'string' || !label.description) {
-						label.description = '';
-					} else {
-						getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
-					}
+					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
 				}
-				duplicateTitles = duplicateTitles.filter(label => label.description);
 
 				// for editors with duplicate descriptions, check whether any long descriptions differ
 				let useLongDescriptions = false;
@@ -398,7 +397,7 @@ export class TabsTitleControl extends TitleControl {
 				const descriptions: string[] = [];
 				mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
 
-				// remove descriptions if all descriptions are the same
+				// remove description if all descriptions are identical
 				if (descriptions.length === 1) {
 					for (const label of mapDescriptionToDuplicates.get(descriptions[0])) {
 						label.description = '';
@@ -409,8 +408,9 @@ export class TabsTitleControl extends TitleControl {
 				// shorten descriptions
 				const shortenedDescriptions = shorten(descriptions);
 				descriptions.forEach((description, i) => {
-					const duplicateDescriptions = mapDescriptionToDuplicates.get(description);
-					duplicateDescriptions.map(label => label.description = shortenedDescriptions[i]);
+					for (const label of mapDescriptionToDuplicates.get(description)) {
+						label.description = shortenedDescriptions[i];
+					}
 				});
 			});
 		}
