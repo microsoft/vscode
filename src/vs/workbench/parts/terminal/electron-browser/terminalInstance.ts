@@ -412,10 +412,8 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
-		// In order to support escape to close the find widget when the terminal
-		// is focused terminalFocus needs to be true when either the terminal or
-		// the find widget are focused.
-		this._terminalFocusContextKey.set(isFocused || document.activeElement === this._xterm.textarea);
+		const terminalFocused = !isFocused && (document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element);
+		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
 	public dispose(): void {
