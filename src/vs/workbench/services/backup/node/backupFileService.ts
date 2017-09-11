@@ -7,7 +7,6 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
-import * as platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
@@ -137,16 +136,6 @@ export class BackupFileService implements IBackupFileService {
 				return backupResource;
 			}
 
-			// Otherwise: on Windows and Mac pre v1.11 we used to store backups in lowercase format
-			// Therefor we also want to check if we have backups of this old format hanging around
-			// TODO@Ben migration
-			if (platform.isWindows || platform.isMacintosh) {
-				const legacyBackupResource = this.getBackupResource(resource, true /* legacyMacWindowsFormat */);
-				if (model.has(legacyBackupResource)) {
-					return legacyBackupResource;
-				}
-			}
-
 			return void 0;
 		});
 	}
@@ -184,21 +173,6 @@ export class BackupFileService implements IBackupFileService {
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
 				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
-			}).then(() => {
-
-				// On Windows and Mac pre v1.11 we used to store backups in lowercase format
-				// Therefor we also want to check if we have backups of this old format laying around
-				// TODO@Ben migration
-				if (platform.isWindows || platform.isMacintosh) {
-					const legacyBackupResource = this.getBackupResource(resource, true /* legacyMacWindowsFormat */);
-					if (model.has(legacyBackupResource)) {
-						return this.ioOperationQueues.queueFor(legacyBackupResource).queue(() => {
-							return pfs.del(legacyBackupResource.fsPath).then(() => model.remove(legacyBackupResource));
-						});
-					}
-				}
-
-				return TPromise.as(void 0);
 			});
 		});
 	}
@@ -235,17 +209,15 @@ export class BackupFileService implements IBackupFileService {
 		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
-	protected getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {
+	protected getBackupResource(resource: Uri): Uri {
 		if (!this.backupEnabled) {
 			return null;
 		}
 
-		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource, legacyMacWindowsFormat)));
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
 	}
 
-	private hashPath(resource: Uri, legacyMacWindowsFormat?: boolean): string {
-		const caseAwarePath = legacyMacWindowsFormat ? resource.fsPath.toLowerCase() : resource.fsPath;
-
-		return crypto.createHash('md5').update(caseAwarePath).digest('hex');
+	private hashPath(resource: Uri): string {
+		return crypto.createHash('md5').update(resource.fsPath).digest('hex');
 	}
 }
