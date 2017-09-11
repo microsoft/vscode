@@ -86,7 +86,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.11.0",
-    "gulp-tsb": "^2.0.4",
+    "gulp-tsb": "2.0.4",
     "gulp-tslint": "^7.0.1",
     "gulp-uglify": "^3.0.0",
     "gulp-util": "^3.0.6",
