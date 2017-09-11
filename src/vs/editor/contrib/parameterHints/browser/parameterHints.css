@@ -45,6 +45,9 @@
 
 .monaco-editor .parameter-hints-widget .docs {
 	padding: 0 10px 0 5px;
+}
+
+.monaco-editor .parameter-hints-widget .docs .code {
 	white-space: pre-wrap;
 }
 

@@ -213,7 +213,6 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
-	white-space: pre-wrap;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
@@ -229,6 +228,10 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
+	white-space: pre-wrap;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
