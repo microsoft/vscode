@@ -24,6 +24,7 @@ const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
 const MIN_EDITOR_PART_WIDTH = 220;
 const MIN_PANEL_PART_HEIGHT = 77;
+const MIN_PANEL_PART_WIDTH = 70;
 const DEFAULT_PANEL_HEIGHT_COEFFICIENT = 0.4;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
@@ -35,7 +36,7 @@ interface PartLayoutInfo {
 	titlebar: { height: number; };
 	activitybar: { width: number; };
 	sidebar: { minWidth: number; };
-	panel: { minHeight: number; };
+	panel: { minHeight: number; minWidth: number; };
 	editor: { minWidth: number; minHeight: number; };
 	statusbar: { height: number; };
 }
@@ -116,7 +117,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 4,
-			orientation: Orientation.HORIZONTAL
+			orientation: Orientation.VERTICAL
 		});
 
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
@@ -143,7 +144,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				minWidth: MIN_SIDEBAR_PART_WIDTH
 			},
 			panel: {
-				minHeight: MIN_PANEL_PART_HEIGHT
+				minHeight: MIN_PANEL_PART_HEIGHT,
+				minWidth: MIN_PANEL_PART_WIDTH
 			},
 			editor: {
 				minWidth: MIN_EDITOR_PART_WIDTH,
@@ -255,18 +257,18 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		});
 
-		this.sashY.addListener('reset', () => {
-			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
-			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
-		});
-
 		this.sashX.addListener('reset', () => {
 			let activeViewlet = this.viewletService.getActiveViewlet();
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(MIN_SIDEBAR_PART_WIDTH, optimalWidth || 0);
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
+		});
+
+		this.sashY.addListener('reset', () => {
+			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		});
 	}
 
