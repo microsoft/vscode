@@ -33,6 +33,7 @@ import { QUICKOPEN_ACTION_ID, getQuickNavigateHandler } from 'vs/workbench/brows
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 
 const quickOpenRegistry = (<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen));
 
@@ -230,6 +231,7 @@ configurationRegistry.registerConfiguration({
 				NavigateLeftAction.ID,
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID,
+				TogglePanelAction.ID,
 				'workbench.action.quickOpenView'
 			].sort()
 		},
