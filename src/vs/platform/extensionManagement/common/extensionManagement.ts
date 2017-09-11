@@ -96,6 +96,7 @@ export interface IExtensionContributions {
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
+	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
 	colors: IColor[];
 }

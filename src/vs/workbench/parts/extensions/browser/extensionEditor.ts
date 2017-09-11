@@ -429,7 +429,8 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
-					this.renderThemes(content, manifest, layout),
+					this.renderColorThemes(content, manifest, layout),
+					this.renderIconThemes(content, manifest, layout),
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
@@ -591,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -600,7 +601,24 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
+			$('summary', null, localize('colorThemes', "Color Themes ({0})", contrib.length)),
+			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.iconThemes || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
 		);
 
