@@ -244,9 +244,9 @@ export abstract class HeaderView extends View {
 	protected abstract layoutBody(size: number): void;
 }
 
-export interface ICollapsibleViewOptions {
+export interface IAbstractCollapsibleViewOptions {
 	sizing: ViewSizing;
-	ariaHeaderLabel: string;
+	ariaHeaderLabel?: string;
 	bodySize?: number;
 	initialState?: CollapsibleState;
 }
@@ -268,7 +268,7 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 	private _previousSize: number = null;
 	private readonly viewSizing: ViewSizing;
 
-	constructor(initialSize: number | undefined, opts: ICollapsibleViewOptions) {
+	constructor(initialSize: number | undefined, opts: IAbstractCollapsibleViewOptions) {
 		super(initialSize, opts);
 		this.viewSizing = opts.sizing;
 		this.ariaHeaderLabel = opts.ariaHeaderLabel;
@@ -493,6 +493,7 @@ export interface SplitViewStyles {
 export class SplitView extends lifecycle.Disposable implements
 	sash.IHorizontalSashLayoutProvider,
 	sash.IVerticalSashLayoutProvider {
+
 	private orientation: Orientation;
 	private canDragAndDrop: boolean;
 	private el: HTMLElement;
@@ -520,6 +521,10 @@ export class SplitView extends lifecycle.Disposable implements
 
 	private _onDidOrderChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidOrderChange: Event<void> = this._onDidOrderChange.event;
+
+	get length(): number {
+		return this.views.length;
+	}
 
 	constructor(container: HTMLElement, options?: IOptions) {
 		super();
