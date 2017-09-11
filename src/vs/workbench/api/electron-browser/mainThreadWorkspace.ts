@@ -135,12 +135,14 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const emitter = new Emitter<URI>();
 		const provider = {
 			onDidChange: emitter.event,
-			resolve: (resource: URI) => {
+			read: (resource: URI) => {
 				return this._proxy.$resolveFile(handle, resource);
 			},
-			update: (resource: URI, value: string) => {
+			write: (resource: URI, value: string) => {
 				return this._proxy.$storeFile(handle, resource, value);
-			}
+			},
+			stat: () => null,
+			readdir: () => null
 		};
 		const searchProvider = {
 			search: (query: ISearchQuery) => {

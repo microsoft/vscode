@@ -1370,7 +1370,8 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 		if (this.resource) {
 			source = this.resource;
 		} else {
-			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
+			// source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: ['file', 'untitled'] });
+			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		}
 
 		if (source) {

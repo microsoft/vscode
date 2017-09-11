@@ -778,7 +778,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.contextService.hasFolderWorkspace() ? this.model.roots[0] : this.model;
+			const input = /* this.contextService.hasFolderWorkspace() ? this.model.roots[0] : */ this.model;
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}

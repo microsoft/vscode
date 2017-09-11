@@ -273,7 +273,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		let input: ICachedEditorInput;
-		if (resource.scheme === network.Schemas.file) {
+		if (resource.scheme === network.Schemas.file || resource.scheme === 'ftp') {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
 		} else {
 			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);

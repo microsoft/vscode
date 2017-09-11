@@ -25,7 +25,10 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
+		const setRoots = () => {
+			this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
+			this._roots.push(new FileStat(URI.parse('ftp://waws-prod-db3-029.ftp.azurewebsites.windows.net/'), undefined));
+		};
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}
@@ -262,7 +265,8 @@ export class FileStat implements IFileStat {
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
+		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
+		// this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
 
 		if (recursive) {
 			if (this.isDirectory && this.hasChildren && this.children) {
