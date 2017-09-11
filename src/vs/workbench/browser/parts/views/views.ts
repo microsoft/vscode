@@ -35,86 +35,54 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IViewOptions {
-
 	id: string;
-
 	name: string;
-
 	actionRunner: IActionRunner;
-
 	collapsed: boolean;
-
 }
 
 export interface IViewConstructorSignature {
-
 	new(initialSize: number, options: IViewOptions, ...services: { _serviceBrand: any; }[]): IView;
-
 }
 
 export interface IView extends IBaseView, IThemable {
-
 	id: string;
-
 	name: string;
-
 	getHeaderElement(): HTMLElement;
-
 	create(): TPromise<void>;
-
 	setVisible(visible: boolean): TPromise<void>;
-
 	isVisible(): boolean;
-
 	getActions(): IAction[];
-
 	getSecondaryActions(): IAction[];
-
 	getActionItem(action: IAction): IActionItem;
-
 	getActionsContext(): any;
-
 	showHeader(): boolean;
-
 	hideHeader(): boolean;
-
 	focusBody(): void;
-
 	isExpanded(): boolean;
-
 	expand(): void;
-
 	collapse(): void;
-
 	getOptimalWidth(): number;
-
 	shutdown(): void;
 }
 
 export interface ICollapsibleViewOptions extends IViewOptions {
-
 	ariaHeaderLabel?: string;
-
 	sizing: ViewSizing;
-
 	initialBodySize?: number;
-
 }
 
 export abstract class CollapsibleView extends AbstractCollapsibleView implements IView {
 
 	readonly id: string;
 	readonly name: string;
-
 	protected treeContainer: HTMLElement;
 	protected tree: ITree;
 	protected toDispose: IDisposable[];
 	protected toolBar: ToolBar;
 	protected actionRunner: IActionRunner;
 	protected isDisposed: boolean;
-
 	private _isVisible: boolean;
-
 	private dragHandler: DelayedDragHandler;
 
 	constructor(
@@ -144,7 +112,7 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 
 	get draggableLabel(): string { return this.name; }
 
-	public create(): TPromise<void> {
+	create(): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -152,7 +120,7 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		return this.header;
 	}
 
-	public renderHeader(container: HTMLElement): void {
+	renderHeader(container: HTMLElement): void {
 
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
@@ -184,15 +152,15 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		return treeContainer;
 	}
 
-	public getViewer(): ITree {
+	getViewer(): ITree {
 		return this.tree;
 	}
 
-	public isVisible(): boolean {
+	isVisible(): boolean {
 		return this._isVisible;
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 			this.updateTreeVisibility(this.tree, visible && this.state === CollapsibleState.EXPANDED);
@@ -201,7 +169,7 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		return TPromise.as(null);
 	}
 
-	public focusBody(): void {
+	focusBody(): void {
 		this.focusTree();
 	}
 
@@ -213,38 +181,38 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 		return this.tree.reveal(element, relativeTop);
 	}
 
-	public layoutBody(size: number): void {
+	layoutBody(size: number): void {
 		if (this.tree) {
 			this.treeContainer.style.height = size + 'px';
 			this.tree.layout(size);
 		}
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		return [];
 	}
 
-	public getSecondaryActions(): IAction[] {
+	getSecondaryActions(): IAction[] {
 		return [];
 	}
 
-	public getActionItem(action: IAction): IActionItem {
+	getActionItem(action: IAction): IActionItem {
 		return null;
 	}
 
-	public getActionsContext(): any {
+	getActionsContext(): any {
 		return undefined;
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 		// Subclass to implement
 	}
 
-	public getOptimalWidth(): number {
+	getOptimalWidth(): number {
 		return 0;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.isDisposed = true;
 		this.treeContainer = null;
 
@@ -300,33 +268,24 @@ export abstract class CollapsibleView extends AbstractCollapsibleView implements
 }
 
 export interface IViewletViewOptions extends IViewOptions {
-
 	viewletSettings: object;
-
 }
 
 export interface IViewState {
-
 	collapsed: boolean;
-
 	size: number | undefined;
-
 	isHidden: boolean;
-
 	order: number;
-
 }
 
 export class ViewsViewlet extends Viewlet {
 
 	protected viewletContainer: HTMLElement;
 	protected lastFocusedView: IView;
-
 	private splitView: SplitView;
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	protected dimension: Dimension;
 	private viewletSettings: object;
-
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
@@ -339,7 +298,6 @@ export class ViewsViewlet extends Viewlet {
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
@@ -358,7 +316,7 @@ export class ViewsViewlet extends Viewlet {
 		});
 	}
 
-	public create(parent: Builder): TPromise<void> {
+	create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
 		this.viewletContainer = DOM.append(parent.getHTMLElement(), DOM.$(''));
@@ -379,7 +337,7 @@ export class ViewsViewlet extends Viewlet {
 			});
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		let title = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet(this.getId()).name;
 		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			title += ': ' + this.splitView.getViews<IView>()[0].name;
@@ -387,21 +345,21 @@ export class ViewsViewlet extends Viewlet {
 		return title;
 	}
 
-	public getActions(): IAction[] {
+	getActions(): IAction[] {
 		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getActions();
 		}
 		return [];
 	}
 
-	public getSecondaryActions(): IAction[] {
+	getSecondaryActions(): IAction[] {
 		if (this.showHeaderInTitleArea() && this.splitView.getViews<IView>()[0]) {
 			return this.splitView.getViews<IView>()[0].getSecondaryActions();
 		}
 		return [];
 	}
 
-	public getContextMenuActions(): IAction[] {
+	getContextMenuActions(): IAction[] {
 		return this.getViewDescriptorsFromRegistry(true)
 			.filter(viewDescriptor => viewDescriptor.canToggleVisibility && this.contextKeyService.contextMatchesRules(viewDescriptor.when))
 			.map(viewDescriptor => (<IAction>{
@@ -413,14 +371,14 @@ export class ViewsViewlet extends Viewlet {
 			}));
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible)
 			.then(() => TPromise.join(this.splitView.getViews<IView>().filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
 
 		if (this.lastFocusedView) {
@@ -430,18 +388,18 @@ export class ViewsViewlet extends Viewlet {
 		}
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		this.layoutViews();
 	}
 
-	public getOptimalWidth(): number {
+	getOptimalWidth(): number {
 		const additionalMargin = 16;
 		const optimalWidth = Math.max(...this.splitView.getViews<IView>().map(view => view.getOptimalWidth() || 0));
 		return optimalWidth + additionalMargin;
 	}
 
-	public shutdown(): void {
+	shutdown(): void {
 		this.splitView.getViews<IView>().forEach((view) => view.shutdown());
 		super.shutdown();
 	}
@@ -746,12 +704,12 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
 		this.loadViewsStates();
 	}
 
