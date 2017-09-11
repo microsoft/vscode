@@ -68,7 +68,7 @@ export interface IWindowsMainService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
-	waitForWindowClose(windowId: number): TPromise<void>;
+	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
 	openNewWindow(context: OpenContext): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;

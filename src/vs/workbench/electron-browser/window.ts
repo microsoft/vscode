@@ -17,7 +17,7 @@ import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -77,7 +77,8 @@ export class ElectronWindow extends Themable {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IFileService private fileService: IFileService
 	) {
 		super(themeService);
 
@@ -293,7 +294,7 @@ export class ElectronWindow extends Themable {
 
 		// Single folder or no workspace: create workspace and open
 		else {
-			let workspaceFolders: URI[] = [];
+			const workspaceFolders: URI[] = [];
 
 			// Folder of workspace is the first of multi root workspace, so add it
 			if (this.contextService.hasFolderWorkspace()) {
@@ -309,8 +310,8 @@ export class ElectronWindow extends Themable {
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {
-		let inputs: IResourceInputType[] = [];
-		let diffMode = (request.filesToDiff.length === 2);
+		const inputs: IResourceInputType[] = [];
+		const diffMode = (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -327,11 +328,25 @@ export class ElectronWindow extends Themable {
 		if (inputs.length) {
 			this.openResources(inputs, diffMode).done(null, errors.onUnexpectedError);
 		}
+
+		if (request.filesToWait && inputs.length) {
+			// In wait mode, listen to changes to the editors and wait until the files
+			// are closed that the user wants to wait for. When this happens we delete
+			// the wait marker file to signal to the outside that editing is done.
+			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.file(p.filePath));
+			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
+			const stacks = this.editorGroupService.getStacksModel();
+			const unbind = stacks.onEditorClosed(() => {
+				if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+					unbind.dispose();
+					this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+				}
+			});
+		}
 	}
 
 	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
 		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
-
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

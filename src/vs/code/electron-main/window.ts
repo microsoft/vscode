@@ -279,10 +279,6 @@ export class CodeWindow implements ICodeWindow {
 		return this.currentConfig ? this.currentConfig.folderPath : void 0;
 	}
 
-	public get openedFilePath(): string {
-		return this.currentConfig && this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
-	}
-
 	public setReady(): void {
 		this._readyState = ReadyState.READY;
 
@@ -516,6 +512,7 @@ export class CodeWindow implements ICodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
+		delete configuration.filesToWait;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in extension development mode. These options are all development related.

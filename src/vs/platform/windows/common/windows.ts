@@ -203,10 +203,16 @@ export interface IPath {
 	columnNumber?: number;
 }
 
+export interface IPathsToWaitFor {
+	paths: IPath[];
+	waitMarkerFilePath: string;
+}
+
 export interface IOpenFileRequest {
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
 }
 
 export interface IAddFoldersRequest {

@@ -104,7 +104,7 @@ export class LaunchService implements ILaunchService {
 				context,
 				cli: args,
 				userEnv,
-				forceNewWindow: args.wait || args['new-window'],
+				forceNewWindow: args['new-window'],
 				preferNewWindow: !args['reuse-window'],
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
@@ -115,7 +115,7 @@ export class LaunchService implements ILaunchService {
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
 		// is being used and only then resolve the startup promise which will kill this second instance
 		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
-			return this.windowsService.waitForWindowClose(usedWindows[0].id);
+			return this.windowsService.waitForWindowCloseOrLoad(usedWindows[0].id);
 		}
 
 		return TPromise.as(null);

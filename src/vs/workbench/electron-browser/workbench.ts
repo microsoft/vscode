@@ -181,6 +181,7 @@ export class Workbench implements IPartService {
 	private backupFileService: IBackupFileService;
 	private configurationEditingService: IConfigurationEditingService;
 	private workspaceMigrationService: WorkspaceMigrationService;
+	private fileService: IFileService;
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
@@ -421,14 +422,13 @@ export class Workbench implements IPartService {
 	}
 
 	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
+		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create
 		if (this.hasFilesToCreateOpenOrDiff) {
-			const filesToCreate = this.toInputs(this.workbenchParams.configuration.filesToCreate);
-			const filesToOpen = this.toInputs(this.workbenchParams.configuration.filesToOpen);
-			const filesToDiff = this.toInputs(this.workbenchParams.configuration.filesToDiff);
 
 			// Files to diff is exclusive
+			const filesToDiff = this.toInputs(config.filesToDiff, false);
 			if (filesToDiff && filesToDiff.length === 2) {
 				return TPromise.as([<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
@@ -437,17 +437,11 @@ export class Workbench implements IPartService {
 				}]);
 			}
 
-			// Otherwise: Open/Create files
-			else {
-				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
-					return <IUntitledResourceInput>{
-						filePath: resourceInput.resource.fsPath,
-						options: { pinned: true }
-					};
-				});
+			const filesToCreate = this.toInputs(config.filesToCreate, true);
+			const filesToOpen = this.toInputs(config.filesToOpen, false);
 
-				return TPromise.as([].concat(filesToOpen).concat(filesToCreateInputs));
-			}
+			// Otherwise: Open/Create files
+			return TPromise.as([...filesToOpen, ...filesToCreate]);
 		}
 
 		// Empty workbench
@@ -468,20 +462,21 @@ export class Workbench implements IPartService {
 		return TPromise.as([]);
 	}
 
-	private toInputs(paths?: IPath[]): IResourceInput[] {
+	private toInputs(paths: IPath[], isNew: boolean): (IResourceInput | IUntitledResourceInput)[] {
 		if (!paths || !paths.length) {
 			return [];
 		}
 
 		return paths.map(p => {
-			const input = <IResourceInput>{};
-			input.resource = URI.file(p.filePath);
+			const resource = URI.file(p.filePath);
+			let input: IResourceInput | IUntitledResourceInput;
+			if (isNew) {
+				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+			} else {
+				input = { resource, options: { pinned: true } } as IResourceInput;
+			}
 
-			input.options = {
-				pinned: true // opening on startup is always pinned and not preview
-			};
-
-			if (p.lineNumber) {
+			if (!isNew && p.lineNumber) {
 				input.options.selection = {
 					startLineNumber: p.lineNumber,
 					startColumn: p.columnNumber
@@ -579,9 +574,9 @@ export class Workbench implements IPartService {
 		serviceCollection.set(ITitleService, this.titlebarPart);
 
 		// File Service
-		const fileService = this.instantiationService.createInstance(RemoteFileService);
-		serviceCollection.set(IFileService, fileService);
-		this.toDispose.push(fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
+		this.fileService = this.instantiationService.createInstance(RemoteFileService);
+		serviceCollection.set(IFileService, this.fileService);
+		this.toDispose.push(this.fileService.onFileChanges(e => this.configurationService.handleWorkspaceFileEvents(e)));
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
@@ -994,6 +989,16 @@ export class Workbench implements IPartService {
 		// Listen to editor changes
 		this.toDispose.push(this.editorPart.onEditorsChanged(() => this.onEditorsChanged()));
 
+		// Listen to editor closing (if we run with --wait)
+		const filesToWait = this.workbenchParams.configuration.filesToWait;
+		if (filesToWait) {
+			const resourcesToWaitFor = filesToWait.paths.map(p => URI.file(p.filePath));
+			const waitMarkerFile = URI.file(filesToWait.waitMarkerFilePath);
+			const listenerDispose = this.editorPart.getStacksModel().onEditorClosed(() => this.onEditorClosed(listenerDispose, resourcesToWaitFor, waitMarkerFile));
+
+			this.toDispose.push(listenerDispose);
+		}
+
 		// Handle message service and quick open events
 		this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
 		this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
@@ -1029,6 +1034,18 @@ export class Workbench implements IPartService {
 		if (hasCustomTitle) {
 			this._onTitleBarVisibilityChange.fire();
 			this.layout(); // handle title bar when fullscreen changes
+		}
+	}
+
+	private onEditorClosed(listenerDispose: IDisposable, resourcesToWaitFor: URI[], waitMarkerFile: URI): void {
+
+		// In wait mode, listen to changes to the editors and wait until the files
+		// are closed that the user wants to wait for. When this happens we delete
+		// the wait marker file to signal to the outside that editing is done.
+		const stacks = this.editorPart.getStacksModel();
+		if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+			listenerDispose.dispose();
+			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
 		}
 	}
 
