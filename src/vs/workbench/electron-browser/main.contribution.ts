@@ -129,6 +129,23 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 		'default': true
 	},
+	'workbench.editor.tabSubtitle': {
+		'type': 'string',
+		'enum': ['default', 'short', 'medium', 'long'],
+		'enumDescriptions': [
+			nls.localize('workbench.editor.tabSubtitle.default', "When two files have the same name, shows the distinguinshing sections of each file's path."),
+			nls.localize('workbench.editor.tabSubtitle.short', "Always shows the directory which contains the file."),
+			nls.localize('workbench.editor.tabSubtitle.medium', "Always shows the file's path relative to the workspace root."),
+			nls.localize('workbench.editor.tabSubtitle.long', "Always shows the file's absolute path.")
+		],
+		'default': 'default',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
+			`Controls the format of the subtitle for an editor tab. Subtitles show up next to the file name depending on this setting and make it easier to understand the location of a file:
+- short:   'parent'
+- medium:  'workspace/src/parent'
+- long:    '/home/user/workspace/src/parent'
+- default: '.../parent', when another tab shares the same title`),
+	},
 	'workbench.editor.tabCloseButton': {
 		'type': 'string',
 		'enum': ['left', 'right', 'off'],

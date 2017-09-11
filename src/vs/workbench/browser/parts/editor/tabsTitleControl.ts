@@ -47,7 +47,6 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 interface IEditorInputLabel {
 	name: string;
-	hasAmbiguousName?: boolean;
 	description?: string;
 	title?: string;
 }
@@ -264,7 +263,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.context.getEditors();
-		const labels = this.getUniqueTabLabels(editorsOfGroup);
+		const labels = this.getTabLabels(editorsOfGroup);
 
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
@@ -276,7 +275,7 @@ export class TabsTitleControl extends TitleControl {
 
 				const label = labels[index];
 				const name = label.name;
-				const description = label.hasAmbiguousName && label.description ? label.description : '';
+				const description = label.description || '';
 				const title = label.title || '';
 
 				// Container
@@ -338,54 +337,98 @@ export class TabsTitleControl extends TitleControl {
 		this.layout();
 	}
 
-	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
-		const labels: IEditorInputLabel[] = [];
-
-		const mapLabelToDuplicates = new Map<string, IEditorInputLabel[]>();
-		const mapLabelAndDescriptionToDuplicates = new Map<string, IEditorInputLabel[]>();
+	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+		const tabSubtitleStyle = this.editorGroupService.getTabOptions().tabSubtitleStyle;
+		const { verbosity, shortenDuplicates } = this.getSubtitleConfigFlags(tabSubtitleStyle);
 
 		// Build labels and descriptions for each editor
-		editors.forEach(editor => {
-			const name = editor.getName();
-			let description = editor.getDescription();
-			if (mapLabelAndDescriptionToDuplicates.has(`${name}${description}`)) {
-				description = editor.getDescription(true); // try verbose description if name+description already exists
-			}
+		type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
+		const labels = editors.map(editor => ({
+			editor,
+			name: editor.getName(),
+			description: editor.getDescription(verbosity),
+			title: editor.getTitle(Verbosity.LONG)
+		}));
 
-			const item: IEditorInputLabel = {
-				name,
-				description,
-				title: editor.getTitle(Verbosity.LONG)
-			};
-			labels.push(item);
-
-			getOrSet(mapLabelToDuplicates, item.name, []).push(item);
-
-			if (typeof description === 'string') {
-				getOrSet(mapLabelAndDescriptionToDuplicates, `${item.name}${item.description}`, []).push(item);
-			}
-		});
-
-		// Mark duplicates and shorten their descriptions
-		mapLabelToDuplicates.forEach(duplicates => {
-			if (duplicates.length > 1) {
-				duplicates = duplicates.filter(d => {
-					// we could have items with equal label and description. in that case it does not make much
-					// sense to produce a shortened version of the label, so we ignore those kind of items
-					return typeof d.description === 'string' && mapLabelAndDescriptionToDuplicates.get(`${d.name}${d.description}`).length === 1;
-				});
-
-				if (duplicates.length > 1) {
-					const shortenedDescriptions = shorten(duplicates.map(duplicate => duplicate.description));
-					duplicates.forEach((duplicate, i) => {
-						duplicate.description = shortenedDescriptions[i];
-						duplicate.hasAmbiguousName = true;
-					});
+		if (shortenDuplicates) {
+			// gather duplicate titles, while filtering out invalid descriptions
+			const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
+			for (const label of labels) {
+				if (typeof label.description === 'string' && label.description) {
+					getOrSet(mapTitleToDuplicates, label.name, []).push(label);
+				} else {
+					label.description = '';
 				}
 			}
-		});
+
+			// identify duplicate titles and shorten descriptions
+			mapTitleToDuplicates.forEach(duplicateTitles => {
+				// remove description if the title isn't duplicated
+				if (duplicateTitles.length === 1) {
+					duplicateTitles[0].description = '';
+					return;
+				}
+
+				// identify duplicate descriptions
+				const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
+				for (const label of duplicateTitles) {
+					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+				}
+
+				// for editors with duplicate descriptions, check whether any long descriptions differ
+				let useLongDescriptions = false;
+				mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
+					if (!useLongDescriptions && duplicateDescriptions.length > 1) {
+						const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
+						useLongDescriptions = rest.some(description => description !== first);
+					}
+				});
+
+				// if so, replace all descriptions with long descriptions
+				if (useLongDescriptions) {
+					mapDescriptionToDuplicates.clear();
+					duplicateTitles.forEach(label => {
+						label.description = label.editor.getDescription(Verbosity.LONG);
+						getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+					});
+				}
+
+				// obtain final set of descriptions
+				const descriptions: string[] = [];
+				mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
+
+				// remove description if all descriptions are identical
+				if (descriptions.length === 1) {
+					for (const label of mapDescriptionToDuplicates.get(descriptions[0])) {
+						label.description = '';
+					}
+					return;
+				}
+
+				// shorten descriptions
+				const shortenedDescriptions = shorten(descriptions);
+				descriptions.forEach((description, i) => {
+					for (const label of mapDescriptionToDuplicates.get(description)) {
+						label.description = shortenedDescriptions[i];
+					}
+				});
+			});
+		}
 
 		return labels;
+	}
+
+	private getSubtitleConfigFlags(value: string) {
+		switch (value) {
+			case 'short':
+				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
+			case 'medium':
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: false };
+			case 'long':
+				return { verbosity: Verbosity.LONG, shortenDuplicates: false };
+			default:
+				return { verbosity: Verbosity.MEDIUM, shortenDuplicates: true };
+		}
 	}
 
 	protected doRefresh(): void {
