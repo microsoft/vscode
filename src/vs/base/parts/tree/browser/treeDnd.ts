@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import _ = require('vs/base/parts/tree/browser/tree');
-import Mouse = require('vs/base/browser/mouseEvent');
+import * as _ from 'vs/base/parts/tree/browser/tree';
+import * as Mouse from 'vs/base/browser/mouseEvent';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';

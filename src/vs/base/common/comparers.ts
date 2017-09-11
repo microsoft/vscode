@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import scorer = require('vs/base/common/scorer');
-import strings = require('vs/base/common/strings');
+import * as scorer from 'vs/base/common/scorer';
+import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 
 let intlFileNameCollator: Intl.Collator;

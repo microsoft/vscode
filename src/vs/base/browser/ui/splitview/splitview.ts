@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./splitview';
-import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
-import types = require('vs/base/common/types');
-import dom = require('vs/base/browser/dom');
-import numbers = require('vs/base/common/numbers');
-import sash = require('vs/base/browser/ui/sash/sash');
+import * as lifecycle from 'vs/base/common/lifecycle';
+import * as ee from 'vs/base/common/eventEmitter';
+import * as types from 'vs/base/common/types';
+import * as dom from 'vs/base/browser/dom';
+import * as numbers from 'vs/base/common/numbers';
+import * as sash from 'vs/base/browser/ui/sash/sash';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';

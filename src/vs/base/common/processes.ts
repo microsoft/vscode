@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import NLS = require('vs/nls');
+import * as NLS from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
 import * as Platform from 'vs/base/common/platform';

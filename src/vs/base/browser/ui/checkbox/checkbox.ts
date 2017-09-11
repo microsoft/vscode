@@ -7,7 +7,7 @@
 
 import 'vs/css!./checkbox';
 
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import * as objects from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';

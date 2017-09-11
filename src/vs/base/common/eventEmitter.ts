@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class EmitterEvent {

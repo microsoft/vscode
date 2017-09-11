@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
+import * as platform from 'vs/base/common/platform';
+import * as types from 'vs/base/common/types';
 import { IAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import octiconLabel = require('vs/base/browser/ui/octiconLabel/octiconLabel');
+import * as octiconLabel from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { escape } from 'vs/base/common/strings';
 
 function expand(text: string): string {
@@ -26,8 +26,8 @@ class MockOcticonLabel {
 
 }
 
-var mock: typeof octiconLabel = {
+export var mock: typeof octiconLabel = {
 	expand: expand,
 	OcticonLabel: <any>MockOcticonLabel
 };
-export = mock;
+// export = mock;
