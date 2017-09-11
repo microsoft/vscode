@@ -97,6 +97,13 @@
 			}
 		},
 		{
+			"scope": "meta.embedded",
+			"settings": {
+				"background": "#272822",
+				"foreground": "#F8F8F2"
+			}
+		},
+		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
