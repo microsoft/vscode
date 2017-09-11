@@ -79,6 +79,12 @@ export interface IView {
 	name: string;
 }
 
+export interface IColor {
+	id: string;
+	description: string;
+	defaults: { light: string, dark: string, highContrast: string };
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -91,6 +97,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	views?: { [location: string]: IView[] };
+	colors: IColor[];
 }
 
 export interface IExtensionManifest {
