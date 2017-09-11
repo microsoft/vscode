@@ -58,7 +58,6 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from '
 import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewletService } from 'vs/workbench/services/viewlet/browser/viewletService';
-// import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
