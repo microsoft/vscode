@@ -560,18 +560,18 @@ export class SplitView extends lifecycle.Disposable implements
 		}
 
 		// The void space exists to handle the case where all other views are fixed size
-		this.addView(new VoidView(), 1, 0);
+		this.addView(new VoidView(), 0);
+	}
+
+	getView(index: number): IView | undefined {
+		return this.views[index];
 	}
 
 	getViews<T extends IView>(): T[] {
 		return <T[]>this.views.slice(0, this.views.length - 1);
 	}
 
-	addView(view: IView, initialWeight: number = 1, index = this.views.length - 1): void {
-		if (initialWeight <= 0) {
-			throw new Error('Initial weight must be a positive number.');
-		}
-
+	addView(view: IView, index = this.views.length - 1): void {
 		/**
 		 * Reset size to null. This will layout newly added views to initial weights.
 		 */

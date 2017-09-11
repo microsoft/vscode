@@ -522,7 +522,7 @@ export class ViewsViewlet extends Viewlet {
 					toCreate.push(view);
 
 					this.attachViewStyler(view);
-					this.splitView.addView(view, viewState && viewState.size ? Math.max(viewState.size, 1) : viewDescriptor.size, index);
+					this.splitView.addView(view, index);
 				}
 
 				return TPromise.join(toCreate.map(view => view.create()))
