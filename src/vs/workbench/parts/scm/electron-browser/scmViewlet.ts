@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
-import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IView, IViewOptions } from 'vs/workbench/browser/parts/views/views';
+import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IViewletView, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -552,7 +552,7 @@ export class SCMViewlet extends PersistentViewsViewlet {
 		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IView {
+	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IViewletView {
 		if (viewDescriptor instanceof SourceControlViewDescriptor) {
 			return this.instantiationService.createInstance(SourceControlView, initialSize, viewDescriptor.repository, options);
 		}
