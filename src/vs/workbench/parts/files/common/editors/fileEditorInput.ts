@@ -131,24 +131,21 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		let description: string;
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				if (!this.shortDescription) {
-					this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
-				}
-				return this.shortDescription;
+				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				break;
 			case Verbosity.LONG:
-				if (!this.longDescription) {
-					this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService);
-				}
-				return this.longDescription;
+				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				break;
 			case Verbosity.MEDIUM:
 			default:
-				if (!this.mediumDescription) {
-					this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
-				}
-				return this.mediumDescription;
+				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				break;
 		}
+
+		return description;
 	}
 
 	public getTitle(verbosity: Verbosity): string {

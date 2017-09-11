@@ -19,6 +19,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -35,6 +36,14 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	private _onDidModelChangeEncoding: Emitter<void>;
 
 	private toUnbind: IDisposable[];
+
+	private shortDescription: string;
+	private mediumDescription: string;
+	private longDescription: string;
+
+	private shortTitle: string;
+	private mediumTitle: string;
+	private longTitle: string;
 
 	constructor(
 		private resource: URI,
@@ -88,8 +97,47 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
 	}
 
-	public getDescription(): string {
-		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService) : null;
+	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		if (!this.hasAssociatedFilePath) {
+			return null;
+		}
+
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				break;
+		}
+
+		return description;
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		if (!this.hasAssociatedFilePath) {
+			return this.getName();
+		}
+
+		let title: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				break;
+			case Verbosity.MEDIUM:
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
+				break;
+			case Verbosity.LONG:
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
+				break;
+		}
+
+		return title;
 	}
 
 	public isDirty(): boolean {
