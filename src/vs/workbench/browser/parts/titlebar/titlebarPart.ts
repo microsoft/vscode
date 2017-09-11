@@ -265,6 +265,17 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		});
 
+		// Since the title area is used to drag the window, we do not want to steal focus from the
+		// currently active element. So we restore focus after a timeout back to where it was.
+		this.titleContainer.on([DOM.EventType.MOUSE_DOWN], () => {
+			const active = document.activeElement;
+			setTimeout(() => {
+				if (active instanceof HTMLElement) {
+					active.focus();
+				}
+			}, 0 /* need a timeout because we are in capture phase */);
+		}, void 0, true /* use capture to know the currently active element properly */);
+
 		return this.titleContainer;
 	}
 
