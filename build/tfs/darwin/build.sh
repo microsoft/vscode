@@ -28,14 +28,20 @@ step "Install distro dependencies" \
 step "Build minified & upload source maps" \
 	npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps
 
+step "Generate and upload configuration.json" \
+	npm run gulp -- upload-vscode-configuration
+
 # step "Create loader snapshot"
 #	node build/lib/snapshotLoader.js
 
-step "Run unit tests" \
-	./scripts/test.sh --build --reporter dot
+# step "Run unit tests" \
+# 	./scripts/test.sh --build --reporter dot
 
-step "Run integration tests" \
-	./scripts/test-integration.sh
+# step "Run integration tests" \
+# 	./scripts/test-integration.sh
 
 step "Publish release" \
 	./build/tfs/darwin/release.sh
+
+step "Generate and upload configuration.json" \
+	npm run gulp -- upload-vscode-configuration
