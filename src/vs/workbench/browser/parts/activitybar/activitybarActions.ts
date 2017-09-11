@@ -450,7 +450,7 @@ export class ViewletActionItem extends ActivityActionItem {
 
 		const isPinned = this.activityBarService.isPinned(this.viewlet.id);
 		if (isPinned) {
-			ViewletActionItem.toggleViewletPinnedAction.label = nls.localize('removeFromActivityBar', "Remove from Activity Bar");
+			ViewletActionItem.toggleViewletPinnedAction.label = nls.localize('removeFromActivityBar', "Hide from Activity Bar");
 		} else {
 			ViewletActionItem.toggleViewletPinnedAction.label = nls.localize('keepInActivityBar', "Keep in Activity Bar");
 		}
