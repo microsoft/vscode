@@ -235,7 +235,8 @@
 	vertical-align: middle;
 }
 
-.vs-dark .extension-editor > .body > .content table .colorBox {
+.vs-dark .extension-editor > .body > .content table .colorBox,
+.hc-black .extension-editor > .body > .content table .colorBox {
 	border-color: rgb(238, 238, 238);
 }
 
