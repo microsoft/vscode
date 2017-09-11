@@ -19,12 +19,12 @@ export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
-export interface ITabOptions {
+export interface IEditorTabOptions {
 	showTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	showIcons?: boolean;
 	previewEditors?: boolean;
-	tabSubtitleStyle?: 'default' | 'short' | 'medium' | 'long';
+	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 }
 
 export interface IMoveOptions {
@@ -63,7 +63,7 @@ export interface IEditorGroupService {
 	/**
 	 * Emitted when tab options changed.
 	 */
-	onTabOptionsChanged: Event<ITabOptions>;
+	onTabOptionsChanged: Event<IEditorTabOptions>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -131,5 +131,5 @@ export interface IEditorGroupService {
 	/**
 	 * Returns tab options.
 	 */
-	getTabOptions(): ITabOptions;
+	getTabOptions(): IEditorTabOptions;
 }

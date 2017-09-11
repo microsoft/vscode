@@ -807,7 +807,7 @@ export interface IWorkbenchEditorConfiguration {
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
 			swipeToNavigate: boolean,
-			tabSubtitle: 'default' | 'short' | 'medium' | 'long';
+			labelFormat: 'default' | 'short' | 'medium' | 'long';
 		}
 	};
 }

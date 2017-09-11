@@ -20,7 +20,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -115,7 +115,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private layoutVertically: boolean;
 
-	private tabOptions: ITabOptions;
+	private tabOptions: IEditorTabOptions;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -225,7 +225,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private updateTabOptions(tabOptions: ITabOptions, refresh?: boolean): void {
+	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
 		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
 		this.tabOptions = tabOptions;
 

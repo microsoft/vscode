@@ -340,8 +340,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
-		const tabSubtitleStyle = this.editorGroupService.getTabOptions().tabSubtitleStyle;
-		const { verbosity, shortenDuplicates } = this.getSubtitleConfigFlags(tabSubtitleStyle);
+		const labelFormat = this.editorGroupService.getTabOptions().labelFormat;
+		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
 		const labels = editors.map(editor => ({
@@ -428,7 +428,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private getSubtitleConfigFlags(value: string) {
+	private getLabelConfigFlags(value: string) {
 		switch (value) {
 			case 'short':
 				return { verbosity: Verbosity.SHORT, shortenDuplicates: false };
