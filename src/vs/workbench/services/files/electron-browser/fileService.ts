@@ -27,6 +27,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class FileService implements IFileService {
 
@@ -52,7 +53,8 @@ export class FileService implements IFileService {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<uri>();
@@ -80,7 +82,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, configurationService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();

@@ -56,6 +56,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -220,7 +222,9 @@ export class TestTextFileService extends TextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	const configService = new TestConfigurationService();
+	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchEditorService, new TestEditorService());
@@ -1162,3 +1166,21 @@ export class TestWindowsService implements IWindowsService {
 	}
 }
 
+export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
+
+	_serviceBrand: any;
+
+	constructor(private configurationService = new TestConfigurationService()) {
+	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
+	}
+
+	public getConfiguration(resource: URI, section?: string): any;
+	public getConfiguration(resource: URI, position?: IPosition, section?: string): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any {
+		return this.configurationService.getConfiguration(section, { resource });
+	}
+}
