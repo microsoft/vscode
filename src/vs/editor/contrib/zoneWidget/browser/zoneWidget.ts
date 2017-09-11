@@ -322,10 +322,18 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	}
 
 	private _showImpl(where: IRange, heightInLines: number): void {
-		const position = {
-			lineNumber: where.startLineNumber,
-			column: where.startColumn
-		};
+		let position: IPosition;
+		if (Range.spansMultipleLines(where)) {
+			position = {
+				lineNumber: where.endLineNumber,
+				column: where.endColumn,
+			};
+		} else {
+			position = {
+				lineNumber: where.startLineNumber,
+				column: where.startColumn,
+			};
+		}
 
 		const width = this._getWidth();
 		this.domNode.style.width = `${width}px`;
