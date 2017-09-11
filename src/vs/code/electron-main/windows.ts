@@ -176,11 +176,6 @@ export class WindowsManager implements IWindowsMainService {
 				state.folderPath = state.workspacePath;
 				state.workspacePath = void 0;
 			}
-
-			// TODO@Ben migration to new workspace ID
-			if (state.workspace) {
-				state.workspace.id = this.workspacesService.getWorkspaceId(state.workspace.configPath);
-			}
 		});
 	}
 
@@ -277,7 +272,6 @@ export class WindowsManager implements IWindowsMainService {
 	private onBeforeQuit(): void {
 		const currentWindowsState: ILegacyWindowsState = {
 			openedWindows: [],
-			openedFolders: [], // TODO@Ben migration so that old clients do not fail over data (prevents NPEs)
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
 			lastActiveWindow: this.lastClosedWindowState
 		};

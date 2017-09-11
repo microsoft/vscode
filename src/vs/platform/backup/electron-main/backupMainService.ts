@@ -225,22 +225,6 @@ export class BackupMainService implements IBackupMainService {
 			const hasBackups = this.hasBackupsSync(backupPath);
 			const missingWorkspace = hasBackups && !fs.existsSync(workspacePath);
 
-			// TODO@Ben migration from old workspace ID to new
-			if (hasBackups && !missingWorkspace && !isSingleFolderWorkspaceIdentifier(workspaceId) && workspaceId.id !== this.workspacesService.getWorkspaceId(workspacePath)) {
-				staleBackupWorkspaces.push({ workspaceIdentifier: workspaceId, backupPath, target: workspaceOrFolder.target });
-
-				const identifier = { id: this.workspacesService.getWorkspaceId(workspacePath), configPath: workspacePath } as IWorkspaceIdentifier;
-				this.pushBackupPathsSync(identifier, this.backups.rootWorkspaces);
-				const newWorkspaceBackupPath = path.join(this.backupHome, identifier.id);
-				try {
-					fs.renameSync(backupPath, newWorkspaceBackupPath);
-				} catch (ex) {
-					this.logService.error(`Backup: Could not rename backup folder for legacy workspace: ${ex.toString()}`);
-
-					this.removeBackupPathSync(identifier, this.backups.rootWorkspaces);
-				}
-			}
-
 			// If the workspace/folder has no backups, make sure to delete it
 			// If the workspace/folder has backups, but the target workspace is missing, convert backups to empty ones
 			if (!hasBackups || missingWorkspace) {
