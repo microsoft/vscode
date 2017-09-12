@@ -28,7 +28,7 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider): string {
+export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider, toOSPath = true): string {
 	if (!resource) {
 		return null;
 	}
@@ -46,7 +46,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {
 			pathLabel = ''; // no label if pathes are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.fsPath.length), nativeSep), toOSPath);
 		}
 
 		if (hasMultipleRoots) {
@@ -59,11 +59,11 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 
 	// convert c:\something => C:\something
 	if (platform.isWindows && resource.fsPath && resource.fsPath[1] === ':') {
-		return normalize(resource.fsPath.charAt(0).toUpperCase() + resource.fsPath.slice(1), true);
+		return normalize(resource.fsPath.charAt(0).toUpperCase() + resource.fsPath.slice(1), toOSPath);
 	}
 
 	// normalize and tildify (macOS, Linux only)
-	let res = normalize(resource.fsPath, true);
+	let res = normalize(resource.fsPath, toOSPath);
 	if (!platform.isWindows && userHomeProvider) {
 		res = tildify(res, userHomeProvider.userHome);
 	}
