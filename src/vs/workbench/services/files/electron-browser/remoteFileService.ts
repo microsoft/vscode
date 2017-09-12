@@ -23,6 +23,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 
 export interface IStat {
@@ -113,7 +114,8 @@ export class RemoteFileService extends FileService {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		super(
 			configurationService,
@@ -124,6 +126,7 @@ export class RemoteFileService extends FileService {
 			lifecycleService,
 			messageService,
 			storageService,
+			textResourceConfigurationService,
 		);
 		this.registerProvider('ftp', new Ftp.FtpFileSystemProvider());
 	}
