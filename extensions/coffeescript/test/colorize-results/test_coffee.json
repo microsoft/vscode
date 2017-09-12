@@ -311,11 +311,11 @@
 		"c": "#{",
 		"t": "source.coffee meta.function-call.coffee meta.arguments.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -333,11 +333,11 @@
 		"c": "}",
 		"t": "source.coffee meta.function-call.coffee meta.arguments.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -575,11 +575,11 @@
 		"c": "#{",
 		"t": "source.coffee meta.function-call.coffee meta.arguments.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -597,11 +597,11 @@
 		"c": "}",
 		"t": "source.coffee meta.function-call.coffee meta.arguments.coffee string.quoted.double.coffee source.coffee.embedded.source punctuation.section.embedded.coffee",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.coffee: #569CD6",
-			"light_plus": "punctuation.section.embedded.coffee: #0000FF",
-			"dark_vs": "punctuation.section.embedded.coffee: #569CD6",
-			"light_vs": "punctuation.section.embedded.coffee: #0000FF",
-			"hc_black": "punctuation.section.embedded.coffee: #569CD6"
+			"dark_plus": "punctuation.section.embedded: #569CD6",
+			"light_plus": "punctuation.section.embedded: #0000FF",
+			"dark_vs": "punctuation.section.embedded: #569CD6",
+			"light_vs": "punctuation.section.embedded: #0000FF",
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{

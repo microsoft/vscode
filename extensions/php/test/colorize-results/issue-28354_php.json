@@ -73,7 +73,7 @@
 			"light_plus": "punctuation.section.embedded.begin.php: #800000",
 			"dark_vs": "punctuation.section.embedded.begin.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.begin.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -458,7 +458,7 @@
 			"light_plus": "punctuation.section.embedded.end.php: #800000",
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{
@@ -469,7 +469,7 @@
 			"light_plus": "punctuation.section.embedded.end.php: #800000",
 			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
 			"light_vs": "punctuation.section.embedded.end.php: #800000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "punctuation.section.embedded: #569CD6"
 		}
 	},
 	{

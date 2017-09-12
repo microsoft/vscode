@@ -121,7 +121,7 @@
 			"name": "Template Definition",
 			"scope": [
 				"punctuation.definition.template-expression",
-				"punctuation.section.embedded.coffee"
+				"punctuation.section.embedded"
 			],
 			"settings": {
 				"foreground": "#F92672"

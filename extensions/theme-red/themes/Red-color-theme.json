@@ -170,14 +170,6 @@
 			}
 		},
 		{
-			"name": "String embedded-source",
-			"scope": "string.quoted source",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#9df39fff"
-			}
-		},
-		{
 			"name": "String constant",
 			"scope": "string constant",
 			"settings": {
