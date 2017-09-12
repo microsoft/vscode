@@ -134,10 +134,10 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				const supportedLinkFormats: LinkFormatInfo[] = [
 					{ urlFormat: '{0}' },
-					{ urlFormat: '{0} on line {1}', line: '5' },
-					{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
-					{ urlFormat: '{0}:line {1}', line: '5' },
-					{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
+					// { urlFormat: '{0} on line {1}', line: '5' },
+					// { urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
+					// { urlFormat: '{0}:line {1}', line: '5' },
+					// { urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
 					{ urlFormat: '{0}({1})', line: '5' },
 					{ urlFormat: '{0} ({1})', line: '5' },
 					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
