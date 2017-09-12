@@ -759,23 +759,10 @@ export abstract class BaseOpenRecentAction extends Action {
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 
-		let isCurrentWorkspaceInList: boolean;
-		if (!this.contextService.hasWorkspace()) {
-			isCurrentWorkspaceInList = false; // we never show empty workspaces
-		} else if (this.contextService.hasFolderWorkspace()) {
-			isCurrentWorkspaceInList = true; // we always show folder workspaces
-		} else {
-			const firstWorkspace = recentWorkspaces[0];
-			if (firstWorkspace) {
-				isCurrentWorkspaceInList = this.contextService.isCurrentWorkspace(firstWorkspace);
-			} else {
-				isCurrentWorkspaceInList = false; // this is an untitled workspace thereby
-			}
-		}
-
+		let autoFocusSecondEntry: boolean = this.contextService.hasWorkspace(); // focus second entry when there is a workspace
 		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !isCurrentWorkspaceInList, autoFocusSecondEntry: isCurrentWorkspaceInList },
+			autoFocus: { autoFocusFirstEntry: !autoFocusSecondEntry, autoFocusSecondEntry: autoFocusSecondEntry },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
