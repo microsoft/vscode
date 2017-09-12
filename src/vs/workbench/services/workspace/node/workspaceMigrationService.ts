@@ -62,19 +62,18 @@ export class WorkspaceMigrationService implements IWorkspaceMigrationService {
 	}
 
 	private migrateConfiguration(toWorkspaceId: IWorkspaceIdentifier): TPromise<void> {
-		const workspace = this.contextService.getWorkspace();
-		// Migrate configuration only if the current workspace configuration comes from folder
-		if (workspace && !workspace.configuration) {
-			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			const targetWorkspaceConfiguration = {};
-			for (const key of this.configurationService.keys().workspace) {
-				if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
-					targetWorkspaceConfiguration[key] = this.configurationService.lookup(key).workspace;
-				}
-			}
-
-			return this.jsonEditingService.write(URI.file(toWorkspaceId.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
+		if (!this.contextService.hasFolderWorkspace()) {
+			return TPromise.as(void 0); // return early if not a folder workspace is opened
 		}
-		return TPromise.as(void 0);
+
+		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const targetWorkspaceConfiguration = {};
+		for (const key of this.configurationService.keys().workspace) {
+			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+				targetWorkspaceConfiguration[key] = this.configurationService.lookup(key).workspace;
+			}
+		}
+
+		return this.jsonEditingService.write(URI.file(toWorkspaceId.configPath), { key: 'settings', value: targetWorkspaceConfiguration }, true);
 	}
 }

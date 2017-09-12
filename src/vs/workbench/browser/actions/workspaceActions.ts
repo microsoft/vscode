@@ -112,8 +112,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
 		}
 
-		// Create a new workspace configuration if not exists.
-		if (!this.contextService.getWorkspace().configuration) {
+		if (this.contextService.hasFolderWorkspace()) {
 			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 		}
 
@@ -200,22 +199,33 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const workspace = this.contextService.getWorkspace();
-		if (!workspace) {
+		if (!this.contextService.hasWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
 			return TPromise.as(null);
 		}
 
 		const configPath = this.getNewWorkspaceConfigPath();
 		if (configPath) {
-			if (!workspace.configuration) {
-				const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.fsPath);
-				return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
+			if (this.contextService.hasFolderWorkspace()) {
+				return this.saveFolderWorkspace(configPath);
 			}
-			return this.windowService.saveAndOpenWorkspace(configPath);
+
+			if (this.contextService.hasMultiFolderWorkspace()) {
+				return this.saveWorkspace(configPath);
+			}
 		}
 
 		return TPromise.as(null);
+	}
+
+	private saveWorkspace(configPath: string): TPromise<void> {
+		return this.windowService.saveAndOpenWorkspace(configPath);
+	}
+
+	private saveFolderWorkspace(configPath: string): TPromise<void> {
+		const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.fsPath);
+
+		return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 	}
 
 	private getNewWorkspaceConfigPath(): string {

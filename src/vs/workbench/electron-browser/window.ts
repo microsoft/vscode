@@ -286,19 +286,18 @@ export class ElectronWindow extends Themable {
 
 	private onAddFolders(request: IAddFoldersRequest): void {
 		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
-		const workspace = this.contextService.getWorkspace();
 
-		// Just add to workspace config
-		if (workspace && workspace.configuration) {
+		// Workspace: just add to workspace config
+		if (this.contextService.hasMultiFolderWorkspace()) {
 			this.workspaceEditingService.addRoots(foldersToAdd).done(null, errors.onUnexpectedError);
 		}
 
-		// No workspace or no workspace config: create workspace and open
+		// Single folder or no workspace: create workspace and open
 		else {
 			const workspaceFolders: URI[] = [];
 
 			// Folder of workspace is the first of multi root workspace, so add it
-			if (workspace) {
+			if (this.contextService.hasFolderWorkspace()) {
 				workspaceFolders.push(...this.contextService.getWorkspace().roots);
 			}
 

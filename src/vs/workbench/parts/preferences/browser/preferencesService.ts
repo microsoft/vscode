@@ -317,7 +317,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
 				const workspace = this.contextService.getWorkspace();
-				return workspace ? workspace.configuration || this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]) : null;
+				if (this.contextService.hasFolderWorkspace()) {
+					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
+				}
+				if (this.contextService.hasMultiFolderWorkspace()) {
+					return workspace.configuration;
+				}
+				return null;
 			case ConfigurationTarget.FOLDER:
 				const root = this.contextService.getRoot(resource);
 				return root ? this.toResource(paths.join('.vscode', 'settings.json'), root) : null;

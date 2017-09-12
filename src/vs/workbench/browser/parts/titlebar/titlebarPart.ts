@@ -192,8 +192,15 @@ export class TitlebarPart extends Part implements ITitleService {
 		const input = this.editorService.getActiveEditorInput();
 		const workspace = this.contextService.getWorkspace();
 
-		// root is either workspace configuration file or the first root folder
-		let root: URI = workspace ? workspace.configuration || workspace.roots[0] : null;
+		// Compute root resource
+		// Single Root Workspace: always the single root workspace in this case
+		// Multi Root Workspace: workspace configuration file
+		let root: URI;
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			root = workspace.configuration;
+		} else if (this.contextService.hasFolderWorkspace()) {
+			root = workspace.roots[0];
+		}
 
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
@@ -212,7 +219,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace ? workspace.name : '';
-		const rootPath = root ? labels.getPathLabel(root, void 0, this.environmentService) : '';
+		const rootPath = workspace ? labels.getPathLabel(root, void 0, this.environmentService) : '';
 		const folderName = folder ? (paths.basename(folder.fsPath) || folder.fsPath) : '';
 		const folderPath = folder ? labels.getPathLabel(folder, void 0, this.environmentService) : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
