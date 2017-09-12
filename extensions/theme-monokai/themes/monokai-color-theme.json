@@ -97,7 +97,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#272822",
 				"foreground": "#F8F8F2"

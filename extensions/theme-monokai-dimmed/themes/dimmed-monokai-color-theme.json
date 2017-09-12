@@ -52,7 +52,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#1e1e1e",
 				"foreground": "#C5C8C6"

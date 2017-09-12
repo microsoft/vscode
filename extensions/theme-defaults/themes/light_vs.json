@@ -4,7 +4,7 @@
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"foreground": "#000000ff",
 				"background":"#ffffffff"

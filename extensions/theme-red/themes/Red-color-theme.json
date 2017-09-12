@@ -69,7 +69,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#390000",
 				"foreground": "#F8F8F8"
@@ -384,6 +384,17 @@
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#fec758ff"
+			}
+		},
+		{
+			"name": "String interpolation ${}",
+			"scope": [
+				"punctuation.definition.template-expression.begin",
+				"punctuation.definition.template-expression.end",
+				"punctuation.section.embedded"
+			],
+			"settings": {
+				"foreground": "#ec0d1e"
 			}
 		}
 	]

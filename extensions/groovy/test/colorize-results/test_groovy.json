@@ -9243,11 +9243,11 @@
 		"c": "System.currentTimeMillis() - start",
 		"t": "source.groovy meta.definition.method.groovy meta.method.body.java string.quoted.double.groovy source.groovy.embedded.source",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"dark_plus": "source.groovy.embedded: #D4D4D4",
+			"light_plus": "source.groovy.embedded: #000000",
+			"dark_vs": "source.groovy.embedded: #D4D4D4",
+			"light_vs": "source.groovy.embedded: #000000",
+			"hc_black": "source.groovy.embedded: #FFFFFF"
 		}
 	},
 	{
