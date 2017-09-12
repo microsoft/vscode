@@ -22,14 +22,20 @@ export class QuickOpen {
 		await this.waitForQuickOpenOpened();
 	}
 
+	public async openCommandPallette(): Promise<void> {
+		await this.spectron.command('workbench.action.showCommands');
+		await this.waitForQuickOpenOpened();
+	}
+
 	public async closeQuickOpen(): Promise<void> {
 		await this.spectron.command('workbench.action.closeQuickOpen');
 		await this.waitForQuickOpenClosed();
 	}
 
 	public async type(text: string): Promise<void> {
-		await this.spectron.client.keys([text, 'NULL']);
-		await this.spectron.client.waitForValue(QuickOpen.QUICK_OPEN_FOCUSSED_INPUT, text);
+		let prefix = await this.spectron.client.getValue(QuickOpen.QUICK_OPEN_FOCUSSED_INPUT);
+		await this.spectron.client.type(text);
+		await this.spectron.client.waitForValue(QuickOpen.QUICK_OPEN_FOCUSSED_INPUT, prefix + text);
 	}
 
 	public async getQuickOpenElements(): Promise<Element[]> {
@@ -52,10 +58,10 @@ export class QuickOpen {
 	}
 
 	public async runCommand(commandText: string): Promise<void> {
-		await this.openQuickOpen();
+		await this.openCommandPallette();
 
 		// type the text
-		await this.type(`>${commandText}`);
+		await this.type(commandText);
 
 		// wait for best choice to be focused
 		await this.spectron.client.waitForTextContent(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT, commandText);
