@@ -2975,7 +2975,7 @@ declare module monaco.editor {
 		 * Accept suggestions on ENTER.
 		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: boolean | 'on' | 'smart' | 'off';
+		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
@@ -4459,7 +4459,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string | IMarkdownString;
+		documentation?: string;
 	}
 
 	/**
@@ -4477,7 +4477,7 @@ declare module monaco.languages {
 		 * The human-readable doc-comment of this signature. Will be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string | IMarkdownString;
+		documentation?: string;
 		/**
 		 * The parameters of this signature.
 		 */
@@ -4807,12 +4807,11 @@ declare module monaco.languages {
 	}
 
 	/**
-	 * Represents a color format
+	 * A color formatter.
 	 */
-	export enum ColorFormat {
-		RGB = 0,
-		HEX = 1,
-		HSL = 2,
+	export interface IColorFormatter {
+		readonly supportsTransparency: boolean;
+		format(color: IColor): string;
 	}
 
 	/**
@@ -4827,6 +4826,10 @@ declare module monaco.languages {
 		 * The color represented in this range.
 		 */
 		color: IColor;
+		/**
+		 * The available formats for this specific color.
+		 */
+		formatters: IColorFormatter[];
 	}
 
 	/**
@@ -4837,10 +4840,6 @@ declare module monaco.languages {
 		 * Provides the color ranges for a specific model.
 		 */
 		provideColorRanges(model: editor.IReadOnlyModel, token: CancellationToken): IColorRange[] | Thenable<IColorRange[]>;
-		/**
-		 * Provide the string representation for a color.
-		 */
-		resolveColor(color: IColor, colorFormat: ColorFormat, token: CancellationToken): string | Thenable<string>;
 	}
 
 	export interface IResourceEdit {
