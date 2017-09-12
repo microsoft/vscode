@@ -36,11 +36,19 @@ namespace schema {
 
 	export function isValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): boolean {
 		if (!snippet.language || (typeof snippet.language !== 'string') || !modeService.isRegisteredMode(snippet.language)) {
-			extension.collector.error(localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {0}", String(snippet.language)));
+			extension.collector.error(localize(
+				'invalid.language',
+				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
+				extension.description.name, String(snippet.language)
+			));
 			return false;
 
 		} else if (!snippet.path || (typeof snippet.path !== 'string')) {
-			extension.collector.error(localize('invalid.path.0', "Expected string in `contributes.{0}.path`. Provided value: {0}", String(snippet.path)));
+			extension.collector.error(localize(
+				'invalid.path.0',
+				"Expected string in `contributes.{0}.path`. Provided value: {1}",
+				extension.description.name, String(snippet.path)
+			));
 			return false;
 
 		} else {
