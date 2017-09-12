@@ -766,8 +766,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			isCurrentWorkspaceInList = true; // we always show folder workspaces
 		} else {
 			const firstWorkspace = recentWorkspaces[0];
-			if (firstWorkspace && !isSingleFolderWorkspaceIdentifier(firstWorkspace)) {
-				isCurrentWorkspaceInList = firstWorkspace.id === this.contextService.getWorkspace().id;
+			if (firstWorkspace) {
+				isCurrentWorkspaceInList = this.contextService.isCurrentWorkspace(firstWorkspace);
 			} else {
 				isCurrentWorkspaceInList = false; // this is an untitled workspace thereby
 			}

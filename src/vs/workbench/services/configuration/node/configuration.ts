@@ -33,7 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
-import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 interface IStat {
 	resource: URI;
@@ -222,6 +222,18 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return !!this.getRoot(resource);
 	}
 
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+		if (!this.workspace) {
+			return false;
+		}
+
+		if (this.workspace.configuration) {
+			return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
+		}
+
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.roots[0].fsPath, workspaceIdentifier);
+	}
+
 	public toResource(workspaceRelativePath: string): URI {
 		if (this.workspace && this.workspace.roots.length) {
 			return URI.file(paths.join(this.workspace.roots[0].fsPath, workspaceRelativePath));
@@ -286,6 +298,15 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	protected updateConfiguration(): TPromise<boolean> {
 		// implemented by sub classes
 		return TPromise.as(false);
+	}
+
+	private pathEquals(path1: string, path2: string): boolean {
+		if (!isLinux) {
+			path1 = path1.toLowerCase();
+			path2 = path2.toLowerCase();
+		}
+
+		return path1 === path2;
 	}
 }
 

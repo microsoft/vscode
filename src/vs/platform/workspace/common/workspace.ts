@@ -10,6 +10,7 @@ import { TrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
 import { distinct } from 'vs/base/common/arrays';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -52,6 +53,11 @@ export interface IWorkspaceContextService {
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
 	getRoot(resource: URI): URI;
+
+	/**
+	 * Return `true` if the current workspace has the given identifier otherwise `false`.
+	 */
+	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean;
 
 	/**
 	 * Returns if the provided resource is inside the workspace or not.
