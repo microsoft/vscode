@@ -589,7 +589,8 @@ export class CreateFileAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
+		const resource = this.element.parent.resource;
+		return this.fileService.createFile(resource.with({ path: paths.join(resource.path, fileName) })).then(stat => {
 			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
@@ -615,7 +616,8 @@ export class CreateFolderAction extends BaseCreateAction {
 	}
 
 	public runAction(fileName: string): TPromise<any> {
-		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
+		const resource = this.element.parent.resource;
+		return this.fileService.createFolder(resource.with({ path: paths.join(resource.path, fileName) })).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
 	}

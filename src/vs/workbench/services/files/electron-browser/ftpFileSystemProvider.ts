@@ -20,7 +20,7 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 
 	private _connection: JSFtp;
 
-	onDidChange = Event.None;
+	readonly onDidChange = Event.None;
 
 	constructor() {
 		this._connection = new JSFtp({
@@ -90,5 +90,9 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 
 	del(resource: URI): TPromise<void> {
 		return ninvoke(this._connection, this._connection.raw, 'DELE', [resource.path]);
+	}
+
+	mkdir(resource: URI): TPromise<void> {
+		return ninvoke(this._connection, this._connection.raw, 'MKD', [resource.path]);
 	}
 }

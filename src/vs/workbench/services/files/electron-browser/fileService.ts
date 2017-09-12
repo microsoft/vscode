@@ -43,7 +43,7 @@ export class FileService implements IFileService {
 	private activeOutOfWorkspaceWatchers: ResourceMap<uri>;
 
 	protected _onFileChanges: Emitter<FileChangesEvent>;
-	private _onAfterOperation: Emitter<FileOperationEvent>;
+	protected _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,

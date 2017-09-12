@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, FileChangeType, IResolveFileOptions, IResolveFileResult } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { EventEmitter } from 'events';
@@ -70,9 +70,10 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 }
 
 export interface IRemoteFileSystemProvider {
-	onDidChange?: Event<URI>;
+	onDidChange?: Event<FileChangesEvent>;
 	stat(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<IStat[]>;
+	mkdir(resource: URI): TPromise<void>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: string): TPromise<void>;
 	del(resource: URI): TPromise<void>;
@@ -80,29 +81,20 @@ export interface IRemoteFileSystemProvider {
 
 export class RemoteFileService extends FileService {
 
-	// public existsFile(resource: URI): TPromise<boolean, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
+
 	// public moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
 	// public copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
-	// public createFile(resource: URI, content?: string): TPromise<IFileStat, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
-	// public createFolder(resource: URI): TPromise<IFileStat, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
+
 	// public touchFile(resource: URI): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
 	// public rename(resource: URI, newName: string): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
-
-
 
 	private readonly _provider = new Map<string, IRemoteFileSystemProvider>();
 
@@ -139,7 +131,7 @@ export class RemoteFileService extends FileService {
 		this._provider.set(authority, provider);
 		const reg = provider.onDidChange(e => {
 			// forward change events
-			this._onFileChanges.fire(new FileChangesEvent([{ resource: e, type: FileChangeType.UPDATED }]));
+			this._onFileChanges.fire(e);
 		});
 		return {
 			dispose: () => {
@@ -147,6 +139,17 @@ export class RemoteFileService extends FileService {
 				reg.dispose();
 			}
 		};
+	}
+
+	// --- stat
+
+	existsFile(resource: URI): TPromise<boolean, any> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			return this._doResolveFiles(provider, [{ resource }]).then(data => data.length > 0);
+		} else {
+			return super.existsFile(resource);
+		}
 	}
 
 	resolveFile(resource: URI, options?: IResolveFileOptions): TPromise<IFileStat, any> {
@@ -158,14 +161,14 @@ export class RemoteFileService extends FileService {
 				}
 				return data[0].stat;
 			});
+		} else {
+			return super.resolveFile(resource, options);
 		}
-		return super.resolveFile(resource, options);
 	}
 
 	resolveFiles(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
 		const groups = groupBy(toResolve, (a, b) => compare(a.resource.scheme, b.resource.scheme));
 		const promises: TPromise<IResolveFileResult[], any>[] = [];
-
 		for (const group of groups) {
 			const provider = this._provider.get(group[0].resource.scheme);
 			if (!provider) {
@@ -174,7 +177,6 @@ export class RemoteFileService extends FileService {
 				promises.push(this._doResolveFiles(provider, group));
 			}
 		}
-
 		return TPromise.join(promises).then(data => {
 			return [].concat(...data);
 		});
@@ -197,19 +199,18 @@ export class RemoteFileService extends FileService {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
 			return this._doResolveContent(provider, resource);
+		} else {
+			return super.resolveContent(resource, options);
 		}
-
-		return super.resolveContent(resource, options);
 	}
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
-
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
 			return this._doResolveContent(provider, resource).then(RemoteFileService._asStreamContent);
+		} else {
+			return super.resolveStreamContent(resource, options);
 		}
-
-		return super.resolveStreamContent(resource, options);
 	}
 
 	private async _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IContent> {
@@ -230,12 +231,24 @@ export class RemoteFileService extends FileService {
 
 	// --- saving
 
+	async createFile(resource: URI, content?: string): TPromise<IFileStat> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			const stat = await this._doUpdateContent(provider, resource, content || '');
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
+			return stat;
+		} else {
+			return super.createFile(resource, content);
+		}
+	}
+
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
 			return this._doUpdateContent(provider, resource, value);
+		} else {
+			return super.updateContent(resource, value, options);
 		}
-		return super.updateContent(resource, value, options);
 	}
 
 	private async _doUpdateContent(provider: IRemoteFileSystemProvider, resource: URI, content: string): TPromise<IFileStat> {
@@ -259,11 +272,25 @@ export class RemoteFileService extends FileService {
 
 	// --- delete
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	async del(resource: URI, useTrash?: boolean): TPromise<void> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			return provider.del(resource);
+			await provider.del(resource);
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		} else {
+			return super.del(resource, useTrash);
 		}
-		return super.del(resource, useTrash);
+	}
+
+	async createFolder(resource: URI): TPromise<IFileStat, any> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			await provider.mkdir(resource);
+			const stat = await toIFileStat(provider, await provider.stat(resource), false);
+			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
+			return stat;
+		} else {
+			return super.createFolder(resource);
+		}
 	}
 }
