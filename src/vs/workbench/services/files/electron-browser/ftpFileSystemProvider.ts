@@ -13,10 +13,10 @@ import { ninvoke } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Readable } from 'stream';
 import { join } from 'path';
-import { IStat, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { IStat, FileType, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 
-export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
+export class FtpFileSystemProvider implements IFileSystemProvider {
 
 	private _connection: JSFtp;
 
@@ -30,7 +30,7 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 	}
 
 	dispose(): void {
-		//
+		ninvoke(this._connection, this._connection.raw, 'QUIT');
 	}
 
 	stat(resource: URI): TPromise<IStat> {
@@ -44,16 +44,16 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 					resource,
 					mtime: entry.time,
 					size: entry.size,
-					isDirectory: false
+					type: FileType.File
 				};
 			}
 
 			// stat directory
 			return <IStat>{
 				resource,
-				isDirectory: true,
 				mtime: 0,
-				size: 0
+				size: 0,
+				type: FileType.Dir,
 			};
 		});
 	}

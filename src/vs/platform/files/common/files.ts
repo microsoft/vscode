@@ -13,6 +13,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { IProgress } from 'vs/platform/progress/common/progress';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -149,6 +150,30 @@ export interface IFileService {
 	 */
 	dispose(): void;
 }
+
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+export interface IStat {
+	resource: URI;
+	mtime: number;
+	size: number;
+	type: FileType;
+}
+
+export interface IFileSystemProvider {
+	onDidChange?: Event<FileChangesEvent>;
+	stat(resource: URI): TPromise<IStat>;
+	readdir(resource: URI): TPromise<URI[]>;
+	mkdir(resource: URI): TPromise<void>;
+	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
+	write(resource: URI, content: Uint8Array): TPromise<void>;
+	del(resource: URI): TPromise<void>;
+}
+
 
 export enum FileOperation {
 	CREATE,

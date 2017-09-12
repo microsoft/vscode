@@ -6,8 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import Event from 'vs/base/common/event';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -23,18 +22,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { decodeStream, encode } from 'vs/base/node/encoding';
 
-
-export interface IStat {
-	resource: URI;
-	mtime: number;
-	size: number;
-	isDirectory: boolean;
-}
-
-function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: boolean): TPromise<IFileStat> {
+function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolean): TPromise<IFileStat> {
 	const ret: IFileStat = {
 		isDirectory: false,
 		hasChildren: false,
@@ -45,7 +36,7 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
 	};
 
-	if (!stat.isDirectory) {
+	if (stat.type === FileType.File) {
 		// done
 		return TPromise.as(ret);
 
@@ -69,16 +60,6 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 	}
 }
 
-export interface IRemoteFileSystemProvider {
-	onDidChange?: Event<FileChangesEvent>;
-	stat(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<URI[]>;
-	mkdir(resource: URI): TPromise<void>;
-	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
-	write(resource: URI, content: Uint8Array): TPromise<void>;
-	del(resource: URI): TPromise<void>;
-}
-
 export class RemoteFileService extends FileService {
 
 
@@ -96,7 +77,7 @@ export class RemoteFileService extends FileService {
 	// 	throw new Error("Method not implemented.");
 	// }
 
-	private readonly _provider = new Map<string, IRemoteFileSystemProvider>();
+	private readonly _provider = new Map<string, IFileSystemProvider>();
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -123,7 +104,7 @@ export class RemoteFileService extends FileService {
 		this.registerProvider('ftp', new Ftp.FtpFileSystemProvider());
 	}
 
-	registerProvider(authority: string, provider: IRemoteFileSystemProvider): IDisposable {
+	registerProvider(authority: string, provider: IFileSystemProvider): IDisposable {
 		if (this._provider.has(authority)) {
 			throw new Error();
 		}
@@ -182,7 +163,7 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	private _doResolveFiles(provider: IRemoteFileSystemProvider, toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
+	private _doResolveFiles(provider: IFileSystemProvider, toResolve: { resource: URI; options?: IResolveFileOptions; }[]): TPromise<IResolveFileResult[], any> {
 		let result: IResolveFileResult[] = [];
 		let promises: TPromise<any>[] = [];
 		for (const item of toResolve) {
@@ -213,7 +194,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private async _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IStreamContent> {
+	private async _doResolveContent(provider: IFileSystemProvider, resource: URI): TPromise<IStreamContent> {
 
 		const stat = await toIFileStat(provider, await provider.stat(resource), false);
 
@@ -254,7 +235,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private async _doUpdateContent(provider: IRemoteFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
+	private async _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
 		const encoding = this.getEncoding(resource, options.encoding);
 		await provider.write(resource, encode(content, encoding));
 		const stat = await provider.stat(resource);
