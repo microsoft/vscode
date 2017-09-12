@@ -397,7 +397,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		   "${wildcard}": [
 			   {
 			      "${prefix}": "contribution.",
-			      "${property}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			      "${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			   }
 			]
 	   }
