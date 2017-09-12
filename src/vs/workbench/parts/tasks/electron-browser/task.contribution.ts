@@ -76,7 +76,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CustomTask, ConfiguringTask, ContributedTask, CompositeTask, TaskSet, TaskGroup, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, WorkspaceFolder } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider, TaskEvent, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -618,7 +618,12 @@ interface WorkspaceTaskResult {
 	hasErrors: boolean;
 }
 
-interface WorkspaceConfigurationResult {
+interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
+	workspaceFolder: WorkspaceFolder;
+}
+
+interface WorkspaceFolderConfigurationResult {
+	workspaceFolder: WorkspaceFolder;
 	config: TaskConfig.ExternalTaskRunnerConfiguration;
 	hasErrors: boolean;
 }
@@ -657,6 +662,9 @@ class TaskService extends EventEmitter implements ITaskService {
 	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
+	private _schemaVersion: JsonSchemaVersion;
+	private _executionEngine: ExecutionEngine;
+	private _workspaceFolders: WorkspaceFolder[];
 	private _providers: Map<number, ITaskProvider>;
 
 	private _workspaceTasksPromise: TPromise<WorkspaceTaskResult>;
@@ -736,6 +744,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				);
 			}
 		});
+		this.updateWorkspaceFolders();
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.registerCommands();
 	}
@@ -1449,8 +1458,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private computeWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
-		let configPromise: TPromise<WorkspaceConfigurationResult>;
+	/*
+	private computeWorkspaceTasks2(): TPromise<WorkspaceTaskResult> {
+		let configPromise: TPromise<WorkspaceFolderConfigurationResult>;
 		{
 			let { config, hasParseErrors } = this.getConfiguration();
 			if (hasParseErrors) {
@@ -1461,7 +1471,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				engine = TaskConfig.ExecutionEngine.from(config);
 				if (engine === ExecutionEngine.Process) {
 					if (this.hasDetectorSupport(config)) {
-						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
+						configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
 							let hasErrors = this.printStderr(value.stderr);
 							let detectedConfig = value.config;
 							if (!detectedConfig) {
@@ -1529,17 +1539,145 @@ class TaskService extends EventEmitter implements ITaskService {
 			});
 		});
 	}
+	*/
 
-	private getExecutionEngine(): ExecutionEngine {
-		let { config } = this.getConfiguration();
+	private computeWorkspaceTasks(): TPromise<Map<string, WorkspaceFolderTaskResult>> {
+		if (this._workspaceFolders.length === 0) {
+			return TPromise.as(new Map<string, WorkspaceFolderTaskResult>());
+		} else {
+			let promises: TPromise<WorkspaceFolderTaskResult>[] = [];
+			for (let folder of this._workspaceFolders) {
+				promises.push(this.computeWorkspaceFolderTasks(folder).then((value) => value, () => undefined));
+			}
+			return TPromise.join(promises).then((values) => {
+				let result = new Map<string, WorkspaceFolderTaskResult>();
+				for (let value of values) {
+					if (value) {
+						result.set(value.workspaceFolder.uri.toString(), value);
+					}
+				}
+				return result;
+			});
+		}
+	}
+
+	private computeWorkspaceFolderTasks(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderTaskResult> {
+		return (this._executionEngine === ExecutionEngine.Process
+			? this.computeLegacyConfiguration(workspaceFolder)
+			: this.computeConfiguration(workspaceFolder)).
+			then((workspaceFolderConfiguration) => {
+				if (!workspaceFolderConfiguration || !workspaceFolderConfiguration.config || workspaceFolderConfiguration.hasErrors) {
+					return TPromise.as({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
+				}
+				return ProblemMatcherRegistry.onReady().then((): WorkspaceFolderTaskResult => {
+					let problemReporter = new ProblemReporter(this._outputChannel);
+					let parseResult = TaskConfig.parse(workspaceFolder, workspaceFolderConfiguration.config, problemReporter);
+					let hasErrors = false;
+					if (!parseResult.validationStatus.isOK()) {
+						hasErrors = true;
+						this.showOutput();
+					}
+					if (problemReporter.status.isFatal()) {
+						problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
+						return { workspaceFolder, set: undefined, configurations: undefined, hasErrors };
+					}
+					let customizedTasks: { byIdentifier: IStringDictionary<ConfiguringTask>; };
+					if (parseResult.configured && parseResult.configured.length > 0) {
+						customizedTasks = {
+							byIdentifier: Object.create(null)
+						};
+						for (let task of parseResult.configured) {
+							customizedTasks.byIdentifier[task.configures._key] = task;
+						}
+					}
+					return { workspaceFolder, set: { tasks: parseResult.custom }, configurations: customizedTasks, hasErrors };
+				});
+			});
+	}
+
+	private computeConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
+		return TPromise.as<WorkspaceFolderConfigurationResult>({ workspaceFolder, config, hasErrors: hasParseErrors });
+	}
+
+	private computeLegacyConfiguration(workspaceFolder: WorkspaceFolder): TPromise<WorkspaceFolderConfigurationResult> {
+		let { config, hasParseErrors } = this.getConfiguration(workspaceFolder);
+		if (hasParseErrors) {
+			return TPromise.as({ workspaceFolder: workspaceFolder, hasErrors: true, config: undefined });
+		}
+		if (config) {
+			if (this.hasDetectorSupport(config)) {
+				return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceFolderConfigurationResult => {
+					let hasErrors = this.printStderr(value.stderr);
+					let detectedConfig = value.config;
+					if (!detectedConfig) {
+						return { workspaceFolder, config, hasErrors };
+					}
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+					let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
+					if (!result.tasks) {
+						if (detectedConfig.tasks) {
+							result.tasks = detectedConfig.tasks;
+						}
+					} else {
+						result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+						detectedConfig.tasks.forEach((task) => {
+							if (!configuredTasks[task.taskName]) {
+								result.tasks.push(task);
+							}
+						});
+					}
+					return { workspaceFolder, config: result, hasErrors };
+				});
+			} else {
+				return TPromise.as({ workspaceFolder, config, hasErrors: false });
+			}
+		} else {
+			return new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+				let hasErrors = this.printStderr(value.stderr);
+				return { workspaceFolder, config: value.config, hasErrors };
+			});
+		}
+	}
+
+	private updateWorkspaceFolders(): void {
+		if (this.contextService.hasFolderWorkspace()) {
+			let workspaceFolder = { uri: this.contextService.getWorkspace().roots[0] };
+			this._workspaceFolders = [workspaceFolder];
+			this._executionEngine = this.computeExecutionEngine(workspaceFolder);
+			this._schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
+		} else if (this.contextService.hasMultiFolderWorkspace()) {
+			this._executionEngine = ExecutionEngine.Terminal;
+			this._schemaVersion = JsonSchemaVersion.V2_0_0;
+			this._workspaceFolders = [];
+			for (let folder of this.contextService.getWorkspace().roots) {
+				let workspaceFolder = { uri: folder };
+				if (this._schemaVersion === this.computeJsonSchemaVersion(workspaceFolder)) {
+					this._workspaceFolders.push(workspaceFolder);
+				} else {
+					this._outputChannel.append(nls.localize(
+						'taskService.ignoreingFolder',
+						'Ignoring task configurations for workspace folder {0}. Multi root folder support requires that all folders use task version 2.0.',
+						folder.fsPath));
+				}
+			}
+		} else {
+			this._workspaceFolders = [];
+			this._executionEngine = ExecutionEngine.Terminal;
+			this._schemaVersion = JsonSchemaVersion.V2_0_0;
+		}
+	}
+
+	private computeExecutionEngine(workspaceFolder: WorkspaceFolder): ExecutionEngine {
+		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return ExecutionEngine._default;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
 
-	private getJsonSchemaVersion(): JsonSchemaVersion {
-		let { config } = this.getConfiguration();
+	private computeJsonSchemaVersion(workspaceFolder: WorkspaceFolder): JsonSchemaVersion {
+		let { config } = this.getConfiguration(workspaceFolder);
 		if (!config) {
 			return JsonSchemaVersion.V2_0_0;
 		}
@@ -1548,6 +1686,10 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().folders[0] }) : undefined;
+	private getConfiguration(workspaceFolder: WorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
+		let result = this.contextService.hasWorkspace()
+			? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
+			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
 		}

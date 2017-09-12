@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
@@ -221,7 +222,12 @@ export namespace TaskSourceKind {
 	export const Composite: 'composite' = 'composite';
 }
 
+export interface WorkspaceFolder {
+	uri: URI;
+}
+
 export interface TaskSourceConfigElement {
+	workspaceFolder: WorkspaceFolder;
 	file: string;
 	index: number;
 	element: any;
