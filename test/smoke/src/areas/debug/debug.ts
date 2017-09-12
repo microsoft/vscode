@@ -104,7 +104,7 @@ export class Debug extends Viewlet {
 	}
 
 	async console(text: string, type: string): Promise<string> {
-		await this.spectron.workbench.commandPallette.runCommand('Debug: Focus Debug Console');
+		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
 		await this.spectron.client.waitForElement(REPL_FOCUSED);
 		await this.spectron.client.type(text);
 		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT + ` .${type}`);

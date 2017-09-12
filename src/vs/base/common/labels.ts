@@ -58,8 +58,8 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	}
 
 	// convert c:\something => C:\something
-	if (platform.isWindows && resource.fsPath && resource.fsPath[1] === ':') {
-		return normalize(resource.fsPath.charAt(0).toUpperCase() + resource.fsPath.slice(1), true);
+	if (hasDriveLetter(resource.fsPath)) {
+		return normalize(normalizeDriveLetter(resource.fsPath), true);
 	}
 
 	// normalize and tildify (macOS, Linux only)
@@ -69,6 +69,18 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	}
 
 	return res;
+}
+
+function hasDriveLetter(path: string): boolean {
+	return platform.isWindows && path && path[1] === ':';
+}
+
+export function normalizeDriveLetter(path: string): string {
+	if (hasDriveLetter(path)) {
+		return path.charAt(0).toUpperCase() + path.slice(1);
+	}
+
+	return path;
 }
 
 export function tildify(path: string, userHome: string): string {

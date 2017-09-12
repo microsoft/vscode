@@ -613,7 +613,7 @@ export class Process implements IProcess {
 	}
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
-		if (reference) {
+		if (reference !== undefined && reference !== null) {
 			if (this.threads.has(reference)) {
 				const thread = this.threads.get(reference);
 				thread.clearCallStack();
