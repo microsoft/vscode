@@ -41,7 +41,7 @@ const lineAndColumnClause = [
 
 // Changing any regex may effect this value, hence changes this as well if required.
 const winLineAndColumnMatchIndex = 12;
-const unixLineAndColumnMatchIndex = 15;
+const unixLineAndColumnMatchIndex = 23;
 
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 const lineAndColumnClauseGroupCount = 6;
