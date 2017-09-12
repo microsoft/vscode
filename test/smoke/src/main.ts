@@ -190,7 +190,7 @@ import './areas/css/css.test';
 import './areas/editor/editor.test';
 import './areas/debug/debug.test';
 import './areas/git/git.test';
-import './areas/terminal/terminal.test';
+// import './areas/terminal/terminal.test';
 import './areas/statusbar/statusbar.test';
 import './areas/extensions/extensions.test';
 import './areas/workbench/localization.test';
