@@ -27,6 +27,10 @@
 	height: 100%;
 }
 
+.scm-viewlet .scm-provider {
+	display: flex;
+}
+
 .scm-viewlet .monaco-list-row {
 	padding: 0 12px 0 20px;
 	line-height: 22px;

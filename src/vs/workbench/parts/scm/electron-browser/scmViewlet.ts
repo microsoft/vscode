@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IViewletView, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
@@ -78,9 +78,127 @@ function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
 	}
 }
 
-interface SearchInputEvent extends Event {
-	target: HTMLInputElement;
-	immediate?: boolean;
+interface IViewModel {
+	isRepositoryVisible(repository: ISCMRepository): boolean;
+	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean);
+}
+
+class ProvidersViewDescriptor implements IViewDescriptor {
+	readonly id = 'providers';
+	readonly name = '';
+	readonly location = ViewLocation.SCM;
+	readonly ctor = null;
+}
+
+class ProvidersListDelegate implements IDelegate<ISCMRepository> {
+
+	getHeight(element: ISCMRepository): number {
+		return 22;
+	}
+
+	getTemplateId(element: ISCMRepository): string {
+		return 'provider';
+	}
+}
+
+interface RepositoryTemplateData {
+	checkbox: HTMLInputElement;
+	name: HTMLElement;
+	disposable: IDisposable;
+}
+
+class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateData> {
+
+	readonly templateId = 'provider';
+
+	constructor(
+		protected viewModel: IViewModel
+	) { }
+
+	renderTemplate(container: HTMLElement): RepositoryTemplateData {
+		const provider = append(container, $('.scm-provider'));
+		const checkbox = append(provider, $('input', { type: 'checkbox', checked: 'true' })) as HTMLInputElement;
+		const name = append(provider, $('.name'));
+
+		return { checkbox, name, disposable: EmptyDisposable };
+	}
+
+	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
+		templateData.disposable.dispose();
+
+		templateData.name.textContent = repository.provider.label;
+
+		templateData.checkbox.checked = this.viewModel.isRepositoryVisible(repository);
+		const onClick = domEvent(templateData.checkbox, 'change');
+		templateData.disposable = onClick(() => this.viewModel.toggleRepositoryVisibility(repository, templateData.checkbox.checked));
+	}
+
+	disposeTemplate(templateData: RepositoryTemplateData): void {
+		templateData.disposable.dispose();
+	}
+}
+
+class ProvidersView extends CollapsibleView {
+
+	private list: List<ISCMRepository>;
+
+	constructor(
+		initialSize: number,
+		protected viewModel: IViewModel,
+		options: IViewletViewOptions,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@ISCMService protected scmService: ISCMService
+	) {
+		super(initialSize, {
+			...(options as IViewOptions),
+			sizing: ViewSizing.Fixed,
+			name: localize('scm providers', "Source Control Providers"),
+		}, keybindingService, contextMenuService);
+	}
+
+	renderHeader(container: HTMLElement): void {
+		const title = append(container, $('div.title'));
+		title.textContent = this.name;
+
+		super.renderHeader(container);
+	}
+
+	protected renderBody(container: HTMLElement): void {
+		const delegate = new ProvidersListDelegate();
+		const renderer = new ProviderRenderer(this.viewModel);
+		this.list = new List<ISCMRepository>(container, delegate, [renderer]);
+
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.toDispose);
+		this.updateList();
+	}
+
+	layoutBody(size: number): void {
+		if (!this.list) {
+			return;
+		}
+
+		this.list.layout(size);
+	}
+
+	private updateList(): void {
+		this.list.splice(0, this.list.length, this.scmService.repositories);
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		this.updateList();
+		this.setBodySize(this.getExpandedBodySize());
+	}
+
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		this.updateList();
+		this.setBodySize(this.getExpandedBodySize());
+	}
+
+	private getExpandedBodySize(): number {
+		return Math.min(10, this.scmService.repositories.length) * 22;
+	}
 }
 
 interface ResourceGroupTemplate {
@@ -219,7 +337,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 }
 
-class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
+class ProviderListDelegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 
 	getHeight() { return 22; }
 
@@ -228,7 +346,7 @@ class Delegate implements IDelegate<ISCMResourceGroup | ISCMResource> {
 	}
 }
 
-class SourceControlViewDescriptor implements IViewDescriptor {
+class ProviderViewDescriptor implements IViewDescriptor {
 
 	// This ID magic needs to happen in order to preserve
 	// good splitview state when reloading the workbench
@@ -243,19 +361,19 @@ class SourceControlViewDescriptor implements IViewDescriptor {
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
 	constructor(private _repository: ISCMRepository) {
-		if (SourceControlViewDescriptor.freeIds.length > 0) {
-			this.id = SourceControlViewDescriptor.freeIds.shift();
+		if (ProviderViewDescriptor.freeIds.length > 0) {
+			this.id = ProviderViewDescriptor.freeIds.shift();
 		} else {
-			this.id = `scm${SourceControlViewDescriptor.idCount++}`;
+			this.id = `scm${ProviderViewDescriptor.idCount++}`;
 		}
 	}
 
 	dispose(): void {
-		SourceControlViewDescriptor.freeIds.push(this.id);
+		ProviderViewDescriptor.freeIds.push(this.id);
 	}
 }
 
-class SourceControlView extends CollapsibleView {
+class ProviderView extends CollapsibleView {
 
 	private cachedHeight: number | undefined;
 	private inputBoxContainer: HTMLElement;
@@ -327,7 +445,7 @@ class SourceControlView extends CollapsibleView {
 		// List
 
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
-		const delegate = new Delegate();
+		const delegate = new ProviderListDelegate();
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
@@ -494,7 +612,7 @@ class InstallAdditionalSCMProvidersAction extends Action {
 export class SCMViewlet extends PersistentViewsViewlet {
 
 	private menus: SCMMenus;
-	private repositoryToViewDescriptor = new Map<string, SourceControlViewDescriptor>();
+	private repositoryToViewDescriptor = new Map<string, ProviderViewDescriptor>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -515,7 +633,7 @@ export class SCMViewlet extends PersistentViewsViewlet {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.SCM, 'scm', true,
+		super(VIEWLET_ID, ViewLocation.SCM, 'scm', false,
 			telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
@@ -523,7 +641,7 @@ export class SCMViewlet extends PersistentViewsViewlet {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const viewDescriptor = new SourceControlViewDescriptor(repository);
+		const viewDescriptor = new ProviderViewDescriptor(repository);
 		this.repositoryToViewDescriptor.set(repository.provider.id, viewDescriptor);
 
 		ViewsRegistry.registerViews([viewDescriptor]);
@@ -550,11 +668,25 @@ export class SCMViewlet extends PersistentViewsViewlet {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(p => this.onDidAddRepository(p));
+
+		ViewsRegistry.registerViews([new ProvidersViewDescriptor()]);
+	}
+
+	isRepositoryVisible(repository: ISCMRepository): boolean {
+		const view = this.repositoryToViewDescriptor.get(repository.provider.id);
+		return !!this.getView(view.id);
+	}
+
+	toggleRepositoryVisibility(repository: ISCMRepository, visible: boolean): void {
+		const view = this.repositoryToViewDescriptor.get(repository.provider.id);
+		this.toggleViewVisibility(view.id, visible);
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IViewletView {
-		if (viewDescriptor instanceof SourceControlViewDescriptor) {
-			return this.instantiationService.createInstance(SourceControlView, initialSize, viewDescriptor.repository, options);
+		if (viewDescriptor instanceof ProviderViewDescriptor) {
+			return this.instantiationService.createInstance(ProviderView, initialSize, viewDescriptor.repository, options);
+		} else if (viewDescriptor instanceof ProvidersViewDescriptor) {
+			return this.instantiationService.createInstance(ProvidersView, initialSize, this, options);
 		}
 
 		return this.instantiationService.createInstance(viewDescriptor.ctor, initialSize, options);

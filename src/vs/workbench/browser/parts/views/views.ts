@@ -414,9 +414,14 @@ export class ViewsViewlet extends Viewlet {
 		}
 	}
 
-	private toggleViewVisibility(id: string): void {
+	toggleViewVisibility(id: string, visible?: boolean): void {
 		const view = this.getView(id);
 		let viewState = this.viewsStates.get(id);
+
+		if ((visible === true && view) || (visible === false && !view)) {
+			return;
+		}
+
 		if (view) {
 			viewState = viewState || this.createViewState(view);
 			viewState.isHidden = true;
@@ -557,7 +562,7 @@ export class ViewsViewlet extends Viewlet {
 
 	private canBeVisible(viewDescriptor: IViewDescriptor): boolean {
 		const viewstate = this.viewsStates.get(viewDescriptor.id);
-		if (viewDescriptor.canToggleVisibility && viewstate && viewstate.isHidden) {
+		if (viewstate && viewstate.isHidden) {
 			return false;
 		}
 		return this.contextKeyService.contextMatchesRules(viewDescriptor.when);
