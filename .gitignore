@@ -5,6 +5,8 @@ node_modules/
 .build/
 out/
 out-build/
+out-build-esm/
+out-esm/
 out-editor/
 out-editor-min/
 out-monaco-editor-core/

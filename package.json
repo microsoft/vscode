@@ -117,7 +117,10 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "^1.25.1",
-    "vscode-nls-dev": "^2.0.1"
+	"vscode-nls-dev": "^2.0.1",
+	"babel-cli": "^6.26.0",
+    "babel-core": "^6.26.0",
+    "babel-plugin-module-resolver": "^2.7.1"
   },
   "repository": {
     "type": "git",

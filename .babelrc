@@ -1,0 +1,16 @@
+{
+	"plugins": [
+		"./scripts/babel-monaco-plugin.js",
+		[
+			"module-resolver",
+			{
+				"root": [
+					"./out-build-esm"
+				],
+				"alias": {
+					"vs": "./out-build-esm/vs"
+				}
+			}
+		]
+	]
+}
