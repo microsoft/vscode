@@ -35,7 +35,7 @@ export class Editor {
 
 	public async findReferences(term: string, line: number): Promise<References> {
 		await this.clickOnTerm(term, line);
-		await this.spectron.workbench.commandPallette.runCommand('Find All References');
+		await this.spectron.workbench.quickopen.runCommand('Find All References');
 		const references = new References(this.spectron);
 		await references.waitUntilOpen();
 		return references;
@@ -43,7 +43,7 @@ export class Editor {
 
 	public async rename(term: string, line: number): Promise<Rename> {
 		await this.clickOnTerm(term, line);
-		await this.spectron.workbench.commandPallette.runCommand('Rename Symbol');
+		await this.spectron.workbench.quickopen.runCommand('Rename Symbol');
 		const rename = new Rename(term, this.spectron);
 		await rename.waitUntilOpen();
 		return rename;
@@ -51,12 +51,12 @@ export class Editor {
 
 	public async gotoDefinition(term: string, line: number): Promise<void> {
 		await this.clickOnTerm(term, line);
-		await this.spectron.workbench.commandPallette.runCommand('Go to Definition');
+		await this.spectron.workbench.quickopen.runCommand('Go to Definition');
 	}
 
 	public async peekDefinition(term: string, line: number): Promise<References> {
 		await this.clickOnTerm(term, line);
-		await this.spectron.workbench.commandPallette.runCommand('Peek Definition');
+		await this.spectron.workbench.quickopen.runCommand('Peek Definition');
 		const peek = new References(this.spectron);
 		await peek.waitUntilOpen();
 		return peek;

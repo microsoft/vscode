@@ -16,7 +16,7 @@ export class Terminal {
 
 	public async showTerminal(): Promise<void> {
 		if (!await this.isVisible()) {
-			await this.spectron.workbench.commandPallette.runCommand('View: Toggle Integrated Terminal');
+			await this.spectron.workbench.quickopen.runCommand('View: Toggle Integrated Terminal');
 			await this.spectron.client.waitForElement(Terminal.TERMINAL_CURSOR);
 			await this.waitForTerminalText(text => text.length > 0, 'Waiting for Terminal to be ready');
 		}

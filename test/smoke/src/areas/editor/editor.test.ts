@@ -18,9 +18,7 @@ describe('Editor', () => {
 
 		const outline = await app.workbench.editor.openOutline();
 
-		const symbols = await outline.getQuickOpenElements();
-		await app.screenCapturer.capture('Javascript Outline result');
-		assert.equal(symbols.length, 12, 'Quick outline elements count does not match to expected.');
+		await outline.waitForQuickOpenElements(12);
 	});
 
 	it(`finds 'All References' to 'app'`, async function () {

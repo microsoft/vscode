@@ -8,7 +8,6 @@ import { Explorer } from '../explorer/explorer';
 import { ActivityBar } from '../activitybar/activityBar';
 import { QuickOpen } from '../quickopen/quickopen';
 import { Extensions } from '../extensions/extensions';
-import { CommandPallette } from './commandPallette';
 import { Search } from '../search/search';
 import { Editor } from '../editor/editor';
 import { SCM } from '../git/scm';
@@ -23,7 +22,6 @@ export class Workbench {
 
 	readonly explorer: Explorer;
 	readonly activitybar: ActivityBar;
-	readonly commandPallette: CommandPallette;
 	readonly quickopen: QuickOpen;
 	readonly search: Search;
 	readonly extensions: Extensions;
@@ -40,7 +38,6 @@ export class Workbench {
 		this.explorer = new Explorer(spectron);
 		this.activitybar = new ActivityBar(spectron);
 		this.quickopen = new QuickOpen(spectron);
-		this.commandPallette = new CommandPallette(spectron);
 		this.search = new Search(spectron);
 		this.extensions = new Extensions(spectron);
 		this.editor = new Editor(spectron);

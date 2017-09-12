@@ -79,7 +79,7 @@ export class SpectronApplication {
 	}
 
 	public async reload(): Promise<any> {
-		await this.workbench.commandPallette.runCommand('Reload Window');
+		await this.workbench.quickopen.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
 		await this.wait(.5);
 		await this.checkWindowReady();
@@ -165,7 +165,7 @@ export class SpectronApplication {
 	public command(command: string, capture?: boolean): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
-			return this.workbench.commandPallette.runCommand(command);
+			return this.workbench.quickopen.runCommand(command);
 		}
 
 		const keys: string = binding.key;
