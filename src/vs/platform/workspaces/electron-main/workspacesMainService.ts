@@ -16,13 +16,13 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { delSync, readdirSync } from 'vs/base/node/extfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
+import { isEqual, isEqualOrParent, normalize } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
 import * as json from 'vs/base/common/json';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { applyEdit } from 'vs/base/common/jsonFormatter';
-import { getPathLabel } from 'vs/base/common/labels';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 const SLASH = '/';
 
@@ -227,7 +227,11 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				// - convert to slashes if we want to use slashes for paths
 				if (isWindows) {
 					if (isAbsolute(folder.path)) {
-						folder.path = getPathLabel(folder.path, void 0, void 0, !useSlashesForPath /* toOSPath */);
+						if (useSlashesForPath) {
+							folder.path = normalize(folder.path, false /* do not use OS path separator */);
+						}
+
+						folder.path = normalizeDriveLetter(folder.path);
 					} else if (useSlashesForPath) {
 						folder.path = folder.path.replace(/[\\]/g, SLASH);
 					}
