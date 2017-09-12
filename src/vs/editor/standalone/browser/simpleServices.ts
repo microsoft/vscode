@@ -17,7 +17,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, ILegacyWorkspace, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -527,16 +527,11 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
-	private readonly legacyWorkspace: ILegacyWorkspace;
 	private readonly workspace: IWorkspace;
 
 	constructor() {
-		this.legacyWorkspace = { resource: URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' }) };
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [this.legacyWorkspace.resource], name: this.legacyWorkspace.resource.fsPath };
-	}
-
-	public getLegacyWorkspace(): ILegacyWorkspace {
-		return this.legacyWorkspace;
+		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [resource], name: resource.fsPath };
 	}
 
 	public getWorkspace(): IWorkspace {

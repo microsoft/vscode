@@ -16,7 +16,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -148,7 +148,7 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 }
 
 function createStorageService(configuration: IWindowConfiguration, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
-	const workspace = workspaceService.getWorkspace();
+	const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
 
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
@@ -161,9 +161,8 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	// in single folder mode we use the path of the opened folder as key for workspace storage
 	// the ctime is used as secondary workspace id to clean up stale UI state if necessary
 	else if (workspaceService.hasFolderWorkspace()) {
-		const legacyWorkspace = workspaceService.getLegacyWorkspace();
-		workspaceId = legacyWorkspace.resource.toString();
-		secondaryWorkspaceId = legacyWorkspace.ctime;
+		workspaceId = workspace.roots[0].toString();
+		secondaryWorkspaceId = workspace.ctime;
 	}
 
 	// finaly, if we do not have a workspace open, we need to find another identifier for the window to store

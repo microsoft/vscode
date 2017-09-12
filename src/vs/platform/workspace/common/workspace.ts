@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as paths from 'vs/base/common/paths';
 import { TrieMap } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
@@ -31,12 +30,6 @@ export interface IWorkspaceContextService {
 	 * Returns if the application was opened with a workspace that can have one or more folders.
 	 */
 	hasMultiFolderWorkspace(): boolean;
-
-	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
-	 */
-	getLegacyWorkspace(): ILegacyWorkspace;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
@@ -71,20 +64,6 @@ export interface IWorkspaceContextService {
 	toResource: (workspaceRelativePath: string) => URI;
 }
 
-export interface ILegacyWorkspace {
-
-	/**
-	 * the full uri of the workspace. this is a file:// URL to the location
-	 * of the workspace on disk.
-	 */
-	resource: URI;
-
-	/**
-	 * creation time of the workspace folder if known
-	 */
-	ctime?: number;
-}
-
 export interface IWorkspace {
 
 	/**
@@ -108,34 +87,6 @@ export interface IWorkspace {
 	readonly configuration?: URI;
 }
 
-export class LegacyWorkspace implements ILegacyWorkspace {
-	private _name: string;
-
-	constructor(private _resource: URI, private _ctime?: number) {
-		this._name = paths.basename(this._resource.fsPath) || this._resource.fsPath;
-	}
-
-	public get resource(): URI {
-		return this._resource;
-	}
-
-	public get name(): string {
-		return this._name;
-	}
-
-	public get ctime(): number {
-		return this._ctime;
-	}
-
-	public toResource(workspaceRelativePath: string, root?: URI): URI {
-		if (typeof workspaceRelativePath === 'string') {
-			return URI.file(paths.join(root ? root.fsPath : this._resource.fsPath, workspaceRelativePath));
-		}
-
-		return null;
-	}
-}
-
 export class Workspace implements IWorkspace {
 
 	private _rootsMap: TrieMap<URI> = new TrieMap<URI>();
@@ -145,7 +96,8 @@ export class Workspace implements IWorkspace {
 		public readonly id: string,
 		private _name: string,
 		roots: URI[],
-		private _configuration: URI = null
+		private _configuration: URI = null,
+		public readonly ctime?: number
 	) {
 		this.roots = roots;
 	}

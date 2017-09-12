@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -104,10 +104,6 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public hasMultiFolderWorkspace(): boolean {
 		return this.workspace && !!this.workspace.configuration;
-	}
-
-	public getLegacyWorkspace(): ILegacyWorkspace {
-		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
 	}
 
 	public getWorkspace(): IWorkbenchWorkspace {

@@ -18,7 +18,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile, stat } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace, Workspace, ILegacyWorkspace, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, Workspace } from 'vs/platform/workspace/common/workspace';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -178,7 +178,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	public _serviceBrand: any;
 
 	protected workspace: Workspace = null;
-	protected legacyWorkspace: LegacyWorkspace = null;
 	protected _configuration: Configuration<any>;
 
 	protected readonly _onDidUpdateConfiguration: Emitter<IConfigurationServiceEvent> = this._register(new Emitter<IConfigurationServiceEvent>());
@@ -193,10 +192,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	constructor() {
 		super();
 		this._configuration = new Configuration(new BaseConfiguration(new ConfigurationModel<any>(), new ConfigurationModel<any>()), new ConfigurationModel<any>(), new StrictResourceMap<FolderConfigurationModel<any>>(), this.workspace);
-	}
-
-	public getLegacyWorkspace(): ILegacyWorkspace {
-		return this.legacyWorkspace;
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -228,7 +223,10 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		return this.workspace ? this.legacyWorkspace.toResource(workspaceRelativePath) : null;
+		if (this.workspace && this.workspace.roots.length) {
+			return URI.file(paths.join(this.workspace.roots[0].fsPath, workspaceRelativePath));
+		}
+		return null;
 	}
 
 	public initialize(trigger: boolean = true): TPromise<any> {
@@ -443,7 +441,6 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				const workspaceId = (this.workspaceIdentifier as IWorkspaceIdentifier).id;
 				const workspaceName = getWorkspaceLabel({ id: workspaceId, configPath: this.workspaceConfigPath.fsPath }, this.environmentService);
 				this.workspace = new Workspace(workspaceId, workspaceName, workspaceFolders, this.workspaceConfigPath);
-				this.legacyWorkspace = new LegacyWorkspace(this.workspace.roots[0]);
 				this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 				return null;
 			});
@@ -511,8 +508,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 				const id = createHash('md5').update(this.folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 				const folder = URI.file(this.folderPath.fsPath);
-				this.workspace = new Workspace(id, paths.basename(this.folderPath.fsPath), [folder], null);
-				this.legacyWorkspace = new LegacyWorkspace(folder, ctime);
+				this.workspace = new Workspace(id, paths.basename(this.folderPath.fsPath), [folder], null, ctime);
 				return TPromise.as(null);
 			});
 	}
