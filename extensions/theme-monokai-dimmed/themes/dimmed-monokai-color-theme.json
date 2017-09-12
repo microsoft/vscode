@@ -453,7 +453,9 @@
 		},
 		{
 			"name": "Ruby Embedded Source",
-			"scope": "source.ruby.embedded.source",
+			"scope": [
+				"punctuation.section.embedded.begin.ruby",
+				"punctuation.section.embedded.end.ruby"],
 			"settings": {
 				"foreground": "#D08442"
 			}
