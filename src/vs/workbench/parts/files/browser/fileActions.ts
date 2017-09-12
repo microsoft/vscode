@@ -1049,14 +1049,14 @@ export class DuplicateFileAction extends BaseFileAction {
 	private findTarget(): URI {
 		let name = this.element.name;
 
-		let candidate = URI.file(paths.join(this.target.resource.fsPath, name));
+		let candidate = this.target.resource.with({ path: paths.join(this.target.resource.fsPath, name) });
 		while (true) {
 			if (!this.element.root.find(candidate)) {
 				break;
 			}
 
 			name = this.toCopyName(name, this.element.isDirectory);
-			candidate = URI.file(paths.join(this.target.resource.fsPath, name));
+			candidate = this.target.resource.with({ path: paths.join(this.target.resource.fsPath, name) });
 		}
 
 		return candidate;

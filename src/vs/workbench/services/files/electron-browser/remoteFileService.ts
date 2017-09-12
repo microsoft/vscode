@@ -6,9 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { basename } from 'path';
+import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Ftp from './ftpFileSystemProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -55,25 +55,19 @@ function toIFileStat(provider: IFileSystemProvider, stat: IStat, recurse: boolea
 			} else {
 				return ret;
 			}
-
 		});
 	}
 }
 
 export class RemoteFileService extends FileService {
 
-
-	// public moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
-	// public copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
-
 	// public touchFile(resource: URI): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
-	// public rename(resource: URI, newName: string): TPromise<IFileStat, any> {
+	// public watchFileChanges(resource: URI): void {
+	// 	throw new Error("Method not implemented.");
+	// }
+	// public unwatchFileChanges(resource: URI): void {
 	// 	throw new Error("Method not implemented.");
 	// }
 
@@ -280,6 +274,71 @@ export class RemoteFileService extends FileService {
 			return stat;
 		} else {
 			return super.createFolder(resource);
+		}
+	}
+
+	rename(resource: URI, newName: string): TPromise<IFileStat, any> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			const target = resource.with({ path: join(resource.path, '..', newName) });
+			return this._doMove(provider, resource, target, false);
+		} else {
+			return super.rename(resource, newName);
+		}
+	}
+
+	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		if (source.scheme !== target.scheme) {
+			return this._manualMove(source, target);
+		}
+		const provider = this._provider.get(source.scheme);
+		if (provider) {
+			return this._doMove(provider, source, target, overwrite);
+		} else {
+			return super.moveFile(source, target, overwrite);
+		}
+	}
+
+	private async _doMove(provider: IFileSystemProvider, source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		// TODO@joh overwrite? -> stat&delete?
+		await provider.rename(source, target);
+		const stat = await this.resolveFile(target);
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, stat));
+		return stat;
+	}
+
+	private async _manualMove(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		await this.copyFile(source, target, overwrite);
+		await this.del(source);
+		const stat = await this.resolveFile(target);
+		this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.MOVE, stat));
+		return stat;
+	}
+
+	importFile(source: URI, targetFolder: URI): TPromise<IImportResult> {
+		if (source.scheme === targetFolder.scheme && !this._provider.has(source.scheme)) {
+			return super.importFile(source, targetFolder);
+
+		} else {
+			const target = targetFolder.with({ path: join(targetFolder.path, basename(source.path)) });
+			return this.copyFile(source, target, false).then(stat => ({ stat, isNew: false }));
+		}
+	}
+
+	async copyFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
+		if (source.scheme === target.scheme && !this._provider.has(source.scheme)) {
+			return super.copyFile(source, target, overwrite);
+
+		} else {
+			const content = await this.resolveContent(source);
+			const provider = this._provider.get(target.scheme);
+			if (provider) {
+				const stat = await this._doUpdateContent(provider, target, content.value, { encoding: content.encoding });
+				this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, stat));
+				return stat;
+			} else {
+				return super.updateContent(target, content.value, { encoding: content.encoding });
+			}
 		}
 	}
 }

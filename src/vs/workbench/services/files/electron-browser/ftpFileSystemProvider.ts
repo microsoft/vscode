@@ -104,4 +104,10 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 	mkdir(resource: URI): TPromise<void> {
 		return ninvoke(this._connection, this._connection.raw, 'MKD', [resource.path]);
 	}
+
+	rename(resource: URI, target: URI): TPromise<void> {
+		return ninvoke(this._connection, this._connection.raw, 'RNFR', [resource.path]).then(() => {
+			return ninvoke(this._connection, this._connection.raw, 'RNTO', [target.path]);
+		});
+	}
 }

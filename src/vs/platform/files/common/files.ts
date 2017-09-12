@@ -171,6 +171,7 @@ export interface IFileSystemProvider {
 	mkdir(resource: URI): TPromise<void>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
+	rename(resource: URI, target: URI): TPromise<void>;
 	del(resource: URI): TPromise<void>;
 }
 
