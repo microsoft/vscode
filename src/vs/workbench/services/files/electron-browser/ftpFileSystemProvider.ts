@@ -13,9 +13,10 @@ import { ninvoke } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Readable } from 'stream';
 import { join } from 'path';
-import { IStat } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { IStat, IRemoteFileSystemProvider } from 'vs/workbench/services/files/electron-browser/remoteFileService';
+import { IProgress } from 'vs/platform/progress/common/progress';
 
-export class FtpFileSystemProvider {
+export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 
 	private _connection: JSFtp;
 
@@ -23,9 +24,7 @@ export class FtpFileSystemProvider {
 
 	constructor() {
 		this._connection = new JSFtp({
-			host: 'waws-prod-db3-029.ftp.azurewebsites.windows.net',
-			user: 'performanto-slack-updater\\riejo-test',
-			pass: 'Z0llikon'
+			host: 'waws-prod-db3-029.ftp.azurewebsites.windows.net'
 		});
 		this._connection.keepAlive(1000 * 5);
 	}
@@ -69,26 +68,27 @@ export class FtpFileSystemProvider {
 		});
 	}
 
-	write(resource: URI, content: string): TPromise<void> {
-		return ninvoke(this._connection, this._connection.put, Buffer.from(content, 'utf8'), resource.path);
-	}
-
-	read(resource: URI): TPromise<string> {
+	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void> {
 		return ninvoke<Readable>(this._connection, this._connection.get, resource.path).then(stream => {
-			return new TPromise<string>((resolve, reject) => {
-				let str = '';
-				stream.on('data', function (d) {
-					str += d.toString();
-				});
-				stream.on('close', function (hadErr) {
+			return new TPromise<void>((resolve, reject) => {
+				stream.on('data', d => progress.report(<any>d));
+				stream.on('close', hadErr => {
 					if (hadErr) {
 						reject(hadErr);
 					} else {
-						resolve(str);
+						resolve(undefined);
 					}
 				});
 				stream.resume();
 			});
 		});
+	}
+
+	write(resource: URI, content: string): TPromise<void> {
+		return ninvoke(this._connection, this._connection.put, Buffer.from(content, 'utf8'), resource.path);
+	}
+
+	del(resource: URI): TPromise<void> {
+		return ninvoke(this._connection, this._connection.raw, 'DELE', [resource.path]);
 	}
 }

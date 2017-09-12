@@ -24,6 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 
 
 export interface IStat {
@@ -41,7 +42,7 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 		name: basename(stat.resource.path),
 		mtime: stat.mtime,
 		size: stat.size,
-		etag: stat.mtime.toString(3) + stat.size.toString(7),
+		etag: stat.mtime.toString(29) + stat.size.toString(31),
 	};
 
 	if (!stat.isDirectory) {
@@ -72,8 +73,9 @@ export interface IRemoteFileSystemProvider {
 	onDidChange?: Event<URI>;
 	stat(resource: URI): TPromise<IStat>;
 	readdir(resource: URI): TPromise<IStat[]>;
+	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: string): TPromise<void>;
-	read(resource: URI): TPromise<string>;
+	del(resource: URI): TPromise<void>;
 }
 
 export class RemoteFileService extends FileService {
@@ -99,9 +101,7 @@ export class RemoteFileService extends FileService {
 	// public rename(resource: URI, newName: string): TPromise<IFileStat, any> {
 	// 	throw new Error("Method not implemented.");
 	// }
-	// public del(resource: URI, useTrash?: boolean): TPromise<void, any> {
-	// 	throw new Error("Method not implemented.");
-	// }
+
 
 
 	private readonly _provider = new Map<string, IRemoteFileSystemProvider>();
@@ -212,16 +212,20 @@ export class RemoteFileService extends FileService {
 		return super.resolveStreamContent(resource, options);
 	}
 
-	private _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IContent> {
+	private async _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IContent> {
 
-		return provider.stat(resource).then(stat => {
-			return provider.read(resource).then(value => {
-				return <any>{
-					...stat,
-					value,
-				};
-			});
-		});
+		const chunks: Uint8Array[] = [];
+		await provider.read(resource, new Progress<Uint8Array>(chunk => chunks.push(chunk)));
+		const stat = await toIFileStat(provider, await provider.stat(resource), false);
+
+		return {
+			value: [].concat(...chunks).toString(),
+			resource: stat.resource,
+			name: stat.name,
+			etag: stat.etag,
+			mtime: stat.mtime,
+			encoding: this.getEncoding(resource)
+		};
 	}
 
 	// --- saving
@@ -251,5 +255,15 @@ export class RemoteFileService extends FileService {
 			emitter.emit('end');
 		}, 0);
 		return result;
+	}
+
+	// --- delete
+
+	del(resource: URI, useTrash?: boolean): TPromise<void> {
+		const provider = this._provider.get(resource.scheme);
+		if (provider) {
+			return provider.del(resource);
+		}
+		return super.del(resource, useTrash);
 	}
 }

@@ -133,17 +133,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			throw new Error();
 		}
 		const emitter = new Emitter<URI>();
-		const provider = {
-			onDidChange: emitter.event,
-			read: (resource: URI) => {
-				return this._proxy.$resolveFile(handle, resource);
-			},
-			write: (resource: URI, value: string) => {
-				return this._proxy.$storeFile(handle, resource, value);
-			},
-			stat: () => null,
-			readdir: () => null
-		};
+		// const provider = {
+		// 	onDidChange: emitter.event,
+		// 	read: (resource: URI) => {
+		// 		return this._proxy.$resolveFile(handle, resource);
+		// 	},
+		// 	write: (resource: URI, value: string) => {
+		// 		return this._proxy.$storeFile(handle, resource, value);
+		// 	},
+		// 	stat: () => null,
+		// 	readdir: () => null
+		// };
 		const searchProvider = {
 			search: (query: ISearchQuery) => {
 				if (query.type !== QueryType.File) {
@@ -159,7 +159,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 		const registrations = combinedDisposable([
-			this._fileService.registerProvider(authority, provider),
+			// this._fileService.registerProvider(authority, provider),
 			this._searchService.registerSearchResultProvider(searchProvider),
 		]);
 		this._provider.set(handle, [registrations, emitter]);
