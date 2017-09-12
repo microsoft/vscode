@@ -89,7 +89,16 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 	}
 
 	del(resource: URI): TPromise<void> {
+
+		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, resource.path).then(entries => {
+			if (entries.length === 1) {
+				// file;
 		return ninvoke(this._connection, this._connection.raw, 'DELE', [resource.path]);
+			} else {
+				// dir
+				return ninvoke(this._connection, this._connection.raw, 'RMD', [resource.path]);
+			}
+		});
 	}
 
 	mkdir(resource: URI): TPromise<void> {
