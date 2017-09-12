@@ -1378,8 +1378,8 @@
 		"c": "(",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -1400,8 +1400,8 @@
 		"c": "+",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D4D4D4",
+			"light_plus": "keyword.operator.quantifier.regexp: #0000FF",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -1411,8 +1411,8 @@
 		"c": ")",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -1466,8 +1466,8 @@
 		"c": "(",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -1488,8 +1488,8 @@
 		"c": "*",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D4D4D4",
+			"light_plus": "keyword.operator.quantifier.regexp: #0000FF",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -1499,8 +1499,8 @@
 		"c": ")",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.definition.group.regexp: #D7BA7D",
+			"light_plus": "punctuation.definition.group.regexp: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -1554,8 +1554,8 @@
 		"c": "$",
 		"t": "source.coffee string.regexp.coffee keyword.control.anchor.regexp",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
+			"dark_plus": "keyword.control.anchor.regexp: #C586C0",
+			"light_plus": "keyword.control.anchor.regexp: #09885A",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0"
