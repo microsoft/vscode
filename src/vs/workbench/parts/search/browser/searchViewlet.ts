@@ -41,7 +41,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -468,7 +468,7 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource(this.contextService.hasMultiFolderWorkspace());
+			let dataSource = new SearchDataSource(this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE);
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
@@ -872,7 +872,7 @@ export class SearchViewlet extends Viewlet {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
 		if (workspace && resource) {
-			if (this.contextService.hasFolderWorkspace()) {
+			if (this.contextService.getWorkspaceState() === WorkspaceState.FOLDER) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {

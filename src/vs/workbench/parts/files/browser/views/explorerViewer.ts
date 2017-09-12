@@ -35,7 +35,7 @@ import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/co
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -829,7 +829,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// All (target = model)
 		if (target instanceof Model) {
-			return this.contextService.hasMultiFolderWorkspace() ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(false) : DRAG_OVER_REJECT; // can only drop folders to workspace
+			return this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(false) : DRAG_OVER_REJECT; // can only drop folders to workspace
 		}
 
 		// All (target = file/folder)
@@ -883,7 +883,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return void 0; // TODO@Ben multi root
 				}
 
-				if (this.contextService.hasMultiFolderWorkspace()) {
+				if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
 					return this.workspaceEditingService.addRoots(folders);
 				}
 

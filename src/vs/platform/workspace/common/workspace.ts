@@ -14,23 +14,28 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
+export enum WorkspaceState {
+	EMPTY = 1,
+	FOLDER,
+	WORKSPACE
+}
+
 export interface IWorkspaceContextService {
 	_serviceBrand: any;
+
+	/**
+	 * Return the state of the current workspace.
+	 *
+	 * WorkspaceState.EMPTY - if the application was opened with empty window or file
+	 * WorkspaceState.FOLDER - if the application was opened with a folder
+	 * WorkspaceState.WORKSPACE - if the application was opened with a workspace
+	 */
+	getWorkspaceState(): WorkspaceState;
 
 	/**
 	 * Returns if the application was opened with a workspace or not.
 	 */
 	hasWorkspace(): boolean;
-
-	/**
-	 * Returns if the application was opened with a folder.
-	 */
-	hasFolderWorkspace(): boolean;
-
-	/**
-	 * Returns if the application was opened with a workspace that can have one or more folders.
-	 */
-	hasMultiFolderWorkspace(): boolean;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened

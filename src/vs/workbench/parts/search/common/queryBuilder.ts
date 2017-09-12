@@ -12,7 +12,7 @@ import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -213,7 +213,7 @@ export class QueryBuilder {
 		}
 
 		const workspace = this.workspaceContextService.getWorkspace();
-		if (this.workspaceContextService.hasFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
 			return [paths.normalize(
 				paths.join(workspace.roots[0].fsPath, searchPath))];
 		} else if (searchPath === './') {

@@ -18,7 +18,7 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfirmation, IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -539,20 +539,22 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
+	public getWorkspaceState(): WorkspaceState {
+		if (this.workspace) {
+			if (this.workspace.configuration) {
+				return WorkspaceState.WORKSPACE;
+			}
+			return WorkspaceState.FOLDER;
+		}
+		return WorkspaceState.EMPTY;
+	}
+
 	public getRoot(resource: URI): URI {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
 	}
 
 	public hasWorkspace(): boolean {
 		return true;
-	}
-
-	public hasFolderWorkspace(): boolean {
-		return true;
-	}
-
-	public hasMultiFolderWorkspace(): boolean {
-		return false;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {

@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -293,7 +293,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
-		this.settingsTargetsContainer.style.width = this.workspaceContextService.hasMultiFolderWorkspace() ? '200px' : '150px';
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkspaceState() === WorkspaceState.WORKSPACE ? '200px' : '150px';
 
 		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
 		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
@@ -348,7 +348,7 @@ export class SettingsTargetsWidget extends Widget {
 			});
 		}
 
-		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
 			actions.push(new Separator());
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{

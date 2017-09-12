@@ -21,7 +21,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -332,10 +332,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		if (workspace) {
 
 			if (target === ConfigurationTarget.WORKSPACE) {
-				return this.contextService.hasMultiFolderWorkspace() ? workspace.configuration : this.toResource(relativePath, workspace.roots[0]);
+				return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);
 			}
 
-			if (target === ConfigurationTarget.FOLDER && this.contextService.hasMultiFolderWorkspace()) {
+			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
 				if (resource) {
 					const root = this.contextService.getRoot(resource);
 					if (root) {

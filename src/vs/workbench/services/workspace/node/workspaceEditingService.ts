@@ -53,10 +53,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		// TODO@Ben multi root
+		const workspace = this.contextService.getWorkspace();
 		return (
 			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+			&& workspace && !!workspace.configuration // we need a workspace configuration file to begin with
 		);
 	}
 

@@ -16,7 +16,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -153,26 +153,31 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
-	// in multi root workspace mode we use the provided ID as key for workspace storage
-	if (workspaceService.hasMultiFolderWorkspace()) {
-		workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
-	}
+	switch (workspaceService.getWorkspaceState()) {
 
-	// in single folder mode we use the path of the opened folder as key for workspace storage
-	// the ctime is used as secondary workspace id to clean up stale UI state if necessary
-	else if (workspaceService.hasFolderWorkspace()) {
-		workspaceId = workspace.roots[0].toString();
-		secondaryWorkspaceId = workspace.ctime;
-	}
+		// in multi root workspace mode we use the provided ID as key for workspace storage
+		case WorkspaceState.WORKSPACE:
+			workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
+			break;
 
-	// finaly, if we do not have a workspace open, we need to find another identifier for the window to store
-	// workspace UI state. if we have a backup path in the configuration we can use that because this
-	// will be a unique identifier per window that is stable between restarts as long as there are
-	// dirty files in the workspace.
-	// We use basename() to produce a short identifier, we do not need the full path. We use a custom
-	// scheme so that we can later distinguish these identifiers from the workspace one.
-	else if (configuration.backupPath) {
-		workspaceId = uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }).toString();
+		// in single folder mode we use the path of the opened folder as key for workspace storage
+		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
+		case WorkspaceState.FOLDER:
+			workspaceId = workspace.roots[0].toString();
+			secondaryWorkspaceId = workspace.ctime;
+			break;
+
+		// finaly, if we do not have a workspace open, we need to find another identifier for the window to store
+		// workspace UI state. if we have a backup path in the configuration we can use that because this
+		// will be a unique identifier per window that is stable between restarts as long as there are
+		// dirty files in the workspace.
+		// We use basename() to produce a short identifier, we do not need the full path. We use a custom
+		// scheme so that we can later distinguish these identifiers from the workspace one.
+		case WorkspaceState.EMPTY:
+			if (configuration.backupPath) {
+				workspaceId = uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }).toString();
+			}
+			break;
 	}
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!

@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -179,7 +179,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, workspaceSettingsUri);
 		}
 
-		if (this.contextService.hasMultiFolderWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.FOLDER, uri);
 		}
 
@@ -299,7 +299,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private resolveSettingsContentFromWorkspaceConfiguration(): TPromise<string> {
-		if (this.contextService.hasMultiFolderWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
 			return this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)
 				.then(reference => {
 					const model = reference.object.textEditorModel;
@@ -317,13 +317,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
 				const workspace = this.contextService.getWorkspace();
-				if (this.contextService.hasFolderWorkspace()) {
-					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
-				}
-				if (this.contextService.hasMultiFolderWorkspace()) {
-					return workspace.configuration;
-				}
-				return null;
+				return workspace ? workspace.configuration || this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]) : null;
 			case ConfigurationTarget.FOLDER:
 				const root = this.contextService.getRoot(resource);
 				return root ? this.toResource(paths.join('.vscode', 'settings.json'), root) : null;
@@ -336,7 +330,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
-		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			if (!this.configurationService.keys().workspace.length) {
 				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
 			}
