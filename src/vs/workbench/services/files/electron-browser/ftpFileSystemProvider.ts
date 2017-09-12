@@ -58,13 +58,13 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 		});
 	}
 
-	readdir(resource: URI): TPromise<IStat[]> {
+	readdir(resource: URI): TPromise<URI[]> {
 		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, resource.path).then(ret => {
-			const promises: TPromise<IStat>[] = [];
+			const result: URI[] = [];
 			for (let entry of ret) {
-				promises.push(this.stat(resource.with({ path: join(resource.path, entry.name) })));
+				result.push(resource.with({ path: join(resource.path, entry.name) }));
 			}
-			return TPromise.join(promises);
+			return result;
 		});
 	}
 
@@ -84,8 +84,8 @@ export class FtpFileSystemProvider implements IRemoteFileSystemProvider {
 		});
 	}
 
-	write(resource: URI, content: string): TPromise<void> {
-		return ninvoke(this._connection, this._connection.put, Buffer.from(content, 'utf8'), resource.path);
+	write(resource: URI, content: Uint8Array): TPromise<void> {
+		return ninvoke(this._connection, this._connection.put, content, resource.path);
 	}
 
 	del(resource: URI): TPromise<void> {

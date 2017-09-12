@@ -24,7 +24,7 @@ import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { decodeStream } from 'vs/base/node/encoding';
+import { decodeStream, encode } from 'vs/base/node/encoding';
 
 
 export interface IStat {
@@ -57,7 +57,7 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 
 			if (recurse) {
 				// resolve children if requested
-				return TPromise.join(items.map(item => toIFileStat(provider, item, false))).then(children => {
+				return TPromise.join(items.map(resource => provider.stat(resource).then(stat => toIFileStat(provider, stat, false)))).then(children => {
 					ret.children = children;
 					return ret;
 				});
@@ -72,10 +72,10 @@ function toIFileStat(provider: IRemoteFileSystemProvider, stat: IStat, recurse: 
 export interface IRemoteFileSystemProvider {
 	onDidChange?: Event<FileChangesEvent>;
 	stat(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<IStat[]>;
+	readdir(resource: URI): TPromise<URI[]>;
 	mkdir(resource: URI): TPromise<void>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
-	write(resource: URI, content: string): TPromise<void>;
+	write(resource: URI, content: Uint8Array): TPromise<void>;
 	del(resource: URI): TPromise<void>;
 }
 
@@ -237,7 +237,7 @@ export class RemoteFileService extends FileService {
 	async createFile(resource: URI, content?: string): TPromise<IFileStat> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			const stat = await this._doUpdateContent(provider, resource, content || '');
+			const stat = await this._doUpdateContent(provider, resource, content || '', {});
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, stat));
 			return stat;
 		} else {
@@ -248,14 +248,15 @@ export class RemoteFileService extends FileService {
 	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			return this._doUpdateContent(provider, resource, value);
+			return this._doUpdateContent(provider, resource, value, options || {});
 		} else {
 			return super.updateContent(resource, value, options);
 		}
 	}
 
-	private async _doUpdateContent(provider: IRemoteFileSystemProvider, resource: URI, content: string): TPromise<IFileStat> {
-		await provider.write(resource, content);
+	private async _doUpdateContent(provider: IRemoteFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
+		const encoding = this.getEncoding(resource, options.encoding);
+		await provider.write(resource, encode(content, encoding));
 		const stat = await provider.stat(resource);
 		const fileStat = await toIFileStat(provider, stat, false);
 		return fileStat;
