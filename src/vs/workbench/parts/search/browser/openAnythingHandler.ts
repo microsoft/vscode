@@ -56,23 +56,12 @@ interface ISearchWithRange {
 	  "files.cacheFilterStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "files.cacheLookupResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 	  "files.cacheEntryCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.fromCache": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.unsortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.sortedResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.resultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.traversal": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.errors": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.fileWalkStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.fileWalkResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.directoriesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.filesWalked": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cmdForkStartTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cmdForkResultTime": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cmdResultCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cacheLookupStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cacheFilterStartDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cacheLookupResultDuration": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-	  "files.joined.cacheEntryCount": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+	  "${wildcard}": [
+		 {
+			"${prefix}": "files.joined",
+			"${classification}": { "endPoint": "none", "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		 }
+	  ]
    }
  */
 // GDPR__TODO joined seems to be recursive
