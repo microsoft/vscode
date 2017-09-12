@@ -15,8 +15,8 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.toggleRenderWhitespace',
-			label: nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
-			alias: 'Toggle Render Whitespace',
+			label: nls.localize('toggleRenderWhitespace', "View: Toggle Render Whitespace"),
+			alias: 'View: Toggle Render Whitespace',
 			precondition: null
 		});
 	}

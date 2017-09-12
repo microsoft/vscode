@@ -15,7 +15,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
+import { editorCursorForeground, editorCursorBackground } from 'vs/editor/common/view/editorColorRegistry';
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
@@ -330,14 +330,21 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._renderData = [];
-		this._renderData.push(this._primaryCursor.render(ctx));
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._renderData.push(this._secondaryCursors[i].render(ctx));
+		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+
+		const primaryRenderData = this._primaryCursor.render(ctx);
+		if (primaryRenderData) {
+			renderData[renderDataLen++] = primaryRenderData;
 		}
 
-		// Keep only data of cursors that are visible
-		this._renderData = this._renderData.filter(d => !!d);
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			const secondaryRenderData = this._secondaryCursors[i].render(ctx);
+			if (secondaryRenderData) {
+				renderData[renderDataLen++] = secondaryRenderData;
+			}
+		}
+
+		this._renderData = renderData;
 	}
 
 	public getLastRenderData(): IViewCursorRenderData[] {
@@ -346,12 +353,15 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursor);
+	let caret = theme.getColor(editorCursorForeground);
 	if (caret) {
-		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		let caretBackground = theme.getColor(editorCursorBackground);
+		if (!caretBackground) {
+			caretBackground = caret.opposite();
+		}
+		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 		}
 	}
 

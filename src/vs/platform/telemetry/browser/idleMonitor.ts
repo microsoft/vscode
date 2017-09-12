@@ -24,7 +24,7 @@ export class IdleMonitor extends Disposable {
 	private _onStatusChange: Emitter<UserStatus>;
 	get onStatusChange(): Event<UserStatus> { return this._onStatusChange.event; }
 
-	constructor(idleTime) {
+	constructor(idleTime: number) {
 		super();
 
 		this._status = null;

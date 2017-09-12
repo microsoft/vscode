@@ -6,6 +6,6 @@
 {
 	"filesCategory": "Dateien",
 	"revealInSideBar": "In Seitenleiste anzeigen",
-	"acceptLocalChanges": "Lokale Änderungen verwenden und Datenträgerinhalte überschreiben",
-	"revertLocalChanges": "Lokale Änderungen verwerfen und Inhalt auf dem Datenträger wiederherstellen"
+	"acceptLocalChanges": "Änderungen verwenden und Datenträgerinhalte überschreiben",
+	"revertLocalChanges": "Änderungen verwerfen und Datenträgerinhalte wiederherstellen"
 }

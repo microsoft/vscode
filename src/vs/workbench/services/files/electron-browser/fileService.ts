@@ -12,7 +12,7 @@ import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,6 +27,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class FileService implements IFileService {
 
@@ -41,18 +42,19 @@ export class FileService implements IFileService {
 	private toUnbind: IDisposable[];
 	private activeOutOfWorkspaceWatchers: ResourceMap<uri>;
 
-	private _onFileChanges: Emitter<FileChangesEvent>;
+	protected _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
 		this.toUnbind = [];
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<uri>();
@@ -65,13 +67,6 @@ export class FileService implements IFileService {
 
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
-		// adjust encodings
-		const encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(environmentService.appSettingsHome), encoding: encoding.UTF8 });
-		if (this.contextService.hasWorkspace()) {
-			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
-		}
-
 		let watcherIgnoredPatterns: string[] = [];
 		if (configuration.files && configuration.files.watcherExclude) {
 			watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
@@ -80,16 +75,14 @@ export class FileService implements IFileService {
 		// build config
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
-			encoding: configuration.files && configuration.files.encoding,
-			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
-			encodingOverride,
+			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
 		};
 
 		// create service
-		const workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
@@ -103,7 +96,7 @@ export class FileService implements IFileService {
 		return this._onAfterOperation.event;
 	}
 
-	private onFileServiceError(msg: any): void {
+	private onFileServiceError(msg: string): void {
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
@@ -134,13 +127,32 @@ export class FileService implements IFileService {
 		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
 
 		// Editor changing
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
+		// Root changes
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
+	}
+
+	private onDidChangeWorkspaceRoots(): void {
+		this.updateOptions({ encodingOverride: this.getEncodingOverrides() });
+	}
+
+	private getEncodingOverrides(): IEncodingOverride[] {
+		const encodingOverride: IEncodingOverride[] = [];
+		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
+		if (this.contextService.hasWorkspace()) {
+			this.contextService.getWorkspace().roots.forEach(root => {
+				encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
+			});
+		}
+
+		return encodingOverride;
 	}
 
 	private onEditorsChanged(): void {
@@ -178,12 +190,16 @@ export class FileService implements IFileService {
 		this.updateOptions(configuration.files);
 	}
 
-	public updateOptions(options: any): void {
+	public updateOptions(options: object): void {
 		this.raw.updateOptions(options);
 	}
 
 	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.raw.resolveFile(resource, options);
+	}
+
+	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+		return this.raw.resolveFiles(toResolve);
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
@@ -196,10 +212,6 @@ export class FileService implements IFileService {
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
 		return this.raw.resolveStreamContent(resource, options);
-	}
-
-	public resolveContents(resources: uri[]): TPromise<IContent[]> {
-		return this.raw.resolveContents(resources);
 	}
 
 	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
@@ -239,11 +251,6 @@ export class FileService implements IFileService {
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
-		const workspace = this.contextService.getWorkspace();
-		if (!workspace) {
-			return TPromise.wrapError<void>('Need a workspace to use this');
-		}
-
 		const absolutePath = resource.fsPath;
 		const result = shell.moveItemToTrash(absolutePath);
 		if (!result) {
@@ -281,10 +288,8 @@ export class FileService implements IFileService {
 		this.raw.watchFileChanges(resource);
 	}
 
-	public unwatchFileChanges(resource: uri): void;
-	public unwatchFileChanges(path: string): void;
-	public unwatchFileChanges(arg1: any): void {
-		this.raw.unwatchFileChanges(arg1);
+	public unwatchFileChanges(resource: uri): void {
+		this.raw.unwatchFileChanges(resource);
 	}
 
 	public getEncoding(resource: uri, preferredEncoding?: string): string {

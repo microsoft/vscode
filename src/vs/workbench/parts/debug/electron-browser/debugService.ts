@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -26,7 +25,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -39,7 +38,7 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
-import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -49,15 +48,14 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowIPCService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/electron-browser/extensionHost';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
+import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
-const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 
 interface StartSessionResult {
 	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
@@ -69,18 +67,21 @@ export class DebugService implements debug.IDebugService {
 
 	private sessionStates: Map<string, debug.State>;
 	private _onDidChangeState: Emitter<debug.State>;
+	private _onDidNewProcess: Emitter<debug.IProcess>;
+	private _onDidEndProcess: Emitter<debug.IProcess>;
+	private _onDidCustomEvent: Emitter<debug.DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
+	private allProcesses: Map<string, debug.IProcess>;
 	private configurationManager: ConfigurationManager;
 	private customTelemetryService: ITelemetryService;
-	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: Map<string, lifecycle.IDisposable[]>;
 	private inDebugMode: IContextKey<boolean>;
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private callStackScheduler: RunOnceScheduler;
+	private launchJsonChanged: boolean;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -91,7 +92,8 @@ export class DebugService implements debug.IDebugService {
 		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
+		@IBroadcastService private broadcastService: IBroadcastService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -108,9 +110,14 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 		this._onDidChangeState = new Emitter<debug.State>();
+		this._onDidNewProcess = new Emitter<debug.IProcess>();
+		this._onDidEndProcess = new Emitter<debug.IProcess>();
+		this._onDidCustomEvent = new Emitter<debug.DebugEvent>();
 		this.sessionStates = new Map<string, debug.State>();
+		this.allProcesses = new Map<string, debug.IProcess>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
+		this.toDispose.push(this.configurationManager);
 		this.inDebugMode = debug.CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 		this.debugType = debug.CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 		this.debugState = debug.CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
@@ -118,83 +125,45 @@ export class DebugService implements debug.IDebugService {
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
-		this.callStackScheduler = new RunOnceScheduler(() => {
-			const focusedThread = this.viewModel.focusedThread;
-			if (focusedThread) {
-				const callStack = focusedThread.getCallStack();
-				// Some adapters might not respect the number levels in StackTraceRequest and might
-				// return more stackFrames than requested. For those do not send an additional stackTrace request.
-				if (callStack.length <= 1) {
-					this.model.fetchCallStack(focusedThread).done(() =>
-						this.tryToAutoFocusStackFrame(focusedThread), errors.onUnexpectedError);
-				}
-			}
-		}, 420);
+		this.viewModel = new ViewModel();
 
 		this.registerListeners(lifecycleService);
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-
-		if (this.taskService) {
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (e: TaskEvent) => {
-				this.lastTaskEvent = e;
-			}));
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (e: TaskEvent) => {
-				if (e.type === TaskType.SingleRun) {
-					this.lastTaskEvent = null;
-				}
-			}));
-			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (e: TaskEvent) => {
-				this.lastTaskEvent = null;
-			}));
-		}
-
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
-
-		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration((event) => {
-			if (event.sourceConfig) {
-				const names = this.configurationManager.getConfigurationNames();
-				if (names.every(name => name !== this.viewModel.selectedConfigurationName)) {
-					// Current selected configuration no longer exists - take the first configuration instead.
-					this.viewModel.setSelectedConfigurationName(names.length ? names[0] : undefined);
-				}
-			}
-		}));
+		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		// TODO@Isidor this is a hack to just get any 'extensionHost' session.
-		// Optimally the broadcast would contain the id of the session
-		// We are only intersted if we have an active debug session for extensionHost
-		const process = this.model.getProcesses().filter(p => strings.equalsIgnoreCase(p.configuration.type, 'extensionhost')).pop();
-		const session = process ? <RawDebugSession>process.session : null;
+		const process = this.allProcesses.get(broadcast.payload.debugId);
+		if (!process) {
+			// Ignore attach events for sessions that never existed (wrong vscode windows)
+			return;
+		}
+		const session = <RawDebugSession>process.session;
+
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
-			this.rawAttach(session, broadcast.payload.port);
+			this.onSessionEnd(session);
+
+			process.configuration.request = 'attach';
+			process.configuration.port = broadcast.payload.port;
+			this.doCreateProcess(process.session.root, process.configuration, process.getId());
 			return;
 		}
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
-			if (session) {
-				this.onSessionEnd(session);
-			}
-			return;
-		}
-
-		// from this point on we require an active session
-		if (!session) {
+			this.onSessionEnd(session);
 			return;
 		}
 
 		// an extension logged output, show it inside the REPL
 		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
-			let extensionOutput: ILogEntry = broadcast.payload;
+			let extensionOutput: ILogEntry = broadcast.payload.logEntry;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
 			let args: any[] = [];
@@ -225,12 +194,12 @@ export class DebugService implements debug.IDebugService {
 
 					// flush any existing simple values logged
 					if (simpleVals.length) {
-						this.model.appendToRepl(simpleVals.join(' '), sev);
+						this.logToRepl(simpleVals.join(' '), sev);
 						simpleVals = [];
 					}
 
 					// show object
-					this.model.appendToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
+					this.logToRepl(new OutputNameValueElement((<any>a).prototype, a, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev);
 				}
 
 				// string: watch out for % replacement directive
@@ -258,9 +227,9 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// flush simple values
-			// always append a new line for output coming from an extension such that seperate logs go to seperate lines #23695
+			// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 			if (simpleVals.length) {
-				this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
+				this.logToRepl(simpleVals.join(' ') + '\n', sev);
 			}
 		}
 	}
@@ -271,21 +240,25 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		// focus first stack frame from top that has source location if no other stack frame is focussed
+		// focus first stack frame from top that has source location if no other stack frame is focused
 		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
 		if (!stackFrameToFocus) {
 			return TPromise.as(null);
 		}
 
 		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-		this.windowService.getWindow().focus();
-		aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		if (thread.stoppedDetails) {
+			this.windowService.focusWindow();
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
+		}
 
 		return stackFrameToFocus.openInEditor(this.editorService);
 	}
 
 	private registerSessionListeners(process: Process, session: RawDebugSession): void {
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session);
+
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidInitialize(event => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -306,28 +279,12 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidStop(event => {
 			this.updateStateAndEmit(session.getId(), debug.State.Stopped);
-			const threadId = event.body.threadId;
-
-			session.threads().then(response => {
-				if (!response || !response.body || !response.body.threads) {
-					return;
-				}
-
-				const rawThread = response.body.threads.filter(t => t.id === threadId).pop();
-				this.model.rawUpdate({
-					sessionId: session.getId(),
-					thread: rawThread,
-					threadId,
-					stoppedDetails: event.body,
-					allThreadsStopped: event.body.allThreadsStopped
-				});
-
-				const thread = process && process.getThread(threadId);
+			this.fetchThreads(session, event.body).done(() => {
+				const thread = process && process.getThread(event.body.threadId);
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(thread).then(() => {
-						this.callStackScheduler.schedule();
 						return this.tryToAutoFocusStackFrame(thread);
 					});
 				}
@@ -344,7 +301,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				if (event.body && event.body.restart && process) {
 					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
@@ -380,11 +337,11 @@ export class DebugService implements debug.IDebugService {
 					children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.model.appendToRepl(child, outputSeverity);
+						this.logToRepl(child, outputSeverity);
 					});
 				});
 			} else if (typeof event.body.output === 'string') {
-				this.model.appendToRepl(event.body.output, outputSeverity);
+				this.logToRepl(event.body.output, outputSeverity);
 			}
 		}));
 
@@ -408,23 +365,32 @@ export class DebugService implements debug.IDebugService {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			const process = this.viewModel.focusedProcess;
 			if (process && session && process.getId() === session.getId() && strings.equalsIgnoreCase(process.configuration.type, 'extensionhost') && this.sessionStates.get(session.getId()) === debug.State.Running &&
-				process && this.contextService.getWorkspace() && process.configuration.noDebug) {
-				this.windowsService.closeExtensionHostWindow(this.contextService.getWorkspace().resource.fsPath);
+				process && this.contextService.hasWorkspace() && process.configuration.noDebug) {
+				this.broadcastService.broadcast({
+					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
+					payload: [process.session.root.fsPath]
+				});
 			}
-			if (session && session.getId() === event.body.sessionId) {
+			if (session && session.getId() === event.sessionId) {
 				this.onSessionEnd(session);
 			}
 		}));
+
+		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidCustomEvent(event => {
+			this._onDidCustomEvent.fire(event);
+		}));
 	}
 
-	private fetchThreads(session: RawDebugSession): TPromise<any> {
+	private fetchThreads(session: RawDebugSession, stoppedDetails?: debug.IRawStoppedDetails): TPromise<any> {
 		return session.threads().then(response => {
 			if (response && response.body && response.body.threads) {
 				response.body.threads.forEach(thread =>
 					this.model.rawUpdate({
 						sessionId: session.getId(),
 						threadId: thread.id,
-						thread
+						thread,
+						stoppedDetails,
+						allThreadsStopped: stoppedDetails ? stoppedDetails.allThreadsStopped : undefined
 					}));
 			}
 		});
@@ -494,6 +460,18 @@ export class DebugService implements debug.IDebugService {
 		return this._onDidChangeState.event;
 	}
 
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return this._onDidNewProcess.event;
+	}
+
+	public get onDidEndProcess(): Event<debug.IProcess> {
+		return this._onDidEndProcess.event;
+	}
+
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
+		return this._onDidCustomEvent.event;
+	}
+
 	private updateStateAndEmit(sessionId?: string, newState?: debug.State): void {
 		if (sessionId) {
 			if (newState === debug.State.Inactive) {
@@ -504,15 +482,14 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		const state = this.state;
-		this.debugState.set(debug.State[state].toLowerCase());
+		const stateLabel = debug.State[state];
+		if (stateLabel) {
+			this.debugState.set(stateLabel.toLowerCase());
+		}
 		this._onDidChangeState.fire(state);
 	}
 
-	public get enabled(): boolean {
-		return this.contextService.hasWorkspace();
-	}
-
-	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess): TPromise<void> {
+	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
 		if (!process) {
 			const processes = this.model.getProcesses();
 			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
@@ -523,7 +500,7 @@ export class DebugService implements debug.IDebugService {
 			stackFrame = callStack && callStack.length ? callStack[0] : null;
 		}
 
-		this.viewModel.setFocusedStackFrame(stackFrame, process);
+		this.viewModel.setFocusedStackFrame(stackFrame, process, explicit);
 		this.updateStateAndEmit();
 
 		return this.model.evaluateWatchExpressions(process, stackFrame);
@@ -591,8 +568,13 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	public logToRepl(value: string, sev = severity.Info): void {
-		this.model.appendToRepl(value, sev);
+	public logToRepl(value: string | debug.IExpression, sev = severity.Info): void {
+		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
+			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
+			this.model.removeReplExpressions();
+		} else {
+			this.model.appendToRepl(value, sev);
+		}
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -611,73 +593,136 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(configName?: string, noDebug = false): TPromise<any> {
+	public evaluateWatchExpressions(): TPromise<void> {
+		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
+	}
+
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
+
 		// make sure to save all files and that the configuration is up to date
-		return this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
+		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration().then(() =>
 			this.extensionService.onReady().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
+					this.allProcesses.clear();
 				}
+				this.launchJsonChanged = false;
 				const manager = this.getConfigurationManager();
-				configName = configName || this.viewModel.selectedConfigurationName;
-				const config = manager.getConfiguration(configName);
-				const compound = manager.getCompound(configName);
+				const launch = root ? manager.getLaunches().filter(l => l.workspaceUri.toString() === root.toString()).pop() : undefined;
+
+				let config: debug.IConfig, compound: debug.ICompound;
+				if (!configOrName) {
+					configOrName = this.configurationManager.selectedName;
+				}
+				if (typeof configOrName === 'string' && launch) {
+					config = launch.getConfiguration(configOrName);
+					compound = launch.getCompound(configOrName);
+				} else if (typeof configOrName !== 'string') {
+					config = configOrName;
+				}
+				if (launch) {
+					// in the drop down the name of the top most compound takes precedence over the launch config name
+					manager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
+				}
+
 				if (compound) {
 					if (!compound.configurations) {
 						return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => this.startDebugging(name)));
+					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
 				}
-				if (configName && !config) {
-					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configName)));
+				if (configOrName && !config) {
+					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
 				}
 
-				return manager.getStartSessionCommand(config ? config.type : undefined).then(commandAndType => {
-					if (noDebug && config) {
-						config.noDebug = true;
-					}
-					if (commandAndType && commandAndType.command) {
-						const defaultConfig = noDebug ? { noDebug: true } : {};
-						return this.commandService.executeCommand(commandAndType.command, config || defaultConfig).then((result: StartSessionResult) => {
-							if (this.contextService.getWorkspace()) {
-								if (result && result.status === 'initialConfiguration') {
-									return manager.openConfigFile(false, commandAndType.type);
-								}
+				return manager.getStartSessionCommand(config ? config.type : undefined).then<any>(commandAndType => {
 
-								if (result && result.status === 'saveConfiguration') {
-									return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
-								}
-							}
-							return undefined;
-						});
-					}
+					// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
+					// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
+					let type: string;
 
 					if (config) {
-						return this.createProcess(config);
-					}
-					if (this.contextService.getWorkspace() && commandAndType) {
-						return manager.openConfigFile(false, commandAndType.type);
+						type = config.type;
+					} else {
+						// a no-folder workspace has no launch.config
+						config = <debug.IConfig>{};
 					}
 
-					return undefined;
+					if (!type && commandAndType && commandAndType.type) {
+						type = commandAndType.type;
+					}
+
+					if (noDebug) {
+						config.noDebug = true;
+					}
+
+					return this.configurationManager.resolveDebugConfiguration(launch ? launch.workspaceUri : undefined, type, config).then(config => {
+
+						// a falsy config indicates an aborted launch
+						if (config) {
+
+							// deprecated code: use DebugConfigurationProvider instead of startSessionCommand
+							if (commandAndType && commandAndType.command) {
+								return this.commandService.executeCommand(commandAndType.command, config, launch ? launch.workspaceUri : undefined).then((result: StartSessionResult) => {
+									if (launch) {
+										if (result && result.status === 'initialConfiguration') {
+											return launch.openConfigFile(false, commandAndType.type);
+										}
+
+										if (result && result.status === 'saveConfiguration') {
+											return this.fileService.updateContent(launch.uri, result.content).then(() => launch.openConfigFile(false));
+										}
+									}
+									return <TPromise>undefined;
+								});
+							}
+							// end of deprecation
+
+							if (config.type) {
+								return this.createProcess(root, config);
+							}
+
+							if (launch && commandAndType) {
+								return launch.openConfigFile(false, commandAndType.type);
+							}
+						}
+						return undefined;
+					});
 				});
 			})
-		));
+		)));
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<any> {
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		const processes = this.getModel().getProcesses();
+		const result = processes.filter(process => process.getId() === uuid);
+		if (result.length > 0) {
+			return result[0];	// there can only be one
+		}
+		return null;
+	}
+
+	public createProcess(root: uri, config: debug.IConfig): TPromise<debug.IProcess> {
 		return this.textFileService.saveAll().then(() =>
-			this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
+			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
 				}
 
-				if (!this.configurationManager.getAdapter(resolvedConfig.type)) {
-					const message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-						nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+				if (!this.configurationManager.getAdapter(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+					let message: string;
+					if (config.request !== 'attach' && config.request !== 'launch') {
+						message = config.request ? nls.localize('debugRequestNotSupported', "Configured debug request '{0}' is not supported", config.request)
+							: nls.localize('debugRequesMissing', "Debug request is missing in the chosen launch configuration");
+
+					} else {
+						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+					}
+
 					return TPromise.wrapError(errors.create(message, { actions: [this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL), CloseAction] }));
 				}
 
@@ -686,7 +731,7 @@ export class DebugService implements debug.IDebugService {
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateProcess(resolvedConfig);
+						return this.doCreateProcess(root, resolvedConfig);
 					}
 
 					this.messageService.show(severity.Error, {
@@ -696,7 +741,7 @@ export class DebugService implements debug.IDebugService {
 						actions: [
 							new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 								this.messageService.hideAll();
-								return this.doCreateProcess(resolvedConfig);
+								return this.doCreateProcess(root, resolvedConfig);
 							}),
 							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
 							CloseAction
@@ -714,22 +759,25 @@ export class DebugService implements debug.IDebugService {
 					});
 				});
 			}, err => {
-				if (!this.contextService.getWorkspace()) {
-					return this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+				if (!this.contextService.hasWorkspace()) {
+					this.messageService.show(severity.Error, nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+					return undefined;
 				}
 
-				return this.configurationManager.openConfigFile(false).then(openend => {
+				return this.configurationManager.selectedLaunch.openConfigFile(false).then(openend => {
 					if (openend) {
 						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
 					}
+					return undefined;
 				});
 			})
 		);
 	}
 
-	private doCreateProcess(configuration: debug.IConfig): TPromise<any> {
-		const sessionId = generateUuid();
+	private doCreateProcess(root: uri, configuration: debug.IConfig, sessionId = generateUuid()): TPromise<debug.IProcess> {
+		configuration.__sessionId = sessionId;
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
+		this.inDebugMode.set(true);
 
 		return this.telemetryService.getTelemetryInfo().then(info => {
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
@@ -764,8 +812,9 @@ export class DebugService implements debug.IDebugService {
 				this.customTelemetryService = new TelemetryService({ appender }, this.configurationService);
 			}
 
-			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService);
+			const session = this.instantiationService.createInstance(RawDebugSession, sessionId, configuration.debugServer, adapter, this.customTelemetryService, root);
 			const process = this.model.addProcess(configuration, session);
+			this.allProcesses.set(process.getId(), process);
 
 			this.toDisposeOnSessionEnd.set(session.getId(), []);
 			if (client) {
@@ -789,23 +838,21 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-				if (!this.viewModel.focusedProcess) {
-					this.focusStackFrameAndEvaluate(null, process);
-				}
+				this._onDidNewProcess.fire(process);
+				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
 				if (internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && internalConsoleOptions === 'openOnFirstSessionStart')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.getWorkspace())) {
+				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || !this.contextService.hasWorkspace())) {
 					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
 
 				this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
-				this.inDebugMode.set(true);
 				this.debugType.set(configuration.type);
 				if (this.model.getProcesses().length > 1) {
 					this.viewModel.setMultiProcessView(true);
@@ -819,9 +866,9 @@ export class DebugService implements debug.IDebugService {
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
-					launchJsonExists: !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch')
+					launchJsonExists: this.contextService.hasWorkspace() && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: root })
 				});
-			}).then(undefined, (error: any) => {
+			}).then(() => process, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
 					// Do not show 'canceled' error messages to the user #7906
 					return TPromise.as(null);
@@ -833,9 +880,15 @@ export class DebugService implements debug.IDebugService {
 				if (!session.disconnected) {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
+				if (process) {
+					this.model.removeProcess(process.getId());
+				}
 				// Show the repl if some error got logged there #5870
 				if (this.model.getReplElements().length > 0) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+				}
+				if (this.model.getReplElements().length === 0) {
+					this.inDebugMode.reset();
 				}
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
@@ -852,53 +905,29 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		// run a task before starting a debug session
-		return this.taskService.tasks().then(descriptions => {
-			const filteredTasks = descriptions.filter(task => task.name === taskName);
-			if (filteredTasks.length !== 1) {
+		return this.taskService.getTask(taskName).then(task => {
+			if (!task) {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
-			// task is already running - nothing to do.
-			if (this.lastTaskEvent && this.lastTaskEvent.taskName === taskName) {
-				return TPromise.as(null);
-			}
+			return this.taskService.getActiveTasks().then(tasks => {
+				if (tasks.filter(t => t._id === task._id).length) {
+					// task is already running - nothing to do.
+					return TPromise.as(null);
+				}
 
-			if (this.lastTaskEvent) {
-				// there is a different task running currently.
-				return TPromise.wrapError(errors.create(nls.localize('differentTaskRunning', "There is a task {0} running. Can not run pre launch task {1}.", this.lastTaskEvent.taskName, taskName)));
-			}
+				const taskPromise = this.taskService.run(task);
+				if (task.isBackground) {
+					return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
+				}
 
-			// no task running, execute the preLaunchTask.
-			const taskPromise = this.taskService.run(filteredTasks[0]).then(result => {
-				this.lastTaskEvent = null;
-				return result;
-			}, err => {
-				this.lastTaskEvent = null;
+				return taskPromise;
 			});
-
-			if (filteredTasks[0].isBackground) {
-				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
-			}
-
-			return taskPromise;
 		});
 	}
 
-	private rawAttach(session: RawDebugSession, port: number): TPromise<any> {
-		if (session) {
-			return session.attach({ port });
-		}
-
-		const config = this.configurationManager.getConfiguration(this.viewModel.selectedConfigurationName);
-		return this.configurationManager.resloveConfiguration(config).then(resolvedConfig => {
-			resolvedConfig.request = 'attach';
-			resolvedConfig.port = port;
-			this.doCreateProcess(resolvedConfig);
-		});
-	}
-
-	public deemphasizeSource(uri: uri): void {
-		this.model.deemphasizeSource(uri);
+	public sourceIsNotAvailable(uri: uri): void {
+		this.model.sourceIsNotAvailable(uri);
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
@@ -908,21 +937,30 @@ export class DebugService implements debug.IDebugService {
 		const focusedProcess = this.viewModel.focusedProcess;
 		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
-		return process.session.disconnect(true).then(() =>
-			new TPromise<void>((c, e) => {
+		return process.session.disconnect(true).then(() => {
+			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
+				return this.broadcastService.broadcast({
+					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+					payload: [process.session.root.fsPath]
+				});
+			}
+
+			return new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					// Read the configuration again if a launch.json exists, if not just use the inmemory configuration #19366
-					const config = this.configurationManager.getConfiguration(process.configuration.name);
-					if (config) {
+					// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+					let config = process.configuration;
+					if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+						this.launchJsonChanged = false;
+						config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
 						// Take the type from the process since the debug extension might overwrite it #21316
 						config.type = process.configuration.type;
 						config.noDebug = process.configuration.noDebug;
-						config.__restart = restartData;
 					}
-					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
+					config.__restart = restartData;
+					this.createProcess(process.session.root, config).then(() => c(null), err => e(err));
 				}, 300);
-			})
-		).then(() => {
+			});
+		}).then(() => {
 			if (preserveFocus) {
 				// Restart should preserve the focused process
 				const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
@@ -960,6 +998,9 @@ export class DebugService implements debug.IDebugService {
 		});
 
 		this.model.removeProcess(session.getId());
+		if (process && process.state !== debug.ProcessState.INACTIVE) {
+			this._onDidEndProcess.fire(process);
+		}
 
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
@@ -1105,16 +1146,46 @@ export class DebugService implements debug.IDebugService {
 				this.breakpointsToSendOnResourceSaved.delete(event.resource.toString());
 				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
 			}
+			if (event.resource.toString().indexOf('.vscode/launch.json') >= 0) {
+				this.launchJsonChanged = true;
+			}
 		});
 	}
 
 	private store(): void {
-		this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(this.model.getBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.viewModel.selectedConfigurationName, StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions().map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+		const breakpoints = this.model.getBreakpoints();
+		if (breakpoints.length) {
+			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		if (!this.model.areBreakpointsActivated()) {
+			this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, 'false', StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE);
+		}
+
+		const functionBreakpoints = this.model.getFunctionBreakpoints();
+		if (functionBreakpoints.length) {
+			this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(functionBreakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		const exceptionBreakpoints = this.model.getExceptionBreakpoints();
+		if (exceptionBreakpoints.length) {
+			this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(exceptionBreakpoints), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
+		}
+
+		const watchExpressions = this.model.getWatchExpressions();
+		if (watchExpressions.length) {
+			this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(watchExpressions.map(we => ({ name: we.name, id: we.getId() }))), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	public dispose(): void {

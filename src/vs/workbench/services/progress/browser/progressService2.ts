@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
+import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
@@ -87,14 +87,26 @@ export class ProgressService2 implements IProgressService2 {
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
 		const promise = callback(task[1]);
-		this._stack.unshift(task);
-		this._updateWindowProgress();
 
-		always(promise, () => {
-			const idx = this._stack.indexOf(task);
-			this._stack.splice(idx, 1);
+		let delayHandle = setTimeout(() => {
+			delayHandle = undefined;
+			this._stack.unshift(task);
 			this._updateWindowProgress();
-		});
+
+			// show progress for at least 150ms
+			always(TPromise.join([
+				TPromise.timeout(150),
+				promise
+			]), () => {
+				const idx = this._stack.indexOf(task);
+				this._stack.splice(idx, 1);
+				this._updateWindowProgress();
+			});
+
+		}, 150);
+
+		// cancel delay if promise finishes below 150ms
+		always(promise, () => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -105,11 +117,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			let text = options.title;
 			if (progress.value && progress.value.message) {
-				if (options.title) {
-					text = localize('progress.text', "{0} - {1}", progress.value.message, options.title);
-				} else {
-					text = progress.value.message;
-				}
+				text = progress.value.message;
 			}
 
 			if (!text) {
@@ -119,8 +127,11 @@ export class ProgressService2 implements IProgressService2 {
 			}
 
 			let title = text;
+			if (options.title && options.title !== title) {
+				title = localize('progress.subtitle', "{0} - {1}", options.title, title);
+			}
 			if (options.tooltip) {
-				title = localize('progress.title', "{0}: {1}", options.tooltip, text);
+				title = localize('progress.title', "{0}: {1}", options.tooltip, title);
 			}
 
 			WindowProgressItem.Instance.text = text;
@@ -129,7 +140,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
+	private _withViewletProgress(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
 
 		const promise = task(emptyProgress);
 
@@ -149,7 +160,7 @@ export class ProgressService2 implements IProgressService2 {
 				'progress-badge'
 			);
 			const startTimeVisible = Date.now();
-			const minTimeVisible = 150;
+			const minTimeVisible = 300;
 			activityProgress = {
 				dispose() {
 					const d = Date.now() - startTimeVisible;
@@ -162,7 +173,7 @@ export class ProgressService2 implements IProgressService2 {
 					}
 				}
 			};
-		}, 150);
+		}, 300);
 
 		always(promise, () => {
 			clearTimeout(delayHandle);

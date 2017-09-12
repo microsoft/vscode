@@ -7,6 +7,7 @@
 	"JsonSchema.options": "其他命令选项",
 	"JsonSchema.options.cwd": "已执行程序或脚本的当前工作目录。如果省略，则使用代码的当前工作区根。",
 	"JsonSchema.options.env": "已执行程序或 shell 的环境。如果省略，则使用父进程的环境。",
+	"JsonSchema.shellConfiguration": "配置使用的 shell。",
 	"JsonSchema.shell.executable": "待使用的 shell。",
 	"JsonSchema.shell.args": "shell 参数。",
 	"JsonSchema.command": "要执行的命令。可以是外部程序或 shell 命令。",

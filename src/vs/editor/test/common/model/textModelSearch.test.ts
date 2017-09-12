@@ -31,7 +31,7 @@ suite('TextModelSearch', () => {
 		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
 		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
 		for (let i = 0; i < expectedMatches.length; i++) {
-			startPos = expectedMatches[i].range.getStartPosition();;
+			startPos = expectedMatches[i].range.getStartPosition();
 			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
 			assert.deepEqual(match, expectedMatches[i], `findNextMatch ${startPos}`);
 		}

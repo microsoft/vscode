@@ -19,6 +19,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Verbosity } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -26,12 +27,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
 	public static ID: string = 'workbench.editors.untitledEditorInput';
-	public static SCHEMA: string = 'untitled';
 
-	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
-	private initialValue: string;
-	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
 
@@ -40,11 +37,20 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private toUnbind: IDisposable[];
 
+	private shortDescription: string;
+	private mediumDescription: string;
+	private longDescription: string;
+
+	private shortTitle: string;
+	private mediumTitle: string;
+	private longTitle: string;
+
 	constructor(
-		resource: URI,
+		private resource: URI,
 		hasAssociatedFilePath: boolean,
-		modeId: string,
-		initialValue: string,
+		private modeId: string,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -52,11 +58,9 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	) {
 		super();
 
-		this.resource = resource;
-		this.initialValue = initialValue;
 		this._hasAssociatedFilePath = hasAssociatedFilePath;
-		this.modeId = modeId;
 		this.toUnbind = [];
+
 		this._onDidModelChangeContent = new Emitter<void>();
 		this._onDidModelChangeEncoding = new Emitter<void>();
 	}
@@ -93,8 +97,47 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
 	}
 
-	public getDescription(): string {
-		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService) : null;
+	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		if (!this.hasAssociatedFilePath) {
+			return null;
+		}
+
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				break;
+		}
+
+		return description;
+	}
+
+	public getTitle(verbosity: Verbosity): string {
+		if (!this.hasAssociatedFilePath) {
+			return this.getName();
+		}
+
+		let title: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
+				break;
+			case Verbosity.MEDIUM:
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
+				break;
+			case Verbosity.LONG:
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
+				break;
+		}
+
+		return title;
 	}
 
 	public isDirty(): boolean {
@@ -147,16 +190,18 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			return this.cachedModel.getEncoding();
 		}
 
-		return null;
+		return this.preferredEncoding;
 	}
 
 	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
+		this.preferredEncoding = encoding;
+
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<UntitledEditorModel> {
+	public resolve(): TPromise<UntitledEditorModel> {
 
 		// Join a model resolve if we have had one before
 		if (this.modelResolve) {
@@ -171,7 +216,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));

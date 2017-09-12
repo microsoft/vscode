@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import * as DOM from 'vs/base/browser/dom';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
@@ -116,11 +116,13 @@ export class SideBySideEditor extends BaseEditor {
 				this.disposeEditors();
 			}
 			this.createEditorContainers();
+
 			return this.setNewInput(newInput, options);
 		} else {
 			this.detailsEditor.setInput(newInput.details);
 			this.masterEditor.setInput(newInput.master, options);
-			return undefined;
+
+			return void 0;
 		}
 	}
 

@@ -1,6 +1,7 @@
 {
 	"version": "0.1.0",
 	"configurations": [
+
 		{
 			"type": "node",
 			"request": "launch",
@@ -16,7 +17,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5870,
 			"restart": true,
 			"outFiles": [
@@ -27,7 +28,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Shared Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5871,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -36,9 +37,9 @@
 		{
 			"type": "node",
 			"request": "attach",
-			"protocol": "legacy",
-			"name": "Attach to Search process",
-			"port": 7890,
+			"protocol": "inspector",
+			"name": "Attach to Search Process",
+			"port": 5876,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -47,7 +48,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to CLI Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5874,
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
@@ -57,8 +58,22 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"port": 5875,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Emmet Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/emmet/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/emmet",
+				"--extensionTestsPath=${workspaceRoot}/extensions/emmet/out/test"
+			],
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
@@ -112,7 +127,7 @@
 			},
 			"urlFilter": "*index.html*",
 			"runtimeArgs": [
-				"--debug=5875"
+				"--inspect=5875"
 			],
 			"webRoot": "${workspaceRoot}"
 		},
@@ -129,20 +144,10 @@
 			]
 		},
 		{
-			"name": "Attach to TS Server",
-			"type": "node",
-			"request": "attach",
-			"port": 5859,
-			"protocol": "legacy",
-			"outFiles": [
-				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
-			]
-		},
-		{
 			"type": "node",
 			"request": "launch",
 			"name": "Unit Tests",
-			"protocol": "legacy",
+			"protocol": "inspector",
 			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
 			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
@@ -163,6 +168,27 @@
 			"outFiles": [
 				"${workspaceRoot}/out/**/*.js"
 			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Launch Smoke Test",
+			"program": "${workspaceRoot}/test/smoke/out/main.js",
+			"cwd": "${workspaceRoot}/test/smoke",
+			"timeout": 240000,
+			"port": 9999,
+			"args": [
+				"-l",
+				"${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+			],
+			"outFiles": [
+				"${cwd}/out/**/*.js"
+			],
+			"env": {
+				"NODE_ENV": "development",
+				"VSCODE_DEV": "1",
+				"VSCODE_CLI": "1"
+			}
 		}
 	],
 	"compounds": [
@@ -171,6 +197,13 @@
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process"
+			]
+		},
+		{
+			"name": "Search and Renderer processes",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Search Process"
 			]
 		}
 	]

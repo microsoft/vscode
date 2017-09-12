@@ -22,10 +22,8 @@ import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
-import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine } from './search';
+import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
-
-export type IRawProgressItem<T> = T | T[] | IProgress;
 
 export class SearchService implements IRawSearchService {
 
@@ -34,6 +32,8 @@ export class SearchService implements IRawSearchService {
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
 	private textSearchWorkerProvider: TextSearchWorkerProvider;
+
+	private telemetryPipe: (event: ITelemetryEvent) => void;
 
 	public fileSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		return this.doFileSearch(FileSearchEngine, config, SearchService.BATCH_SIZE);
@@ -49,7 +49,7 @@ export class SearchService implements IRawSearchService {
 		config.maxFilesize = MAX_FILE_SIZE;
 		let engine = new RipgrepEngine(config);
 
-		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
+		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(SearchService.BATCH_SIZE, p);
 			engine.search((match) => {
@@ -78,7 +78,7 @@ export class SearchService implements IRawSearchService {
 		let engine = new TextSearchEngine(
 			config,
 			new FileWalker({
-				rootFolders: config.rootFolders,
+				folderQueries: config.folderQueries,
 				extraFiles: config.extraFiles,
 				includePattern: config.includePattern,
 				excludePattern: config.excludePattern,
@@ -90,7 +90,7 @@ export class SearchService implements IRawSearchService {
 		return this.doTextSearch(engine, SearchService.BATCH_SIZE);
 	}
 
-	public doFileSearch(EngineClass: { new (config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+	public doFileSearch(EngineClass: { new(config: IRawSearch): ISearchEngine<IRawFileMatch>; }, config: IRawSearch, batchSize?: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
@@ -113,7 +113,7 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
+		let searchPromise: PPromise<void, IFileSearchProgressItem>;
 		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			const engine = new EngineClass(config);
 			searchPromise = this.doSearch(engine, batchSize)
@@ -123,7 +123,7 @@ export class SearchService implements IRawSearchService {
 					} else if ((<IRawFileMatch>progress).relativePath) {
 						p(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 					} else {
-						p(progress);
+						p(<IProgress>progress);
 					}
 				});
 		}, () => {
@@ -136,12 +136,18 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {
-		let searchPromise: PPromise<void, IRawProgressItem<IRawFileMatch>>;
-		let allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>((c, e, p) => {
+		let searchPromise: PPromise<void, IFileSearchProgressItem>;
+		let allResultsPromise = new PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>((c, e, p) => {
 			let results: IRawFileMatch[] = [];
 			searchPromise = this.doSearch(engine, -1)
 				.then(result => {
 					c([result, results]);
+					if (this.telemetryPipe) {
+						this.telemetryPipe({
+							eventName: 'fileSearch',
+							data: result.stats
+						});
+					}
 				}, e, progress => {
 					if (Array.isArray(progress)) {
 						results = progress;
@@ -260,7 +266,7 @@ export class SearchService implements IRawSearchService {
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
-		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>;
+		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>;
 		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
@@ -311,8 +317,8 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	private doTextSearch(engine: TextSearchEngine, batchSize: number): PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>> {
-		return new PPromise<ISerializedSearchComplete, IRawProgressItem<ISerializedFileMatch>>((c, e, p) => {
+	private doTextSearch(engine: TextSearchEngine, batchSize: number): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
+		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, p);
 			engine.search((matches) => {
@@ -334,9 +340,9 @@ export class SearchService implements IRawSearchService {
 		});
 	}
 
-	private doSearch<T>(engine: ISearchEngine<T>, batchSize?: number): PPromise<ISerializedSearchComplete, IRawProgressItem<T>> {
-		return new PPromise<ISerializedSearchComplete, IRawProgressItem<T>>((c, e, p) => {
-			let batch: T[] = [];
+	private doSearch(engine: ISearchEngine<IRawFileMatch>, batchSize?: number): PPromise<ISerializedSearchComplete, IFileSearchProgressItem> {
+		return new PPromise<ISerializedSearchComplete, IFileSearchProgressItem>((c, e, p) => {
+			let batch: IRawFileMatch[] = [];
 			engine.search((match) => {
 				if (match) {
 					if (batchSize) {
@@ -371,6 +377,14 @@ export class SearchService implements IRawSearchService {
 		return TPromise.as(undefined);
 	}
 
+	public fetchTelemetry(): PPromise<void, ITelemetryEvent> {
+		return new PPromise((c, e, p) => {
+			this.telemetryPipe = p;
+		}, () => {
+			this.telemetryPipe = null;
+		});
+	}
+
 	private preventCancellation<C, P>(promise: PPromise<C, P>): PPromise<C, P> {
 		return new PPromise<C, P>((c, e, p) => {
 			// Allow for piled up cancellations to come through first.
@@ -385,7 +399,7 @@ export class SearchService implements IRawSearchService {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress>; } = Object.create(null);
+	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>; } = Object.create(null);
 
 	public scorerCache: ScorerCache = Object.create(null);
 }

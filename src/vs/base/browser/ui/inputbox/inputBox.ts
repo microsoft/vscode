@@ -9,8 +9,7 @@ import 'vs/css!./inputBox';
 import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
+import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
 import aria = require('vs/base/browser/ui/aria/aria');
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -381,18 +380,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				let renderOptions: IHTMLContentElement = {
-					tagName: 'span',
-					className: 'monaco-inputbox-message',
+				const renderOptions: RenderOptions = {
+					inline: true,
+					className: 'monaco-inputbox-message'
 				};
 
-				if (this.message.formatContent) {
-					renderOptions.formattedText = this.message.content;
-				} else {
-					renderOptions.text = this.message.content;
-				}
-
-				let spanElement: HTMLElement = <any>renderHtml(renderOptions);
+				let spanElement: HTMLElement = (this.message.formatContent
+					? renderFormattedText(this.message.content, renderOptions)
+					: renderText(this.message.content, renderOptions)) as any;
 				dom.addClass(spanElement, this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);

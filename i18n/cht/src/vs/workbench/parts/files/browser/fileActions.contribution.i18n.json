@@ -6,6 +6,6 @@
 {
 	"filesCategory": "檔案",
 	"revealInSideBar": "在提要欄位中顯示",
-	"acceptLocalChanges": "使用本機變更並覆寫磁碟內容",
-	"revertLocalChanges": "捨棄本機變更並還原成磁碟上的內容"
+	"acceptLocalChanges": "使用您的變更並覆寫磁碟內容 ",
+	"revertLocalChanges": "捨棄您的變更並還原成磁碟上的內容"
 }

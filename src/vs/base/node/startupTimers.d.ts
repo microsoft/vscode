@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Profile } from './profiler'
+import { Profile } from './profiler';
 
 declare interface TickStart {
 	name: string;
@@ -28,7 +28,7 @@ declare interface TickController {
 
 export function startTimer(name: string): TickController;
 
-export function stopTimer(name: string);
+export function stopTimer(name: string): void;
 
 export function ticks(): Tick[];
 

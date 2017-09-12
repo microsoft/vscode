@@ -12,6 +12,7 @@
 	"readMore": "자세히 알아보기...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, 제안, 세부 정보 있음",
 	"suggestionAriaLabel": "{0}, 제안",
+	"readLess": "간단히 보기...{0}",
 	"suggestWidget.loading": "로드 중...",
 	"suggestWidget.noSuggestions": "제안 항목이 없습니다.",
 	"suggestionAriaAccepted": "{0}, 수락됨",

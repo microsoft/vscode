@@ -6,6 +6,6 @@
 {
 	"filesCategory": "File",
 	"revealInSideBar": "Visualizza nella barra laterale",
-	"acceptLocalChanges": "Usa modifiche locali e sovrascrivi contenuto del disco",
-	"revertLocalChanges": "Rimuovi modifiche locali e ripristina contenuto su disco"
+	"acceptLocalChanges": "Utilizzare le modifiche e sovrascrivere il contenuto del disco",
+	"revertLocalChanges": "Annullare le modifiche e tornare al contenuto sul disco"
 }

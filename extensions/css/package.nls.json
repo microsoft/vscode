@@ -17,6 +17,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"css.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",
 	"css.lint.zeroUnits.desc": "No unit for zero needed",
+	"css.trace.server.desc": "Traces the communication between VS Code and the CSS language server.",
+	"css.validate.title": "Controls CSS validation and problem severities.",
 	"css.validate.desc": "Enables or disables all validations",
 	"less.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"less.lint.boxModel.desc": "Do not use width or height when using padding or border",
@@ -36,6 +38,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"less.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",
 	"less.lint.zeroUnits.desc": "No unit for zero needed",
+	"less.validate.title": "Controls LESS validation and problem severities.",
 	"less.validate.desc": "Enables or disables all validations",
 	"scss.lint.argumentsInColorFunction.desc": "Invalid number of parameters",
 	"scss.lint.boxModel.desc": "Do not use width or height when using padding or border",
@@ -55,8 +58,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"scss.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",
 	"scss.lint.zeroUnits.desc": "No unit for zero needed",
+	"scss.validate.title": "Controls SCSS validation and problem severities.",
 	"scss.validate.desc": "Enables or disables all validations",
 	"less.colorDecorators.enable.desc": "Enables or disables color decorators",
 	"scss.colorDecorators.enable.desc": "Enables or disables color decorators",
-	"css.colorDecorators.enable.desc": "Enables or disables color decorators"
+	"css.colorDecorators.enable.desc": "Enables or disables color decorators",
+	"css.colorDecorators.enable.deprecationMessage": "The setting `css.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
+	"scss.colorDecorators.enable.deprecationMessage": "The setting `scss.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`.",
+	"less.colorDecorators.enable.deprecationMessage": "The setting `less.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`."
 }

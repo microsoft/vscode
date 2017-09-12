@@ -84,14 +84,9 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	splice(start: number, deleteCount: number): void {
-		for (let i = 0; i < deleteCount; i++) {
-			const key = `key_${start + i}`;
-			const data = this.rendered[key];
-
-			if (data) {
-				data.elementDisposable.dispose();
-			}
-		}
+		this.rendered
+			.filter(({ index }) => index >= start && index < start + deleteCount)
+			.forEach(({ templateData }) => templateData.elementDisposable.dispose());
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
@@ -180,6 +175,32 @@ class FocusTrait<T> extends Trait<T> {
 		super.renderIndex(index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
+	}
+}
+
+class Aria<T> implements IRenderer<T, HTMLElement>, ISpliceable<T> {
+
+	private length = 0;
+
+	get templateId(): string {
+		return 'aria';
+	}
+
+	splice(start: number, deleteCount: number, elements: T[]): void {
+		this.length += elements.length - deleteCount;
+	}
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return container;
+	}
+
+	renderElement(element: T, index: number, container: HTMLElement): void {
+		container.setAttribute('aria-setsize', `${this.length}`);
+		container.setAttribute('aria-posinset', `${index + 1}`);
+	}
+
+	disposeTemplate(container: HTMLElement): void {
+		// noop
 	}
 }
 
@@ -322,6 +343,7 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
 		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
+		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
@@ -358,9 +380,11 @@ class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		const focus = this.list.getFocus();
-		this.list.setSelection(focus);
-		this.list.open(focus);
+		if (!this.options.selectOnMouseDown) {
+			const focus = this.list.getFocus();
+			this.list.setSelection(focus);
+			this.list.open(focus);
+		}
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
@@ -593,11 +617,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	private _onDOMFocus = new Emitter<void>();
-	get onDOMFocus(): Event<void> { return this._onDOMFocus.event; }
-
-	private _onDOMBlur = new Emitter<void>();
-	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
+	readonly onDOMFocus: Event<void>;
+	readonly onDOMBlur: Event<void>;
 
 	private _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -608,12 +629,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
+		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
+
 		this.eventBufferer = new EventBufferer();
 		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
@@ -623,6 +646,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
+			aria,
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
 			new TraitSpliceable(this.selection, this.view, options.identityProvider),
 			this.view
@@ -630,9 +654,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
 
-		const tracker = DOM.trackFocus(this.view.domNode);
-		this.disposables.push(tracker.addFocusListener(() => this._onDOMFocus.fire()));
-		this.disposables.push(tracker.addBlurListener(() => this._onDOMBlur.fire()));
+		this.onDOMFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
+		this.onDOMBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view);

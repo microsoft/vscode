@@ -5,15 +5,14 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadStorageShape } from './extHost.protocol';
+import { MainContext, MainThreadStorageShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostStorage {
 
 	private _proxy: MainThreadStorageShape;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadStorage);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadStorage);
 	}
 
 	getValue<T>(shared: boolean, key: string, defaultValue?: T): TPromise<T> {

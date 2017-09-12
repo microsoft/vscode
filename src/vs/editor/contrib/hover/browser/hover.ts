@@ -23,6 +23,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 
 @editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
@@ -35,6 +36,9 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
 
+	private _isMouseDown: boolean;
+	private _hoverClicked: boolean;
+
 	static get(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 	}
@@ -46,9 +50,11 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		this._editor = editor;
 
 		this._toUnhook = [];
+		this._isMouseDown = false;
 
 		if (editor.getConfiguration().contribInfo.hover) {
 			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.push(this._editor.onMouseLeave((e: IEditorMouseEvent) => this._hideWidgets()));
 			this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -59,9 +65,9 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 					this._hideWidgets();
 				}
 			}));
-
-			this._contentWidget = new ModesContentHoverWidget(editor, openerService, modeService);
-			this._glyphWidget = new ModesGlyphHoverWidget(editor, openerService, modeService);
+			const renderer = new MarkdownRenderer(editor, modeService, openerService);
+			this._contentWidget = new ModesContentHoverWidget(editor, renderer);
+			this._glyphWidget = new ModesGlyphHoverWidget(editor, renderer);
 		}
 	}
 
@@ -71,9 +77,12 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		this._isMouseDown = true;
+
 		var targetType = mouseEvent.target.type;
 
 		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
 		}
@@ -83,12 +92,24 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 			return;
 		}
 
+		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== ModesGlyphHoverWidget.ID) {
+			this._hoverClicked = false;
+		}
+
 		this._hideWidgets();
+	}
+
+	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
+		this._isMouseDown = false;
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		var targetType = mouseEvent.target.type;
 		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+
+		if (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible()) {
+			return;
+		}
 
 		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
 			// mouse moved on top of content hover widget
@@ -119,6 +140,10 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		if (this._isMouseDown && this._hoverClicked && this._contentWidget.isColorPickerVisible()) {
+			return;
+		}
+
 		this._glyphWidget.hide();
 		this._contentWidget.hide();
 	}

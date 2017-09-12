@@ -6,6 +6,6 @@
 {
 	"filesCategory": "Fichiers",
 	"revealInSideBar": "Afficher dans la barre latérale",
-	"acceptLocalChanges": "Utiliser les modifications locales et remplacer le contenu du disque",
-	"revertLocalChanges": "Ignorer les modifications locales et restaurer le contenu sur disque"
+	"acceptLocalChanges": "Utiliser vos modifications et écraser les contenus du disque",
+	"revertLocalChanges": "Ignorer les modifications et revenir au contenu sur le disque"
 }

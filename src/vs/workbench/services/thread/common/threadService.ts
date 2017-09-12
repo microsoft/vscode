@@ -4,13 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const IThreadService = createDecorator<IThreadService>('threadService');
-
 export interface IThreadService {
-	_serviceBrand: any;
-
 	/**
 	 * Always returns a proxy.
 	 */
@@ -19,7 +13,12 @@ export interface IThreadService {
 	/**
 	 * Register instance.
 	 */
-	set<T>(identifier: ProxyIdentifier<T>, value: T): void;
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R;
+
+	/**
+	 * Assert these identifiers are already registered via `.set`.
+	 */
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
 }
 
 export class ProxyIdentifier<T> {
@@ -27,25 +26,17 @@ export class ProxyIdentifier<T> {
 
 	isMain: boolean;
 	id: string;
-	methodNames: string[];
 
-	constructor(isMain: boolean, id: string, ctor: Function) {
+	constructor(isMain: boolean, id: string) {
 		this.isMain = isMain;
 		this.id = id;
-
-		this.methodNames = [];
-		for (let prop in ctor.prototype) {
-			if (typeof ctor.prototype[prop] === 'function') {
-				this.methodNames.push(prop);
-			}
-		}
 	}
 }
 
-export function createMainContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
-	return new ProxyIdentifier(true, 'm' + identifier, ctor);
+export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(true, 'm' + identifier);
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string, ctor: Function): ProxyIdentifier<T> {
-	return new ProxyIdentifier(false, 'e' + identifier, ctor);
+export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(false, 'e' + identifier);
 }

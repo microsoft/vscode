@@ -51,7 +51,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-editor-hover-content';
 
-		this.scrollbar = new DomScrollableElement(this._domNode, { canUseTranslate3d: false });
+		this.scrollbar = new DomScrollableElement(this._domNode, {});
 		this.disposables.push(this.scrollbar);
 		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
 

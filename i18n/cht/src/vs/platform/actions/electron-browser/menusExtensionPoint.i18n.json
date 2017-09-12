@@ -21,6 +21,8 @@
 	"menus.scmTitle": "原始檔控制標題功能表",
 	"menus.resourceGroupContext": "原始檔控制資源群組操作功能表",
 	"menus.resourceStateContext": "原始檔控制資源群組狀態操作功能表",
+	"view.viewTitle": "這有助於查看標題功能表",
+	"view.itemContext": "這有助於查看項目內容功能表",
 	"nonempty": "必須是非空白值。",
 	"opticon": "屬性 `icon` 可以省略，否則必須為字串或類似 `{dark, light}` 的常值",
 	"requireStringOrObject": "'{0}' 為必要屬性，且其類型必須是 'string' 或 'object'",

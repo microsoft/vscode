@@ -11,8 +11,8 @@ import { nfcall } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
-import { Registry } from 'vs/platform/platform';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEditorService } from 'vs/platform/editor/common/editor';
@@ -81,7 +81,9 @@ class InstallAction extends Action {
 						});
 					}
 				})
-				.then<void>(() => this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName)));
+				.then(() => {
+					this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
+				});
 		});
 	}
 
@@ -141,7 +143,9 @@ class UninstallAction extends Action {
 
 			return pfs.unlink(this.target)
 				.then(null, ignore('ENOENT'))
-				.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName)));
+				.then(() => {
+					this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
+				});
 		});
 	}
 }

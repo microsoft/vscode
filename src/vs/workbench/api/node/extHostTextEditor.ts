@@ -6,17 +6,19 @@
 
 
 import { ok } from 'vs/base/common/assert';
-import { readonly, illegalArgument } from 'vs/base/common/errors';
+import { readonly, illegalArgument, V8CallSite } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
+import { MainThreadEditorsShape, MainThreadTelemetryShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
+import { containsCommandLink } from 'vs/base/common/htmlContent';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -399,7 +401,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selection');
 		}
 		this._selections = [value];
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	get selections(): Selection[] {
@@ -411,7 +413,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selections');
 		}
 		this._selections = value;
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
@@ -420,8 +422,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				this._id,
 				decorationType.key,
 				TypeConverters.fromRangeOrRangeWithMessage(ranges)
-			),
-			true
+			)
 		);
 	}
 
@@ -431,14 +432,13 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				this._id,
 				TypeConverters.fromRange(range),
 				(revealType || TextEditorRevealType.Default)
-			),
-			true
+			)
 		);
 	}
 
-	private _trySetSelection(silent: boolean): TPromise<vscode.TextEditor> {
+	private _trySetSelection(): TPromise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.fromSelection);
-		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection), silent);
+		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
 
 	_acceptSelections(selections: Selection[]): void {
@@ -450,7 +450,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#edit not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#edit not possible on closed editors'));
 		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
@@ -508,7 +508,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#insertSnippet not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
 		let ranges: IRange[];
 
@@ -538,24 +538,83 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => TPromise<any>): TPromise<ExtHostTextEditor> {
 		if (this._disposed) {
-			if (!silent) {
-				return TPromise.wrapError<ExtHostTextEditor>(silent);
-			} else {
-				console.warn('TextEditor is closed/disposed');
-				return TPromise.as(undefined);
-			}
+			console.warn('TextEditor is closed/disposed');
+			return TPromise.as(undefined);
 		}
 		return callback().then(() => this, err => {
-			if (!silent) {
-				return TPromise.wrapError<ExtHostTextEditor>(silent);
+			if (!(err instanceof Error && err.name === 'DISPOSED')) {
+				console.warn(err);
 			}
-			console.warn(err);
-			return undefined;
+			return null;
 		});
 	}
 }
+
+export class ExtHostTextEditor2 extends ExtHostTextEditor {
+
+	constructor(
+		private readonly _extHostExtensions: ExtHostExtensionService,
+		private readonly _mainThreadTelemetry: MainThreadTelemetryShape,
+		proxy: MainThreadEditorsShape,
+		id: string,
+		document: ExtHostDocumentData,
+		selections: Selection[],
+		options: IResolvedTextEditorConfiguration,
+		viewColumn: vscode.ViewColumn
+	) {
+		super(proxy, id, document, selections, options, viewColumn);
+	}
+
+	setDecorations(decorationType: vscode.TextEditorDecorationType, rangesOrOptions: Range[] | vscode.DecorationOptions[]): void {
+		// (1) find out if this decoration is important for us
+		let usesCommandLink = false;
+		outer: for (const rangeOrOption of rangesOrOptions) {
+			if (Range.isRange(rangeOrOption)) {
+				break;
+			}
+			if (typeof rangeOrOption.hoverMessage === 'string' && containsCommandLink(rangeOrOption.hoverMessage)) {
+				usesCommandLink = true;
+				break;
+			} else if (Array.isArray(rangeOrOption.hoverMessage)) {
+				for (const message of rangeOrOption.hoverMessage) {
+					if (typeof message === 'string' && containsCommandLink(message)) {
+						usesCommandLink = true;
+						break outer;
+					}
+				}
+			}
+		}
+		// (2) send event for important decorations
+		if (usesCommandLink) {
+			let tag = new Error();
+			this._extHostExtensions.getExtensionPathIndex().then(index => {
+				const oldHandler = (<any>Error).prepareStackTrace;
+				(<any>Error).prepareStackTrace = (error: Error, stackTrace: V8CallSite[]) => {
+					for (const call of stackTrace) {
+						const extension = index.findSubstr(call.getFileName());
+						if (extension) {
+							this._mainThreadTelemetry.$publicLog('usesCommandLink', {
+								extension: extension.id,
+								from: 'decoration',
+							});
+							return;
+						}
+					}
+				};
+				// it all happens here...
+				// tslint:disable-next-line:no-unused-expression
+				tag.stack;
+				(<any>Error).prepareStackTrace = oldHandler;
+			});
+		}
+
+		// (3) do it
+		super.setDecorations(decorationType, rangesOrOptions);
+	}
+}
+
 
 function warnOnError(promise: TPromise<any>): void {
 	promise.then(null, (err) => {

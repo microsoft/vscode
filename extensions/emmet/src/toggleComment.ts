@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode, isStyleSheet } from './util';
-import parse from '@emmetio/html-matcher';
+import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
+import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
+import { isStyleSheet } from 'vscode-emmet-helper';
 import parseStylesheet from '@emmetio/css-parser';
-import Node from '@emmetio/node';
-
+import { DocumentStreamReader } from './bufferStream';
 
 const startCommentStylesheet = '/*';
 const endCommentStylesheet = '*/';
 const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
-export function toggleComment() {
+export function toggleComment(): Thenable<boolean> {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		vscode.window.showInformationMessage('No editor is active');
@@ -23,120 +23,187 @@ export function toggleComment() {
 	}
 
 	let toggleCommentInternal;
-	let startComment;
-	let endComment;
-	let parseContent;
 
 	if (isStyleSheet(editor.document.languageId)) {
-		parseContent = parseStylesheet;
 		toggleCommentInternal = toggleCommentStylesheet;
-		startComment = startCommentStylesheet;
-		endComment = endCommentStylesheet;
 	} else {
-		parseContent = parse;
 		toggleCommentInternal = toggleCommentHTML;
-		startComment = startCommentHTML;
-		endComment = endCommentHTML;
 	}
 
-	let rootNode = parseContent(editor.document.getText());
+	let rootNode = parseDocument(editor.document);
+	if (!rootNode) {
+		return;
+	}
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangesToUnComment, positionForCommentStart, positionForCommentEnd] = toggleCommentInternal(editor.document, selection, rootNode);
-			rangesToUnComment.forEach(rangeToDelete => {
-				editBuilder.delete(rangeToDelete);
+			let edits = toggleCommentInternal(editor.document, selection, rootNode);
+			edits.forEach(x => {
+				editBuilder.replace(x.range, x.newText);
 			});
-			if (positionForCommentStart) {
-				editBuilder.insert(positionForCommentStart, startComment);
-			}
-			if (positionForCommentEnd) {
-				editBuilder.insert(positionForCommentEnd, endComment);
-			}
 		});
 	});
 }
 
-function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range[], vscode.Position, vscode.Position] {
-	let offset = document.offsetAt(selection.start);
-	let nodeToUpdate = getNode(rootNode, offset);
-	if (!nodeToUpdate) {
-		return [[], null, null];
+function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit[] {
+	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
+	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
+
+	let startNode = <HtmlNode>getNode(rootNode, selectionStart, true);
+	let endNode = <HtmlNode>getNode(rootNode, selectionEnd, true);
+
+	if (!startNode || !endNode) {
+		return [];
 	}
 
-	let rangesToUnComment = getRangesToUnCommentHTML(nodeToUpdate, document);
-	if (nodeToUpdate.type === 'comment') {
-		return [rangesToUnComment, null, null];
+	if (sameNodes(startNode, endNode) && startNode.name === 'style'
+		&& startNode.open.end.isBefore(selectionStart)
+		&& startNode.close.start.isAfter(selectionEnd)) {
+		let buffer = new DocumentStreamReader(document, startNode.open.end, new vscode.Range(startNode.open.end, startNode.close.start));
+		let cssRootNode = parseStylesheet(buffer);
+
+		return toggleCommentStylesheet(document, selection, cssRootNode);
 	}
 
-	let positionForCommentStart = document.positionAt(nodeToUpdate.start);
-	let positionForCommentEnd = document.positionAt(nodeToUpdate.end);
-	return [rangesToUnComment, positionForCommentStart, positionForCommentEnd];
+	let allNodes: Node[] = getNodesInBetween(startNode, endNode);
+	let edits: vscode.TextEdit[] = [];
+
+	allNodes.forEach(node => {
+		edits = edits.concat(getRangesToUnCommentHTML(node, document));
+	});
+
+	if (startNode.type === 'comment') {
+		return edits;
+	}
+
+
+	edits.push(new vscode.TextEdit(new vscode.Range(allNodes[0].start, allNodes[0].start), startCommentHTML));
+	edits.push(new vscode.TextEdit(new vscode.Range(allNodes[allNodes.length - 1].end, allNodes[allNodes.length - 1].end), endCommentHTML));
+
+	return edits;
 }
 
-function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vscode.Range[] {
-	let rangesToUnComment = [];
+function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vscode.TextEdit[] {
+	let unCommentTextEdits: vscode.TextEdit[] = [];
 
 	// If current node is commented, then uncomment and return
 	if (node.type === 'comment') {
-		rangesToUnComment.push(new vscode.Range(document.positionAt(node.start), document.positionAt(node.start + startCommentHTML.length)));
-		rangesToUnComment.push(new vscode.Range(document.positionAt(node.end), document.positionAt(node.end - endCommentHTML.length)));
 
-		return rangesToUnComment;
+		unCommentTextEdits.push(new vscode.TextEdit(new vscode.Range(node.start, node.start.translate(0, startCommentHTML.length)), ''));
+		unCommentTextEdits.push(new vscode.TextEdit(new vscode.Range(node.end.translate(0, -endCommentHTML.length), node.end), ''));
+
+		return unCommentTextEdits;
 	}
 
 	// All children of current node should be uncommented
 	node.children.forEach(childNode => {
-		rangesToUnComment = rangesToUnComment.concat(getRangesToUnCommentHTML(childNode, document));
+		unCommentTextEdits = unCommentTextEdits.concat(getRangesToUnCommentHTML(childNode, document));
 	});
 
-	return rangesToUnComment;
+	return unCommentTextEdits;
 }
 
-function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range[], vscode.Position, vscode.Position] {
+function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet): vscode.TextEdit[] {
+	let selectionStart = selection.isReversed ? selection.active : selection.anchor;
+	let selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 
-	let selectionStart = document.offsetAt(selection.anchor);
-	let selectionEnd = document.offsetAt(selection.active);
+	let startNode = getNode(rootNode, selectionStart, true);
+	let endNode = getNode(rootNode, selectionEnd, true);
 
-	// If current node is commented, then uncomment and return
-	let rangesToUnComment = getRangesToUnCommentStylesheet(rootNode, selectionStart, selectionEnd, document, true);
-	if (rangesToUnComment.length > 0) {
-		return [rangesToUnComment, null, null];
+	if (!selection.isEmpty || startNode) {
+		selectionStart = selection.isEmpty ? startNode.start : adjustStartNodeCss(startNode, selectionStart, rootNode);
+		selectionEnd = selection.isEmpty ? startNode.end : adjustEndNodeCss(endNode, selectionEnd, rootNode);
+		selection = new vscode.Selection(selectionStart, selectionEnd);
 	}
 
-	// Find the node that needs to be commented
-	let nodeToComment = getNode(rootNode, selectionStart, true);
-	if (!nodeToComment) {
-		return [[], null, null];
-	}
-
-	// Uncomment children of current node and then comment the node
-	rangesToUnComment = getRangesToUnCommentStylesheet(rootNode, nodeToComment.start, nodeToComment.end, document, false);
-	let positionForCommentStart = document.positionAt(nodeToComment.start);
-	let positionForCommentEnd = document.positionAt(nodeToComment.end);
-
-	return [rangesToUnComment, positionForCommentStart, positionForCommentEnd];
-}
-
-function getRangesToUnCommentStylesheet(rootNode: Node, selectionStart: number, selectionEnd: number, document: vscode.TextDocument, selectionInsideComment: boolean): vscode.Range[] {
-	if (!rootNode.comments || rootNode.comments.length === 0) {
-		return [];
-	}
-
-	let rangesToUnComment = [];
+	// Uncomment the comments that intersect with the selection.
+	let rangesToUnComment: vscode.Range[] = [];
+	let edits: vscode.TextEdit[] = [];
 	rootNode.comments.forEach(comment => {
-		let foundComment = false;
-		if (selectionInsideComment) {
-			foundComment = comment.start <= selectionStart && comment.end >= selectionEnd;
-		} else {
-			foundComment = selectionStart <= comment.start && selectionEnd >= comment.end;
-		}
-
-		if (foundComment) {
-			rangesToUnComment.push(new vscode.Range(document.positionAt(comment.start), document.positionAt(comment.start + startCommentStylesheet.length)));
-			rangesToUnComment.push(new vscode.Range(document.positionAt(comment.end), document.positionAt(comment.end - endCommentStylesheet.length)));
+		let commentRange = new vscode.Range(comment.start, comment.end);
+		if (selection.intersection(commentRange)) {
+			rangesToUnComment.push(commentRange);
+			edits.push(new vscode.TextEdit(new vscode.Range(comment.start, comment.start.translate(0, startCommentStylesheet.length)), ''));
+			edits.push(new vscode.TextEdit(new vscode.Range(comment.end.translate(0, -endCommentStylesheet.length), comment.end), ''));
 		}
 	});
 
-	return rangesToUnComment;
+	if (edits.length > 0) {
+		return edits;
+	}
+
+	return [
+		new vscode.TextEdit(new vscode.Range(selection.start, selection.start), startCommentStylesheet),
+		new vscode.TextEdit(new vscode.Range(selection.end, selection.end), endCommentStylesheet)
+	];
+
+
 }
+
+function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+	for (let i = 0; i < rootNode.comments.length; i++) {
+		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+		if (commentRange.contains(pos)) {
+			return pos;
+		}
+	}
+
+	if (!node) {
+		return pos;
+	}
+
+	if (node.type === 'property') {
+		return node.start;
+	}
+
+	const rule = <Rule>node;
+	if (pos.isBefore(rule.contentStartToken.end) || !rule.firstChild) {
+		return rule.start;
+	}
+
+	if (pos.isBefore(rule.firstChild.start)) {
+		return pos;
+	}
+
+	let newStartNode = rule.firstChild;
+	while (newStartNode.nextSibling && pos.isAfter(newStartNode.end)) {
+		newStartNode = newStartNode.nextSibling;
+	}
+
+	return newStartNode.start;
+}
+
+function adjustEndNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+	for (let i = 0; i < rootNode.comments.length; i++) {
+		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
+		if (commentRange.contains(pos)) {
+			return pos;
+		}
+	}
+
+	if (!node) {
+		return pos;
+	}
+
+	if (node.type === 'property') {
+		return node.end;
+	}
+
+	const rule = <Rule>node;
+	if (pos.isEqual(rule.contentEndToken.end) || !rule.firstChild) {
+		return rule.end;
+	}
+
+	if (pos.isAfter(rule.children[rule.children.length - 1].end)) {
+		return pos;
+	}
+
+	let newEndNode = rule.children[rule.children.length - 1];
+	while (newEndNode.previousSibling && pos.isBefore(newEndNode.start)) {
+		newEndNode = newEndNode.previousSibling;
+	}
+
+	return newEndNode.end;
+}
+
+

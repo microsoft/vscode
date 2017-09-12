@@ -7,6 +7,7 @@
 	"JsonSchema.options": "其他命令選項",
 	"JsonSchema.options.cwd": "所執行程式或指令碼的目前工作目錄。如果省略，則會使用 Code 的目前工作區根目錄。",
 	"JsonSchema.options.env": "所執行程式或殼層的環境。如果省略，則會使用父處理序的環境。",
+	"JsonSchema.shellConfiguration": "設定要使用的殼層。",
 	"JsonSchema.shell.executable": "要使用的殼層。",
 	"JsonSchema.shell.args": "殼層引數。",
 	"JsonSchema.command": "要執行的命令。可以是外部程式或殼層命令。",

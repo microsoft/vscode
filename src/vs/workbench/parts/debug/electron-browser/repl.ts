@@ -9,7 +9,6 @@ import uri from 'vs/base/common/uri';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
@@ -43,6 +42,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { clipboard } from 'electron';
 
 const $ = dom.$;
 
@@ -59,6 +59,7 @@ export interface IPrivateReplService {
 	_serviceBrand: any;
 	navigateHistory(previous: boolean): void;
 	acceptReplInput(): void;
+	getVisibleContent(): string;
 }
 
 export class Repl extends Panel implements IPrivateReplService {
@@ -71,7 +72,6 @@ export class Repl extends Panel implements IPrivateReplService {
 	private static REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
-	private toDispose: lifecycle.IDisposable[];
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
@@ -97,15 +97,14 @@ export class Repl extends Panel implements IPrivateReplService {
 		super(debug.REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
-		this.toDispose = [];
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
+		this.toUnbind.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
+		this.toUnbind.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
 	private refreshReplElements(noDelay: boolean): void {
@@ -152,8 +151,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			controller
 		}, replTreeOptions);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.toUnbind.push(attachListStyler(this.tree, this.themeService));
+		this.toUnbind.push(this.listService.register(this.tree));
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
@@ -166,7 +165,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
-		this.toDispose.push(scopedContextKeyService);
+		this.toUnbind.push(scopedContextKeyService);
 		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 		const onFirstReplLine = debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onFirstReplLine.set(true);
@@ -195,20 +194,20 @@ export class Repl extends Panel implements IPrivateReplService {
 			}
 		});
 
-		this.toDispose.push(this.replInput.onDidScrollChange(e => {
+		this.toUnbind.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
 			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
 		}));
-		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
+		this.toUnbind.push(this.replInput.onDidChangeCursorPosition(e => {
 			onFirstReplLine.set(e.position.lineNumber === 1);
 			onLastReplLine.set(e.position.lineNumber === this.replInput.getModel().getLineCount());
 		}));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
 	}
 
 	public navigateHistory(previous: boolean): void {
@@ -228,6 +227,20 @@ export class Repl extends Panel implements IPrivateReplService {
 		// Trigger a layout to shrink a potential multi line input
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.layout(this.dimension);
+	}
+
+	public getVisibleContent(): string {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+
+		return text;
 	}
 
 	public layout(dimension: Dimension): void {
@@ -254,7 +267,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			];
 
 			this.actions.forEach(a => {
-				this.toDispose.push(a);
+				this.toUnbind.push(a);
 			});
 		}
 
@@ -262,7 +275,12 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public shutdown(): void {
-		this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(Repl.HISTORY.save()), StorageScope.WORKSPACE);
+		const replHistory = Repl.HISTORY.save();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
 	}
 
 	private getReplInputOptions(): IEditorOptions {
@@ -290,7 +308,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public dispose(): void {
 		this.replInput.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }
@@ -378,3 +395,20 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		primary: KeyCode.RightArrow
 	}
 }));
+
+@editorAction
+export class ReplCopyAllAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.copyAll',
+			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
+			alias: 'Debug Console Copy All',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+	}
+}

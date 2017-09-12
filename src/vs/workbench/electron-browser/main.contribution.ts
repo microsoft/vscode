@@ -5,19 +5,23 @@
 
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import * as os from 'os';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseFolderAction, CloseWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
+import { AddRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // Contribute Commands
 registerCommands();
@@ -28,12 +32,14 @@ const helpCategory = nls.localize('help', "Help");
 const fileCategory = nls.localize('file', "File");
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWindowAction, CloseWindowAction.ID, CloseWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL), 'Switch Window');
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseFolderAction, CloseFolderAction.ID, CloseFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Folder', fileCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
 if (!!product.reportIssueUrl) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportIssueAction, ReportIssueAction.ID, ReportIssueAction.LABEL), 'Help: Report Issues', helpCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issues', helpCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL), 'Help: Report Performance Issue', helpCategory);
 }
 if (KeybindingsReferenceAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(KeybindingsReferenceAction, KeybindingsReferenceAction.ID, KeybindingsReferenceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_R) }), 'Help: Keyboard Shortcuts Reference', helpCategory);
@@ -43,6 +49,9 @@ if (OpenDocumentationUrlAction.AVAILABLE) {
 }
 if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenIntroductoryVideosUrlAction, OpenIntroductoryVideosUrlAction.ID, OpenIntroductoryVideosUrlAction.LABEL), 'Help: Introductory Videos', helpCategory);
+}
+if (OpenTipsAndTricksUrlAction.AVAILABLE) {
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenTipsAndTricksUrlAction, OpenTipsAndTricksUrlAction.ID, OpenTipsAndTricksUrlAction.LABEL), 'Help: Tips and Tricks', helpCategory);
 }
 workbenchActionsRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(ZoomInAction, ZoomInAction.ID, ZoomInAction.LABEL, {
@@ -67,18 +76,49 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Toggle
 if (isWindows || isLinux) {
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMenuBarAction, ToggleMenuBarAction.ID, ToggleMenuBarAction.LABEL), 'View: Toggle Menu Bar', viewCategory);
 }
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, null), 'View: Move to the View Above', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, null), 'View: Move to the View Below', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, null), 'View: Move to the View on the Left', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, null), 'View: Move to the View on the Right', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, null), 'View: Navigate to the View Above', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, null), 'View: Navigate to the View Below', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, null), 'View: Navigate to the View on the Left', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, null), 'View: Navigate to the View on the Right', viewCategory);
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase View Size', viewCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease View Size', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(IncreaseViewSizeAction, IncreaseViewSizeAction.ID, IncreaseViewSizeAction.LABEL, null), 'View: Increase Current View Size', viewCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease Current View Size', viewCategory);
+
+// TODO@Ben multi root
+if (product.quality !== 'stable') {
+	const workspacesCategory = nls.localize('workspaces', "Workspaces");
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceConfigFileAction, OpenWorkspaceConfigFileAction.ID, OpenWorkspaceConfigFileAction.LABEL), 'Workspaces: Open Workspace Configuration File', workspacesCategory);
+}
 
 // Developer related actions
 const developerCategory = nls.localize('developer', "Developer");
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
+
+const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
+
+const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickOpenNavigateNextInRecentFilesPickerId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
+	when: recentFilesPickerContext,
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+});
+
+const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickOpenNavigatePreviousInRecentFilesPicker,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
+	when: recentFilesPickerContext,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
+});
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -88,6 +128,23 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'boolean',
 		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 		'default': true
+	},
+	'workbench.editor.labelFormat': {
+		'type': 'string',
+		'enum': ['default', 'short', 'medium', 'long'],
+		'enumDescriptions': [
+			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path is added. When tabs are disabled, the path relative to workspace root is shown if the editor is active."),
+			nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
+			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace root."),
+			nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
+		],
+		'default': 'default',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
+			`Controls the format of the label for an editor. Changing this setting can for example make it easier to understand the location of a file:
+- short:   'parent'
+- medium:  'workspace/src/parent'
+- long:    '/home/user/workspace/src/parent'
+- default: '.../parent', when another tab shares the same title, or the relative workspace path if tabs are disabled`),
 	},
 	'workbench.editor.tabCloseButton': {
 		'type': 'string',
@@ -119,6 +176,16 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 	'workbench.editor.revealIfOpen': {
 		'type': 'boolean',
 		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+		'default': false
+	},
+	'workbench.commandPalette.history': {
+		'type': 'number',
+		'description': nls.localize('commandHistory', "Controls if the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
+		'default': 50
+	},
+	'workbench.commandPalette.preserveInput': {
+		'type': 'boolean',
+		'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
 		'default': false
 	},
 	'workbench.quickOpen.closeOnFocusLost': {
@@ -155,6 +222,23 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (isMacintosh) {
+	workbenchProperties['workbench.fontAliasing'] = {
+		'type': 'string',
+		'enum': ['default', 'antialiased', 'none'],
+		'default': 'default',
+		'description':
+		nls.localize('fontAliasing',
+			`Controls font aliasing method in the workbench.
+- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text
+- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall
+- none: Disables font smoothing. Text will show with jagged sharp edges`),
+		'enumDescriptions': [
+			nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
+			nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
+			nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges.")
+		],
+	};
+
 	workbenchProperties['workbench.editor.swipeToNavigate'] = {
 		'type': 'boolean',
 		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
@@ -178,9 +262,9 @@ let properties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.on' }, "Files will open in a new window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.off' }, "Files will open in the window with the files' folder open or the last active window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFilesInNewWindow.default' }, "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
+			nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
+			nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
+			nls.localize('window.openFilesInNewWindow.default', "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
 		],
 		'default': 'off',
 		'description':
@@ -196,9 +280,9 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['on', 'off', 'default'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.on' }, "Folders will open in a new window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.off' }, "Folders will replace the last active window"),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.openFoldersInNewWindow.default' }, "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+			nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
+			nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
+			nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
 		],
 		'default': 'default',
 		'description': nls.localize('openFoldersInNewWindow',
@@ -209,16 +293,17 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 Note that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).`
 		)
 	},
-	'window.reopenFolders': {
+	'window.restoreWindows': {
 		'type': 'string',
-		'enum': ['none', 'one', 'all'],
+		'enum': ['all', 'folders', 'one', 'none'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.none' }, "Never reopen a folder."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.one' }, "Reopen the last active folder."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.reopenFolders.all' }, "Reopen all folders of the last session."),
+			nls.localize('window.reopenFolders.all', "Reopen all windows."),
+			nls.localize('window.reopenFolders.folders', "Reopen all folders. Empty workspaces will not be restored."),
+			nls.localize('window.reopenFolders.one', "Reopen the last active window."),
+			nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
 		],
 		'default': 'one',
-		'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
+		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
 	},
 	'window.restoreFullscreen': {
 		'type': 'boolean',
@@ -238,8 +323,10 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 \${activeEditorShort}: e.g. myFile.txt
 \${activeEditorMedium}: e.g. myFolder/myFile.txt
 \${activeEditorLong}: e.g. /Users/Development/myProject/myFolder/myFile.txt
-\${rootName}: e.g. myProject
-\${rootPath}: e.g. /Users/Development/myProject
+\${folderName}: e.g. myFolder
+\${folderPath}: e.g. /Users/Development/myFolder
+\${rootName}: e.g. myFolder1, myFolder2, myFolder3
+\${rootPath}: e.g. /Users/Development/myWorkspace
 \${appName}: e.g. VS Code
 \${dirty}: a dirty indicator if the active editor is dirty
 \${separator}: a conditional separator (" - ") that only shows when surrounded by variables with values`)
@@ -248,14 +335,19 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 		'type': 'string',
 		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.default' }, "Open new windows in the center of the screen."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.inherit' }, "Open new windows with same dimension as last active one."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.maximized' }, "Open new windows maximized."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.fullscreen' }, "Open new windows in full screen mode.")
+			nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
+			nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
+			nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
+			nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
 		],
 		'default': 'default',
 		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 	},
+	'window.closeWhenEmpty': {
+		'type': 'boolean',
+		'default': false,
+		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
+	}
 };
 
 if (isWindows || isLinux) {
@@ -263,10 +355,10 @@ if (isWindows || isLinux) {
 		'type': 'string',
 		'enum': ['default', 'visible', 'toggle', 'hidden'],
 		'enumDescriptions': [
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.default' }, "Menu is only hidden in full screen mode."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.visible' }, "Menu is always visible even in full screen mode."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.toggle' }, "Menu is hidden but can be displayed via Alt key."),
-			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.menuBarVisibility.hidden' }, "Menu is always hidden.")
+			nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
+			nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
+			nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+			nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
 		],
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")

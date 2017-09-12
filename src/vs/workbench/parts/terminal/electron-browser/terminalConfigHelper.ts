@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -11,8 +12,8 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
 import { TPromise } from 'vs/base/common/winjs.base';
+import Severity from 'vs/base/common/severity';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
@@ -24,7 +25,7 @@ interface IFullTerminalConfiguration {
 	};
 }
 
-const DEFAULT_LINE_HEIGHT = 1.2;
+const DEFAULT_LINE_HEIGHT = 1.0;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -54,11 +55,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		// TODO: This should leverage CharMeasure
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight.toString(10);
+		style.lineHeight = 'normal';
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -70,10 +72,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		this._lastFontMeasurement = {
 			fontFamily,
-			fontSize: fontSize + 'px',
+			fontSize,
 			lineHeight,
-			charWidth: rect.width,
-			charHeight: rect.height
+			charWidth: Math.ceil(rect.width),
+			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;
 	}
@@ -92,10 +94,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		if (fontSize <= 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
-		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
-		if (!lineHeight) {
-			lineHeight = DEFAULT_LINE_HEIGHT;
-		}
+		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
@@ -152,6 +151,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
 		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
+
+		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+		// safe to assume that this was used by accident as Sysnative does not
+		// exist and will break the terminal in non-WoW64 environments.
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+			}
+		}
 	}
 
 	private _toInteger(source: any, minimum?: number): number {

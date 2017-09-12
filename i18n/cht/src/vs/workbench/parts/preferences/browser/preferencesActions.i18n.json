@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "開啟鍵盤快速鍵",
 	"openGlobalKeybindingsFile": "開啟鍵盤快速鍵檔案",
 	"openWorkspaceSettings": "開啟工作區設定",
+	"openFolderSettings": "開啟資料夾設定",
+	"pickFolder": "選取資料夾",
 	"configureLanguageBasedSettings": "設定語言專屬設定...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "選取語言"

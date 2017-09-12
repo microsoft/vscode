@@ -8,11 +8,11 @@
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
-import { cleanUp, pathEquals, createRandomFile } from './utils';
+import { closeAllEditors, pathEquals, createRandomFile } from './utils';
 
 suite('window namespace tests', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 	test('editor, active text editor', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
@@ -24,10 +24,19 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, UN-active text editor', () => {
-		assert.equal(window.visibleTextEditors.length, 0);
-		assert.ok(window.activeTextEditor === undefined);
+	test('editor, opened via resource', () => {
+		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
+		return window.showTextDocument(uri).then((editor) => {
+			const active = window.activeTextEditor;
+			assert.ok(active);
+			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
+		});
 	});
+
+	// test('editor, UN-active text editor', () => {
+	// 	assert.equal(window.visibleTextEditors.length, 0);
+	// 	assert.ok(window.activeTextEditor === undefined);
+	// });
 
 	test('editor, assign and check view columns', () => {
 
@@ -320,6 +329,23 @@ suite('window namespace tests', () => {
 		return Promise.all([a, b]);
 	});
 
+	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+		const result = window.showInputBox({
+			validateInput: (value: string) => {
+				if (!value || value.trim().length === 0) {
+					return 'Cannot set empty description';
+				}
+				return null;
+			}
+		}).then(value => {
+			assert.equal(value, undefined);
+		});
+
+		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		return Promise.all([result, exec]);
+	});
+
+
 	test('editor, selection change kind', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
@@ -372,20 +398,5 @@ suite('window namespace tests', () => {
 
 	test('terminal, name should set terminal.name', () => {
 		assert.equal(window.createTerminal('foo').name, 'foo');
-	});
-
-	test('terminal, listening to onData should report data from the pty process', done => {
-		const terminal = window.createTerminal();
-		let fromPty = '';
-		let isFinished = false;
-		(<any>terminal).onData(data => {
-			// The text could be split over multiple callbacks
-			fromPty += data;
-			if (!isFinished && fromPty.indexOf('test') >= 0) {
-				isFinished = true;
-				done();
-			}
-		});
-		terminal.sendText('test', false);
 	});
 });

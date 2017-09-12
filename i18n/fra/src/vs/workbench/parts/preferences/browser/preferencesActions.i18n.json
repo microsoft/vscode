@@ -8,6 +8,8 @@
 	"openGlobalKeybindings": "Ouvrir les raccourcis clavier",
 	"openGlobalKeybindingsFile": "Ouvrir le fichier des raccourcis clavier",
 	"openWorkspaceSettings": "Ouvrir les paramètres d'espace de travail",
+	"openFolderSettings": "Ouvrir le dossier Paramètres",
+	"pickFolder": "Sélectionner le dossier",
 	"configureLanguageBasedSettings": "Configurer les paramètres spécifiques au langage...",
 	"languageDescriptionConfigured": "({0})",
 	"pickLanguage": "Sélectionner un langage"

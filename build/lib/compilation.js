@@ -41,7 +41,6 @@ function createCompile(build, emitError) {
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(ts(token))
-            .pipe(build ? reloadTypeScriptNodeModule() : es.through())
             .pipe(noDeclarationsFilter)
             .pipe(build ? nls() : es.through())
             .pipe(noDeclarationsFilter.restore)
@@ -58,7 +57,7 @@ function createCompile(build, emitError) {
 function compileTask(out, build) {
     return function () {
         var compile = createCompile(build, true);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'), gulp.src('node_modules/@types/**/index.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
         return src
             .pipe(compile())
             .pipe(gulp.dest(out))
@@ -69,7 +68,7 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
         var compile = createCompile(build);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'), gulp.src('node_modules/@types/**/index.d.ts'));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
         var watchSrc = watch('src/**', { base: 'src' });
         return watchSrc
             .pipe(util.incremental(compile, src, true))

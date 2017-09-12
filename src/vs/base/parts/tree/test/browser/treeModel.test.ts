@@ -7,7 +7,6 @@
 
 import assert = require('assert');
 import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
 import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
 import Events = require('vs/base/common/eventEmitter');
@@ -75,7 +74,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
+	public listen(emitter: Events.IEventEmitter, event: string, fn: (e) => void = null): () => void {
 		let r = emitter.addListener(event, (e) => {
 			this._count++;
 			if (fn) {
@@ -289,42 +288,6 @@ suite('TreeModel', () => {
 			return model.refresh(SAMPLE.AB.children[0], false);
 		}).done(() => {
 			assert.equal(counter.count, 6);
-			done();
-		});
-	});
-
-	test('refreshAll(...) refreshes the elements and descendants', (done) => {
-		model.setInput(SAMPLE.AB).then(() => {
-			model.expand(SAMPLE.AB.children[0]);
-			model.expand(SAMPLE.AB.children[2]);
-
-			counter.listen(model, 'refreshing'); // 3
-			counter.listen(model, 'refreshed'); // 3
-			counter.listen(model, 'item:refresh'); // 7
-			counter.listen(model, 'item:childrenRefreshing'); // 2
-			counter.listen(model, 'item:childrenRefreshed'); // 2
-
-			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]]);
-		}).done(() => {
-			assert.equal(counter.count, 17);
-			done();
-		});
-	});
-
-	test('refreshAll(..., false) refreshes the elements', (done) => {
-		model.setInput(SAMPLE.AB).then(() => {
-			model.expand(SAMPLE.AB.children[0]);
-			model.expand(SAMPLE.AB.children[2]);
-
-			counter.listen(model, 'refreshing'); // 3
-			counter.listen(model, 'refreshed'); // 3
-			counter.listen(model, 'item:refresh'); // 3
-			counter.listen(model, 'item:childrenRefreshing'); // 2
-			counter.listen(model, 'item:childrenRefreshed'); // 2
-
-			return model.refreshAll([SAMPLE.AB.children[0], SAMPLE.AB.children[1], SAMPLE.AB.children[2]], false);
-		}).done(() => {
-			assert.equal(counter.count, 13);
 			done();
 		});
 	});
@@ -1462,7 +1425,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var p1, p2;
 
 			var p1Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Completes.push(c); }); };
 
 			p1 = model.refresh('grandfather');
 
@@ -1480,7 +1443,7 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(gotTimes, 1);
 
 			var p2Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Complete = c; }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Complete = c; }); };
 			p2 = model.refresh('father');
 
 			// same situation still
@@ -1540,7 +1503,7 @@ suite('TreeModel - Dynamic data model', () => {
 			var p1, p2;
 
 			var p1Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Complete = c; }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Complete = c; }); };
 
 			p1 = model.refresh('father');
 
@@ -1548,7 +1511,7 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(gotTimes, 0);
 
 			var p2Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Completes.push(c); }); };
 			p2 = model.refresh('grandfather');
 
 			assert.equal(getTimes, 1);

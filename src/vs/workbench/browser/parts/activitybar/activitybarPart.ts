@@ -15,8 +15,8 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
-import { Registry } from 'vs/platform/platform';
+import { GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/common/activity';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, GlobalActivityActionItem, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem, GlobalActivityAction, IViewletActivity } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
@@ -55,7 +55,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private viewletIdToActionItems: { [viewletId: string]: IActionItem; };
 	private viewletIdToActivityStack: { [viewletId: string]: IViewletActivity[]; };
 
-	private memento: any;
+	private memento: object;
 	private pinnedViewlets: string[];
 	private activeUnpinnedViewlet: ViewletDescriptor;
 
@@ -82,11 +82,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			this.pinnedViewlets = pinnedViewlets
-				// TODO@Ben: Migrate git => scm viewlet
-				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
-				.filter(arrays.uniqueFilter<string>(str => str));
-
+			this.pinnedViewlets = pinnedViewlets;
 		} else {
 			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
 		}
@@ -125,7 +121,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	public showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+		if (this.viewletService.getViewlet(viewletOrActionId)) {
+			return this.showViewletActivity(viewletOrActionId, badge, clazz);
+		}
+
+		return this.showGlobalActivity(viewletOrActionId, badge);
+	}
+
+	private showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -140,7 +144,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return toDisposable(() => action.setBadge(undefined));
 	}
 
-	public showActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
+	private showViewletActivity(viewletId: string, badge: IBadge, clazz?: string): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -149,7 +153,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const stack = this.viewletIdToActivityStack[viewletId] || (this.viewletIdToActivityStack[viewletId] = []);
 		stack.unshift(activity);
 
-		this.updateActivity(viewletId);
+		this.updateViewletActivity(viewletId);
 
 		return {
 			dispose: () => {
@@ -157,31 +161,37 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				if (!stack) {
 					return;
 				}
+
 				const idx = stack.indexOf(activity);
 				if (idx < 0) {
 					return;
 				}
+
 				stack.splice(idx, 1);
 				if (stack.length === 0) {
 					delete this.viewletIdToActivityStack[viewletId];
 				}
-				this.updateActivity(viewletId);
+
+				this.updateViewletActivity(viewletId);
 			}
 		};
 	}
 
-	private updateActivity(viewletId: string) {
+	private updateViewletActivity(viewletId: string) {
 		const action = this.viewletIdToActions[viewletId];
 		if (!action) {
 			return;
 		}
-		const stack = this.viewletIdToActivityStack[viewletId];
-		if (!stack || !stack.length) {
-			// reset
-			action.setBadge(undefined);
 
-		} else {
-			// update
+		const stack = this.viewletIdToActivityStack[viewletId];
+
+		// reset
+		if (!stack || !stack.length) {
+			action.setBadge(undefined);
+		}
+
+		// update
+		else {
 			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {
@@ -252,7 +262,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx + 1, y: event.posy }; },
+			getAnchor: () => { return { x: event.posx, y: event.posy }; },
 			getActions: () => TPromise.as(actions),
 			onHide: () => dispose(actions)
 		});
@@ -293,6 +303,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateViewletSwitcher() {
+		if (!this.viewletSwitcherBar) {
+			return; // We have not been rendered yet so there is nothing to update.
+		}
+
 		let viewletsToShow = this.getPinnedViewlets();
 
 		// Always show the active viewlet even if it is marked to be hidden
@@ -307,7 +321,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Ensure we are not showing more viewlets than we have height for
 		let overflows = false;
 		if (this.dimension) {
-			const maxVisible = Math.floor(this.dimension.height / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
+			let availableHeight = this.dimension.height;
+			if (this.globalActionBar) {
+				availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTIVITY_ACTION_HEIGHT); // adjust for global actions showing
+			}
+
+			const maxVisible = Math.floor(availableHeight / ActivitybarPart.ACTIVITY_ACTION_HEIGHT);
 			overflows = viewletsToShow.length > maxVisible;
 
 			if (overflows) {
@@ -359,7 +378,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 			// Make sure to restore activity
 			Object.keys(this.viewletIdToActions).forEach(viewletId => {
-				this.updateActivity(viewletId);
+				this.updateViewletActivity(viewletId);
 			});
 		}
 

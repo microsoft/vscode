@@ -79,6 +79,7 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
 	setAutoUpdate(autoUpdate: boolean): TPromise<void>;
+	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';

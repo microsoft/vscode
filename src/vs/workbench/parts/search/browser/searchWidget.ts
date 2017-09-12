@@ -22,7 +22,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
+import { isSearchViewletFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
@@ -35,6 +35,7 @@ export interface ISearchWidgetOptions {
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
+	history?: string[];
 }
 
 class ReplaceAllAction extends Action {
@@ -77,8 +78,8 @@ export class SearchWidget extends Widget {
 
 	public domNode: HTMLElement;
 	public searchInput: FindInput;
-	private searchInputBoxFocussed: IContextKey<boolean>;
-	private replaceInputBoxFocussed: IContextKey<boolean>;
+	private searchInputBoxFocused: IContextKey<boolean>;
+	private replaceInputBoxFocused: IContextKey<boolean>;
 	private replaceInput: InputBox;
 
 	public searchInputFocusTracker: dom.IFocusTracker;
@@ -119,19 +120,14 @@ export class SearchWidget extends Widget {
 		@IKeybindingService private keyBindingService2: IKeybindingService,
 	) {
 		super();
-		this.searchHistory = new HistoryNavigator<string>();
+		this.searchHistory = new HistoryNavigator<string>(options.history);
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
-		this.searchInputBoxFocussed = Constants.SearchInputBoxFocussedKey.bindTo(this.keyBindingService);
-		this.replaceInputBoxFocussed = Constants.ReplaceInputBoxFocussedKey.bindTo(this.keyBindingService);
+		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.keyBindingService);
+		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.keyBindingService);
 		this.render(container, options);
 	}
 
 	public focus(select: boolean = true, focusReplace: boolean = false): void {
-		if ((!focusReplace && this.searchInput.inputBox.hasFocus())
-			|| (focusReplace && this.replaceInput.hasFocus())) {
-			return;
-		}
-
 		if (focusReplace && this.isReplaceShown()) {
 			this.replaceInput.focus();
 			if (select) {
@@ -146,7 +142,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public setWidth(width: number) {
-		this.searchInput.setWidth(width - 2);
+		this.searchInput.setWidth(width);
 		this.replaceInput.width = width - 28;
 	}
 
@@ -170,6 +166,10 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	public getHistory(): string[] {
+		return this.searchHistory.getHistory();
+	}
+
 	public showNextSearchTerm() {
 		let next = this.searchHistory.next();
 		if (next) {
@@ -191,7 +191,7 @@ export class SearchWidget extends Widget {
 	}
 
 	public searchInputHasFocus(): boolean {
-		return this.searchInputBoxFocussed.get();
+		return this.searchInputBoxFocused.get();
 	}
 
 	public replaceInputHasFocus(): boolean {
@@ -241,10 +241,10 @@ export class SearchWidget extends Widget {
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
 		this._register(this.searchInputFocusTracker.addFocusListener(() => {
-			this.searchInputBoxFocussed.set(true);
+			this.searchInputBoxFocused.set(true);
 		}));
 		this._register(this.searchInputFocusTracker.addBlurListener(() => {
-			this.searchInputBoxFocussed.set(false);
+			this.searchInputBoxFocused.set(false);
 		}));
 	}
 
@@ -268,10 +268,10 @@ export class SearchWidget extends Widget {
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
 		this._register(this.replaceInputFocusTracker.addFocusListener(() => {
-			this.replaceInputBoxFocussed.set(true);
+			this.replaceInputBoxFocused.set(true);
 		}));
 		this._register(this.replaceInputFocusTracker.addBlurListener(() => {
-			this.replaceInputBoxFocussed.set(false);
+			this.replaceInputBoxFocused.set(false);
 		}));
 	}
 
@@ -375,7 +375,7 @@ export function registerContributions() {
 		when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewletFocussed(accessor.get(IViewletService))) {
+			if (isSearchViewletFocused(accessor.get(IViewletService))) {
 				ReplaceAllAction.INSTANCE.run();
 			}
 		}

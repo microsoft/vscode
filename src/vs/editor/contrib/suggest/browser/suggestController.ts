@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -21,6 +21,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { ISuggestSupport } from 'vs/editor/common/modes';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Context as SuggestContext } from './suggest';
@@ -103,10 +104,7 @@ export class SuggestController implements IEditorContribution {
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
 			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
-			acceptSuggestionsOnEnter.set(
-				acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart'
-				|| (<any /*migrate from old world*/>acceptSuggestionOnEnter) === true
-			);
+			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();
@@ -210,9 +208,9 @@ export class SuggestController implements IEditorContribution {
 		alert(msg);
 	}
 
-	triggerSuggest(): void {
-		this._model.trigger(false, false);
-		this._editor.revealLine(this._editor.getPosition().lineNumber);
+	triggerSuggest(onlyFrom?: ISuggestSupport[]): void {
+		this._model.trigger(false, false, onlyFrom);
+		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();
 	}
 

@@ -333,7 +333,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Panel part
 		let panelHeight: number;
-		const maxPanelHeight = sidebarSize.height - MIN_EDITOR_PART_HEIGHT;
+		const editorCountForHeight = this.editorGroupService.getGroupOrientation() === 'horizontal' ? this.editorGroupService.getStacksModel().groups.length : 1;
+		const maxPanelHeight = sidebarSize.height - editorCountForHeight * MIN_EDITOR_PART_HEIGHT;
 		if (isPanelHidden) {
 			panelHeight = 0;
 		} else if (this.panelHeight === previousMaxPanelHeight) {
@@ -368,7 +369,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Sidebar hidden
 		if (isSidebarHidden) {
-			editorSize.width = Math.min(this.workbenchSize.width - activityBarSize.width, this.workbenchSize.width - this.activitybarWidth);
+			editorSize.width = this.workbenchSize.width - activityBarSize.width;
 
 			if (sidebarPosition === Position.LEFT) {
 				editorSize.remainderLeft = Math.round((this.workbenchSize.width - editorSize.width + activityBarSize.width) / 2);

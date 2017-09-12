@@ -71,9 +71,9 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		let removedDecorations = e.removedDecorations;
-		for (let i = 0, len = removedDecorations.length; i < len; i++) {
-			let removedDecoration = removedDecorations[i];
-			if (removedDecoration !== null && removedDecoration !== undefined) {
+		if (this._decorationsCache !== null && this._decorationsCache !== undefined) {
+			for (let i = 0, len = removedDecorations.length; i < len; i++) {
+				let removedDecoration = removedDecorations[i];
 				delete this._decorationsCache[removedDecoration];
 			}
 		}

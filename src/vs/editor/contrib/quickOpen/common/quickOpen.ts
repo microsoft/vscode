@@ -11,13 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { SymbolInformation, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { SymbolInformation, DocumentSymbolProviderRegistry, IOutline } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
-
-export interface IOutline {
-	entries: SymbolInformation[];
-}
 
 export function getDocumentSymbols(model: IModel): TPromise<IOutline> {
 

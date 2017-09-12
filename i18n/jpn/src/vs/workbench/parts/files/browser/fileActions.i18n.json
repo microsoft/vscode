@@ -40,7 +40,7 @@
 	"pickHistory": "比較対象として、以前に開いたファイルを選択する",
 	"unableToFileToCompare": "選択されたファイルを '{0}' と比較できません。",
 	"openFileToCompare": "まずファイルを開いてから別のファイルと比較してください",
-	"compareWith": "'{0}' と比較",
+	"compareWith": "'{0}' と '{1}' を比較",
 	"compareFiles": "ファイルの比較",
 	"refresh": "最新の情報に更新",
 	"save": "保存",
@@ -69,5 +69,7 @@
 	"emptyFileNameError": "ファイルまたはフォルダーの名前を指定する必要があります。",
 	"fileNameExistsError": "**{0}** というファイルまたはフォルダーはこの場所に既に存在します。別の名前を指定してください。",
 	"invalidFileNameError": "名前 **{0}** がファイル名またはフォルダー名として無効です。別の名前を指定してください。",
-	"filePathTooLongError": "名前 **{0}** のパスが長すぎます。名前を短くしてください。"
+	"filePathTooLongError": "名前 **{0}** のパスが長すぎます。名前を短くしてください。",
+	"compareWithSaved": "保存済みファイルと作業中のファイルを比較",
+	"modifiedLabel": "{0} (ローカル) ↔ {1}"
 }

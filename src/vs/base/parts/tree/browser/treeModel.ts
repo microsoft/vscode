@@ -83,7 +83,7 @@ export class Lock {
 		if (lock) {
 			var unbindListener: IDisposable;
 
-			return new WinJS.Promise((c, e) => {
+			return new WinJS.TPromise((c, e) => {
 				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
@@ -92,7 +92,7 @@ export class Lock {
 
 		var result: WinJS.Promise;
 
-		return new WinJS.Promise((c, e) => {
+		return new WinJS.TPromise((c, e) => {
 
 			if (item.isDisposed()) {
 				return e(new Error('Item is disposed.'));
@@ -401,6 +401,10 @@ export class Item extends Events.EventEmitter {
 					return WinJS.TPromise.as(null);
 				}
 
+				if (!Array.isArray(elements)) {
+					return WinJS.TPromise.wrapError(new Error('Please return an array of children.'));
+				}
+
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 
@@ -552,7 +556,7 @@ export class Item extends Events.EventEmitter {
 	}
 
 	private mapEachChild<T>(fn: (child: Item) => T): T[] {
-		var result = [];
+		var result: T[] = [];
 		this.forEachChild((child) => {
 			result.push(fn(child));
 		});
@@ -839,23 +843,6 @@ export class TreeModel extends Events.EventEmitter {
 		});
 	}
 
-	public refreshAll(elements: any[], recursive: boolean = true): WinJS.Promise {
-		try {
-			this.beginDeferredEmit();
-			return this._refreshAll(elements, recursive);
-		} finally {
-			this.endDeferredEmit();
-		}
-	}
-
-	private _refreshAll(elements: any[], recursive: boolean): WinJS.Promise {
-		var promises = [];
-		for (var i = 0, len = elements.length; i < len; i++) {
-			promises.push(this.refresh(elements[i], recursive));
-		}
-		return WinJS.Promise.join(promises);
-	}
-
 	public expand(element: any): WinJS.Promise {
 		var item = this.getItem(element);
 
@@ -907,8 +894,8 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
-	public toggleExpansion(element: any): WinJS.Promise {
-		return this.isExpanded(element) ? this.collapse(element) : this.expand(element);
+	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
+		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
 
 	public toggleExpansionAll(elements: any[]): WinJS.Promise {

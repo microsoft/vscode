@@ -9,12 +9,12 @@ import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/wa
 import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 import { WalkThroughArrowUpAction, WalkThroughArrowDownAction, WalkThroughPageUpAction, WalkThroughPageDownAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughActions';
 import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider';
-import { EditorWalkThroughAction } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
-import { Registry } from 'vs/platform/platform';
+import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -32,6 +32,8 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
 	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
 	'Help: Interactive Playground', localize('help', "Help"));
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughContentProvider);

@@ -6,6 +6,5 @@
 {
 	"noResultsMatching": "Keine übereinstimmenden Ergebnisse.",
 	"noResultsFound2": "Es wurden keine Ergebnisse gefunden.",
-	"entryAriaLabel": "{0}, Befehl",
-	"noCommands": "Keine übereinstimmenden Befehle."
+	"entryAriaLabel": "{0}, Befehl"
 }

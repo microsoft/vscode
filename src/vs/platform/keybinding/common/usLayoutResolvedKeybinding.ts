@@ -5,7 +5,7 @@
 'use strict';
 
 import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**

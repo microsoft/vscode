@@ -16,7 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType } from "vs/base/browser/dom";
+import { EventHelper, EventType } from 'vs/base/browser/dom';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;

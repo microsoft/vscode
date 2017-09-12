@@ -15,13 +15,16 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, editorSelectionHighlight, activeContrastBorder, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+
+export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
+export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -32,7 +35,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 	// until someone response with a good result
 	// (good = none empty array)
 	return sequence(orderedByScore.map(provider => {
-		return () => {
+		return (): TPromise<DocumentHighlight[]> => {
 			if (!foundResult) {
 				return asWinJsPromise((token) => {
 					return provider.provideDocumentHighlights(model, position, token);
@@ -44,6 +47,7 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 					return undefined;
 				}, err => {
 					onUnexpectedExternalError(err);
+					return undefined;
 				});
 			}
 			return undefined;
@@ -188,8 +192,8 @@ class WordHighlighter {
 		}
 
 		// All the effort below is trying to achieve this:
-		// - when cursor is moved to a word, trigger immediately a findOccurences request
-		// - 250ms later after the last cursor move event, render the occurences
+		// - when cursor is moved to a word, trigger immediately a findOccurrences request
+		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
 		var currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
@@ -293,8 +297,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(overviewRulerWordHighlightStrongForeground),
+			darkColor: themeColorFromId(overviewRulerWordHighlightStrongForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -303,8 +307,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});
@@ -313,8 +317,8 @@ class WordHighlighter {
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {
-			color: '#A0A0A0',
-			darkColor: '#A0A0A0',
+			color: themeColorFromId(overviewRulerWordHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerWordHighlightForeground),
 			position: editorCommon.OverviewRulerLane.Center
 		}
 	});

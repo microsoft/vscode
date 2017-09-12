@@ -14,7 +14,6 @@ import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import * as browser from 'vs/base/browser/browser';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
@@ -34,7 +33,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IFilesConfiguration, SUPPORTED_ENCODINGS, IFileService } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -45,8 +44,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+
+// TODO@Sandeep layer breaker
+// tslint:disable-next-line:import-patterns
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -225,8 +229,9 @@ const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selectio
 const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
-const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
-const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen reader detected");
+const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab Moves Focus");
+const nlsScreenReaderDetected = nls.localize('screenReaderDetected', "Screen Reader Detected");
+const nlsScreenReaderDetectedTitle = nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\".");
 
 function _setDisplay(el: HTMLElement, desiredValue: string): void {
 	if (el.style.display !== desiredValue) {
@@ -282,6 +287,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
 		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
+		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
 		hide(this.screenRedearModeElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
@@ -329,9 +335,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.untitledEditorService.onDidChangeEncoding(r => this.onResourceEncodingChange(r)),
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
 			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()),
-			browser.onDidChangeAccessibilitySupport(() => this.onScreenReaderModeChange())
 		);
-		this.onScreenReaderModeChange();
 
 		return combinedDisposable(this.toDispose);
 	}
@@ -492,6 +496,7 @@ export class EditorStatus implements IStatusbarItem {
 		const control = getEditorWidget(activeEditor);
 
 		// Update all states
+		this.onScreenReaderModeChange(control);
 		this.onSelectionChange(control);
 		this.onModeChange(control);
 		this.onEOLChange(control);
@@ -504,6 +509,13 @@ export class EditorStatus implements IStatusbarItem {
 
 		// Attach new listeners to active editor
 		if (control) {
+
+			// Hook Listener for Configuration changes
+			this.activeEditorListeners.push(control.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
+				if (event.accessibilitySupport) {
+					this.onScreenReaderModeChange(control);
+				}
+			}));
 
 			// Hook Listener for Selection changes
 			this.activeEditorListeners.push(control.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
@@ -593,6 +605,18 @@ export class EditorStatus implements IStatusbarItem {
 		}
 
 		this.updateState(update);
+	}
+
+	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
+		let screenReaderMode = false;
+
+		// We only support text based editors
+		if (editorWidget) {
+
+			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
+		}
+
+		this.updateState({ screenReaderMode: screenReaderMode });
 	}
 
 	private onSelectionChange(editorWidget: ICommonCodeEditor): void {
@@ -685,12 +709,6 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onScreenReaderModeChange(): void {
-		const info: StateDelta = { screenReaderMode: browser.getAccessibilitySupport() === AccessibilitySupport.Enabled };
-
-		this.updateState(info);
-	}
-
 	private isActiveEditor(e: IBaseEditor): boolean {
 		const activeEditor = this.editorService.getActiveEditor();
 
@@ -725,7 +743,7 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		return this.commandService.executeCommand('workbench.extensions.action.showLanguageExtensions', this.fileExtension).then(() => void 0);
+		return this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension).then(() => void 0);
 	}
 }
 
@@ -765,7 +783,7 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
-		let modeId;
+		let modeId: string;
 		if (textModel) {
 			modeId = textModel.getLanguageIdentifier().language;
 			currentModeId = this.modeService.getLanguageName(modeId);
@@ -815,6 +833,7 @@ export class ChangeModeAction extends Action {
 			if (galleryAction.enabled) {
 				picks.unshift(galleryAction);
 			}
+
 
 			configureModeSettings = { label: nls.localize('configureModeSettings', "Configure '{0}' language based settings...", currentModeId) };
 			picks.unshift(configureModeSettings);
@@ -1040,7 +1059,7 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private fileService: IFileService
 	) {
 		super(actionId, actionLabel);
@@ -1079,23 +1098,25 @@ export class ChangeEncodingAction extends Action {
 
 		return pickActionPromise.then(action => {
 			if (!action) {
-				return undefined;
+				return void 0;
 			}
+
+			const resource = toResource(activeEditor.input, { filter: ['file', 'untitled'], supportSideBySide: true });
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
-					const resource = toResource(activeEditor.input, { filter: 'file', supportSideBySide: true });
-					if (!resource) {
-						return TPromise.as(null);
+					if (!resource || resource.scheme !== 'file') {
+						return TPromise.as(null); // encoding detection only possible for file resources
 					}
 
 					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
 				})
-				.then(guessedEncoding => {
-					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-
+				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
-					const configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+
+					const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
+					const configuredEncoding = config && config.files && config.files.encoding;
+
 					let directMatchIndex: number;
 					let aliasMatchIndex: number;
 

@@ -12,8 +12,8 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { Registry } from 'vs/platform/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
@@ -24,6 +24,7 @@ import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Color } from 'vs/base/common/color';
 
 export class SelectColorThemeAction extends Action {
 
@@ -53,7 +54,7 @@ export class SelectColorThemeAction extends Action {
 				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
 				.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
-			const selectTheme = (theme, applyTheme) => {
+			const selectTheme = (theme, applyTheme: boolean) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}
@@ -119,7 +120,7 @@ class SelectIconThemeAction extends Action {
 
 			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
 
-			const selectTheme = (theme, applyTheme) => {
+			const selectTheme = (theme, applyTheme: boolean) => {
 				if (theme === pickInMarketPlace) {
 					theme = currentTheme;
 				}
@@ -189,7 +190,7 @@ class GenerateColorThemeAction extends Action {
 		colorRegistry.getColors().map(c => {
 			let color = theme.getColor(c.id, false);
 			if (color) {
-				resultingColors[c.id] = color.toRGBAHex(true);
+				resultingColors[c.id] = Color.Format.CSS.formatHexA(color, true);
 			}
 		});
 		let contents = JSON.stringify({

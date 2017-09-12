@@ -21,10 +21,6 @@ export interface IGit {
 	version: string;
 }
 
-export interface PushOptions {
-	setUpstream?: boolean;
-}
-
 export interface IFileStatus {
 	x: string;
 	y: string;
@@ -35,6 +31,11 @@ export interface IFileStatus {
 export interface Remote {
 	name: string;
 	url: string;
+}
+
+export interface Stash {
+	index: number;
+	description: string;
 }
 
 export enum RefType {
@@ -81,12 +82,12 @@ function findGitDarwin(): Promise<IGit> {
 
 			function getVersion(path: string) {
 				// make sure git executes
-				cp.exec('git --version', (err, stdout: Buffer) => {
+				cp.exec('git --version', (err, stdout) => {
 					if (err) {
 						return e('git not found');
 					}
 
-					return c({ path, version: parseVersion(stdout.toString('utf8').trim()) });
+					return c({ path, version: parseVersion(stdout.trim()) });
 				});
 			}
 
@@ -159,6 +160,12 @@ export interface IExecutionResult {
 }
 
 async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
+	if (!child.stdout || !child.stderr) {
+		throw new GitError({
+			message: 'Failed to get stdout or stderr from git process.'
+		});
+	}
+
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -274,7 +281,11 @@ export const GitErrorCodes = {
 	CantAccessRemote: 'CantAccessRemote',
 	RepositoryNotFound: 'RepositoryNotFound',
 	RepositoryIsLocked: 'RepositoryIsLocked',
-	BranchNotFullyMerged: 'BranchNotFullyMerged'
+	BranchNotFullyMerged: 'BranchNotFullyMerged',
+	NoRemoteReference: 'NoRemoteReference',
+	NoLocalChanges: 'NoLocalChanges',
+	NoStashFound: 'NoStashFound',
+	LocalChangesOverwritten: 'LocalChangesOverwritten'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -294,6 +305,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.CantAccessRemote;
 	} else if (/branch '.+' is not fully merged/.test(stderr)) {
 		return GitErrorCodes.BranchNotFullyMerged;
+	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+		return GitErrorCodes.NoRemoteReference;
 	}
 
 	return void 0;
@@ -324,7 +337,7 @@ export class Git {
 	}
 
 	async clone(url: string, parentPath: string): Promise<string> {
-		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
@@ -332,9 +345,9 @@ export class Git {
 		return folderPath;
 	}
 
-	async getRepositoryRoot(path: string): Promise<string> {
-		const result = await this.exec(path, ['rev-parse', '--show-toplevel']);
-		return result.stdout.trim();
+	async getRepositoryRoot(repositoryPath: string): Promise<string> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+		return path.normalize(result.stdout.trim());
 	}
 
 	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
@@ -448,7 +461,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R') {
+		if (entry.x === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
@@ -569,7 +582,7 @@ export class Repository {
 	}
 
 	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w'], { stdio: [null, null, null] });
+		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
@@ -607,7 +620,7 @@ export class Repository {
 		}
 	}
 
-	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
+	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean, signCommit?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
 
 		if (opts.all) {
@@ -620,6 +633,10 @@ export class Repository {
 
 		if (opts.signoff) {
 			args.push('--signoff');
+		}
+
+		if (opts.signCommit) {
+			args.push('-S');
 		}
 
 		try {
@@ -655,6 +672,32 @@ export class Repository {
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		const args = ['branch', force ? '-D' : '-d', name];
+		await this.run(args);
+	}
+
+	async merge(ref: string): Promise<void> {
+		const args = ['merge', ref];
+
+		try {
+			await this.run(args);
+		} catch (err) {
+			if (/^CONFLICT /m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.Conflict;
+			}
+
+			throw err;
+		}
+	}
+
+	async tag(name: string, message?: string): Promise<void> {
+		let args = ['tag'];
+
+		if (message) {
+			args = [...args, '-a', name, '-m', message];
+		} else {
+			args = [...args, name];
+		}
+
 		await this.run(args);
 	}
 
@@ -694,7 +737,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async revertFiles(treeish: string, paths: string[]): Promise<void> {
+	async revert(treeish: string, paths: string[]): Promise<void> {
 		const result = await this.run(['branch']);
 		let args: string[];
 
@@ -738,11 +781,16 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
+		}
+
+		if (remote && branch) {
+			args.push(remote);
+			args.push(branch);
 		}
 
 		try {
@@ -762,11 +810,15 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
 		const args = ['push'];
 
-		if (options && options.setUpstream) {
+		if (setUpstream) {
 			args.push('-u');
+		}
+
+		if (tags) {
+			args.push('--tags');
 		}
 
 		if (remote) {
@@ -784,6 +836,44 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			}
+
+			throw err;
+		}
+	}
+
+	async createStash(message?: string): Promise<void> {
+		try {
+			const args = ['stash', 'save'];
+
+			if (message) {
+				args.push('--', message);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No local changes to save/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			}
+
+			throw err;
+		}
+	}
+
+	async popStash(index?: number): Promise<void> {
+		try {
+			const args = ['stash', 'pop'];
+
+			if (typeof index === 'string') {
+				args.push(`stash@{${index}}`);
+			}
+
+			await this.run(args);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
 			}
 
 			throw err;
@@ -875,6 +965,18 @@ export class Repository {
 			.filter(line => !!line)
 			.map(fn)
 			.filter(ref => !!ref) as Ref[];
+	}
+
+	async getStashes(): Promise<Stash[]> {
+		const result = await this.run(['stash', 'list']);
+		const regex = /^stash@{(\d+)}:(.+)$/;
+		const rawStashes = result.stdout.trim().split('\n')
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
+
+		return rawStashes;
 	}
 
 	async getRemotes(): Promise<Remote[]> {

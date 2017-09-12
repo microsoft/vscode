@@ -6,14 +6,14 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
-import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from './extHost.protocol';
+import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor } from './extHostTextEditor';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { ExtHostTextEditor, ExtHostTextEditor2 } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
+import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 
-export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape {
+export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
 	private _activeEditorId: string;
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
@@ -30,9 +30,9 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		@IThreadService private _threadService: IThreadService
+		private readonly _mainContext: IMainContext,
+		private readonly _extHostExtensions?: ExtHostExtensionService
 	) {
-		super();
 	}
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
@@ -54,7 +54,7 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 				assert.ok(!this._documents.has(data.url.toString()), `document '${data.url} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._threadService.get(MainContext.MainThreadDocuments),
+					this._mainContext.get(MainContext.MainThreadDocuments),
 					data.url,
 					data.lines,
 					data.EOL,
@@ -81,8 +81,10 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
 				const documentData = this._documents.get(data.document.toString());
-				const editor = new ExtHostTextEditor(
-					this._threadService.get(MainContext.MainThreadEditors),
+				const editor = new ExtHostTextEditor2(
+					this._extHostExtensions,
+					this._mainContext.get(MainContext.MainThreadTelemetry),
+					this._mainContext.get(MainContext.MainThreadEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),
@@ -98,6 +100,9 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 			this._activeEditorId = delta.newActiveEditor;
 		}
 
+		dispose(removedDocuments);
+		dispose(removedEditors);
+
 		// now that the internal state is complete, fire events
 		if (delta.removedDocuments) {
 			this._onDidRemoveDocuments.fire(removedDocuments);
@@ -112,10 +117,6 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 		if (delta.newActiveEditor !== undefined) {
 			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
 		}
-
-		// now that the events are out, dispose removed documents and editors
-		dispose(removedDocuments);
-		dispose(removedEditors);
 	}
 
 	getDocument(strUrl: string): ExtHostDocumentData {

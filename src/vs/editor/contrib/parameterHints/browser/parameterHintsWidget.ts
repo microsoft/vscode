@@ -25,7 +25,10 @@ import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 
 const $ = dom.$;
 
@@ -81,7 +84,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -91,7 +94,7 @@ export class ParameterHintsModel extends Disposable {
 
 	private doTrigger(): void {
 		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
-			.then<SignatureHelp>(null, onUnexpectedError)
+			.then(null, onUnexpectedError)
 			.then(result => {
 				if (!result || !result.signatures || result.signatures.length === 0) {
 					this.cancel();
@@ -132,8 +135,11 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		this.triggerCharactersListeners.push(this.editor.onDidType((text: string) => {
-			let lastCharCode = text.charCodeAt(text.length - 1);
-			if (triggerChars.has(lastCharCode)) {
+			if (!this.enabled) {
+				return;
+			}
+
+			if (triggerChars.has(text.charCodeAt(text.length - 1))) {
 				this.trigger();
 			}
 		}));
@@ -167,6 +173,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static ID = 'editor.widget.parameterHintsWidget';
 
+	private markdownRenderer: MarkdownRenderer;
 	private model: ParameterHintsModel;
 	private keyVisible: IContextKey<boolean>;
 	private keyMultipleSignatures: IContextKey<boolean>;
@@ -184,7 +191,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
-	constructor(private editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(
+		private editor: ICodeEditor,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
+		@IModeService modeService: IModeService,
+	) {
+		this.markdownRenderer = new MarkdownRenderer(editor, modeService, openerService);
 		this.model = new ParameterHintsModel(editor);
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
@@ -221,7 +234,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.overloads = dom.append(wrapper, $('.overloads'));
 
 		const body = $('.body');
-		this.scrollbar = new DomScrollableElement(body, { canUseTranslate3d: false });
+		this.scrollbar = new DomScrollableElement(body, {});
 		this.disposables.push(this.scrollbar);
 		wrapper.appendChild(this.scrollbar.getDomNode());
 
@@ -322,14 +335,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
-			documentation.textContent = activeParameter.documentation;
+			if (typeof activeParameter.documentation === 'string') {
+				documentation.textContent = activeParameter.documentation;
+			} else {
+				documentation.appendChild(this.markdownRenderer.render(activeParameter.documentation));
+			}
 			dom.append(this.docs, $('p', null, documentation));
 		}
 
 		dom.toggleClass(this.signature, 'has-docs', !!signature.documentation);
 
-		if (signature.documentation) {
+		if (typeof signature.documentation === 'string') {
 			dom.append(this.docs, $('p', null, signature.documentation));
+		} else {
+			dom.append(this.docs, this.markdownRenderer.render(signature.documentation));
 		}
 
 		let currentOverload = String(this.currentSignature + 1);
@@ -487,5 +506,10 @@ registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(editorHoverBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
+	}
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget a { color: ${link}; }`);
 	}
 });

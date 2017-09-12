@@ -5,725 +5,295 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
-import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
-import { memoize, throttle, debounce } from './decorators';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor } from 'vscode';
+import { Repository, RepositoryState } from './repository';
+import { memoize, sequentialize, debounce } from './decorators';
+import { dispose, anyEvent, filterEvent } from './util';
+import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 
-const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
-
 const localize = nls.loadMessageBundle();
-const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
-function getIconUri(iconName: string, theme: string): Uri {
-	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
+class RepositoryPick implements QuickPickItem {
+	@memoize get label(): string {
+		return path.basename(this.repository.root);
+	}
+
+	@memoize get description(): string {
+		return [this.repository.headLabel, this.repository.syncLabel]
+			.filter(l => !!l)
+			.join(' ');
+	}
+
+	constructor(public readonly repository: Repository) { }
 }
 
-export enum State {
-	Uninitialized,
-	Idle,
-	NotAGitRepository
+export interface ModelChangeEvent {
+	repository: Repository;
+	uri: Uri;
 }
 
-export enum Status {
-	INDEX_MODIFIED,
-	INDEX_ADDED,
-	INDEX_DELETED,
-	INDEX_RENAMED,
-	INDEX_COPIED,
-
-	MODIFIED,
-	DELETED,
-	UNTRACKED,
-	IGNORED,
-
-	ADDED_BY_US,
-	ADDED_BY_THEM,
-	DELETED_BY_US,
-	DELETED_BY_THEM,
-	BOTH_ADDED,
-	BOTH_DELETED,
-	BOTH_MODIFIED
+interface OpenRepository extends Disposable {
+	repository: Repository;
 }
 
-export class Resource implements SourceControlResourceState {
+export class Model {
 
-	@memoize
-	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
-			return this.renameResourceUri;
-		}
+	private _onDidOpenRepository = new EventEmitter<Repository>();
+	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
 
-		return this._resourceUri;
-	}
+	private _onDidCloseRepository = new EventEmitter<Repository>();
+	readonly onDidCloseRepository: Event<Repository> = this._onDidCloseRepository.event;
 
-	@memoize
-	get command(): Command {
-		return {
-			command: 'git.openResource',
-			title: localize('open', "Open"),
-			arguments: [this]
-		};
-	}
+	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
+	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
 
-	get resourceGroup(): ResourceGroup { return this._resourceGroup; }
-	get type(): Status { return this._type; }
-	get original(): Uri { return this._resourceUri; }
-	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
+	private openRepositories: OpenRepository[] = [];
+	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
-	private static Icons = {
-		light: {
-			Modified: getIconUri('status-modified', 'light'),
-			Added: getIconUri('status-added', 'light'),
-			Deleted: getIconUri('status-deleted', 'light'),
-			Renamed: getIconUri('status-renamed', 'light'),
-			Copied: getIconUri('status-copied', 'light'),
-			Untracked: getIconUri('status-untracked', 'light'),
-			Ignored: getIconUri('status-ignored', 'light'),
-			Conflict: getIconUri('status-conflict', 'light'),
-		},
-		dark: {
-			Modified: getIconUri('status-modified', 'dark'),
-			Added: getIconUri('status-added', 'dark'),
-			Deleted: getIconUri('status-deleted', 'dark'),
-			Renamed: getIconUri('status-renamed', 'dark'),
-			Copied: getIconUri('status-copied', 'dark'),
-			Untracked: getIconUri('status-untracked', 'dark'),
-			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
-		}
-	};
+	private possibleGitRepositoryPaths = new Set<string>();
 
-	private getIconPath(theme: string): Uri | undefined {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
-			case Status.MODIFIED: return Resource.Icons[theme].Modified;
-			case Status.INDEX_ADDED: return Resource.Icons[theme].Added;
-			case Status.INDEX_DELETED: return Resource.Icons[theme].Deleted;
-			case Status.DELETED: return Resource.Icons[theme].Deleted;
-			case Status.INDEX_RENAMED: return Resource.Icons[theme].Renamed;
-			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
-			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
-			case Status.IGNORED: return Resource.Icons[theme].Ignored;
-			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
-			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
-			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
-			case Status.ADDED_BY_THEM: return Resource.Icons[theme].Conflict;
-			case Status.DELETED_BY_US: return Resource.Icons[theme].Conflict;
-			case Status.BOTH_ADDED: return Resource.Icons[theme].Conflict;
-			case Status.BOTH_MODIFIED: return Resource.Icons[theme].Conflict;
-			default: return void 0;
-		}
-	}
-
-	private get strikeThrough(): boolean {
-		switch (this.type) {
-			case Status.DELETED:
-			case Status.BOTH_DELETED:
-			case Status.DELETED_BY_THEM:
-			case Status.DELETED_BY_US:
-			case Status.INDEX_DELETED:
-				return true;
-			default:
-				return false;
-		}
-	}
-
-	@memoize
-	private get faded(): boolean {
-		const workspaceRootPath = this.workspaceRoot.fsPath;
-		return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
-	}
-
-	get decorations(): SourceControlResourceDecorations {
-		const light = { iconPath: this.getIconPath('light') };
-		const dark = { iconPath: this.getIconPath('dark') };
-		const strikeThrough = this.strikeThrough;
-		const faded = this.faded;
-
-		return { strikeThrough, faded, light, dark };
-	}
-
-	constructor(
-		private workspaceRoot: Uri,
-		private _resourceGroup: ResourceGroup,
-		private _resourceUri: Uri,
-		private _type: Status,
-		private _renameResourceUri?: Uri
-	) { }
-}
-
-export abstract class ResourceGroup {
-
-	get id(): string { return this._id; }
-	get contextKey(): string { return this._id; }
-	get label(): string { return this._label; }
-	get resources(): Resource[] { return this._resources; }
-
-	constructor(private _id: string, private _label: string, private _resources: Resource[]) {
-
-	}
-}
-
-export class MergeGroup extends ResourceGroup {
-
-	static readonly ID = 'merge';
-
-	constructor(resources: Resource[] = []) {
-		super(MergeGroup.ID, localize('merge changes', "Merge Changes"), resources);
-	}
-}
-
-export class IndexGroup extends ResourceGroup {
-
-	static readonly ID = 'index';
-
-	constructor(resources: Resource[] = []) {
-		super(IndexGroup.ID, localize('staged changes', "Staged Changes"), resources);
-	}
-}
-
-export class WorkingTreeGroup extends ResourceGroup {
-
-	static readonly ID = 'workingTree';
-
-	constructor(resources: Resource[] = []) {
-		super(WorkingTreeGroup.ID, localize('changes', "Changes"), resources);
-	}
-}
-
-export enum Operation {
-	Status = 1 << 0,
-	Add = 1 << 1,
-	RevertFiles = 1 << 2,
-	Commit = 1 << 3,
-	Clean = 1 << 4,
-	Branch = 1 << 5,
-	Checkout = 1 << 6,
-	Reset = 1 << 7,
-	Fetch = 1 << 8,
-	Pull = 1 << 9,
-	Push = 1 << 10,
-	Sync = 1 << 11,
-	Init = 1 << 12,
-	Show = 1 << 13,
-	Stage = 1 << 14,
-	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16
-}
-
-// function getOperationName(operation: Operation): string {
-// 	switch (operation) {
-// 		case Operation.Status: return 'Status';
-// 		case Operation.Add: return 'Add';
-// 		case Operation.RevertFiles: return 'RevertFiles';
-// 		case Operation.Commit: return 'Commit';
-// 		case Operation.Clean: return 'Clean';
-// 		case Operation.Branch: return 'Branch';
-// 		case Operation.Checkout: return 'Checkout';
-// 		case Operation.Reset: return 'Reset';
-// 		case Operation.Fetch: return 'Fetch';
-// 		case Operation.Pull: return 'Pull';
-// 		case Operation.Push: return 'Push';
-// 		case Operation.Sync: return 'Sync';
-// 		case Operation.Init: return 'Init';
-// 		case Operation.Show: return 'Show';
-// 		case Operation.Stage: return 'Stage';
-// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
-// 		default: return 'unknown';
-// 	}
-// }
-
-function isReadOnly(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.Show:
-		case Operation.GetCommitTemplate:
-			return true;
-		default:
-			return false;
-	}
-}
-
-function shouldShowProgress(operation: Operation): boolean {
-	switch (operation) {
-		case Operation.Fetch:
-			return false;
-		default:
-			return true;
-	}
-}
-
-export interface Operations {
-	isIdle(): boolean;
-	isRunning(operation: Operation): boolean;
-}
-
-class OperationsImpl implements Operations {
-
-	constructor(private readonly operations: number = 0) {
-		// noop
-	}
-
-	start(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations | operation);
-	}
-
-	end(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations & ~operation);
-	}
-
-	isRunning(operation: Operation): boolean {
-		return (this.operations & operation) !== 0;
-	}
-
-	isIdle(): boolean {
-		return this.operations === 0;
-	}
-}
-
-export interface CommitOptions {
-	all?: boolean;
-	amend?: boolean;
-	signoff?: boolean;
-}
-
-export class Model implements Disposable {
-
-	private _onDidChangeRepository = new EventEmitter<Uri>();
-	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
-
-	private _onDidChangeState = new EventEmitter<State>();
-	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
-
-	private _onDidChangeResources = new EventEmitter<void>();
-	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
-
-	@memoize
-	get onDidChange(): Event<void> {
-		return anyEvent<any>(this.onDidChangeState, this.onDidChangeResources);
-	}
-
-	private _onRunOperation = new EventEmitter<Operation>();
-	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
-
-	private _onDidRunOperation = new EventEmitter<Operation>();
-	readonly onDidRunOperation: Event<Operation> = this._onDidRunOperation.event;
-
-	@memoize
-	get onDidChangeOperations(): Event<void> {
-		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
-	}
-
-	private _mergeGroup = new MergeGroup([]);
-	get mergeGroup(): MergeGroup { return this._mergeGroup; }
-
-	private _indexGroup = new IndexGroup([]);
-	get indexGroup(): IndexGroup { return this._indexGroup; }
-
-	private _workingTreeGroup = new WorkingTreeGroup([]);
-	get workingTreeGroup(): WorkingTreeGroup { return this._workingTreeGroup; }
-
-	private _HEAD: Branch | undefined;
-	get HEAD(): Branch | undefined {
-		return this._HEAD;
-	}
-
-	private _refs: Ref[] = [];
-	get refs(): Ref[] {
-		return this._refs;
-	}
-
-	private _remotes: Remote[] = [];
-	get remotes(): Remote[] {
-		return this._remotes;
-	}
-
-	private _operations = new OperationsImpl();
-	get operations(): Operations { return this._operations; }
-
-	private repository: Repository;
-
-	private _state = State.Uninitialized;
-	get state(): State { return this._state; }
-	set state(state: State) {
-		this._state = state;
-		this._onDidChangeState.fire(state);
-
-		this._HEAD = undefined;
-		this._refs = [];
-		this._remotes = [];
-		this._mergeGroup = new MergeGroup();
-		this._indexGroup = new IndexGroup();
-		this._workingTreeGroup = new WorkingTreeGroup();
-		this._onDidChangeResources.fire();
-	}
-
-	private workspaceRoot: Uri;
-	private onWorkspaceChange: Event<Uri>;
-	private isRepositoryHuge = false;
-	private didWarnAboutLimit = false;
-	private repositoryDisposable: Disposable = EmptyDisposable;
+	private enabled = false;
+	private configurationChangeDisposable: Disposable;
 	private disposables: Disposable[] = [];
 
-	constructor(
-		private _git: Git,
-		workspaceRootPath: string
-	) {
-		this.workspaceRoot = Uri.file(workspaceRootPath);
+	constructor(private git: Git) {
+		const config = workspace.getConfiguration('git');
+		this.enabled = config.get<boolean>('enabled') === true;
+
+		this.configurationChangeDisposable = workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this);
+
+		if (this.enabled) {
+			this.enable();
+		}
+	}
+
+	private onDidChangeConfiguration(): void {
+		const config = workspace.getConfiguration('git');
+		const enabled = config.get<boolean>('enabled') === true;
+
+		if (enabled === this.enabled) {
+			return;
+		}
+
+		this.enabled = enabled;
+
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] });
+
+		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
+		this.onDidChangeVisibleTextEditors(window.visibleTextEditors);
 
 		const fsWatcher = workspace.createFileSystemWatcher('**');
-		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		this.disposables.push(fsWatcher);
 
-		this.status();
+		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
+		const onGitRepositoryChange = filterEvent(onWorkspaceChange, uri => /\/\.git\//.test(uri.path));
+		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
+		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
+
+		this.scanWorkspaceFolders();
 	}
 
-	@throttle
-	async init(): Promise<void> {
-		if (this.state !== State.NotAGitRepository) {
+	private disable(): void {
+		const openRepositories = [...this.openRepositories];
+		openRepositories.forEach(r => r.dispose());
+		this.openRepositories = [];
+
+		this.possibleGitRepositoryPaths.clear();
+		this.disposables = dispose(this.disposables);
+	}
+
+	/**
+	 * Scans the first level of each workspace folder, looking
+	 * for git repositories.
+	 */
+	private async scanWorkspaceFolders(): Promise<void> {
+		for (const folder of workspace.workspaceFolders || []) {
+			const root = folder.uri.fsPath;
+			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+
+			children
+				.filter(child => child !== '.git')
+				.forEach(child => this.tryOpenRepository(path.join(root, child)));
+		}
+	}
+
+	private onPossibleGitRepositoryChange(uri: Uri): void {
+		const possibleGitRepositoryPath = uri.fsPath.replace(/\.git.*$/, '');
+		this.possibleGitRepositoryPaths.add(possibleGitRepositoryPath);
+		this.eventuallyScanPossibleGitRepositories();
+	}
+
+	@debounce(500)
+	private eventuallyScanPossibleGitRepositories(): void {
+		for (const path of this.possibleGitRepositoryPaths) {
+			this.tryOpenRepository(path);
+		}
+
+		this.possibleGitRepositoryPaths.clear();
+	}
+
+	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
+		const possibleRepositoryFolders = added
+			.filter(folder => !this.getOpenRepository(folder.uri));
+
+		const activeRepositoriesList = window.visibleTextEditors
+			.map(editor => this.getRepository(editor.document.uri))
+			.filter(repository => !!repository) as Repository[];
+
+		const activeRepositories = new Set<Repository>(activeRepositoriesList);
+		const openRepositoriesToDispose = removed
+			.map(folder => this.getOpenRepository(folder.uri))
+			.filter(r => !!r && !activeRepositories.has(r.repository)) as OpenRepository[];
+
+		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
+		openRepositoriesToDispose.forEach(r => r.dispose());
+	}
+
+	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
+		editors.forEach(editor => {
+			const uri = editor.document.uri;
+
+			if (uri.scheme !== 'file') {
+				return;
+			}
+
+			const repository = this.getRepository(uri);
+
+			if (repository) {
+				return;
+			}
+
+			this.tryOpenRepository(path.dirname(uri.fsPath));
+		});
+	}
+
+	@sequentialize
+	async tryOpenRepository(path: string): Promise<void> {
+		if (this.getRepository(path)) {
 			return;
 		}
 
-		await this._git.init(this.workspaceRoot.fsPath);
-		await this.status();
-	}
-
-	@throttle
-	async status(): Promise<void> {
-		await this.run(Operation.Status);
-	}
-
-	async add(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
-	}
-
-	async stage(uri: Uri, contents: string): Promise<void> {
-		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
-		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
-	}
-
-	async revertFiles(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.resourceUri.fsPath)));
-	}
-
-	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
-		await this.run(Operation.Commit, async () => {
-			if (opts.all) {
-				await this.repository.add([]);
-			}
-
-			await this.repository.commit(message, opts);
-		});
-	}
-
-	async clean(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Clean, async () => {
-			const toClean: string[] = [];
-			const toCheckout: string[] = [];
-
-			resources.forEach(r => {
-				switch (r.type) {
-					case Status.UNTRACKED:
-					case Status.IGNORED:
-						toClean.push(r.resourceUri.fsPath);
-						break;
-
-					default:
-						toCheckout.push(r.resourceUri.fsPath);
-						break;
-				}
-			});
-
-			const promises: Promise<void>[] = [];
-
-			if (toClean.length > 0) {
-				promises.push(this.repository.clean(toClean));
-			}
-
-			if (toCheckout.length > 0) {
-				promises.push(this.repository.checkout('', toCheckout));
-			}
-
-			await Promise.all(promises);
-		});
-	}
-
-	async branch(name: string): Promise<void> {
-		await this.run(Operation.Branch, () => this.repository.branch(name, true));
-	}
-
-	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
-	}
-
-	async checkout(treeish: string): Promise<void> {
-		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
-	}
-
-	async getCommit(ref: string): Promise<Commit> {
-		return await this.repository.getCommit(ref);
-	}
-
-	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
-	}
-
-	@throttle
-	async fetch(): Promise<void> {
 		try {
-			await this.run(Operation.Fetch, () => this.repository.fetch());
+			const repositoryRoot = await this.git.getRepositoryRoot(path);
+
+			// This can happen whenever `path` has the wrong case sensitivity in
+			// case insensitive file systems
+			// https://github.com/Microsoft/vscode/issues/33498
+			if (this.getRepository(repositoryRoot)) {
+				return;
+			}
+
+			const repository = new Repository(this.git.open(repositoryRoot));
+
+			this.open(repository);
 		} catch (err) {
-			// noop
+			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				return;
+			}
+
+			// console.error('Failed to find repository:', err);
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase));
-	}
-
-	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
-	}
-
-	@throttle
-	async sync(): Promise<void> {
-		await this.run(Operation.Sync, async () => {
-			await this.repository.pull();
-
-			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
-
-			if (shouldPush) {
-				await this.repository.push();
-			}
-		});
-	}
-
-	async show(ref: string, filePath: string): Promise<string> {
-		return await this.run(Operation.Show, async () => {
-			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files');
-			const encoding = configFiles.get<string>('encoding');
-
-			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
-		});
-	}
-
-	async getCommitTemplate(): Promise<string> {
-		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
-	}
-
-	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		const run = async () => {
-			this._operations = this._operations.start(operation);
-			this._onRunOperation.fire(operation);
-
-			try {
-				await this.assertIdleState();
-
-				const result = await this.retryRun(runOperation);
-
-				if (!isReadOnly(operation)) {
-					await this.updateModelState();
-				}
-
-				return result;
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					this.repositoryDisposable.dispose();
-
-					const disposables: Disposable[] = [];
-					this.onWorkspaceChange(this.onFSChange, this, disposables);
-					this.repositoryDisposable = combinedDisposable(disposables);
-
-					this.state = State.NotAGitRepository;
-				}
-
-				throw err;
-			} finally {
-				this._operations = this._operations.end(operation);
-				this._onDidRunOperation.fire(operation);
-			}
+	private open(repository: Repository): void {
+		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
+		const disappearListener = onDidDisappearRepository(() => dispose());
+		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
+		const dispose = () => {
+			disappearListener.dispose();
+			changeListener.dispose();
+			repository.dispose();
+			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
+			this._onDidCloseRepository.fire(repository);
 		};
 
-		return shouldShowProgress(operation)
-			? window.withProgress({ location: ProgressLocation.SourceControl }, run)
-			: run();
+		const openRepository = { repository, dispose };
+		this.openRepositories.push(openRepository);
+		this._onDidOpenRepository.fire(repository);
 	}
 
-	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		let attempt = 0;
+	async pickRepository(): Promise<Repository | undefined> {
+		if (this.openRepositories.length === 0) {
+			throw new Error(localize('no repositories', "There are no available repositories"));
+		}
 
-		while (true) {
-			try {
-				attempt++;
-				return await runOperation();
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.RepositoryIsLocked && attempt <= 10) {
-					// quatratic backoff
-					await timeout(Math.pow(attempt, 2) * 50);
-				} else {
-					throw err;
+		const picks = this.openRepositories.map(e => new RepositoryPick(e.repository));
+		const placeHolder = localize('pick repo', "Choose a repository");
+		const pick = await window.showQuickPick(picks, { placeHolder });
+
+		return pick && pick.repository;
+	}
+
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined {
+		const liveRepository = this.getOpenRepository(hint);
+		return liveRepository && liveRepository.repository;
+	}
+
+	private getOpenRepository(repository: Repository): OpenRepository | undefined;
+	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
+	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
+	private getOpenRepository(path: string): OpenRepository | undefined;
+	private getOpenRepository(resource: Uri): OpenRepository | undefined;
+	private getOpenRepository(hint: any): OpenRepository | undefined {
+		if (!hint) {
+			return undefined;
+		}
+
+		if (hint instanceof Repository) {
+			return this.openRepositories.filter(r => r.repository === hint)[0];
+		}
+
+		if (typeof hint === 'string') {
+			hint = Uri.file(hint);
+		}
+
+		if (hint instanceof Uri) {
+			const resourcePath = hint.fsPath;
+
+			for (const liveRepository of this.openRepositories) {
+				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
+
+				if (!/^\.\./.test(relativePath)) {
+					return liveRepository;
 				}
 			}
-		}
-	}
 
-	/* We use the native Node `watch` for faster, non debounced events.
-	 * That way we hopefully get the events during the operations we're
-	 * performing, thus sparing useless `git status` calls to refresh
-	 * the model's state.
-	 */
-	private async assertIdleState(): Promise<void> {
-		if (this.state === State.Idle) {
-			return;
+			return undefined;
 		}
 
-		this.repositoryDisposable.dispose();
+		for (const liveRepository of this.openRepositories) {
+			const repository = liveRepository.repository;
 
-		const disposables: Disposable[] = [];
-		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRoot.fsPath);
-		this.repository = this._git.open(repositoryRoot);
-
-		const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.fsPath));
-		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
-		onRelevantGitChange(this.onFSChange, this, disposables);
-		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
-
-		const onNonGitChange = filterEvent(this.onWorkspaceChange, uri => !/\/\.git\//.test(uri.fsPath));
-		onNonGitChange(this.onFSChange, this, disposables);
-
-		this.repositoryDisposable = combinedDisposable(disposables);
-		this.isRepositoryHuge = false;
-		this.didWarnAboutLimit = false;
-		this.state = State.Idle;
-	}
-
-	@throttle
-	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
-		const config = workspace.getConfiguration('git');
-		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
-
-		this.isRepositoryHuge = didHitLimit;
-
-		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
-			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
-			const neverAgain = { title: localize('neveragain', "Never Show Again") };
-
-			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), ok, neverAgain).then(result => {
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-				}
-			});
-
-			this.didWarnAboutLimit = true;
-		}
-
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
-		}
-
-		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
-
-		this._HEAD = HEAD;
-		this._refs = refs;
-		this._remotes = remotes;
-
-		const index: Resource[] = [];
-		const workingTree: Resource[] = [];
-		const merge: Resource[] = [];
-
-		status.forEach(raw => {
-			const uri = Uri.file(path.join(this.repository.root, raw.path));
-			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
-
-			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_MODIFIED));
+			if (hint === repository.sourceControl) {
+				return liveRepository;
 			}
 
-			let isModifiedInIndex = false;
-
-			switch (raw.x) {
-				case 'M': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED)); break;
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
+				return liveRepository;
 			}
-
-			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
-			}
-		});
-
-		this._mergeGroup = new MergeGroup(merge);
-		this._indexGroup = new IndexGroup(index);
-		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-		this._onDidChangeResources.fire();
-	}
-
-	private onFSChange(uri: Uri): void {
-		const config = workspace.getConfiguration('git');
-		const autorefresh = config.get<boolean>('autorefresh');
-
-		if (!autorefresh) {
-			return;
 		}
 
-		if (this.isRepositoryHuge) {
-			return;
-		}
-
-		if (!this.operations.isIdle()) {
-			return;
-		}
-
-		this.eventuallyUpdateWhenIdleAndWait();
-	}
-
-	@debounce(1000)
-	private eventuallyUpdateWhenIdleAndWait(): void {
-		this.updateWhenIdleAndWait();
-	}
-
-	@throttle
-	private async updateWhenIdleAndWait(): Promise<void> {
-		await this.whenIdle();
-		await this.status();
-		await timeout(5000);
-	}
-
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
+		return undefined;
 	}
 
 	dispose(): void {
-		this.repositoryDisposable.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disable();
+		this.configurationChangeDisposable.dispose();
 	}
 }

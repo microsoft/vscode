@@ -8,11 +8,13 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "^2.1.0",
-    "vscode-html-languageservice": "^2.0.5",
-    "vscode-languageserver": "^3.1.0-alpha.1",
+    "vscode-css-languageservice": "^2.1.4",
+    "vscode-html-languageservice": "^2.0.7",
+    "vscode-languageserver": "3.4.0-next.6",
+    "vscode-languageserver-protocol": "^3.1.1",
+    "vscode-languageserver-types": "^3.3.0",
     "vscode-nls": "^2.0.2",
-    "vscode-uri": "^1.0.0"
+    "vscode-uri": "^1.0.1"
   },
   "devDependencies": {
     "@types/node": "^6.0.51",
@@ -25,6 +27,6 @@
     "install-service-local": "npm install ../../../../vscode-css-languageservice -f -S && npm install ../../../../vscode-html-languageservice -f -S",
     "install-server-next": "npm install vscode-languageserver@next -f -S",
     "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f -S",
-    "test": "mocha"
+    "test": "../../../node_modules/.bin/mocha"
   }
 }

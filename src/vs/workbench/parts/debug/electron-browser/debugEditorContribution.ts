@@ -38,6 +38,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { first } from 'vs/base/common/arrays';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -157,7 +158,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					return;
 				}
 
-				const anchor = { x: e.event.posx + 1, y: e.event.posy };
+				const anchor = { x: e.event.posx, y: e.event.posy };
 				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
 
 				this.contextMenuService.showContextMenu({
@@ -191,7 +192,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame((sf) => this.onFocusStackFrame(sf)));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(e => this.onFocusStackFrame(e.stackFrame)));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
@@ -362,8 +363,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		// First call stack frame is the frame where exception has been thrown
-		const exceptionSf = callStack[0];
+		// First call stack frame that is available is the frame where exception has been thrown
+		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
+		if (!exceptionSf || exceptionSf !== focusedSf) {
+			this.closeExceptionWidget();
+			return;
+		}
+
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();

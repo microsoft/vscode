@@ -38,7 +38,7 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		let result = format(languageModes, document, range, formatOptions, { css: true, javascript: true });
+		let result = format(languageModes, document, range, formatOptions, void 0, { css: true, javascript: true });
 
 		let actual = applyEdits(document, result);
 		assert.equal(actual, expected, message);

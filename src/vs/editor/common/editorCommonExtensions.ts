@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -94,7 +94,7 @@ export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
 export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
-	new (opts: IContributionCommandOptions<T>): EditorCommand;
+	new(opts: IContributionCommandOptions<T>): EditorCommand;
 }
 export abstract class EditorCommand extends Command {
 
@@ -202,11 +202,11 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function editorAction(ctor: { new (): EditorAction; }): void {
+export function editorAction(ctor: { new(): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
-export function editorCommand(ctor: { new (): EditorCommand }): void {
+export function editorCommand(ctor: { new(): EditorCommand }): void {
 	registerEditorCommand(new ctor());
 }
 

@@ -179,11 +179,11 @@
 										</dict>
 									</array>
 									<key>while</key>
-									<string>^\s*(?!&lt;/(script|style|pre)&gt;)</string>
+									<string>^(?!.*&lt;/(script|style|pre)&gt;)</string>
 								</dict>
 							</array>
 							<key>end</key>
-							<string>(?=&lt;/(script|style|pre)&gt;)</string>
+							<string>(?=.*&lt;/(script|style|pre)&gt;)</string>
 						</dict>
 						<dict>
 							<key>begin</key>
@@ -416,7 +416,7 @@
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>begin</key>
-					<string>(^|\G)(\s*)([`~]{3,})\s*(?=[^`~]*)?$</string>
+					<string>(^|\G)(\s*)(`{3,}|~{3,})\s*(?=([^`~]*)?$)</string>
 					<key>end</key>
 					<string>(^|\G)(\2|\s{0,3})(\3)\s*$</string>
 					<key>beginCaptures</key>
@@ -1118,7 +1118,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)([^\]]*+)(\])</string>
+					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])(\[)([^\]]*+)(\])</string>
 					<key>name</key>
 					<string>meta.link.reference.markdown</string>
 				</dict>
@@ -1175,7 +1175,7 @@
 					<key>match</key>
 					<string>(`+)([^`]|(?!(?&lt;!`)\1(?!`))`)*+(\1)</string>
 					<key>name</key>
-					<string>markup.inline.raw.markdown</string>
+					<string>markup.inline.raw.string.markdown</string>
 				</dict>
 			</dict>
 		</dict>

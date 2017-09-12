@@ -21,7 +21,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
@@ -38,7 +38,7 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 	let hasResult = false;
 
 	const factory = supports.map(support => {
-		return () => {
+		return (): TPromise<WorkspaceEdit> => {
 			if (!hasResult) {
 				return asWinJsPromise((token) => {
 					return support.provideRenameEdits(model, position, newName, token);
@@ -54,7 +54,7 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 					return undefined;
 				}, err => {
 					onUnexpectedExternalError(err);
-					return TPromise.wrapError<WorkspaceEdit>('provider failed');
+					return TPromise.wrapError<WorkspaceEdit>(new Error('provider failed'));
 				});
 			}
 			return undefined;
@@ -99,7 +99,7 @@ class RenameController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IMessageService private _messageService: IMessageService,
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -198,7 +198,7 @@ class RenameController implements IEditorContribution {
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
-				return TPromise.wrapError<BulkEdit>(result.rejectReason);
+				return TPromise.wrapError<BulkEdit>(new Error(result.rejectReason));
 			}
 			edit.add(result.edits);
 			return edit;

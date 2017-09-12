@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 
@@ -12,6 +12,18 @@ export class MockDebugService implements debug.IDebugService {
 	public _serviceBrand: any;
 
 	public get state(): debug.State {
+		return null;
+	}
+
+	public get onDidCustomEvent(): Event<debug.DebugEvent> {
+		return null;
+	}
+
+	public get onDidNewProcess(): Event<debug.IProcess> {
+		return null;
+	}
+
+	public get onDidEndProcess(): Event<debug.IProcess> {
 		return null;
 	}
 
@@ -71,12 +83,20 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(configName?: string, noDebug?: boolean): TPromise<any> {
+	public evaluateWatchExpressions(): TPromise<void> {
 		return TPromise.as(null);
 	}
 
-	public createProcess(config: debug.IConfig): TPromise<any> {
+	public startDebugging(root: uri, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
+	}
+
+	public createProcess(root: uri, config: debug.IConfig): TPromise<any> {
+		return TPromise.as(null);
+	}
+
+	public findProcessByUUID(uuid: string): debug.IProcess | null {
+		return null;
 	}
 
 	public restartProcess(): TPromise<any> {
@@ -97,7 +117,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public logToRepl(value: string): void { }
 
-	public deemphasizeSource(uri: uri): void { }
+	public sourceIsNotAvailable(uri: uri): void { }
 }
 
 export class MockSession implements debug.ISession {
@@ -108,12 +128,19 @@ export class MockSession implements debug.ISession {
 		return 'mockrawsession';
 	}
 
+	public root: uri;
+
 	public getLengthInSeconds(): number {
 		return 100;
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
 		return TPromise.as({
+			seq: 1,
+			type: 'response',
+			request_seq: 1,
+			success: true,
+			command: 'stackTrace',
 			body: {
 				stackFrames: [{
 					id: 1,
@@ -126,12 +153,7 @@ export class MockSession implements debug.ISession {
 	}
 
 	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
-		return TPromise.as({
-			body: {
-				exceptionId: 'mockExceptionId',
-				breakMode: 'unhandled'
-			}
-		});
+		return TPromise.as(null);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
@@ -154,8 +176,13 @@ export class MockSession implements debug.ISession {
 		return {};
 	}
 
-	public get onDidEvent(): Event<DebugProtocol.Event> {
+	public get onDidEvent(): Event<debug.DebugEvent> {
 		return null;
+	}
+
+	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
+		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
+		return emitter.event;;
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {

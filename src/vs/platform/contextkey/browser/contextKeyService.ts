@@ -58,7 +58,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		super(id, null);
 
 		this._emitter = emitter;
-		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
+		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(configurationService.getConfiguration()));
 		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
 
@@ -126,7 +126,7 @@ class ContextKey<T> implements IContextKey<T> {
 	}
 }
 
-export abstract class AbstractContextKeyService {
+export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
 	protected _onDidChangeContext: Event<string[]>;
@@ -137,6 +137,8 @@ export abstract class AbstractContextKeyService {
 		this._myContextId = myContextId;
 		this._onDidChangeContextKey = new Emitter<string>();
 	}
+
+	abstract dispose(): void;
 
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
 		return new ContextKey(this, key, defaultValue);

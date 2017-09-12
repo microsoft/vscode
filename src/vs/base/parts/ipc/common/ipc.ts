@@ -138,7 +138,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 		try {
 			promise = channel.call(request.name, request.arg);
 		} catch (err) {
-			promise = Promise.wrapError(err);
+			promise = TPromise.wrapError(err);
 		}
 
 		const id = request.id;
@@ -207,7 +207,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, arg) => this.request(channelName, command, arg);
+		const call = (command: string, arg: any) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
@@ -238,7 +238,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private doRequest(request: IRequest): Promise {
 		const id = request.raw.id;
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.handlers[id] = response => {
 				switch (response.type) {
 					case MessageType.ResponseSuccess:
@@ -273,7 +273,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private bufferRequest(request: IRequest): Promise {
 		let flushedRequest: Promise = null;
 
-		return new Promise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			this.bufferedRequests.push(request);
 
 			request.flush = () => {
@@ -384,7 +384,7 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 			const id = router.route(command, arg);
 
 			if (!id) {
-				return TPromise.wrapError('Client id should be provided');
+				return TPromise.wrapError(new Error('Client id should be provided'));
 			}
 
 			return this.getClient(id).then(client => client.getChannel(channelName).call(command, arg));
@@ -411,8 +411,8 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 	}
 
 	dispose(): void {
-		this.channels = null;
-		this.channelClients = null;
+		this.channels = Object.create(null);
+		this.channelClients = Object.create(null);
 		this.onClientAdded.dispose();
 	}
 }
@@ -452,14 +452,14 @@ export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<T>): T {
-	const call = (command, arg) => promise.then(c => c.call(command, arg));
+	const call = (command: string, arg: any) => promise.then(c => c.call(command, arg));
 	return { call } as T;
 }
 
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
-	const call = (command, arg) => {
+	const call = (command: string, arg: any) => {
 		if (didTick) {
 			return channel.call(command, arg);
 		}
@@ -478,7 +478,7 @@ export type Deserializer<T, R> = (raw: R) => T;
 export function eventToCall<T>(event: Event<T>, serializer: Serializer<T, any> = t => t): TPromise<void> {
 	let disposable: IDisposable;
 
-	return new Promise(
+	return new TPromise(
 		(c, e, p) => disposable = event(t => p(serializer(t))),
 		() => disposable.dispose()
 	);

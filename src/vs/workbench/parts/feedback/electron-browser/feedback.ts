@@ -208,9 +208,11 @@ export class FeedbackDropdown extends Dropdown {
 			$form.style('background-color', colors.editorWidgetBackground);
 			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
 
-			this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
-			this.feedbackDescriptionInput.style.color = colors.inputForeground;
-			this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			if (this.feedbackDescriptionInput) {
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground;
+				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			}
 
 			$contactUs.style('background-color', colors.editorBackground);
 			$contactUs.style('border', `1px solid ${colors.contrastBorder || 'transparent'}`);

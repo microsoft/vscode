@@ -9,14 +9,14 @@ import URI from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { FILE_EDITOR_INPUT_ID, VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
+import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -105,28 +105,16 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory(
 
 interface ISerializedFileInput {
 	resource: string;
-	resourceJSON: any;
+	resourceJSON: object;
 	encoding?: string;
 }
 
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
-	private configuredEncoding: string;
 
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		this.onConfiguration(configurationService.getConfiguration<IFilesConfiguration>());
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config));
-	}
-
-	private onConfiguration(config: IFilesConfiguration): void {
-		this.configuredEncoding = config.files && config.files.encoding;
 	}
 
 	public serialize(editorInput: EditorInput): string {
@@ -138,7 +126,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		};
 
 		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configuredEncoding) {
+		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
 			fileInput.encoding = encoding;
 		}
 
@@ -186,6 +174,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
 				'anyOf': [
 					{
@@ -212,14 +201,19 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.encoding': {
 			'type': 'string',
+			'overridable': true,
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
-			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
+			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can be configured per language too."),
+			'scope': ConfigurationScope.RESOURCE,
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
+			'overridable': true,
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files")
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files. This setting can be configured per language too."),
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.eol': {
 			'type': 'string',
@@ -229,18 +223,21 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
 			'description': nls.localize('eol', "The default end of line character. Use \\n for LF and \\r\\n for CRLF."),
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.autoSave': {
 			'type': 'string',
@@ -262,7 +259,8 @@ configurationRegistry.registerConfiguration({
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
+			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': {
 			'type': 'string',
@@ -271,9 +269,14 @@ configurationRegistry.registerConfiguration({
 			'enumDescriptions': [
 				nls.localize('hotExit.off', 'Disable hot exit.'),
 				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
-				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.reopenFolders" to "all".')
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the application is closed, that is when the last window is closed on Windows/Linux or when the workbench.action.quit command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set "window.restoreWindows" to "all".')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		},
+		'files.useExperimentalFileWatcher': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
 			'type': 'string',
@@ -322,6 +325,19 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
+		},
+		'explorer.sortOrder': {
+			'type': 'string',
+			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
+			'default': SortOrderConfiguration.DEFAULT,
+			'enumDescriptions': [
+				nls.localize('sortOrder.default', 'Files and folders are sorted by their names, in alphabetical order. Folders are displayed before files.'),
+				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names, in alphabetical order. Files are interwoven with folders.'),
+				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names, in alphabetical order. Files are displayed before folders.'),
+				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
+			],
+			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
 		}
 	}
 });

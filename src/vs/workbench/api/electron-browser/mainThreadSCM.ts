@@ -10,14 +10,30 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+
+class MainThreadSCMResourceCollection implements ISCMResourceCollection {
+
+	readonly resources: ISCMResource[] = [];
+
+	private _onDidSplice = new Emitter<ISCMResourceSplice>();
+	readonly onDidSplice = this._onDidSplice.event;
+
+	splice(start: number, deleteCount: number, resources: ISCMResource[]) {
+		this.resources.splice(start, deleteCount, ...resources);
+		this._onDidSplice.fire({ start, deleteCount, resources });
+	}
+}
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
+
+	readonly resourceCollection = new MainThreadSCMResourceCollection();
+	get hideWhenEmpty(): boolean { return this.features.hideWhenEmpty; }
 
 	constructor(
 		private sourceControlHandle: number,
@@ -25,8 +41,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public id: string,
-		public resources: ISCMResource[]
+		public id: string
 	) { }
 
 	toJSON(): any {
@@ -41,14 +56,18 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 class MainThreadSCMResource implements ISCMResource {
 
 	constructor(
+		private proxy: ExtHostSCMShape,
 		private sourceControlHandle: number,
 		private groupHandle: number,
 		private handle: number,
 		public sourceUri: URI,
-		public command: Command | undefined,
 		public resourceGroup: ISCMResourceGroup,
 		public decorations: ISCMResourceDecorations
 	) { }
+
+	open(): TPromise<void> {
+		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
+	}
 
 	toJSON(): any {
 		return {
@@ -62,22 +81,26 @@ class MainThreadSCMResource implements ISCMResource {
 
 class MainThreadSCMProvider implements ISCMProvider {
 
+	private static ID_HANDLE = 0;
+	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
+	get id(): string { return this._id; }
+
 	private _groups: MainThreadSCMResourceGroup[] = [];
 	private _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
 
 	get resources(): ISCMResourceGroup[] {
 		return this._groups
-			.filter(g => g.resources.length > 0 || !g.features.hideWhenEmpty);
+			.filter(g => g.resourceCollection.resources.length > 0 || !g.features.hideWhenEmpty);
 	}
 
-	private _onDidChange = new Emitter<void>();
-	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	private _onDidChangeResources = new Emitter<void>();
+	get onDidChangeResources(): Event<void> { return this._onDidChangeResources.event; }
 
 	private features: SCMProviderFeatures = {};
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
-	get id(): string { return this._id; }
+	get contextValue(): string { return this._contextValue; }
 
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
@@ -89,10 +112,13 @@ class MainThreadSCMProvider implements ISCMProvider {
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
 
+	private _onDidChange = new Emitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
+
 	constructor(
 		private proxy: ExtHostSCMShape,
 		private _handle: number,
-		private _id: string,
+		private _contextValue: string,
 		private _label: string,
 		@ISCMService scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
@@ -118,8 +144,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			this,
 			{},
 			label,
-			id,
-			[]
+			id
 		);
 
 		this._groups.push(group);
@@ -148,36 +173,46 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
-	$updateGroupResourceStates(groupHandle: number, resources: SCMRawResource[]): void {
-		const group = this._groupsByHandle[groupHandle];
+	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
+		for (const [groupHandle, groupSlices] of splices) {
+			const group = this._groupsByHandle[groupHandle];
 
-		if (!group) {
-			return;
+			if (!group) {
+				return;
+			}
+
+			// reverse the splices sequence in order to apply them correctly
+			groupSlices.reverse();
+
+			for (const [start, deleteCount, rawResources] of groupSlices) {
+				const resources = rawResources.map(rawResource => {
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded] = rawResource;
+					const icon = icons[0];
+					const iconDark = icons[1] || icon;
+					const decorations = {
+						icon: icon && URI.parse(icon),
+						iconDark: iconDark && URI.parse(iconDark),
+						tooltip,
+						strikeThrough,
+						faded
+					};
+
+					return new MainThreadSCMResource(
+						this.proxy,
+						this.handle,
+						groupHandle,
+						handle,
+						URI.parse(sourceUri),
+						group,
+						decorations
+					);
+				});
+
+				group.resourceCollection.splice(start, deleteCount, resources);
+			}
 		}
 
-		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, strikeThrough, faded] = rawResource;
-			const icon = icons[0];
-			const iconDark = icons[1] || icon;
-			const decorations = {
-				icon: icon && URI.parse(icon),
-				iconDark: iconDark && URI.parse(iconDark),
-				strikeThrough,
-				faded
-			};
-
-			return new MainThreadSCMResource(
-				this.handle,
-				groupHandle,
-				handle,
-				URI.parse(sourceUri),
-				command,
-				group,
-				decorations
-			);
-		});
-
-		this._onDidChange.fire();
+		this._onDidChangeResources.fire();
 	}
 
 	$unregisterGroup(handle: number): void {
@@ -199,125 +234,143 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this.proxy.$provideOriginalResource(this.handle, uri);
 	}
 
+	toJSON(): any {
+		return {
+			$mid: 5,
+			handle: this.handle
+		};
+	}
+
 	dispose(): void {
 
 	}
 }
 
-export class MainThreadSCM extends MainThreadSCMShape {
+@extHostNamedCustomer(MainContext.MainThreadSCM)
+export class MainThreadSCM implements MainThreadSCMShape {
 
 	private _proxy: ExtHostSCMShape;
-	private _sourceControls: { [handle: number]: MainThreadSCMProvider; } = Object.create(null);
-	private _sourceControlDisposables: { [handle: number]: IDisposable; } = Object.create(null);
+	private _repositories: { [handle: number]: ISCMRepository; } = Object.create(null);
+	private _inputDisposables: { [handle: number]: IDisposable; } = Object.create(null);
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ISCMService private scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostSCM);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
+	}
 
-		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this._disposables);
-		this.scmService.input.onDidChange(this._proxy.$onInputBoxValueChange, this._proxy, this._disposables);
+	dispose(): void {
+		Object.keys(this._repositories)
+			.forEach(id => this._repositories[id].dispose());
+		this._repositories = Object.create(null);
+
+		Object.keys(this._inputDisposables)
+			.forEach(id => this._inputDisposables[id].dispose());
+		this._inputDisposables = Object.create(null);
+
+		this._disposables = dispose(this._disposables);
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string): void {
 		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, this.scmService, this.commandService);
-		this._sourceControls[handle] = provider;
-		this._sourceControlDisposables[handle] = this.scmService.registerSCMProvider(provider);
+		const repository = this.scmService.registerSCMProvider(provider);
+		this._repositories[handle] = repository;
+
+		const inputDisposable = repository.input.onDidChange(value => this._proxy.$onInputBoxValueChange(handle, value));
+		this._inputDisposables[handle] = inputDisposable;
 	}
 
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
-		const sourceControl = this._sourceControls[handle];
+		const repository = this._repositories[handle];
 
-		if (!sourceControl) {
+		if (!repository) {
 			return;
 		}
 
-		sourceControl.$updateSourceControl(features);
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$updateSourceControl(features);
 	}
 
 	$unregisterSourceControl(handle: number): void {
-		const sourceControl = this._sourceControls[handle];
+		const repository = this._repositories[handle];
 
-		if (!sourceControl) {
+		if (!repository) {
 			return;
 		}
 
-		this._sourceControlDisposables[handle].dispose();
-		delete this._sourceControlDisposables[handle];
+		this._inputDisposables[handle].dispose();
+		delete this._inputDisposables[handle];
 
-		sourceControl.dispose();
-		delete this._sourceControls[handle];
+		repository.dispose();
+		delete this._repositories[handle];
 	}
 
 	$registerGroup(sourceControlHandle: number, groupHandle: number, id: string, label: string): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$registerGroup(groupHandle, id, label);
 	}
 
 	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroup(groupHandle, features);
 	}
 
 	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
 	}
 
-	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void {
-		const provider = this._sourceControls[sourceControlHandle];
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
-		provider.$updateGroupResourceStates(groupHandle, resources);
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$spliceGroupResourceStates(splices);
 	}
 
 	$unregisterGroup(sourceControlHandle: number, handle: number): void {
-		const provider = this._sourceControls[sourceControlHandle];
+		const repository = this._repositories[sourceControlHandle];
 
-		if (!provider) {
+		if (!repository) {
 			return;
 		}
 
+		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$unregisterGroup(handle);
 	}
 
-	$setInputBoxValue(value: string): void {
-		this.scmService.input.value = value;
-	}
+	$setInputBoxValue(sourceControlHandle: number, value: string): void {
+		const repository = this._repositories[sourceControlHandle];
 
-	private onDidChangeProvider(provider: ISCMProvider): void {
-		const handle = Object.keys(this._sourceControls).filter(handle => this._sourceControls[handle] === provider)[0];
-		this._proxy.$onActiveSourceControlChange(handle && parseInt(handle));
-	}
+		if (!repository) {
+			return;
+		}
 
-	dispose(): void {
-		Object.keys(this._sourceControls)
-			.forEach(id => this._sourceControls[id].dispose());
-
-		this._sourceControls = Object.create(null);
-		this._disposables = dispose(this._disposables);
+		repository.input.value = value;
 	}
 }

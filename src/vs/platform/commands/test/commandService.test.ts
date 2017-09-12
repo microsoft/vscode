@@ -27,8 +27,13 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensionsStatus() {
 		return undefined;
 	}
+	getExtensionsActivationTimes() {
+		return undefined;
+	}
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
+	}
+	restartExtensionHost(): void {
 	}
 }
 
@@ -69,12 +74,12 @@ suite('CommandService', function () {
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			activateByEvent(activationEvent: string): TPromise<void> {
-				return TPromise.wrapError<void>('bad_activate');
+				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
 		});
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err, 'bad_activate');
+			assert.equal(err.message, 'bad_activate');
 		});
 	});
 

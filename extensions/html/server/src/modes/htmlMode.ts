@@ -7,20 +7,24 @@
 import { getLanguageModelCache } from '../languageModelCache';
 import { LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions } from 'vscode-html-languageservice';
 import { TextDocument, Position, Range } from 'vscode-languageserver-types';
-import { LanguageMode } from './languageModes';
+import { LanguageMode, Settings } from './languageModes';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageMode {
-	let settings: any = {};
+	let globalSettings: Settings = {};
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
 	return {
 		getId() {
 			return 'html';
 		},
 		configure(options: any) {
-			settings = options && options.html;
+			globalSettings = options;
 		},
-		doComplete(document: TextDocument, position: Position) {
-			let options = settings && settings.suggest;
+		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings) {
+			let options = settings && settings.html && settings.html.suggest;
+			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
+			if (doAutoComplete) {
+				options.hideAutoCompleteProposals = true;
+			}
 			return htmlLanguageService.doComplete(document, position, htmlDocuments.get(document), options);
 		},
 		doHover(document: TextDocument, position: Position) {
@@ -35,14 +39,22 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 		findDocumentSymbols(document: TextDocument) {
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions) {
-			let formatSettings = settings && settings.format;
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings) {
+			let formatSettings = settings && settings.html && settings.html.format;
 			if (!formatSettings) {
 				formatSettings = formatParams;
 			} else {
 				formatSettings = merge(formatParams, merge(formatSettings, {}));
 			}
 			return htmlLanguageService.format(document, range, formatSettings);
+		},
+		doAutoClose(document: TextDocument, position: Position) {
+			let offset = document.offsetAt(position);
+			let text = document.getText();
+			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
+				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
+			}
+			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);

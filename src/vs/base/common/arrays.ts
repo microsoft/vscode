@@ -67,30 +67,45 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 }
 
 /**
- * Like `Array#sort` but always stable. Comes at a cost: iterates 2n-times,
- * creates n-objects in addition to sorting (log(n))
+ * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
+ * so only use this when actually needing stable sort.
  */
-export function stableSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
-
-	let data2: { idx: number; e: T }[] = <any>data;
-
-	for (let idx = 0; idx < data2.length; idx++) {
-		data2[idx] = { idx, e: data[idx] };
-	}
-
-	data2.sort((a, b) => {
-		let ret = compare(a.e, b.e);
-		if (ret === 0) {
-			ret = a.idx - b.idx;
-		}
-		return ret;
-	});
-
-	for (let idx = 0; idx < data2.length; idx++) {
-		data[idx] = data2[idx].e;
-	}
-
+export function mergeSort<T>(data: T[], compare: (a: T, b: T) => number): T[] {
+	_divideAndMerge(data, compare);
 	return data;
+}
+
+function _divideAndMerge<T>(data: T[], compare: (a: T, b: T) => number): void {
+	if (data.length <= 1) {
+		// sorted
+		return;
+	}
+	const p = (data.length / 2) | 0;
+	const left = data.slice(0, p);
+	const right = data.slice(p);
+
+	_divideAndMerge(left, compare);
+	_divideAndMerge(right, compare);
+
+	let leftIdx = 0;
+	let rightIdx = 0;
+	let i = 0;
+	while (leftIdx < left.length && rightIdx < right.length) {
+		let ret = compare(left[leftIdx], right[rightIdx]);
+		if (ret <= 0) {
+			// smaller_equal -> take left to preserve order
+			data[i++] = left[leftIdx++];
+		} else {
+			// greater -> take right
+			data[i++] = right[rightIdx++];
+		}
+	}
+	while (leftIdx < left.length) {
+		data[i++] = left[leftIdx++];
+	}
+	while (rightIdx < right.length) {
+		data[i++] = right[rightIdx++];
+	}
 }
 
 export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
@@ -107,28 +122,43 @@ export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	return result;
 }
 
-/**
- * Takes two *sorted* arrays and computes their delta (removed, added elements).
- * Finishes in `Math.min(before.length, after.length)` steps.
- * @param before
- * @param after
- * @param compare
- */
-export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number) {
+export interface Splice<T> {
+	start: number;
+	deleteCount: number;
+	inserted: T[];
+}
 
-	const removed: T[] = [];
-	const added: T[] = [];
+/**
+ * Diffs two *sorted* arrays and computes the splices which apply the diff.
+ */
+export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): Splice<T>[] {
+	const result: Splice<T>[] = [];
+
+	function pushSplice(start: number, deleteCount: number, inserted: T[]): void {
+		if (deleteCount === 0 && inserted.length === 0) {
+			return;
+		}
+
+		const latest = result[result.length - 1];
+
+		if (latest && latest.start + latest.deleteCount === start) {
+			latest.deleteCount += deleteCount;
+			latest.inserted.push(...inserted);
+		} else {
+			result.push({ start, deleteCount, inserted });
+		}
+	}
 
 	let beforeIdx = 0;
 	let afterIdx = 0;
 
 	while (true) {
 		if (beforeIdx === before.length) {
-			added.push(...after.slice(afterIdx));
+			pushSplice(beforeIdx, 0, after.slice(afterIdx));
 			break;
 		}
 		if (afterIdx === after.length) {
-			removed.push(...before.slice(beforeIdx));
+			pushSplice(beforeIdx, before.length - beforeIdx, []);
 			break;
 		}
 
@@ -141,13 +171,33 @@ export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => numbe
 			afterIdx += 1;
 		} else if (n < 0) {
 			// beforeElement is smaller -> before element removed
-			removed.push(beforeElement);
+			pushSplice(beforeIdx, 1, []);
 			beforeIdx += 1;
 		} else if (n > 0) {
 			// beforeElement is greater -> after element added
-			added.push(afterElement);
+			pushSplice(beforeIdx, 0, [afterElement]);
 			afterIdx += 1;
 		}
+	}
+
+	return result;
+}
+
+/**
+ * Takes two *sorted* arrays and computes their delta (removed, added elements).
+ * Finishes in `Math.min(before.length, after.length)` steps.
+ * @param before
+ * @param after
+ * @param compare
+ */
+export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+	const splices = sortedDiff(before, after, compare);
+	const removed: T[] = [];
+	const added: T[] = [];
+
+	for (const splice of splices) {
+		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
+		added.push(...splice.inserted);
 	}
 
 	return { removed, added };
@@ -316,4 +366,14 @@ export function insert<T>(array: T[], element: T): () => void {
 			array.splice(index, 1);
 		}
 	};
+}
+
+/**
+ * Insert `insertArr` inside `target` at `insertIndex`.
+ * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
+ */
+export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[]): T[] {
+	const before = target.slice(0, insertIndex);
+	const after = target.slice(insertIndex);
+	return before.concat(insertArr, after);
 }

@@ -25,7 +25,8 @@ export default () => `
 						<li><a href="command:workbench.action.files.newUntitledFile">${escape(localize('welcomePage.newFile', "New file"))}</a></li>
 						<li class="mac-only"><a href="command:workbench.action.files.openFileFolder">${escape(localize('welcomePage.openFolder', "Open folder..."))}</a></li>
 						<li class="windows-only linux-only"><a href="command:workbench.action.files.openFolder">${escape(localize('welcomePage.openFolder', "Open folder..."))}</a></li>
-						<li><a href="command:git.clone">${escape(localize('welcomePage.cloneGitRepository', "Clone Git repository..."))}</a></li>
+						<li class="stable-only"><a href="command:git.clone">${escape(localize('welcomePage.cloneGitRepository', "Clone Git repository..."))}</a></li>
+						<li class="insiders-only"><a href="command:workbench.action.addRootFolder">${escape(localize('welcomePage.addWorkspaceFolder', "Add workspace folder..."))}</a></li>
 					</ul>
 				</div>
 				<div class="section recent">
@@ -41,6 +42,7 @@ export default () => `
 					<ul>
 						<li class="keybindingsReferenceLink"><a href="command:workbench.action.keybindingsReference">${escape(localize('welcomePage.keybindingsCheatsheet', "Printable keyboard cheatsheet"))}</a></li>
 						<li><a href="command:workbench.action.openIntroductoryVideosUrl">${escape(localize('welcomePage.introductoryVideos', "Introductory videos"))}</a></li>
+						<li><a href="command:workbench.action.openTipsAndTricksUrl">${escape(localize('welcomePage.tipsAndTricks', "Tips and Tricks"))}</a></li>
 						<li><a href="command:workbench.action.openDocumentationUrl">${escape(localize('welcomePage.productDocumentation', "Product documentation"))}</a></li>
 						<li><a href="https://github.com/Microsoft/vscode">${escape(localize('welcomePage.gitHubRepository', "GitHub repository"))}</a></li>
 						<li><a href="http://stackoverflow.com/questions/tagged/vscode?sort=votes&pageSize=50">${escape(localize('welcomePage.stackOverflow', "Stack Overflow"))}</a></li>
@@ -52,11 +54,11 @@ export default () => `
 				<div class="section customize">
 					<h2 class="caption">${escape(localize('welcomePage.customize', "Customize"))}</h2>
 					<ul>
-						<li class="showLanguageExtensions"><button data-href="command:workbench.extensions.action.showLanguageExtensions"><h3 class="caption">${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span class="detail">${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
+						<li class="showLanguageExtensions"><button role="group" data-href="command:workbench.extensions.action.showLanguageExtensions"><h3 class="caption">${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span class="detail">${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
 		.replace('{0}', `<span class="extensionPackList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showLanguageExtensions">${escape(localize('welcomePage.moreExtensions', "more"))}</a>`)}
 						</span></button></li>
-						<li class="showRecommendedKeymapExtensions"><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3 class="caption">${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span class="detail">${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
+						<li class="showRecommendedKeymapExtensions"><button role="group" data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3 class="caption">${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span class="detail">${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
 		.replace('{0}', `<span class="keymapList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showRecommendedKeymapExtensions">${escape(localize('welcomePage.others', "others"))}</a>`)}
 						</span></button></li>
@@ -66,16 +68,10 @@ export default () => `
 				<div class="section learn">
 					<h2 class="caption">${escape(localize('welcomePage.learn', "Learn"))}</h2>
 					<ul>
-						<li class="showCommands"><button data-href="command:workbench.action.showCommands"><h3 class="caption">${escape(localize('welcomePage.showCommands', "Find and run all commands"))}</h3> <span class="detail">${escape(localize('welcomePage.showCommandsDescription', "Rapidly access and search commands from the control panel ({0})")).replace('{0}', '<span class="shortcut" data-command="workbench.action.showCommands"></span>')}</span></button></li>
+						<li class="showCommands"><button data-href="command:workbench.action.showCommands"><h3 class="caption">${escape(localize('welcomePage.showCommands', "Find and run all commands"))}</h3> <span class="detail">${escape(localize('welcomePage.showCommandsDescription', "Rapidly access and search commands from the Command Palette ({0})")).replace('{0}', '<span class="shortcut" data-command="workbench.action.showCommands"></span>')}</span></button></li>
 						<li class="showInterfaceOverview"><button data-href="command:workbench.action.showInterfaceOverview"><h3 class="caption">${escape(localize('welcomePage.interfaceOverview', "Interface overview"))}</h3> <span class="detail">${escape(localize('welcomePage.interfaceOverviewDescription', "Get a visual overlay highlighting the major components of the UI"))}</span></button></li>
+						<li class="deployToAzure"><button data-href="https://code.visualstudio.com/tutorials/nodejs-deployment/getting-started?utm_source=VSCode&utm_medium=WelcomePage"><h3 class="caption">${escape(localize('welcomePage.deployToAzure', "Deploy applications to the cloud"))}</h3> <span class="detail">${escape(localize('welcomePage.deployToAzureDescription', "Learn how to deploy your Node apps to Azure App Service"))}</span></button></li>
 						<li class="showInteractivePlayground"><button data-href="command:workbench.action.showInteractivePlayground"><h3 class="caption">${escape(localize('welcomePage.interactivePlayground', "Interactive playground"))}</h3> <span class="detail">${escape(localize('welcomePage.interactivePlaygroundDescription', "Try essential editor features out in a short walkthrough"))}</span></button></li>
-					</ul>
-				</div>
-				<div class="section quickLinks">
-					<h2 class="caption">${escape(localize('welcomePage.quickLinks', "Quick links"))}</h2>
-					<ul>
-						<li class="keybindingsReference"><button data-href="command:workbench.action.keybindingsReference"><h3 class="caption">${escape(localize('welcomePage.keybindingsReference', "Keyboard shortcuts reference"))}</h3> <span class="detail">${escape(localize('welcomePage.keybindingsReferenceDescription', "A printable PDF with the most common keyboard shortcuts"))}</span></button></li>
-						<li class="openGlobalSettings"><button data-href="command:workbench.action.openGlobalSettings"><h3 class="caption">${escape(localize('welcomePage.configureSettings', "Configure settings"))}</h3> <span class="detail">${escape(localize('welcomePage.configureSettingsDescription', "Unlock the full power of VS Code by tweaking the settings"))}</span></button></li>
 					</ul>
 				</div>
 			</div>

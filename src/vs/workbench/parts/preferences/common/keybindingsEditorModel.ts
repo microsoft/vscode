@@ -9,12 +9,12 @@ import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { OperatingSystem, language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
-import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
 import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { MenuRegistry, ILocalizedString, SyncActionDescriptor, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -274,7 +274,7 @@ class KeybindingItemMatches {
 	}
 
 	private matchesWords(words: string[], wordToMatchAgainst: string, wordMatchesFilter: IFilter): IMatch[] {
-		let matches = [];
+		let matches: IMatch[] = [];
 		for (const word of words) {
 			const wordMatches = wordMatchesFilter(word, wordToMatchAgainst);
 			if (wordMatches) {
@@ -288,7 +288,7 @@ class KeybindingItemMatches {
 	}
 
 	private filterAndSort(matches: IMatch[]): IMatch[] {
-		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);;
+		return distinct(matches, (a => a.start + '.' + a.end)).filter(match => !matches.some(m => !(m.start === match.start && m.end === match.end) && (m.start <= match.start && m.end >= match.end))).sort((a, b) => a.start - b.start);
 	}
 
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[]): KeybindingMatches {
@@ -385,7 +385,7 @@ class KeybindingItemMatches {
 			return false;
 		}
 		const ariaLabel = keybinding.keyAriaLabel;
-		if (ariaLabel.length === 1 || word.length === 1) {
+		if (this.completeMatch || ariaLabel.length === 1 || word.length === 1) {
 			if (strings.compareIgnoreCase(ariaLabel, word) === 0) {
 				return true;
 			}

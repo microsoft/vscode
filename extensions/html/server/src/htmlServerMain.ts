@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector } from 'vscode-languageserver';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, GetConfigurationParams, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
 import { DocumentContext } from 'vscode-html-languageservice';
-import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from 'vscode-languageserver-types';
-import { getLanguageModes, LanguageModes } from './modes/languageModes';
+import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
+import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
+
+import { GetConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
@@ -19,8 +22,8 @@ import uri from 'vscode-uri';
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
+namespace TagCloseRequest {
+	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
 
 // Create a connection for the server
@@ -38,10 +41,32 @@ documents.listen(connection);
 
 let workspacePath: string;
 var languageModes: LanguageModes;
-var settings: any = {};
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
+let scopedSettingsSupport = false;
+
+var globalSettings: Settings = {};
+let documentSettings: { [key: string]: Thenable<Settings> } = {};
+// remove document settings on close
+documents.onDidClose(e => {
+	delete documentSettings[e.document.uri];
+});
+
+function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
+	console.log('scopedSettingsSupport ' + scopedSettingsSupport + 'needsSettings ' + needsDocumentSettings());
+	if (scopedSettingsSupport && needsDocumentSettings()) {
+		let promise = documentSettings[textDocument.uri];
+		if (!promise) {
+			let scopeUri = textDocument.uri;
+			let configRequestParam: GetConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
+			promise = connection.sendRequest(GetConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
+			documentSettings[textDocument.uri] = promise;
+		}
+		return promise;
+	}
+	return Promise.resolve(void 0);
+}
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
@@ -68,38 +93,32 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : null,
-			hoverProvider: true,
-			documentHighlightProvider: true,
-			documentRangeFormattingProvider: false,
-			documentLinkProvider: { resolveProvider: false },
-			documentSymbolProvider: true,
-			definitionProvider: true,
-			signatureHelpProvider: { triggerCharacters: ['('] },
-			referencesProvider: true,
-		}
+	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
+		hoverProvider: true,
+		documentHighlightProvider: true,
+		documentRangeFormattingProvider: false,
+		documentLinkProvider: { resolveProvider: false },
+		documentSymbolProvider: true,
+		definitionProvider: true,
+		signatureHelpProvider: { triggerCharacters: ['('] },
+		referencesProvider: true,
+		colorProvider: true
 	};
-});
 
-let validation = {
-	html: true,
-	css: true,
-	javascript: true
-};
+	return { capabilities };
+});
 
 let formatterRegistration: Thenable<Disposable> = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	settings = change.settings;
-	let validationSettings = settings && settings.html && settings.html.validate || {};
-	validation.css = validationSettings.styles !== false;
-	validation.javascript = validationSettings.scripts !== false;
+	globalSettings = change.settings;
 
+	documentSettings = {}; // reset all document settings
 	languageModes.getAllModes().forEach(m => {
 		if (m.configure) {
 			m.configure(change.settings);
@@ -109,7 +128,7 @@ connection.onDidChangeConfiguration((change) => {
 
 	// dynamically enable & disable the formatter
 	if (clientDynamicRegisterSupport) {
-		let enableFormatter = settings && settings.html && settings.html.format && settings.html.format.enable;
+		let enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
 				let documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }]; // don't register razor, the formatter does more harm than good
@@ -154,26 +173,37 @@ function triggerValidation(textDocument: TextDocument): void {
 	}, validationDelayMs);
 }
 
-function validateTextDocument(textDocument: TextDocument): void {
+function isValidationEnabled(languageId: string, settings: Settings = globalSettings) {
+	let validationSettings = settings && settings.html && settings.html.validate;
+	if (validationSettings) {
+		return languageId === 'css' && validationSettings.styles !== false || languageId === 'javascript' && validationSettings.scripts !== false;
+	}
+	return true;
+}
+
+async function validateTextDocument(textDocument: TextDocument) {
 	let diagnostics: Diagnostic[] = [];
 	if (textDocument.languageId === 'html') {
-		languageModes.getAllModesInDocument(textDocument).forEach(mode => {
-			if (mode.doValidation && validation[mode.getId()]) {
-				pushAll(diagnostics, mode.doValidation(textDocument));
+		let modes = languageModes.getAllModesInDocument(textDocument);
+		let settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
+		modes.forEach(mode => {
+			if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
+				pushAll(diagnostics, mode.doValidation(textDocument, settings));
 			}
 		});
 	}
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
-connection.onCompletion(textDocumentPosition => {
+connection.onCompletion(async textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 	if (mode && mode.doComplete) {
 		if (mode.getId() !== 'html') {
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
-		return mode.doComplete(document, textDocumentPosition.position);
+		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
+		return mode.doComplete(document, textDocumentPosition.position, settings);
 	}
 	return { isIncomplete: true, items: [] };
 });
@@ -235,13 +265,16 @@ connection.onSignatureHelp(signatureHelpParms => {
 	return null;
 });
 
-connection.onDocumentRangeFormatting(formatParams => {
+connection.onDocumentRangeFormatting(async formatParams => {
 	let document = documents.get(formatParams.textDocument.uri);
-
+	let settings = await getDocumentSettings(document, () => true);
+	if (!settings) {
+		settings = globalSettings;
+	}
 	let unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
 	let enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
 
-	return format(languageModes, document, formatParams.range, formatParams.options, enabledModes);
+	return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
 });
 
 connection.onDocumentLinks(documentLinkParam => {
@@ -278,18 +311,33 @@ connection.onDocumentSymbol(documentSymbolParms => {
 	return symbols;
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let ranges: Range[] = [];
-	let document = documents.get(uri);
+connection.onRequest(DocumentColorRequest.type, params => {
+	let infos: ColorInformation[] = [];
+	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		languageModes.getAllModesInDocument(document).forEach(m => {
-			if (m.findColorSymbols) {
-				pushAll(ranges, m.findColorSymbols(document));
+			if (m.findDocumentColors) {
+				pushAll(infos, m.findDocumentColors(document));
 			}
 		});
 	}
-	return ranges;
+	return infos;
 });
+
+connection.onRequest(TagCloseRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let pos = params.position;
+		if (pos.character > 0) {
+			let mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
+			if (mode && mode.doAutoClose) {
+				return mode.doAutoClose(document, pos);
+			}
+		}
+	}
+	return null;
+});
+
 
 // Listen on the connection
 connection.listen();

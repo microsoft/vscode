@@ -6,9 +6,8 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IRemoteCom, createProxyProtocol } from 'vs/platform/extensions/common/ipcRemoteCom';
-import { AbstractThreadService } from 'vs/workbench/services/thread/common/abstractThreadService';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -35,23 +34,11 @@ function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingPr
 
 
 export class MainThreadService extends AbstractThreadService implements IThreadService {
-
-	_serviceBrand: any;
-
-	private _remoteCom: IRemoteCom;
-
 	constructor(protocol: IMessagePassingProtocol, @IEnvironmentService environmentService: IEnvironmentService) {
-		super(true);
-
 		if (logExtensionHostCommunication || environmentService.logExtensionHostCommunication) {
 			protocol = asLoggingProtocol(protocol);
 		}
 
-		this._remoteCom = createProxyProtocol(protocol);
-		this._remoteCom.setManyHandler(this);
-	}
-
-	protected _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any> {
-		return this._remoteCom.callOnRemote(proxyId, path, args);
+		super(new RPCProtocol(protocol), true);
 	}
 }

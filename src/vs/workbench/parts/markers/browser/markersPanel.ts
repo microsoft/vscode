@@ -6,12 +6,10 @@
 import 'vs/css!./media/markers';
 
 import * as errors from 'vs/base/common/errors';
-import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
 import { IAction, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -37,15 +35,15 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 
 export class MarkersPanel extends Panel {
 
 	public markersModel: MarkersModel;
 
-	private toDispose: lifecycle.IDisposable[];
 	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
@@ -53,7 +51,7 @@ export class MarkersPanel extends Panel {
 	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
-	private autoExpanded: Set.ArraySet<string>;
+	private autoExpanded: Set<string>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -79,9 +77,8 @@ export class MarkersPanel extends Panel {
 		@IThemeService themeService: IThemeService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
-		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(contextKeyService);
 	}
 
@@ -90,7 +87,7 @@ export class MarkersPanel extends Panel {
 		this.markersModel = new MarkersModel();
 
 		this.rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-		this.toDispose.push(this.rangeHighlightDecorations);
+		this.toUnbind.push(this.rangeHighlightDecorations);
 
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
@@ -188,7 +185,7 @@ export class MarkersPanel extends Panel {
 
 	public updateFilter(filter: string) {
 		this.markersModel.update(new FilterOptions(filter));
-		this.autoExpanded = new Set.ArraySet<string>();
+		this.autoExpanded = new Set<string>();
 		this.refreshPanel();
 		this.autoReveal();
 	}
@@ -202,15 +199,17 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
-		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
-		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		const actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
+		const renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
 		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
 			sorter: new Viewer.Sorter(),
-			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider()
+			accessibilityProvider: new Viewer.MarkersTreeAccessibilityProvider(),
+			dnd
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
@@ -234,7 +233,7 @@ export class MarkersPanel extends Panel {
 			this.markerFocusContextKey.set(false);
 		});
 
-		this.toDispose.push(this.listService.register(this.tree));
+		this.toUnbind.push(this.listService.register(this.tree));
 	}
 
 	private createActions(): void {
@@ -245,15 +244,15 @@ export class MarkersPanel extends Panel {
 			this.collapseAllAction
 		];
 		this.actions.forEach(a => {
-			this.toDispose.push(a);
+			this.toUnbind.push(a);
 		});
 	}
 
 	private createListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
-		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
-		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toDispose.push(this.tree.addListener('selection', () => this.onSelected()));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
+		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
+		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -304,7 +303,7 @@ export class MarkersPanel extends Panel {
 		bulkUpdater.done();
 		for (const resource of resources) {
 			if (!this.markersModel.hasResource(resource)) {
-				this.autoExpanded.unset(resource.toString());
+				this.autoExpanded.delete(resource.toString());
 			}
 		}
 	}
@@ -326,9 +325,9 @@ export class MarkersPanel extends Panel {
 	private autoExpand(): void {
 		for (const resource of this.markersModel.filteredResources) {
 			const resourceUri = resource.uri.toString();
-			if (!this.autoExpanded.contains(resourceUri)) {
+			if (!this.autoExpanded.has(resourceUri)) {
 				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-				this.autoExpanded.set(resourceUri);
+				this.autoExpanded.add(resourceUri);
 			}
 		}
 	}
@@ -371,7 +370,7 @@ export class MarkersPanel extends Panel {
 		return null;
 	}
 
-	private hasSelectedMarkerFor(resource): boolean {
+	private hasSelectedMarkerFor(resource: Resource): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
@@ -410,10 +409,10 @@ export class MarkersPanel extends Panel {
 	}
 
 	public dispose(): void {
+		super.dispose();
+
 		this.delayedRefresh.cancel();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.tree.dispose();
 		this.markersModel.dispose();
-		super.dispose();
 	}
 }

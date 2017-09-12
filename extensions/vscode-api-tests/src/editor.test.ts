@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
-import { createRandomFile, deleteFile, cleanUp } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors } from './utils';
 
 suite('editor tests', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {
@@ -194,7 +194,7 @@ suite('editor tests', () => {
 				(err) => {
 					assert.ok(true, 'edit with overlapping ranges should fail');
 				}
-			);
+				);
 		});
 	});
 });

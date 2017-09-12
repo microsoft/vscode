@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Severity from 'vs/base/common/severity';
 import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
@@ -147,7 +147,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure']
 			}
 		},
 		galleryBanner: {
@@ -195,8 +195,8 @@ const schema: IJSONSchema = {
 					},
 					{
 						label: 'onDebug',
-						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a debug session of the specified type is started.'),
-						body: 'onDebug:${3:type}'
+						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a user is about to start debugging or about to setup debug configurations.'),
+						body: 'onDebug'
 					},
 					{
 						label: 'workspaceContains',
@@ -205,7 +205,8 @@ const schema: IJSONSchema = {
 					},
 					{
 						label: 'onView',
-						body: 'onView:${5:viewId}'
+						body: 'onView:${5:viewId}',
+						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
 					},
 					{
 						label: '*',

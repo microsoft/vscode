@@ -20,11 +20,12 @@ import { Location } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
-import { PeekContext } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import { PeekContext } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class DefinitionActionConfig {
 
@@ -50,11 +51,12 @@ export class DefinitionAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
+		const progressService = accessor.get(IProgressService);
 
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		return this._getDeclarationsAtPosition(model, pos).then(references => {
+		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -103,8 +105,10 @@ export class DefinitionAction extends EditorAction {
 		}, (err) => {
 			// report an error
 			messageService.show(Severity.Error, err);
-			return false;
 		});
+
+		progressService.showWhile(definitionPromise, 250);
+		return definitionPromise;
 	}
 
 	protected _getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
@@ -149,7 +153,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
-			return editor && <editorCommon.IEditor>editor.getControl();
+			return editor && <editorCommon.ICommonCodeEditor>editor.getControl();
 		});
 	}
 

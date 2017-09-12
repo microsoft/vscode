@@ -19,6 +19,7 @@
 	"closeEditorsToTheLeft": "Fechar editores à esquerda ",
 	"closeEditorsToTheRight": "Fechar editores à direita",
 	"closeAllEditors": "Fechar todos editores",
+	"closeUnmodifiedEditors": "Fechar os Editores Não Modificados no Grupo",
 	"closeEditorsInOtherGroups": "Fechar editores nos outros grupos",
 	"closeOtherEditorsInGroup": "Fechar outros editores",
 	"closeEditorsInGroup": "Fechar todos editores no grupo",
@@ -35,7 +36,7 @@
 	"navigateNext": "Avançar",
 	"navigatePrevious": "Voltar",
 	"reopenClosedEditor": "Reabrir Editor Fechado",
-	"clearRecentFiles": "Limpar arquivos recentes",
+	"clearRecentFiles": "Limpar Abertos Recentemente",
 	"showEditorsInFirstGroup": "Mostrar editores no primeiro grupo",
 	"showEditorsInSecondGroup": "Mostrar editores no segundo grupo",
 	"showEditorsInThirdGroup": "Mostrar editores no terceiro grupo",
@@ -48,8 +49,8 @@
 	"openPreviousRecentlyUsedEditor": "Abrir o Editor Anterior Recentemente Utilizado",
 	"clearEditorHistory": "Limpar Histórico do Editor",
 	"focusLastEditorInStack": "Abrir Último Editor do Grupo",
-	"moveEditorLeft": "Mover Editor para Esquerda",
-	"moveEditorRight": "Mover Editor para Direita",
-	"moveEditorToPreviousGroup": "Mover Editor para o Grupo Anterior",
+	"moveEditorLeft": "Mover o Editor para a Esquerda",
+	"moveEditorRight": "Mover o Editor para a Direita",
+	"moveEditorToPreviousGroup": "Mover o Editor para o Grupo Anterior",
 	"moveEditorToNextGroup": "Mover o Editor para o Próximo Grupo"
 }

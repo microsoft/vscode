@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { KeyMod, KeyCode, createKeybinding, SimpleKeybinding, KeyChord } from 'vs/base/common/keyCodes';
 import { MacLinuxKeyboardMapper, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ScanCodeUtils, ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -1454,6 +1454,41 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Minus]', null],
 			}
+		);
+	});
+});
+
+suite('keyboardMapper - MAC zh_hant', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant.txt', done);
+	});
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
+	}
+
+	test('issue #28237 resolveKeybinding Cmd+C', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_C,
+			[{
+				label: '⌘C',
+				ariaLabel: 'Command+C',
+				electronAccelerator: 'Cmd+C',
+				userSettingsLabel: 'cmd+c',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: ['meta+[KeyC]', null],
+			}]
 		);
 	});
 });

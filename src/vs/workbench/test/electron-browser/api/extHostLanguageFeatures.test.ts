@@ -17,7 +17,6 @@ import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestThreadService } from './testThreadService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { MainThreadLanguageFeatures } from 'vs/workbench/api/electron-browser/mainThreadLanguageFeatures';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
@@ -26,8 +25,8 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind } from 'vs/editor/common/modes';
-import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover } from 'vs/editor/common/modes';
+import { getCodeLensData } from 'vs/editor/contrib/codelens/browser/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
@@ -44,6 +43,7 @@ import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.proto
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -67,16 +67,21 @@ suite('ExtHostLanguageFeatures', function () {
 	suiteSetup(() => {
 
 		threadService = new TestThreadService();
-		let instantiationService = new TestInstantiationService();
-		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IMarkerService, MarkerService);
-		instantiationService.stub(IHeapService, {
-			_serviceBrand: undefined,
-			trackRecursive(args) {
-				// nothing
-				return args;
-			}
-		});
+
+		// Use IInstantiationService to get typechecking when instantiating
+		let inst: IInstantiationService;
+		{
+			let instantiationService = new TestInstantiationService();
+			instantiationService.stub(IMarkerService, MarkerService);
+			instantiationService.stub(IHeapService, {
+				_serviceBrand: undefined,
+				trackRecursive(args) {
+					// nothing
+					return args;
+				}
+			});
+			inst = instantiationService;
+		}
 
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
@@ -99,7 +104,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		const commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
 		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
@@ -107,7 +112,7 @@ suite('ExtHostLanguageFeatures', function () {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
+		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
 	});
 
 	suiteTeardown(() => {
@@ -440,9 +445,9 @@ suite('ExtHostLanguageFeatures', function () {
 		return threadService.sync().then(() => {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
-				let [first, second] = value;
-				assert.equal(first.contents[0], 'registered second');
-				assert.equal(second.contents[0], 'registered first');
+				let [first, second] = value as Hover[];
+				assert.equal(first.contents[0].value, 'registered second');
+				assert.equal(second.contents[0].value, 'registered first');
 			});
 		});
 	});
@@ -650,10 +655,29 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
-				assert.equal(first.command.title, 'Testing1');
-				assert.equal(first.command.id, 'test1');
-				assert.equal(second.command.title, 'Testing2');
-				assert.equal(second.command.id, 'test2');
+				assert.equal(first.title, 'Testing1');
+				assert.equal(first.id, 'test1');
+				assert.equal(second.title, 'Testing2');
+				assert.equal(second.id, 'test2');
+			});
+		});
+	});
+
+	test('Cannot read property \'id\' of undefined, #29469', function () {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
+			provideCodeActions(): any {
+				return [
+					undefined,
+					null,
+					<vscode.Command>{ command: 'test', title: 'Testing' }
+				];
+			}
+		}));
+
+		return threadService.sync().then(() => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
 			});
 		});
 	});
@@ -787,7 +811,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): vscode.SignatureHelp {
-				return new types.SignatureHelp();
+				return {
+					signatures: [],
+					activeParameter: 0,
+					activeSignature: 0
+				};
 			}
 		}, []));
 
@@ -1052,7 +1080,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 
@@ -1071,7 +1099,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerDocumentLinkProvider(defaultSelector, <vscode.DocumentLinkProvider>{
 			provideDocumentLinks() {
-				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), types.Uri.parse('foo:bar#3'))];
+				return [new types.DocumentLink(new types.Range(0, 0, 1, 1), URI.parse('foo:bar#3'))];
 			}
 		}));
 

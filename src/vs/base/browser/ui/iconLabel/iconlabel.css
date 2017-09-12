@@ -39,10 +39,6 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
-.monaco-icon-label > .label-description.empty {
-	margin-left: 0;
-}
-
 .monaco-icon-label.italic > .label-name,
 .monaco-icon-label.italic > .label-description {
 	font-style: italic;

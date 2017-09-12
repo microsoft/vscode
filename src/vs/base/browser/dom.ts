@@ -1041,3 +1041,16 @@ export function domContentLoaded(): TPromise<any> {
 		}
 	});
 }
+
+/**
+ * Find a value usable for a dom node size such that the likelihood that it would be
+ * displayed with constant screen pixels size is as high as possible.
+ *
+ * e.g. We would desire for the cursors to be 2px (CSS px) wide. Under a devicePixelRatio
+ * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
+ * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
+ */
+export function computeScreenAwareSize(cssPx: number): number {
+	const screenPx = window.devicePixelRatio * cssPx;
+	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
+}

@@ -21,13 +21,13 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -58,7 +58,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
-		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
 		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
@@ -66,7 +66,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IStorageService private _storageService: IStorageService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@optional(IPeekViewService) private _peekViewService: IPeekViewService
+		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
@@ -107,7 +107,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData>JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService);
+		this._widget = new ReferenceWidget(this._editor, data, this._textModelResolverService, this._contextService, this._themeService, this._instantiationService, this._environmentService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._disposables.push(this._widget.onDidClose(() => {
@@ -189,10 +189,11 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 
 		const onDone = stopwatch(fromPromise(promise));
+		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
-			mode: this._editor.getModel().getLanguageIdentifier().language
+			mode
 		}));
 	}
 

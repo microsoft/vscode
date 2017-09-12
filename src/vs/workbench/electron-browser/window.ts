@@ -11,42 +11,36 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { stat } from 'vs/base/node/pfs';
 import arrays = require('vs/base/common/arrays');
 import DOM = require('vs/base/browser/dom');
 import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { extractResources } from 'vs/base/browser/dnd';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-
-import { remote, ipcRenderer as ipc, webFrame } from 'electron';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-
-const dialog = remote.dialog;
+import { Themable } from 'vs/workbench/common/theme';
+import { ipcRenderer as ipc, webFrame } from 'electron';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -63,13 +57,8 @@ export class ElectronWindow extends Themable {
 
 	private static AUTO_SAVE_SETTING = 'files.autoSave';
 
-	private win: Electron.BrowserWindow;
-	private windowId: number;
-
 	constructor(
-		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
-		@IWindowIPCService private windowIPCService: IWindowIPCService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
@@ -85,12 +74,13 @@ export class ElectronWindow extends Themable {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IFileService private fileService: IFileService
 	) {
 		super(themeService);
-
-		this.win = win;
-		this.windowId = win.id;
 
 		this.registerListeners();
 		this.setup();
@@ -98,106 +88,23 @@ export class ElectronWindow extends Themable {
 
 	private registerListeners(): void {
 
-		// React to editor input changes (Mac only)
-		if (platform.platform === platform.Platform.Mac) {
-			this.editorGroupService.onEditorsChanged(() => {
-				const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		// React to editor input changes
+		this.editorGroupService.onEditorsChanged(() => {
+			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 
-				this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-			});
-		}
-
-		let draggedExternalResources: URI[];
-		let dropOverlay: Builder;
-
-		function cleanUp(): void {
-			draggedExternalResources = void 0;
-
-			if (dropOverlay) {
-				dropOverlay.destroy();
-				dropOverlay = void 0;
-			}
-		}
-
-		// Detect resources dropped into Code from outside
-		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
-
-			if (!draggedExternalResources) {
-				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
-
-				// Find out if folders are dragged and show the appropiate feedback then
-				this.includesFolder(draggedExternalResources).done(includesFolder => {
-					if (includesFolder) {
-						const activeContrastBorderColor = this.getColor(activeContrastBorder);
-						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
-							.div({
-								id: 'monaco-workbench-drop-overlay'
-							})
-							.style({
-								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-								outlineColor: activeContrastBorderColor,
-								outlineOffset: activeContrastBorderColor ? '-2px' : null,
-								outlineStyle: activeContrastBorderColor ? 'dashed' : null,
-								outlineWidth: activeContrastBorderColor ? '2px' : null
-							})
-							.on(DOM.EventType.DROP, (e: DragEvent) => {
-								DOM.EventHelper.stop(e, true);
-
-								this.focus(); // make sure this window has focus so that the open call reaches the right window!
-
-								// Ask the user when opening a potential large number of folders
-								let doOpen = true;
-								if (draggedExternalResources.length > 20) {
-									doOpen = this.messageService.confirm({
-										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
-										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open")
-									});
-								}
-
-								if (doOpen) {
-									this.windowsService.openWindow(draggedExternalResources.map(r => r.fsPath), { forceReuseWindow: true });
-								}
-
-								cleanUp();
-							})
-							.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-								cleanUp();
-							}).once(DOM.EventType.MOUSE_OVER, () => {
-								// Under some circumstances we have seen reports where the drop overlay is not being
-								// cleaned up and as such the editor area remains under the overlay so that you cannot
-								// type into the editor anymore. This seems related to using VMs and DND via host and
-								// guest OS, though some users also saw it without VMs.
-								// To protect against this issue we always destroy the overlay as soon as we detect a
-								// mouse event over it. The delay is used to guarantee we are not interfering with the
-								// actual DROP event that can also trigger a mouse over event.
-								// See also: https://github.com/Microsoft/vscode/issues/10970
-								setTimeout(() => {
-									cleanUp();
-								}, 300);
-							});
-					}
-				});
-			}
-		});
-
-		// Clear our map and overlay on any finish of DND outside the overlay
-		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
-				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
-					cleanUp(); // only run cleanUp() if we are not over the overlay (because we are being called in capture phase)
-				}
-			}, true /* use capture because components within may preventDefault() when they accept the drop */);
+			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
 		});
 
 		// prevent opening a real URL inside the shell
-		window.document.body.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+			window.document.body.addEventListener(event, (e: DragEvent) => {
+				DOM.EventHelper.stop(e);
+			});
 		});
 
 		// Handle window.open() calls
 		const $this = this;
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
 			$this.windowsService.openExternal(url);
 
 			return null;
@@ -208,7 +115,11 @@ export class ElectronWindow extends Themable {
 
 		// Support runAction event
 		ipc.on('vscode:runAction', (event, actionId: string) => {
-			this.commandService.executeCommand(actionId, { from: 'menu' }).done(undefined, err => this.messageService.show(Severity.Error, err));
+			this.commandService.executeCommand(actionId, { from: 'menu' }).done(_ => {
+				this.telemetryService.publicLog('commandExecuted', { id: actionId, from: 'menu' });
+			}, err => {
+				this.messageService.show(Severity.Error, err);
+			});
 		});
 
 		// Support resolve keybindings event
@@ -244,9 +155,12 @@ export class ElectronWindow extends Themable {
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
 
+		// Support addFolders event if we have a workspace opened
+		ipc.on('vscode:addFolders', (event, request: IAddFoldersRequest) => this.onAddFolders(request));
+
 		// Emit event when vscode has loaded
 		this.partService.joinCreation().then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowIPCService.getWindowId());
+			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
 		});
 
 		// Message support
@@ -304,7 +218,7 @@ export class ElectronWindow extends Themable {
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
-			const windowConfig: IWindowConfiguration = e.config;
+			const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
 
 			let newZoomLevel = 0;
 			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
@@ -337,7 +251,7 @@ export class ElectronWindow extends Themable {
 					e.stopPropagation();
 
 					this.contextMenuService.showContextMenu({
-						getAnchor: () => target,
+						getAnchor: () => e,
 						getActions: () => TPromise.as(TextInputActions)
 					});
 				}
@@ -346,7 +260,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return this.partService.joinCreation().then(() => {
+		return TPromise.join([this.partService.joinCreation(), this.extensionService.onReady()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -370,9 +284,34 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
+	private onAddFolders(request: IAddFoldersRequest): void {
+		const foldersToAdd = request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath));
+
+		// Workspace: just add to workspace config
+		if (this.contextService.hasMultiFolderWorkspace()) {
+			this.workspaceEditingService.addRoots(foldersToAdd).done(null, errors.onUnexpectedError);
+		}
+
+		// Single folder or no workspace: create workspace and open
+		else {
+			const workspaceFolders: URI[] = [];
+
+			// Folder of workspace is the first of multi root workspace, so add it
+			if (this.contextService.hasFolderWorkspace()) {
+				workspaceFolders.push(...this.contextService.getWorkspace().roots);
+			}
+
+			// Fill in remaining ones from request
+			workspaceFolders.push(...request.foldersToAdd.map(folderToAdd => URI.file(folderToAdd.filePath)));
+
+			// Create workspace and open (ensure no duplicates)
+			this.windowService.createAndOpenWorkspace(arrays.distinct(workspaceFolders.map(folder => folder.fsPath), folder => platform.isLinux ? folder : folder.toLowerCase()));
+		}
+	}
+
 	private onOpenFiles(request: IOpenFileRequest): void {
-		let inputs: IResourceInputType[] = [];
-		let diffMode = (request.filesToDiff.length === 2);
+		const inputs: IResourceInputType[] = [];
+		const diffMode = (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -389,10 +328,25 @@ export class ElectronWindow extends Themable {
 		if (inputs.length) {
 			this.openResources(inputs, diffMode).done(null, errors.onUnexpectedError);
 		}
+
+		if (request.filesToWait && inputs.length) {
+			// In wait mode, listen to changes to the editors and wait until the files
+			// are closed that the user wants to wait for. When this happens we delete
+			// the wait marker file to signal to the outside that editing is done.
+			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.file(p.filePath));
+			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
+			const stacks = this.editorGroupService.getStacksModel();
+			const unbind = stacks.onEditorClosed(() => {
+				if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+					unbind.dispose();
+					this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+				}
+			});
+		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<any> {
-		return this.partService.joinCreation().then(() => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
+		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
@@ -451,31 +405,5 @@ export class ElectronWindow extends Themable {
 		}
 
 		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
-	}
-
-	private includesFolder(resources: URI[]): TPromise<boolean> {
-		return TPromise.join(resources.map(resource => {
-			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
-		})).then(res => res.some(res => !!res));
-	}
-
-	public close(): void {
-		this.win.close();
-	}
-
-	public showMessageBox(options: Electron.ShowMessageBoxOptions): number {
-		return dialog.showMessageBox(this.win, options);
-	}
-
-	public showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
-		if (callback) {
-			return dialog.showSaveDialog(this.win, options, callback);
-		}
-
-		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
-	}
-
-	public focus(): TPromise<void> {
-		return this.windowService.focusWindow();
 	}
 }

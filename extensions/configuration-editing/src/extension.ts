@@ -9,6 +9,9 @@ import * as vscode from 'vscode';
 import { getLocation, visit, parse } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#b1b1b1'
@@ -73,13 +76,12 @@ function registerExtensionsCompletions(): vscode.Disposable {
 				const config = parse(document.getText());
 				const alreadyEnteredExtensions = config && config.recommendations || [];
 				if (Array.isArray(alreadyEnteredExtensions)) {
-					return vscode.extensions.all
-						.filter(e => !(
-							e.id.startsWith('vscode.')
+					const knownExtensionProposals = vscode.extensions.all.filter(e =>
+						!(e.id.startsWith('vscode.')
 							|| e.id === 'Microsoft.vscode-markdown'
-							|| alreadyEnteredExtensions.indexOf(e.id) > -1
-						))
-						.map(e => {
+							|| alreadyEnteredExtensions.indexOf(e.id) > -1));
+					if (knownExtensionProposals.length) {
+						return knownExtensionProposals.map(e => {
 							const item = new vscode.CompletionItem(e.id);
 							const insertText = `"${e.id}"`;
 							item.kind = vscode.CompletionItemKind.Value;
@@ -88,6 +90,13 @@ function registerExtensionsCompletions(): vscode.Disposable {
 							item.filterText = insertText;
 							return item;
 						});
+					} else {
+						const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
+						example.insertText = '"vscode.csharp"';
+						example.kind = vscode.CompletionItemKind.Value;
+						example.range = range;
+						return [example];
+					}
 				}
 			}
 			return [];
@@ -137,3 +146,38 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 
 	editor.setDecorations(decoration, ranges);
 }
+
+vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'json' }, {
+	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
+		const result: vscode.SymbolInformation[] = [];
+		let name: string = '';
+		let lastProperty = '';
+		let startOffset = 0;
+		let depthInObjects = 0;
+
+		visit(document.getText(), {
+			onObjectProperty: (property, offset, length) => {
+				lastProperty = property;
+			},
+			onLiteralValue: (value: any, offset: number, length: number) => {
+				if (lastProperty === 'name') {
+					name = value;
+				}
+			},
+			onObjectBegin: (offset: number, length: number) => {
+				depthInObjects++;
+				if (depthInObjects === 2) {
+					startOffset = offset;
+				}
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				if (name && depthInObjects === 2) {
+					result.push(new vscode.SymbolInformation(name, vscode.SymbolKind.Object, new vscode.Range(document.positionAt(startOffset), document.positionAt(offset))));
+				}
+				depthInObjects--;
+			},
+		});
+
+		return result;
+	}
+});

@@ -10,34 +10,6 @@ import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {
 
-	test('uses indentationRules', () => {
-		var support = new OnEnterSupport({
-			indentationRules: {
-				decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-				increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-				indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
-				unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
-			}
-		});
-
-		var testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expected: IndentAction) => {
-			var actual = support.onEnter(oneLineAboveText, beforeText, afterText);
-			if (expected === IndentAction.None) {
-				assert.equal(actual, null);
-			} else {
-				assert.equal(actual.indentAction, expected);
-			}
-		};
-
-		testIndentAction('', 'case', '', IndentAction.None);
-		testIndentAction('', 'case:', '', IndentAction.Indent);
-		testIndentAction('', 'if (true) {', '', IndentAction.Indent);
-		testIndentAction('', 'if (true)', '', IndentAction.Indent);
-		testIndentAction('', ' ', '}', IndentAction.Outdent);
-		testIndentAction('if(true)', '\treturn false', '', IndentAction.Outdent);
-		testIndentAction('', 'var foo = `{`;', '', IndentAction.None);
-	});
-
 	test('uses brackets', () => {
 		var brackets: CharacterPair[] = [
 			['(', ')'],

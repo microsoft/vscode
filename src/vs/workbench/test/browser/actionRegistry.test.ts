@@ -6,10 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as Platform from 'vs/platform/platform';
+import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Extensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actionRegistry';
+import { Extensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Action } from 'vs/base/common/actions';
 

@@ -26,7 +26,9 @@ export interface IProductConfiguration {
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
+	exeBasedExtensionTips: { [id: string]: string; };
 	extensionKeywords: { [extension: string]: string[]; };
+	extensionAllowedBadgeProviders: string[];
 	keymapExtensionTips: string[];
 	crashReporter: {
 		companyName: string;
@@ -47,6 +49,7 @@ export interface IProductConfiguration {
 	keyboardShortcutsUrlLinux: string;
 	keyboardShortcutsUrlWin: string;
 	introductoryVideosUrl: string;
+	tipsAndTricksUrl: string;
 	twitterUrl: string;
 	requestFeatureUrl: string;
 	reportIssueUrl: string;

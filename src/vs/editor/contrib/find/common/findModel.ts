@@ -193,7 +193,7 @@ export class FindModelBoundToEditorModel {
 			let findScope = this._decorations.getFindScope();
 			if (findScope) {
 				// Reveal the selection so user is reminded that 'selection find' is on.
-				this._editor.revealRangeInCenterIfOutsideViewport(findScope);
+				this._editor.revealRangeInCenterIfOutsideViewport(findScope, editorCommon.ScrollType.Smooth);
 			}
 			return true;
 		}
@@ -209,7 +209,7 @@ export class FindModelBoundToEditorModel {
 		);
 
 		this._editor.setSelection(match);
-		this._editor.revealRangeInCenterIfOutsideViewport(match);
+		this._editor.revealRangeInCenterIfOutsideViewport(match, editorCommon.ScrollType.Smooth);
 	}
 
 	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {

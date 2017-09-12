@@ -121,6 +121,10 @@ export default class PHPValidationProvider {
 	public dispose(): void {
 		this.diagnosticCollection.clear();
 		this.diagnosticCollection.dispose();
+		if (this.documentListener) {
+			this.documentListener.dispose();
+			this.documentListener = null;
+		}
 	}
 
 	private loadConfiguration(): void {
@@ -129,10 +133,10 @@ export default class PHPValidationProvider {
 		if (section) {
 			this.validationEnabled = section.get<boolean>('validate.enable', true);
 			let inspect = section.inspect<string>('validate.executablePath');
-			if (inspect.workspaceValue) {
+			if (inspect && inspect.workspaceValue) {
 				this.executable = inspect.workspaceValue;
 				this.executableIsUserDefined = false;
-			} else if (inspect.globalValue) {
+			} else if (inspect && inspect.globalValue) {
 				this.executable = inspect.globalValue;
 				this.executableIsUserDefined = true;
 			} else {
@@ -150,6 +154,7 @@ export default class PHPValidationProvider {
 		}
 		if (this.documentListener) {
 			this.documentListener.dispose();
+			this.documentListener = null;
 		}
 		this.diagnosticCollection.clear();
 		if (this.validationEnabled) {

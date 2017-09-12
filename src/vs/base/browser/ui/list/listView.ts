@@ -14,7 +14,29 @@ import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
-import { canUseTranslate3d } from 'vs/base/browser/browser';
+import * as browser from 'vs/base/browser/browser';
+
+function canUseTranslate3d(): boolean {
+	if (browser.isFirefox) {
+		return false;
+	}
+
+	if (browser.getZoomLevel() !== 0) {
+		return false;
+	}
+
+	// see https://github.com/Microsoft/vscode/issues/24483
+	if (browser.isChromev56) {
+		const pixelRatio = browser.getPixelRatio();
+		if (Math.floor(pixelRatio) !== pixelRatio) {
+			// Not an integer
+			return false;
+		}
+	}
+
+	return true;
+}
+
 
 interface IItem<T> {
 	id: string;
@@ -32,7 +54,8 @@ const MouseEventTypes = [
 	'mouseover',
 	'mousemove',
 	'mouseout',
-	'contextmenu'
+	'contextmenu',
+	'touchstart'
 ];
 
 export interface IListViewOptions {
@@ -81,7 +104,6 @@ export class ListView<T> implements IDisposable {
 		this.gesture = new Gesture(this.rowsContainer);
 
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
-			canUseTranslate3d: false,
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Auto,
@@ -124,7 +146,7 @@ export class ListView<T> implements IDisposable {
 
 		const scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${scrollHeight}px`;
-		this.scrollableElement.updateState({ scrollHeight });
+		this.scrollableElement.setScrollDimensions({ scrollHeight });
 
 		return deleted.map(i => i.element);
 	}
@@ -134,8 +156,8 @@ export class ListView<T> implements IDisposable {
 	}
 
 	get renderHeight(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	element(index: number): T {
@@ -164,7 +186,7 @@ export class ListView<T> implements IDisposable {
 	}
 
 	layout(height?: number): void {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: height || DOM.getContentHeight(this._domNode)
 		});
 	}
@@ -221,12 +243,12 @@ export class ListView<T> implements IDisposable {
 	}
 
 	getScrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	setScrollTop(scrollTop: number): void {
-		this.scrollableElement.updateState({ scrollTop });
+		this.scrollableElement.setScrollPosition({ scrollTop });
 	}
 
 	get scrollTop(): number {

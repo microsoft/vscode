@@ -40,7 +40,7 @@
 	"pickHistory": "Selezionare un file aperto in precedenza per il confronto",
 	"unableToFileToCompare": "Non è possibile confrontare il file selezionato con '{0}'.",
 	"openFileToCompare": "Aprire prima un file per confrontarlo con un altro file.",
-	"compareWith": "Confronta con '{0}'",
+	"compareWith": "Confronta '{0}' con '{1}'",
 	"compareFiles": "Confronta file",
 	"refresh": "Aggiorna",
 	"save": "Salva",
@@ -69,5 +69,7 @@
 	"emptyFileNameError": "È necessario specificare un nome file o un nome di cartella.",
 	"fileNameExistsError": "In questo percorso esiste già un file o una cartella **{0}**. Scegliere un nome diverso.",
 	"invalidFileNameError": "Il nome **{0}** non è valido per un nome file o un nome di cartella. Scegliere un nome diverso.",
-	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve."
+	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve.",
+	"compareWithSaved": "Confronta file attivo con file salvato",
+	"modifiedLabel": "{0} (su disco) ↔ {1}"
 }

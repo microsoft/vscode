@@ -13,6 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 
 suite('ExtHostDocumentData', () => {
@@ -51,7 +52,7 @@ suite('ExtHostDocumentData', () => {
 
 	test('save, when disposed', function () {
 		let saved: URI;
-		let data = new ExtHostDocumentData(new class extends MainThreadDocumentsShape {
+		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
 			$trySaveDocument(uri) {
 				assert.ok(!saved);
 				saved = uri;
@@ -268,6 +269,34 @@ suite('ExtHostDocumentData', () => {
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 11), /yy/);
 		assert.equal(range, undefined);
+	});
+
+	test('getWordRangeAtPosition doesn\'t quite use the regex as expected, #29102', function () {
+		data = new ExtHostDocumentData(undefined, URI.file(''), [
+			'some text here',
+			'/** foo bar */',
+			'function() {',
+			'	"far boo"',
+			'}'
+		], '\n', 'text', 1, false);
+
+		let range = data.document.getWordRangeAtPosition(new Position(0, 0), /\/\*.+\*\//);
+		assert.equal(range, undefined);
+
+		range = data.document.getWordRangeAtPosition(new Position(1, 0), /\/\*.+\*\//);
+		assert.equal(range.start.line, 1);
+		assert.equal(range.start.character, 0);
+		assert.equal(range.end.line, 1);
+		assert.equal(range.end.character, 14);
+
+		range = data.document.getWordRangeAtPosition(new Position(3, 0), /("|').*\1/);
+		assert.equal(range, undefined);
+
+		range = data.document.getWordRangeAtPosition(new Position(3, 1), /("|').*\1/);
+		assert.equal(range.start.line, 3);
+		assert.equal(range.start.character, 1);
+		assert.equal(range.end.line, 3);
+		assert.equal(range.end.character, 10);
 	});
 });
 

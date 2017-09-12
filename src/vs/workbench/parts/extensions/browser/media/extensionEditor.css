@@ -143,6 +143,8 @@
 
 .extension-editor > .body > .content {
 	height: calc(100% - 36px);
+	position: relative;
+	overflow: hidden;
 }
 
 .extension-editor > .body > .content.loading {
@@ -219,6 +221,23 @@
 	background-color: rgba(128, 128, 128, 0.17);
 	border-radius: 4px;
 	padding: 1px 4px;
+}
+
+.extension-editor > .body > .content table .colorBox {
+	box-sizing: border-box;
+	width: 0.8em;
+	height: 0.8em;
+	display: inline-block;
+	border-width: 0.1em;
+	border-style: solid;
+	border-color: rgb(0, 0, 0);
+	margin: 0em 0.2em;
+	vertical-align: middle;
+}
+
+.vs-dark .extension-editor > .body > .content table .colorBox,
+.hc-black .extension-editor > .body > .content table .colorBox {
+	border-color: rgb(238, 238, 238);
 }
 
 .extension-editor .subcontent .monaco-tree-row .content .unknown-dependency {

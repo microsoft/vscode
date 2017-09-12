@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -49,31 +48,7 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 	});
 }
 
-export function cleanUp(): Thenable<any> {
-	return new Promise((resolve, reject) => {
-		if (vscode.window.visibleTextEditors.length === 0) {
-			return resolve();
-		}
+export function closeAllEditors(): Thenable<any> {
+	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
-		const reg = vscode.window.onDidChangeVisibleTextEditors(editors => {
-			if (editors.length === 0) {
-				resolve();
-				reg.dispose();
-			}
-		});
-
-		vscode.commands.executeCommand('workbench.action.closeAllEditors').then(undefined, reject);
-
-	}).then(() => {
-		assert.equal(vscode.window.visibleTextEditors.length, 0);
-		assert(!vscode.window.activeTextEditor);
-
-		// TODO: we can't yet make this assertion because when
-		// the phost creates a document and makes no changes to it,
-		// the main side doesn't know about it and the phost side
-		// assumes it exists. Calling closeAllFiles will not
-		// remove it from textDocuments array. :(
-
-		// assert.equal(vscode.workspace.textDocuments.length, 0);
-	});
 }

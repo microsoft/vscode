@@ -21,7 +21,6 @@
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
-	-ms-high-contrast-adjust: none;
 	-webkit-font-feature-settings: "liga" off, "calt" off;
 	font-feature-settings: "liga" off, "calt" off;
 }

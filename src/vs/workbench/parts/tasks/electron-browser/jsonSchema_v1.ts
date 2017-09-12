@@ -8,6 +8,8 @@ import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
+import { ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+
 import commonSchema from './jsonSchemaCommon';
 
 const schema: IJSONSchema = {
@@ -88,5 +90,15 @@ function fixReferences(literal: any) {
 	}
 }
 fixReferences(schema);
+
+ProblemMatcherRegistry.onReady().then(() => {
+	try {
+		let matcherIds = ProblemMatcherRegistry.keys().map(key => '$' + key);
+		definitions.problemMatcherType1.oneOf[0].enum = matcherIds;
+		(definitions.problemMatcherType1.oneOf[2].items as IJSONSchema).anyOf[1].enum = matcherIds;
+	} catch (err) {
+		console.log('Installing problem matcher ids failed');
+	}
+});
 
 export default schema;

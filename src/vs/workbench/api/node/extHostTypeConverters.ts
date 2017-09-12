@@ -16,6 +16,7 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import * as htmlContent from 'vs/base/common/htmlContent';
 
 export interface PositionLike {
 	line: number;
@@ -143,12 +144,48 @@ function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOpt
 	return isDecorationOptions(something[0]) ? true : false;
 }
 
+export namespace MarkdownString {
+
+	export function fromMany(markup: (vscode.MarkdownString | vscode.MarkedString)[]): htmlContent.IMarkdownString[] {
+		return markup.map(MarkdownString.from);
+	}
+
+	interface Codeblock {
+		language: string;
+		value: string;
+	}
+
+	function isCodeblock(thing: any): thing is Codeblock {
+		return typeof thing === 'object'
+			&& typeof (<Codeblock>thing).language === 'string'
+			&& typeof (<Codeblock>thing).value === 'string';
+	}
+
+	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
+		if (isCodeblock(markup)) {
+			const { language, value } = markup;
+			return { value: '```' + language + '\n' + value + '\n```\n' };
+		} else if (htmlContent.isMarkdownString(markup)) {
+			return markup;
+		} else if (typeof markup === 'string') {
+			return { value: <string>markup, isTrusted: true };
+		} else {
+			return { value: '' };
+		}
+	}
+	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
+		const ret = new htmlContent.MarkdownString(value.value);
+		ret.isTrusted = value.isTrusted;
+		return ret;
+	}
+}
+
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
 	if (isDecorationOptionsArr(ranges)) {
-		return ranges.map((r): IDecorationOptions => {
+		return ranges.map(r => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: r.hoverMessage,
+				hoverMessage: Array.isArray(r.hoverMessage) ? MarkdownString.fromMany(r.hoverMessage) : r.hoverMessage && MarkdownString.from(r.hoverMessage),
 				renderOptions: <any> /* URI vs Uri */r.renderOptions
 			};
 		});
@@ -256,12 +293,12 @@ export const location = {
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),
-		contents: hover.contents
+		contents: MarkdownString.fromMany(hover.contents)
 	};
 }
 
 export function toHover(info: modes.Hover): types.Hover {
-	return new types.Hover(info.contents, toRange(info.range));
+	return new types.Hover(info.contents.map(MarkdownString.to), toRange(info.range));
 }
 
 export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
@@ -317,7 +354,7 @@ export namespace Suggest {
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.type);
 		result.detail = suggestion.detail;
-		result.documentation = suggestion.documentation;
+		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 
@@ -344,14 +381,56 @@ export namespace Suggest {
 	}
 };
 
-export namespace SignatureHelp {
+export namespace ParameterInformation {
+	export function from(info: types.ParameterInformation): modes.ParameterInformation {
+		return {
+			label: info.label,
+			documentation: info.documentation && MarkdownString.from(info.documentation)
+		};
+	}
+	export function to(info: modes.ParameterInformation): types.ParameterInformation {
+		return {
+			label: info.label,
+			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation
+		};
+	}
+}
 
-	export function from(signatureHelp: types.SignatureHelp): modes.SignatureHelp {
-		return signatureHelp;
+export namespace SignatureInformation {
+
+	export function from(info: types.SignatureInformation): modes.SignatureInformation {
+		return {
+			label: info.label,
+			documentation: info.documentation && MarkdownString.from(info.documentation),
+			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
+		};
 	}
 
-	export function to(hints: modes.SignatureHelp): types.SignatureHelp {
-		return hints;
+	export function to(info: modes.SignatureInformation): types.SignatureInformation {
+		return {
+			label: info.label,
+			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
+			parameters: info.parameters && info.parameters.map(ParameterInformation.to)
+		};
+	}
+}
+
+export namespace SignatureHelp {
+
+	export function from(help: types.SignatureHelp): modes.SignatureHelp {
+		return {
+			activeSignature: help.activeSignature,
+			activeParameter: help.activeParameter,
+			signatures: help.signatures && help.signatures.map(SignatureInformation.from)
+		};
+	}
+
+	export function to(help: modes.SignatureHelp): types.SignatureHelp {
+		return {
+			activeSignature: help.activeSignature,
+			activeParameter: help.activeParameter,
+			signatures: help.signatures && help.signatures.map(SignatureInformation.to)
+		};
 	}
 }
 

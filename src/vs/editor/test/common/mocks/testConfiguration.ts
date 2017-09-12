@@ -21,7 +21,6 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			extraEditorClassName: '',
 			outerWidth: 100,
 			outerHeight: 100,
-			canUseTranslate3d: true,
 			emptySelectionClipboard: true,
 			pixelRatio: 1,
 			zoomLevel: 0,

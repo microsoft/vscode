@@ -6,8 +6,9 @@
 'use strict';
 
 import { fuzzyScore } from 'vs/base/common/filters';
-import { ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
+import { isDisposable } from 'vs/base/common/lifecycle';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -47,6 +48,18 @@ export class CompletionModel {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
 		} else if (snippetConfig === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
+		}
+	}
+
+	dispose(): void {
+		const seen = new Set<ISuggestResult>();
+		for (const { container } of this._items) {
+			if (!seen.has(container)) {
+				seen.add(container);
+				if (isDisposable(container)) {
+					container.dispose();
+				}
+			}
 		}
 	}
 
@@ -137,19 +150,19 @@ export class CompletionModel {
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
 				// despite having the match
-				let match = fuzzyScore(word, suggestion.filterText);
+				let match = fuzzyScore(word, suggestion.filterText, suggestion.overwriteBefore);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
 				item.matches = [];
-				match = fuzzyScore(word, suggestion.label);
+				match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.matches = match[1];
 				}
 			} else {
 				// by default match `word` against the `label`
-				let match = fuzzyScore(word, suggestion.label);
+				let match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.score = match[0];
 					item.matches = match[1];

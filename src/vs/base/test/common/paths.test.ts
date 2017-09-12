@@ -201,4 +201,57 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
 	});
+
+	test('isAbsolute_win', () => {
+		// Absolute paths
+		[
+			'C:/',
+			'C:\\',
+			'C:/foo',
+			'C:\\foo',
+			'z:/foo/bar.txt',
+			'z:\\foo\\bar.txt',
+
+			'\\\\localhost\\c$\\foo',
+
+			'/',
+			'/foo'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_win32(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar'
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_win32(nonAbsolutePath), nonAbsolutePath);
+		});
+	});
+
+	test('isAbsolute_posix', () => {
+		// Absolute paths
+		[
+			'/',
+			'/foo',
+			'/foo/bar.txt'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_posix(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar',
+			'z:/foo/bar.txt',
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_posix(nonAbsolutePath), nonAbsolutePath);
+		});
+	});
 });

@@ -9,5 +9,6 @@
 	"vscode.extension.contributes.snippets-path": "Ruta de acceso del archivo de fragmentos de código. La ruta es relativa a la carpeta de extensión y normalmente empieza por \"./snippets/\".",
 	"invalid.language": "Lenguaje desconocido en \"contributes.{0}.language\". Valor proporcionado: {1}",
 	"invalid.path.0": "Se esperaba una cadena en \"contributes.{0}.path\". Valor proporcionado: {1}",
-	"invalid.path.1": "Se esperaba que \"contributes.{0}.path\" ({1}) se incluyera en la carpeta de la extensión ({2}). Esto puede hacer que la extensión no sea portátil."
+	"invalid.path.1": "Se esperaba que \"contributes.{0}.path\" ({1}) se incluyera en la carpeta de la extensión ({2}). Esto puede hacer que la extensión no sea portátil.",
+	"badVariableUse": "Es muy probable que el fragmento de código \"{0}\" confunda las variables de fragmento de código y los marcadores de posición de fragmento de código. Consulte https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax para más informacion."
 }

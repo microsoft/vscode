@@ -234,22 +234,22 @@ namespace schema {
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
-				anyOf: [
-					'string',
-					{
-						type: 'object',
-						properties: {
-							light: {
-								description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
-								type: 'string'
-							},
-							dark: {
-								description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
-								type: 'string'
-							}
+				anyOf: [{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
 						}
 					}
-				]
+				}]
 			}
 		}
 	};
@@ -329,7 +329,8 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 				let alt = item.alt && MenuRegistry.getCommand(item.alt);
 
 				if (!command) {
-					collector.warn(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					continue;
 				}
 				if (item.alt && !alt) {
 					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));

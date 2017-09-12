@@ -157,7 +157,7 @@
 		}
 	}
 
-	if (document.readyState === 'loading') {
+	if (document.readyState === 'loading' || document.readyState === 'uninitialized') {
 		document.addEventListener('DOMContentLoaded', onLoad);
 	} else {
 		onLoad();

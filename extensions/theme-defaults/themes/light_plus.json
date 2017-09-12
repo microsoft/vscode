@@ -101,6 +101,29 @@
 			"settings": {
 				"foreground": "#0451a5"
 			}
+		},
+		{
+			"scope": [
+				"punctuation.definition.group.regexp",
+				"punctuation.definition.group.assertion.regexp",
+				"punctuation.definition.character-class.regexp",
+				"keyword.operator.negation.regexp"
+			],
+			"settings": {
+				"foreground": "#ff0000"
+			}
+		},
+		{
+			"scope": "keyword.operator.quantifier.regexp",
+			"settings": {
+				"foreground": "#0000ff"
+			}
+		},
+		{
+			"scope": "keyword.control.anchor.regexp",
+			"settings": {
+				"foreground": "#09885a"
+			}
 		}
 	]
 }

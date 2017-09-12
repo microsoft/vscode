@@ -4,12 +4,69 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ConfigModel } from 'vs/platform/configuration/common/model';
+import { clone } from 'vs/base/common/objects';
+import { CustomConfigurationModel, toValuesTree } from 'vs/platform/configuration/common/model';
+import { ConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { Registry } from 'vs/platform/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
-export class ScopedConfigModel<T> extends ConfigModel<T> {
+export class WorkspaceConfigurationModel<T> extends CustomConfigurationModel<T> {
+
+	private _raw: T;
+	private _folders: IStoredWorkspaceFolder[];
+	private _worksapaceSettings: ConfigurationModel<T>;
+	private _tasksConfiguration: ConfigurationModel<T>;
+	private _launchConfiguration: ConfigurationModel<T>;
+	private _workspaceConfiguration: ConfigurationModel<T>;
+
+	public update(content: string): void {
+		super.update(content);
+		this._worksapaceSettings = new ConfigurationModel(this._worksapaceSettings.contents, this._worksapaceSettings.keys, this.overrides);
+		this._workspaceConfiguration = this.consolidate();
+	}
+
+	get folders(): IStoredWorkspaceFolder[] {
+		return this._folders;
+	}
+
+	get workspaceConfiguration(): ConfigurationModel<T> {
+		return this._workspaceConfiguration;
+	}
+
+	protected processRaw(raw: T): void {
+		this._raw = raw;
+
+		this._folders = (this._raw['folders'] || []) as IStoredWorkspaceFolder[];
+		this._worksapaceSettings = this.parseConfigurationModel('settings');
+		this._tasksConfiguration = this.parseConfigurationModel('tasks');
+		this._launchConfiguration = this.parseConfigurationModel('launch');
+
+		super.processRaw(raw);
+	}
+
+	private parseConfigurationModel(section: string): ConfigurationModel<T> {
+		const rawSection = this._raw[section] || {};
+		const contents = toValuesTree(rawSection, message => console.error(`Conflict in section '${section}' of workspace configuration file ${message}`));
+		return new ConfigurationModel<T>(contents, Object.keys(rawSection));
+	}
+
+	private consolidate(): ConfigurationModel<T> {
+		const keys: string[] = [...this._worksapaceSettings.keys,
+		...this._tasksConfiguration.keys.map(key => `tasks.${key}`),
+		...this._launchConfiguration.keys.map(key => `launch.${key}`)];
+
+		const mergedContents = new ConfigurationModel<T>(<T>{}, keys)
+			.merge(this._worksapaceSettings)
+			.merge(this._tasksConfiguration)
+			.merge(this._launchConfiguration);
+
+		return new ConfigurationModel<T>(mergedContents.contents, keys, mergedContents.overrides);
+	}
+}
+
+export class ScopedConfigurationModel<T> extends CustomConfigurationModel<T> {
 
 	constructor(content: string, name: string, public readonly scope: string) {
 		super(null, name);
@@ -25,7 +82,7 @@ export class ScopedConfigModel<T> extends ConfigModel<T> {
 
 }
 
-export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
+export class FolderSettingsModel<T> extends CustomConfigurationModel<T> {
 
 	private _raw: T;
 	private _unsupportedKeys: string[];
@@ -36,7 +93,7 @@ export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
 		this._unsupportedKeys = [];
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		for (let key in raw) {
-			if (this.isWorkspaceScoped(key, configurationProperties)) {
+			if (this.isNotExecutable(key, configurationProperties)) {
 				processedRaw[key] = raw[key];
 			} else {
 				this._unsupportedKeys.push(key);
@@ -53,18 +110,44 @@ export class WorkspaceSettingsConfigModel<T> extends ConfigModel<T> {
 		return this._unsupportedKeys || [];
 	}
 
-	private isWorkspaceScoped(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
+	private isNotExecutable(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): boolean {
 		const propertySchema = configurationProperties[key];
 		if (!propertySchema) {
 			return true; // Unknown propertis are ignored from checks
 		}
 		return !propertySchema.isExecutable;
 	}
+
+	public createWorkspaceConfigurationModel(): ConfigurationModel<any> {
+		return this.createScopedConfigurationModel(ConfigurationScope.WINDOW);
+	}
+
+	public createFolderScopedConfigurationModel(): ConfigurationModel<any> {
+		return this.createScopedConfigurationModel(ConfigurationScope.RESOURCE);
+	}
+
+	private createScopedConfigurationModel(scope: ConfigurationScope): ConfigurationModel<any> {
+		const workspaceRaw = <T>{};
+		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		for (let key in this._raw) {
+			if (this.getScope(key, configurationProperties) === scope) {
+				workspaceRaw[key] = this._raw[key];
+			}
+		}
+		const workspaceContents = toValuesTree(workspaceRaw, message => console.error(`Conflict in workspace settings file: ${message}`));
+		const workspaceKeys = Object.keys(workspaceRaw);
+		return new ConfigurationModel(workspaceContents, workspaceKeys, clone(this._overrides));
+	}
+
+	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
+		const propertySchema = configurationProperties[key];
+		return propertySchema ? propertySchema.scope : ConfigurationScope.WINDOW;
+	}
 }
 
-export class WorkspaceConfigModel<T> extends ConfigModel<T> {
+export class FolderConfigurationModel<T> extends CustomConfigurationModel<T> {
 
-	constructor(public readonly workspaceSettingsConfig: WorkspaceSettingsConfigModel<T>, private scopedConfigs: ScopedConfigModel<T>[]) {
+	constructor(public readonly workspaceSettingsConfig: FolderSettingsModel<T>, private scopedConfigs: ScopedConfigurationModel<T>[], private scope: ConfigurationScope) {
 		super();
 		this.consolidate();
 	}
@@ -73,7 +156,7 @@ export class WorkspaceConfigModel<T> extends ConfigModel<T> {
 		this._contents = <T>{};
 		this._overrides = [];
 
-		this.doMerge(this, this.workspaceSettingsConfig);
+		this.doMerge(this, ConfigurationScope.WINDOW === this.scope ? this.workspaceSettingsConfig : this.workspaceSettingsConfig.createFolderScopedConfigurationModel());
 		for (const configModel of this.scopedConfigs) {
 			this.doMerge(this, configModel);
 		}

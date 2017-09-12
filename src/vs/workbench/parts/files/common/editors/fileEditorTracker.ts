@@ -9,11 +9,11 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditor, IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { toResource, IEditorStacksModel, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, isEqual, indexOf, isEqualOrParent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent, indexOf } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -23,11 +23,15 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
+import { ResourceQueue } from 'vs/base/common/async';
 
 export class FileEditorTracker implements IWorkbenchContribution {
+
+	protected closeOnFileDelete: boolean;
+
 	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
-	protected closeOnFileDelete: boolean;
+	private modelLoadQueue: ResourceQueue<void>;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -40,6 +44,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	) {
 		this.toUnbind = [];
 		this.stacks = editorGroupService.getStacksModel();
+		this.modelLoadQueue = new ResourceQueue<void>();
 
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
@@ -62,7 +67,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
@@ -115,7 +120,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && isEqualOrParent(resource.fsPath, movedTo.fsPath, !isLinux /* ignorecase */) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
+				if (movedTo && paths.isEqualOrParent(resource.fsPath, movedTo.fsPath, !isLinux /* ignorecase */) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
 					return;
 				}
 
@@ -123,7 +128,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = isEqualOrParent(resource.fsPath, arg1.fsPath, !isLinux /* ignorecase */);
+					matches = paths.isEqualOrParent(resource.fsPath, arg1.fsPath, !isLinux /* ignorecase */);
 				}
 
 				if (!matches) {
@@ -195,7 +200,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 					const resource = input.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (isEqualOrParent(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */)) {
+					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
@@ -229,7 +234,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			const editor = editors[i];
 			if (editor && editor.position === stacks.positionOfGroup(group)) {
 				const resource = toResource(editor.input, { filter: 'file' });
-				if (resource && isEqual(resource.fsPath, resource.fsPath)) {
+				if (resource && paths.isEqual(resource.fsPath, resource.fsPath)) {
 					const control = editor.getControl();
 					if (isCommonCodeEditor(control)) {
 						return control.saveViewState();
@@ -243,74 +248,46 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private handleUpdates(e: FileChangesEvent): void {
 
-		// Collect distinct (saved) models to update.
-		//
-		// Note: we also consider the added event because it could be that a file was added
-		// and updated right after.
-		const modelsToUpdate = distinct([...e.getUpdated(), ...e.getAdded()]
-			.map(u => this.textFileService.models.get(u.resource))
-			.filter(model => model && !model.isDirty()), m => m.getResource().toString());
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
 
-		// Handle updates to visible editors specially to preserve view state
-		const visibleModels = this.handleUpdatesToVisibleEditors(e);
-
-		// Handle updates to remaining models that are not visible
-		modelsToUpdate.forEach(model => {
-			if (visibleModels.indexOf(model) >= 0) {
-				return; // already updated
-			}
-
-			// Load model to update
-			model.load().done(null, errors.onUnexpectedError);
-		});
+		// Handle updates to text models
+		this.handleUpdatesToTextModels(e);
 	}
 
-	private handleUpdatesToVisibleEditors(e: FileChangesEvent): ITextFileEditorModel[] {
-		const updatedModels: ITextFileEditorModel[] = [];
-
+	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
 		const editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			const fileResource = toResource(editor.input, { filter: 'file', supportSideBySide: true });
 
-			// File Editor
-			if (fileResource) {
-
-				// File got added or updated, so check for model and update
-				// Note: we also consider the added event because it could be that a file was added
-				// and updated right after.
-				if (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED)) {
-
-					// Text file: check for last save time
-					const textModel = this.textFileService.models.get(fileResource);
-					if (textModel) {
-
-						// We only ever update models that are in good saved state
-						if (!textModel.isDirty()) {
-							const codeEditor = editor.getControl() as IEditor;
-							const viewState = codeEditor.saveViewState();
-							const lastKnownEtag = textModel.getETag();
-
-							textModel.load().done(() => {
-
-								// only restore the view state if the model changed and the editor is still showing it
-								if (textModel.getETag() !== lastKnownEtag && codeEditor.getModel() === textModel.textEditorModel) {
-									codeEditor.restoreViewState(viewState);
-								}
-							}, errors.onUnexpectedError);
-
-							updatedModels.push(textModel);
-						}
-					}
-
-					// Binary file: always update
-					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
-						this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
-					}
-				}
+			// Binary editor that should reload from event
+			if (fileResource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(fileResource, FileChangeType.UPDATED) || e.contains(fileResource, FileChangeType.ADDED))) {
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 			}
 		});
+	}
 
-		return updatedModels;
+	private handleUpdatesToTextModels(e: FileChangesEvent): void {
+
+		// Collect distinct (saved) models to update.
+		//
+		// Note: we also consider the added event because it could be that a file was added
+		// and updated right after.
+		distinct([...e.getUpdated(), ...e.getAdded()]
+			.map(u => this.textFileService.models.get(u.resource))
+			.filter(model => model && !model.isDirty()), m => m.getResource().toString())
+			.forEach(model => this.queueModelLoad(model));
+	}
+
+	private queueModelLoad(model: ITextFileEditorModel): void {
+
+		// Load model to update (use a queue to prevent accumulation of loads
+		// when the load actually takes long. At most we only want the queue
+		// to have a size of 2 (1 running load and 1 queued load).
+		const queue = this.modelLoadQueue.queueFor(model.getResource());
+		if (queue.size <= 1) {
+			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
+		}
 	}
 
 	public dispose(): void {

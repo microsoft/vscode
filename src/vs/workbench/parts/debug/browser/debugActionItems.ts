@@ -15,6 +15,7 @@ import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/acti
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -25,14 +26,15 @@ const $ = dom.$;
 
 export class StartDebugActionItem extends EventEmitter implements IActionItem {
 
-	private static ADD_CONFIGURATION = nls.localize('addConfiguration', "Add Configuration...");
 	private static SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
+	private options: { label: string, handler: (() => boolean) }[];
 	private toDispose: lifecycle.IDisposable[];
+	private selected: number;
 
 	constructor(
 		private context: any,
@@ -40,7 +42,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super();
 		this.toDispose = [];
@@ -58,17 +61,16 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				this.updateOptions();
 			}
 		}));
-		this.toDispose.push(this.selectBox.onDidSelect(configurationName => {
-			if (configurationName === StartDebugActionItem.ADD_CONFIGURATION) {
-				this.selectBox.select(this.debugService.getConfigurationManager().getConfigurationNames().indexOf(this.debugService.getViewModel().selectedConfigurationName));
-				this.commandService.executeCommand('debug.addConfiguration').done(undefined, errors.onUnexpectedError);
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			if (this.options[e.index].handler()) {
+				this.selected = e.index;
 			} else {
-				this.debugService.getViewModel().setSelectedConfigurationName(configurationName);
+				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				this.selectBox.select(this.selected);
 			}
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidSelectConfiguration(configurationName => {
-			const manager = this.debugService.getConfigurationManager();
-			this.selectBox.select(manager.getConfigurationNames().indexOf(configurationName));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => {
+			this.updateOptions();
 		}));
 	}
 
@@ -149,14 +151,36 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private updateOptions(): void {
-		const options = this.debugService.getConfigurationManager().getConfigurationNames();
-		if (options.length === 0) {
-			options.push(nls.localize('noConfigurations', "No Configurations"));
+		this.selected = 0;
+		this.options = [];
+		const manager = this.debugService.getConfigurationManager();
+		const launches = manager.getLaunches();
+		manager.getLaunches().forEach(launch =>
+			launch.getConfigurationNames().forEach(name => {
+				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+					this.selected = this.options.length;
+				}
+				const label = launches.length > 1 ? `${name} (${launch.name})` : name;
+				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
+			}));
+
+		if (this.options.length === 0) {
+			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: () => false });
 		}
-		const selected = options.indexOf(this.debugService.getViewModel().selectedConfigurationName);
-		options.push(StartDebugActionItem.SEPARATOR);
-		options.push(StartDebugActionItem.ADD_CONFIGURATION);
-		this.selectBox.setOptions(options, selected, options.length - 2);
+		this.options.push({ label: StartDebugActionItem.SEPARATOR, handler: undefined });
+
+		const disabledIdx = this.options.length - 1;
+		launches.forEach(l => {
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+			this.options.push({
+				label, handler: () => {
+					this.commandService.executeCommand('debug.addConfiguration', l.workspaceUri.toString()).done(undefined, errors.onUnexpectedError);
+					return false;
+				}
+			});
+		});
+
+		this.selectBox.setOptions(this.options.map(data => data.label), this.selected, disabledIdx);
 	}
 }
 
@@ -173,8 +197,8 @@ export class FocusProcessActionItem extends SelectActionItem {
 		this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			const process = this.debugService.getViewModel().focusedProcess;
 			if (process) {
-				const names = this.debugService.getModel().getProcesses().map(p => p.name);
-				this.select(names.indexOf(process.name));
+				const index = this.debugService.getModel().getProcesses().indexOf(process);
+				this.select(index);
 			}
 		});
 
@@ -184,7 +208,9 @@ export class FocusProcessActionItem extends SelectActionItem {
 
 	private update() {
 		const process = this.debugService.getViewModel().focusedProcess;
-		const names = this.debugService.getModel().getProcesses().map(p => p.name);
-		this.setOptions(names, process ? names.indexOf(process.name) : undefined);
+		const processes = this.debugService.getModel().getProcesses();
+		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
+		const names = processes.map(p => p.getName(showRootName));
+		this.setOptions(names, process ? processes.indexOf(process) : undefined);
 	}
 }

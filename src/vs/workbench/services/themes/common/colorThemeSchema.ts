@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import nls = require('vs/nls');
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
@@ -114,59 +114,68 @@ let textMateScopes = [
 	'variable.parameter'
 ];
 
+export const tokenColorizationSettingSchema: IJSONSchema = {
+	type: 'object',
+	description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
+	properties: {
+		foreground: {
+			type: 'string',
+			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
+			format: 'color',
+			defaultSnippets: [{ body: '${1:#FF0000}' }]
+		},
+		fontStyle: {
+			type: 'string',
+			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
+			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
+			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be a combination of \'italic\', \'bold\' and \'underline\''),
+			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+		}
+	},
+	defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
+};
+
 export const colorsSchema = themingRegistry.getColorSchema();
-export const tokenColorsSchema = {
-	type: 'array',
-	description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-	items: {
-		type: 'object',
-		properties: {
-			name: {
-				type: 'string',
-				description: nls.localize('schema.properties.name', 'Description of the rule')
-			},
-			scope: {
-				anyOf: [
-					{
-						enum: textMateScopes
-					},
-					{
-						type: 'string'
-					},
-					{
-						type: 'array',
-						items: {
+export function tokenColorsSchema(description: string): IJSONSchema {
+	return {
+		type: 'array',
+		description,
+		items: {
+			type: 'object',
+			defaultSnippets: [{ body: { scope: '${1:keyword.operator}', settings: { foreground: '${2:#FF0000}' } } }],
+			properties: {
+				name: {
+					type: 'string',
+					description: nls.localize('schema.properties.name', 'Description of the rule.')
+				},
+				scope: {
+					description: nls.localize('schema.properties.scope', 'Scope selector against which this rule matches.'),
+					anyOf: [
+						{
 							enum: textMateScopes
-						}
-					},
-					{
-						type: 'array',
-						items: {
+						},
+						{
 							type: 'string'
+						},
+						{
+							type: 'array',
+							items: {
+								enum: textMateScopes
+							}
+						},
+						{
+							type: 'array',
+							items: {
+								type: 'string'
+							}
 						}
-					}
-				]
-			},
-			settings: {
-				type: 'object',
-				properties: {
-					foreground: {
-						type: 'string',
-						format: 'color'
-					},
-					background: {
-						type: 'string',
-						format: 'color'
-					},
-					fontStyle: {
-						type: 'string',
-						description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
-					}
-				}
+					]
+				},
+				settings: tokenColorizationSettingSchema
 			}
 		}
-	}
-};
+	};
+}
 
 const schemaId = 'vscode://schemas/color-theme';
 const schema: IJSONSchema = {
@@ -176,9 +185,9 @@ const schema: IJSONSchema = {
 		tokenColors: {
 			anyOf: [{
 				type: 'string',
-				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file)')
+				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file).')
 			},
-				tokenColorsSchema
+			tokenColorsSchema(nls.localize('schema.colors', 'Colors for syntax highlighting'))
 			]
 		}
 	}

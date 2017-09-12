@@ -16,17 +16,17 @@ import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
+import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -35,6 +35,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -51,7 +52,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
@@ -93,7 +94,7 @@ export class TextDiffEditor extends BaseTextEditor {
 					else if (input.matches(activeDiffInput.originalInput)) {
 						const originalEditor = this.getControl().getOriginalEditor();
 						if (options instanceof TextEditorOptions) {
-							(<TextEditorOptions>options).apply(originalEditor);
+							(<TextEditorOptions>options).apply(originalEditor, ScrollType.Smooth);
 
 							return TPromise.as(this);
 						}
@@ -111,19 +112,15 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		super.setInput(input, options);
 
-		// Detect options
+		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
+		if (!forceOpen && input.matches(this.input)) {
 
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(<IDiffEditor>this.getControl());
+				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
 			}
 
 			return TPromise.as<void>(null);
@@ -134,52 +131,51 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator.dispose();
 		}
 
-		// Different Input (Reload)
-		return input.resolve(true).then(resolvedModel => {
+		// Set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then(resolvedModel => {
 
-			// Assert Model Instance
-			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-				return null;
-			}
+				// Assert Model Instance
+				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+					return null;
+				}
 
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
-			if (!this.input || this.input !== input) {
-				return null;
-			}
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
 
-			// Editor
-			const diffEditor = <IDiffEditor>this.getControl();
-			diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
+				// Editor
+				const diffEditor = <IDiffEditor>this.getControl();
+				diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
 
-			// Respect text diff editor options
-			let autoRevealFirstChange = true;
-			if (options instanceof TextDiffEditorOptions) {
-				const textDiffOptions = (<TextDiffEditorOptions>options);
-				autoRevealFirstChange = !types.isUndefinedOrNull(textDiffOptions.autoRevealFirstChange) ? textDiffOptions.autoRevealFirstChange : autoRevealFirstChange;
-			}
+				// Handle TextOptions
+				let alwaysRevealFirst = true;
+				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+					const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
+					if (hadOptions) {
+						alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+					}
+				}
 
-			// listen on diff updated changes to reveal the first change
-			this.diffNavigator = new DiffNavigator(diffEditor, {
-				alwaysRevealFirst: autoRevealFirstChange
+				// Listen on diff updated changes to reveal the first change
+				this.diffNavigator = new DiffNavigator(diffEditor, {
+					alwaysRevealFirst
+				});
+				this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
+					this.nextDiffAction.updateEnablement();
+					this.previousDiffAction.updateEnablement();
+				});
+			}, error => {
+
+				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+				if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+					return null;
+				}
+
+				// Otherwise make sure the error bubbles up
+				return TPromise.wrapError(error);
 			});
-			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
-				this.nextDiffAction.updateEnablement();
-				this.previousDiffAction.updateEnablement();
-			});
-
-			// Handle TextOptions
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
-			}
-		}, error => {
-
-			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
-				return null;
-			}
-
-			// Otherwise make sure the error bubbles up
-			return TPromise.wrapError(error);
 		});
 	}
 
@@ -213,11 +209,6 @@ export class TextDiffEditor extends BaseTextEditor {
 		// Handle diff editor specially by merging in diffEditor configuration
 		if (types.isObject(configuration.diffEditor)) {
 			objects.mixin(editorConfiguration, configuration.diffEditor);
-		}
-
-		const language = this.getLanguage();
-		if (language) {
-			objects.assign(editorConfiguration, this.configurationService.getConfiguration<IEditorConfiguration>({ overrideIdentifier: language, section: 'diffEditor' }));
 		}
 
 		return editorConfiguration;
@@ -262,7 +253,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			return errors.some(e => this.isFileBinaryError(e));
 		}
 
-		return (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
+		return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY;
 	}
 
 	public clearInput(): void {
@@ -365,7 +356,7 @@ class ToggleEditorModeAction extends Action {
 		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
 
 		const control = this.editor.getControl();

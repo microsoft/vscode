@@ -10,14 +10,14 @@
 {
 	"name": "balanced-match",
 	"repositoryURL": "https://github.com/juliangruber/balanced-match",
-	"version": "0.4.2",
+	"version": "1.0.0",
 	"license": "MIT",
 	"isProd": true
 },
 {
 	"name": "brace-expansion",
 	"repositoryURL": "https://github.com/juliangruber/brace-expansion",
-	"version": "1.1.6",
+	"version": "1.1.8",
 	"license": "MIT",
 	"isProd": true
 },
@@ -31,14 +31,14 @@
 {
 	"name": "debug",
 	"repositoryURL": "https://github.com/visionmedia/debug",
-	"version": "2.3.3",
+	"version": "2.6.8",
 	"license": "MIT",
 	"isProd": true
 },
 {
 	"name": "extend",
 	"repositoryURL": "https://github.com/justmoon/node-extend",
-	"version": "3.0.0",
+	"version": "3.0.1",
 	"license": "MIT",
 	"isProd": true
 },
@@ -52,7 +52,7 @@
 {
 	"name": "glob",
 	"repositoryURL": "https://github.com/isaacs/node-glob",
-	"version": "7.1.1",
+	"version": "7.1.2",
 	"license": "ISC",
 	"isProd": true
 },
@@ -87,14 +87,14 @@
 {
 	"name": "minimatch",
 	"repositoryURL": "https://github.com/isaacs/minimatch",
-	"version": "3.0.3",
+	"version": "3.0.4",
 	"license": "ISC",
 	"isProd": true
 },
 {
 	"name": "ms",
 	"repositoryURL": "https://github.com/rauchg/ms.js",
-	"version": "0.7.2",
+	"version": "2.0.0",
 	"license": "MIT",
 	"isProd": true
 },

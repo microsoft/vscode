@@ -5,7 +5,8 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import URI from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
@@ -21,7 +22,7 @@ export interface IHistoryService {
 	/**
 	 * Add an entry to the navigation stack of the history.
 	 */
-	add(input: IEditorInput, options?: ITextEditorOptions): void;
+	add(input: IEditorInput, selection?: ITextEditorSelection): void;
 
 	/**
 	 * Navigate forwards in history.
@@ -40,6 +41,11 @@ export interface IHistoryService {
 	back(acrossEditors?: boolean): void;
 
 	/**
+	 * Navigate forward or backwards to previous entry in history.
+	 */
+	last(): void;
+
+	/**
 	 * Removes an entry from history.
 	 */
 	remove(input: IEditorInput | IResourceInput): void;
@@ -53,4 +59,10 @@ export interface IHistoryService {
 	 * Get the entire history of opened editors.
 	 */
 	getHistory(): (IEditorInput | IResourceInput)[];
+
+	/**
+	 * Looking at the editor history, returns the workspace root of the last file that was
+	 * inside the workspace and part of the editor history.
+	 */
+	getLastActiveWorkspaceRoot(): URI;
 }

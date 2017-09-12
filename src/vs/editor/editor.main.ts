@@ -5,21 +5,25 @@
 
 'use strict';
 
-import 'vs/editor/browser/editor.all';
-import 'vs/editor/contrib/quickOpen/browser/quickOutline';
-import 'vs/editor/contrib/quickOpen/browser/gotoLine';
-import 'vs/editor/contrib/quickOpen/browser/quickCommand';
-import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
+import 'vs/editor/editor.all';
+import 'vs/editor/standalone/browser/accessibilityHelp/accessibilityHelp';
+import 'vs/editor/standalone/browser/inspectTokens/inspectTokens';
+import 'vs/editor/standalone/browser/iPadShowKeyboard/iPadShowKeyboard';
+import 'vs/editor/standalone/browser/quickOpen/quickOutline';
+import 'vs/editor/standalone/browser/quickOpen/gotoLine';
+import 'vs/editor/standalone/browser/quickOpen/quickCommand';
+import 'vs/editor/standalone/browser/toggleHighContrast/toggleHighContrast';
 
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
+import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
+import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 // Set defaults for standalone editor
 (<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
 (<any>EDITOR_DEFAULTS.contribInfo).folding = false;
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
+(<any>EDITOR_DEFAULTS).autoIndent = false;
 
 let base = createMonacoBaseAPI();
 for (let prop in base) {
@@ -38,6 +42,12 @@ if (typeof global.require !== 'undefined' && typeof global.require.config === 'f
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',
+			'vscode-nls',
+			'vscode-nls/vscode-nls',
+			'jsonc-parser',
+			'jsonc-parser/main',
+			'vscode-uri',
+			'vscode-uri/index'
 		]
 	});
 }

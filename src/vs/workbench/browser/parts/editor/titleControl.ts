@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
@@ -32,13 +32,19 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
+import { IDraggedResource } from 'vs/base/browser/dnd';
+import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { extname } from 'vs/base/common/paths';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import URI from 'vs/base/common/uri';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -71,6 +77,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected pinEditorAction: KeepEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
+	protected closeUnmodifiedEditorsInGroupAction: CloseUnmodifiedEditorsInGroupAction;
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
 	protected splitEditorAction: SplitEditorAction;
 	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
@@ -228,6 +235,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
+		this.closeUnmodifiedEditorsInGroupAction = services.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified"));
 		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
 		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
 		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -355,6 +363,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			}
 			secondaryEditorActions.push(this.showEditorsInGroupAction);
 			secondaryEditorActions.push(new Separator());
+			secondaryEditorActions.push(this.closeUnmodifiedEditorsInGroupAction);
 			secondaryEditorActions.push(this.closeEditorsInGroupAction);
 		}
 
@@ -440,6 +449,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			actions.push(this.closeRightEditorsAction);
 		}
 
+		actions.push(this.closeUnmodifiedEditorsInGroupAction);
 		actions.push(this.closeEditorsInGroupAction);
 
 		if (tabOptions.previewEditors) {
@@ -461,6 +471,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.showEditorsInGroupAction,
 			this.closeEditorAction,
 			this.closeRightEditorsAction,
+			this.closeUnmodifiedEditorsInGroupAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,
 			this.pinEditorAction
@@ -471,4 +482,75 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Toolbar
 		this.editorActionsToolbar.dispose();
 	}
+}
+
+/**
+ * Shared function across some editor components to handle drag & drop of folders and workspace files
+ * to open them in the window instead of the editor.
+ */
+export function handleWorkspaceExternalDrop(
+	resources: IDraggedResource[],
+	fileService: IFileService,
+	messageService: IMessageService,
+	windowsService: IWindowsService,
+	windowService: IWindowService,
+	workspacesService: IWorkspacesService
+): TPromise<boolean /* handled */> {
+
+	// Return early if there are no external resources
+	const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+	if (!externalResources.length) {
+		return TPromise.as(false);
+	}
+
+	const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
+		workspaces: [],
+		folders: []
+	};
+
+	return TPromise.join(externalResources.map(resource => {
+
+		// Check for Workspace
+		if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+			externalWorkspaceResources.workspaces.push(resource);
+
+			return void 0;
+		}
+
+		// Check for Folder
+		return fileService.resolveFile(resource).then(stat => {
+			if (stat.isDirectory) {
+				externalWorkspaceResources.folders.push(stat.resource);
+			}
+		}, error => void 0);
+	})).then(_ => {
+		const { workspaces, folders } = externalWorkspaceResources;
+
+		// Return early if no external resource is a folder or workspace
+		if (workspaces.length === 0 && folders.length === 0) {
+			return false;
+		}
+
+		// Pass focus to window
+		windowService.focusWindow();
+
+		let workspacesToOpen: TPromise<string[]>;
+
+		// Open in separate windows if we drop workspaces or just one folder
+		if (workspaces.length > 0 || folders.length === 1) {
+			workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
+		}
+
+		// Multiple folders: Create new workspace with folders and open
+		else if (folders.length > 1) {
+			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.fsPath)).then(workspace => [workspace.configPath]);
+		}
+
+		// Open
+		workspacesToOpen.then(workspaces => {
+			windowsService.openWindow(workspaces, { forceReuseWindow: true });
+		});
+
+		return true;
+	});
 }

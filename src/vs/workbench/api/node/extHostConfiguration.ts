@@ -5,12 +5,14 @@
 'use strict';
 
 import { mixin } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { WorkspaceConfiguration } from 'vscode';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
+import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configuration/common/configuration';
-import { toValuesTree } from 'vs/platform/configuration/common/model';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -23,51 +25,55 @@ function lookUp(tree: any, key: string) {
 	}
 }
 
-interface UsefulConfiguration {
-	data: IWorkspaceConfigurationValues;
-	valueTree: any;
-}
+type ConfigurationInspect<T> = {
+	key: string;
+	defaultValue?: T;
+	globalValue?: T;
+	workspaceValue?: T;
+	workspaceFolderValue?: T;
+};
 
-function createUsefulConfiguration(data: IWorkspaceConfigurationValues): { data: IWorkspaceConfigurationValues, valueTree: any } {
-	const valueMap: { [key: string]: any } = Object.create(null);
-	for (let key in data) {
-		if (Object.prototype.hasOwnProperty.call(data, key)) {
-			valueMap[key] = data[key].value;
-		}
-	}
-	const valueTree = toValuesTree(valueMap, message => console.error(`Conflict in configuration settings: ${message}`));
-	return {
-		data,
-		valueTree
-	};
-}
+export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-export class ExtHostConfiguration extends ExtHostConfigurationShape {
+	private readonly _onDidChangeConfiguration = new Emitter<void>();
+	private readonly _proxy: MainThreadConfigurationShape;
+	private readonly _extHostWorkspace: ExtHostWorkspace;
+	private _configuration: Configuration<any>;
 
-	private _onDidChangeConfiguration = new Emitter<void>();
-	private _proxy: MainThreadConfigurationShape;
-	private _configuration: UsefulConfiguration;
-
-	constructor(proxy: MainThreadConfigurationShape, data: IWorkspaceConfigurationValues) {
-		super();
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData<any>) {
 		this._proxy = proxy;
-		this._configuration = createUsefulConfiguration(data);
+		this._extHostWorkspace = extHostWorkspace;
+		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
 	}
 
 	get onDidChangeConfiguration(): Event<void> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	public $acceptConfigurationChanged(data: IWorkspaceConfigurationValues) {
-		this._configuration = createUsefulConfiguration(data);
+	$acceptConfigurationChanged(data: IConfigurationData<any>) {
+		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
 		this._onDidChangeConfiguration.fire(undefined);
 	}
 
-	public getConfiguration(section?: string): WorkspaceConfiguration {
-
+	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
 		const config = section
-			? lookUp(this._configuration.valueTree, section)
-			: this._configuration.valueTree;
+			? lookUp(this._configuration.getValue(null, { resource }), section)
+			: this._configuration.getValue(null, { resource });
+
+		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
+			if (arg === void 0 || arg === null) {
+				return null;
+			}
+			if (typeof arg === 'boolean') {
+				return arg ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
+			}
+
+			switch (arg) {
+				case ExtHostConfigurationTarget.Global: return ConfigurationTarget.USER;
+				case ExtHostConfigurationTarget.Workspace: return ConfigurationTarget.WORKSPACE;
+				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.FOLDER;
+			}
+		}
 
 		const result: WorkspaceConfiguration = {
 			has(key: string): boolean {
@@ -80,24 +86,25 @@ export class ExtHostConfiguration extends ExtHostConfigurationShape {
 				}
 				return result;
 			},
-			update: (key: string, value: any, global: boolean = false) => {
+			update: (key: string, value: any, arg: ExtHostConfigurationTarget | boolean) => {
 				key = section ? `${section}.${key}` : key;
-				const target = global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE;
+				const target = parseConfigurationTarget(arg);
 				if (value !== void 0) {
-					return this._proxy.$updateConfigurationOption(target, key, value);
+					return this._proxy.$updateConfigurationOption(target, key, value, resource);
 				} else {
-					return this._proxy.$removeConfigurationOption(target, key);
+					return this._proxy.$removeConfigurationOption(target, key, resource);
 				}
 			},
-			inspect: <T>(key: string): { key: string; defaultValue?: T; globalValue?: T; workspaceValue?: T } => {
+			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.data[key];
+				const config = this._configuration.lookup<T>(key, { resource });
 				if (config) {
 					return {
 						key,
 						defaultValue: config.default,
 						globalValue: config.user,
-						workspaceValue: config.workspace
+						workspaceValue: config.workspace,
+						workspaceFolderValue: config.folder
 					};
 				}
 				return undefined;

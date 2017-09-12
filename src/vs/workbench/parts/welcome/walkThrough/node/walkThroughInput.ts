@@ -10,7 +10,7 @@ import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/
 import URI from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -40,9 +40,16 @@ export class WalkThroughModel extends EditorModel {
 	}
 }
 
-export class WalkThroughInput extends EditorInput {
+export interface WalkThroughInputOptions {
+	readonly typeId: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly resource: URI;
+	readonly telemetryFrom: string;
+	readonly onReady?: (container: HTMLElement) => void;
+}
 
-	static ID: string = 'workbench.editors.walkThroughInput';
+export class WalkThroughInput extends EditorInput {
 
 	private disposables: IDisposable[] = [];
 
@@ -53,50 +60,50 @@ export class WalkThroughInput extends EditorInput {
 	private maxBottomScroll = 0;
 
 	constructor(
-		private name: string,
-		private description: string,
-		private resource: URI,
-		private telemetryFrom: string,
-		public readonly onReady: (container: HTMLElement) => void,
+		private options: WalkThroughInputOptions,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		super();
 		this.disposables.push(lifecycleService.onShutdown(e => this.disposeTelemetry(e)));
 	}
 
 	getResource(): URI {
-		return this.resource;
+		return this.options.resource;
 	}
 
 	getTypeId(): string {
-		return WalkThroughInput.ID;
+		return this.options.typeId;
 	}
 
 	getName(): string {
-		return this.name;
+		return this.options.name;
 	}
 
 	getDescription(): string {
-		return this.description;
+		return this.options.description || '';
 	}
 
 	getTelemetryFrom(): string {
-		return this.telemetryFrom || 'walkThrough';
+		return this.options.telemetryFrom;
 	}
 
 	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
-		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+		descriptor['resource'] = telemetryURIDescriptor(this.options.resource);
 		return descriptor;
+	}
+
+	get onReady() {
+		return this.options.onReady;
 	}
 
 	resolve(refresh?: boolean): TPromise<WalkThroughModel> {
 		if (!this.promise) {
 			this.resolveTelemetry();
-			this.promise = this.textModelResolverService.createModelReference(this.resource)
+			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
 					if (strings.endsWith(this.getResource().path, '.html')) {
 						return new WalkThroughModel(ref, []);
@@ -106,7 +113,7 @@ export class WalkThroughInput extends EditorInput {
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						const resource = this.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return '';
 					};
@@ -131,7 +138,7 @@ export class WalkThroughInput extends EditorInput {
 			let otherResourceEditorInput = <WalkThroughInput>otherInput;
 
 			// Compare by properties
-			return otherResourceEditorInput.resource.toString() === this.resource.toString();
+			return otherResourceEditorInput.options.resource.toString() === this.options.resource.toString();
 		}
 
 		return false;

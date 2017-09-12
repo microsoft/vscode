@@ -22,6 +22,8 @@
 	"css.lint.unknownVendorSpecificProperties.desc": "알 수 없는 공급업체 관련 속성입니다.",
 	"css.lint.vendorPrefix.desc": "공급업체 관련 접두사를 사용할 때 표준 속성도 포함합니다.",
 	"css.lint.zeroUnits.desc": "0에는 단위가 필요하지 않습니다.",
+	"css.trace.server.desc": "VS Code와 CSS 언어 서버 간 통신을 추적합니다.",
+	"css.validate.title": "CSS 유효성 검사 및 문제 심각도를 제어합니다.",
 	"css.validate.desc": "모든 유효성 검사 사용 또는 사용 안 함",
 	"less.lint.argumentsInColorFunction.desc": "잘못된 매개 변수 수",
 	"less.lint.boxModel.desc": "패딩 또는 테두리를 사용하는 경우 너비 또는 높이를 사용하지 마세요.",
@@ -41,6 +43,7 @@
 	"less.lint.unknownVendorSpecificProperties.desc": "알 수 없는 공급업체 관련 속성입니다.",
 	"less.lint.vendorPrefix.desc": "공급업체 관련 접두사를 사용할 때 표준 속성도 포함합니다.",
 	"less.lint.zeroUnits.desc": "0에는 단위가 필요하지 않습니다.",
+	"less.validate.title": "LESS 유효성 검사 및 문제 심각도를 제어합니다.",
 	"less.validate.desc": "모든 유효성 검사 사용 또는 사용 안 함",
 	"scss.lint.argumentsInColorFunction.desc": "잘못된 매개 변수 수",
 	"scss.lint.boxModel.desc": "패딩 또는 테두리를 사용하는 경우 너비 또는 높이를 사용하지 마세요.",
@@ -60,8 +63,12 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "알 수 없는 공급업체 관련 속성입니다.",
 	"scss.lint.vendorPrefix.desc": "공급업체 관련 접두사를 사용할 때 표준 속성도 포함합니다.",
 	"scss.lint.zeroUnits.desc": "0에는 단위가 필요하지 않습니다.",
+	"scss.validate.title": "SCSS 유효성 검사 및 문제 심각도를 제어합니다.",
 	"scss.validate.desc": "모든 유효성 검사 사용 또는 사용 안 함",
 	"less.colorDecorators.enable.desc": "색 데코레이터 사용 또는 사용 안 함",
 	"scss.colorDecorators.enable.desc": "색 데코레이터 사용 또는 사용 안 함",
-	"css.colorDecorators.enable.desc": "색 데코레이터 사용 또는 사용 안 함"
+	"css.colorDecorators.enable.desc": "색 데코레이터 사용 또는 사용 안 함",
+	"css.colorDecorators.enable.deprecationMessage": "`css.colorDecorators.enable` 설정은 `editor.colorDecorators`를 위해 사용되지 않습니다.",
+	"scss.colorDecorators.enable.deprecationMessage": "`scss.colorDecorators.enable` 설정은 `editor.colorDecorators`를 위해 사용되지 않습니다.",
+	"less.colorDecorators.enable.deprecationMessage": "`less.colorDecorators.enable` 설정은 `editor.colorDecorators`를 위해 사용되지 않습니다."
 }

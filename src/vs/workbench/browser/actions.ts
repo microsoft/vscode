@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -57,11 +57,6 @@ export class ActionBarContributor {
  * Some predefined scopes to contribute actions to
  */
 export const Scope = {
-
-	/**
-	 * Actions inside the global activity bar (DEPRECATED)
-	 */
-	GLOBAL: 'global',
 
 	/**
 	 * Actions inside viewlets.

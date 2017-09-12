@@ -40,6 +40,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
+import { OS, OperatingSystem } from 'vs/base/common/platform';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -119,7 +121,6 @@ export class WalkThroughPart extends BaseEditor {
 		this.content.style.outlineStyle = 'none';
 
 		this.scrollbar = new DomScrollableElement(this.content, {
-			canUseTranslate3d: false,
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: ScrollbarVisibility.Auto
 		});
@@ -133,11 +134,12 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private updatedScrollPosition() {
-		const scrollState = this.scrollbar.getScrollState();
-		const scrollHeight = scrollState.scrollHeight;
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		const scrollHeight = scrollDimensions.scrollHeight;
 		if (scrollHeight && this.input instanceof WalkThroughInput) {
-			const scrollTop = scrollState.scrollTop;
-			const height = scrollState.height;
+			const scrollTop = scrollPosition.scrollTop;
+			const height = scrollDimensions.height;
 			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
 		}
 	}
@@ -162,9 +164,9 @@ export class WalkThroughPart extends BaseEditor {
 		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
-				let scrollState = this.scrollbar.getScrollState();
-				this.content.scrollTop = scrollState.scrollTop;
-				this.content.scrollLeft = scrollState.scrollLeft;
+				const scrollPosition = this.scrollbar.getScrollPosition();
+				this.content.scrollTop = scrollPosition.scrollTop;
+				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
 		}));
 	}
@@ -185,7 +187,7 @@ export class WalkThroughPart extends BaseEditor {
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
+							this.scrollbar.setScrollPosition({ scrollTop: targetTop - containerTop });
 						}
 					} else {
 						this.open(URI.parse(node.href));
@@ -260,13 +262,13 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	arrowUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - this.getArrowScrollHeight() });
 	}
 
 	arrowDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + this.getArrowScrollHeight() });
 	}
 
 	private getArrowScrollHeight() {
@@ -278,13 +280,15 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	pageUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - scrollDimensions.height });
 	}
 
 	pageDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
@@ -366,13 +370,14 @@ export class WalkThroughPart extends BaseEditor {
 							const lineHeight = editor.getConfiguration().lineHeight;
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
-							const scrollState = this.scrollbar.getScrollState();
-							const scrollTop = scrollState.scrollTop;
-							const height = scrollState.height;
+							const scrollDimensions = this.scrollbar.getScrollDimensions();
+							const scrollPosition = this.scrollbar.getScrollPosition();
+							const scrollTop = scrollPosition.scrollTop;
+							const height = scrollDimensions.height;
 							if (scrollTop > lineTop) {
-								this.scrollbar.updateState({ scrollTop: lineTop });
+								this.scrollbar.setScrollPosition({ scrollTop: lineTop });
 							} else if (scrollTop < lineBottom - height) {
-								this.scrollbar.updateState({ scrollTop: lineBottom - height });
+								this.scrollbar.setScrollPosition({ scrollTop: lineBottom - height });
 							}
 						}
 					}));
@@ -406,6 +411,8 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
+				this.multiCursorModifier();
+				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -416,7 +423,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>({ overrideIdentifier: language, section: 'editor' });
+		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,
@@ -461,23 +468,36 @@ export class WalkThroughPart extends BaseEditor {
 		});
 	}
 
+	private multiCursorModifier() {
+		const labels = UILabelProvider.modifierLabels[OS];
+		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
+		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
+		Array.prototype.forEach.call(keys, (key: Element) => {
+			while (key.firstChild) {
+				key.removeChild(key.firstChild);
+			}
+			key.appendChild(document.createTextNode(modifier));
+		});
+	}
+
 	private saveTextEditorViewState(resource: URI): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		let editorViewStateMemento: { [key: string]: { [position: number]: IWalkThroughEditorViewState } } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (!editorViewStateMemento) {
 			editorViewStateMemento = Object.create(null);
 			memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
 		}
 
-		const scrollState = this.scrollbar.getScrollState();
+		const scrollPosition = this.scrollbar.getScrollPosition();
 		const editorViewState: IWalkThroughEditorViewState = {
 			viewState: {
-				scrollTop: scrollState.scrollTop,
-				scrollLeft: scrollState.scrollLeft
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
 			}
 		};
 
-		let fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+		let fileViewState = editorViewStateMemento[resource.toString()];
 		if (!fileViewState) {
 			fileViewState = Object.create(null);
 			editorViewStateMemento[resource.toString()] = fileViewState;
@@ -490,13 +510,13 @@ export class WalkThroughPart extends BaseEditor {
 
 	private loadTextEditorViewState(resource: URI) {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const editorViewStateMemento: { [key: string]: IWalkThroughEditorViewStates } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (editorViewStateMemento) {
-			const fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+			const fileViewState = editorViewStateMemento[resource.toString()];
 			if (fileViewState) {
-				const state: IWalkThroughEditorViewState = fileViewState[this.position];
+				const state = fileViewState[this.position];
 				if (state) {
-					this.scrollbar.updateState(state.viewState);
+					this.scrollbar.setScrollPosition(state.viewState);
 				}
 			}
 		}

@@ -8,86 +8,29 @@ import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
+import { Color } from 'vs/base/common/color';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class CoordinatesConverter implements ICoordinatesConverter {
-
-	private readonly _lines: SplitLinesCollection;
-
-	constructor(lines: SplitLinesCollection) {
-		this._lines = lines;
-	}
-
-	// View -> Model conversion and related methods
-
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._lines.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		let start = this._lines.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
-		let end = this._lines.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		let selectionStart = this._lines.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
-		let position = this._lines.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
-	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		var validViewStart = this._lines.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
-		var validViewEnd = this._lines.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
-		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
-	}
-
-	// Model -> View conversion and related methods
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		let start = this._lines.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
-		let end = this._lines.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
-	}
-
-}
+const USE_IDENTITY_LINES_COLLECTION = true;
 
 export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: editorCommon.IModel;
-	private readonly lines: SplitLinesCollection;
+	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
 
@@ -96,35 +39,39 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _isDisposing: boolean;
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
 
-		const conf = this.configuration.editor;
+		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
-		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-			conf.wrappingInfo.wordWrapBreakBeforeCharacters,
-			conf.wrappingInfo.wordWrapBreakAfterCharacters,
-			conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
-		);
+			this.lines = new IdentityLinesCollection(this.model);
 
-		this.lines = new SplitLinesCollection(
-			this.model,
-			hardWrappingLineMapperFactory,
-			this.model.getOptions().tabSize,
-			conf.wrappingInfo.wrappingColumn,
-			conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
-			conf.wrappingInfo.wrappingIndent
-		);
+		} else {
+			const conf = this.configuration.editor;
 
-		this.configuration.setMaxLineNumber(this.model.getLineCount());
+			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+				conf.wrappingInfo.wordWrapBreakBeforeCharacters,
+				conf.wrappingInfo.wordWrapBreakAfterCharacters,
+				conf.wrappingInfo.wordWrapBreakObtrusiveCharacters
+			);
 
-		this.coordinatesConverter = new CoordinatesConverter(this.lines);
+			this.lines = new SplitLinesCollection(
+				this.model,
+				hardWrappingLineMapperFactory,
+				this.model.getOptions().tabSize,
+				conf.wrappingInfo.wrappingColumn,
+				conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth,
+				conf.wrappingInfo.wrappingIndent
+			);
+		}
 
-		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount()));
+		this.coordinatesConverter = this.lines.createCoordinatesConverter();
+
+		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			this._emit([new viewEvents.ViewScrollChangedEvent(e)]);
@@ -179,7 +126,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
-			if (this.viewLayout.getScrollTop() !== 0) {
+			if (this.viewLayout.getCurrentScrollTop() !== 0) {
 				// Never change the scroll position from 0 to something else...
 				revealPreviousCenteredModelRange = true;
 			}
@@ -202,7 +149,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				newCenteredViewRange,
 				viewEvents.VerticalRevealType.Center,
-				false
+				false,
+				editorCommon.ScrollType.Immediate
 			));
 		}
 	}
@@ -494,6 +442,22 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.validatePosition(position);
 	}
 
+	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
+		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
+		if (this.model.getEOL().length === 2) {
+			// This model uses CRLF, so the delta must take that into account
+			if (deltaOffset < 0) {
+				deltaOffset -= lineFeedCnt;
+			} else {
+				deltaOffset += lineFeedCnt;
+			}
+		}
+
+		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
+		const resultOffset = modelAnchorOffset + deltaOffset;
+		return this.model.getPositionAt(resultOffset);
+	}
+
 	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
 		let newLineCharacter = this.model.getEOL();
 
@@ -588,7 +552,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		let colorMap = TokenizationRegistry.getColorMap();
 		let result: string[] = [null];
 		for (let i = 1, len = colorMap.length; i < len; i++) {
-			result[i] = colorMap[i].toRGBHex();
+			result[i] = Color.Format.CSS.formatHex(colorMap[i]);
 		}
 		return result;
 	}

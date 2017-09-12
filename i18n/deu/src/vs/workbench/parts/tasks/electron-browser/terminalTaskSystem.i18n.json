@@ -6,5 +6,7 @@
 {
 	"TerminalTaskSystem.unknownError": "Unbekannter Fehler beim Ausführen eines Tasks. Details finden Sie im Taskausgabeprotokoll.",
 	"TerminalTaskSystem.terminalName": "Aufgabe - {0}",
-	"TerminalTaskSystem": "Ein Shell-Befehl kann nicht auf einem UNC-Laufwerk ausgeführt werden."
+	"reuseTerminal": "Das Terminal wird von Aufgaben wiederverwendet, drücken Sie zum Schließen eine beliebige Taste.",
+	"TerminalTaskSystem": "Ein Shell-Befehl kann nicht auf einem UNC-Laufwerk ausgeführt werden.",
+	"unkownProblemMatcher": "Der Problemabgleicher {0} kann nicht aufgelöst werden. Der Abgleicher wird ignoriert."
 }

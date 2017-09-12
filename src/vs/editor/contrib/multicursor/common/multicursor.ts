@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -50,7 +50,7 @@ export class InsertCursorAbove extends EditorAction {
 				CursorMoveCommands.addCursorUp(context, cursors.getAll())
 			)
 		);
-		cursors.reveal(true, RevealTarget.TopMost);
+		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
@@ -90,7 +90,7 @@ export class InsertCursorBelow extends EditorAction {
 				CursorMoveCommands.addCursorDown(context, cursors.getAll())
 			)
 		);
-		cursors.reveal(true, RevealTarget.BottomMost);
+		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
 }
 
