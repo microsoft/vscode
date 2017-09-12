@@ -9,22 +9,20 @@ import { IWorkspacesMainService, IWorkspaceIdentifier, IStoredWorkspace, WORKSPA
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { extname, join, dirname, isAbsolute, resolve, relative } from 'path';
+import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { delSync, readdirSync } from 'vs/base/node/extfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isEqual, isEqualOrParent, normalize } from 'vs/base/common/paths';
+import { isEqual } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
 import * as json from 'vs/base/common/json';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { applyEdit } from 'vs/base/common/jsonFormatter';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-
-const SLASH = '/';
+import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -198,18 +196,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			const sourceConfigFolder = dirname(workspace.configPath);
 			const targetConfigFolder = dirname(targetConfigPath);
 
-			// Determine which path separator to use:
-			// - macOS/Linux: slash
-			// - Windows: use slash if already used in that file
-			let useSlashesForPath = !isWindows;
-			if (isWindows) {
-				storedWorkspace.folders.forEach(folder => {
-					if (folder.path.indexOf(SLASH) >= 0) {
-						useSlashesForPath = true;
-					}
-				});
-			}
-
 			// Rewrite absolute paths to relative paths if the target workspace folder
 			// is a parent of the location of the workspace file itself. Otherwise keep
 			// using absolute paths.
@@ -218,24 +204,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 					folder.path = resolve(sourceConfigFolder, folder.path); // relative paths get resolved against the workspace location
 				}
 
-				if (isEqualOrParent(folder.path, targetConfigFolder, !isLinux)) {
-					folder.path = relative(targetConfigFolder, folder.path) || '.'; // absolute paths get converted to relative ones to workspace location if possible
-				}
-
-				// Windows gets special treatment:
-				// - normalize all paths to get nice casing of drive letters
-				// - convert to slashes if we want to use slashes for paths
-				if (isWindows) {
-					if (isAbsolute(folder.path)) {
-						if (useSlashesForPath) {
-							folder.path = normalize(folder.path, false /* do not use OS path separator */);
-						}
-
-						folder.path = normalizeDriveLetter(folder.path);
-					} else if (useSlashesForPath) {
-						folder.path = folder.path.replace(/[\\]/g, SLASH);
-					}
-				}
+				folder.path = massageFolderPathForWorkspace(folder.path, targetConfigFolder, storedWorkspace.folders);
 			});
 
 			// Preserve as much of the existing workspace as possible by using jsonEdit

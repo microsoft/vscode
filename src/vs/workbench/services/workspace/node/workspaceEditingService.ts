@@ -7,16 +7,16 @@
 
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
-import { equals, distinct } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { dirname } from 'path';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { isLinux } from 'vs/base/common/platform';
-import { dirname, relative } from 'path';
-import { isEqualOrParent } from 'vs/base/common/paths';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -27,7 +27,8 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IWorkspacesService private workspacesService: IWorkspacesService,
+		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService
 	) {
 	}
 
@@ -36,9 +37,28 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace().roots;
+		const currentWorkspaceFolders = this.contextService.getWorkspace().roots;
+		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
-		return this.doSetRoots([...roots, ...rootsToAdd]);
+		const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
+
+		const workspaceConfigFolder = dirname(this.contextService.getWorkspace().configuration.fsPath);
+
+		rootsToAdd.forEach(rootToAdd => {
+			if (this.contains(currentWorkspaceFolders, rootToAdd)) {
+				return; // already existing
+			}
+
+			storedFoldersToAdd.push({
+				path: massageFolderPathForWorkspace(rootToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
+			});
+		});
+
+		if (storedFoldersToAdd.length > 0) {
+			return this.doSetRoots([...currentStoredFolders, ...storedFoldersToAdd]);
+		}
+
+		return TPromise.as(void 0);
 	}
 
 	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
@@ -46,10 +66,34 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const roots = this.contextService.getWorkspace().roots;
-		const rootsToRemoveRaw = rootsToRemove.map(root => root.toString());
+		const currentWorkspaceFolders = this.contextService.getWorkspace().roots;
+		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
-		return this.doSetRoots(roots.filter(root => rootsToRemoveRaw.indexOf(root.toString()) === -1));
+		const newStoredFolders: IStoredWorkspaceFolder[] = currentStoredFolders.filter((folder, index) => {
+			if (!folder.path) {
+				return true; // keep entries which are unrelated
+			}
+
+			return !this.contains(rootsToRemove, currentWorkspaceFolders[index]); // keep entries which are unrelated
+		});
+
+		if (newStoredFolders.length !== currentStoredFolders.length) {
+			return this.doSetRoots(newStoredFolders);
+		}
+
+		return TPromise.as(void 0);
+	}
+
+	private doSetRoots(roots: IStoredWorkspaceFolder[]): TPromise<void> {
+		if (roots.length) {
+			const workspace = this.contextService.getWorkspace();
+
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: roots }, true);
+		} else {
+			// TODO: Sandeep - Removing all roots?
+		}
+
+		return TPromise.as(void 0);
 	}
 
 	private isSupported(): boolean {
@@ -60,41 +104,13 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		);
 	}
 
-	private doSetRoots(newRoots: URI[]): TPromise<void> {
-		const workspace = this.contextService.getWorkspace();
-		const currentWorkspaceRoots = this.contextService.getWorkspace().roots.map(root => root.fsPath);
-		const newWorkspaceRoots = this.validateRoots(newRoots);
+	private contains(resources: URI[], toCheck: URI): boolean {
+		return resources.some(resource => {
+			if (isLinux) {
+				return resource.toString() === toCheck.toString();
+			}
 
-		// See if there are any changes
-		if (equals(currentWorkspaceRoots, newWorkspaceRoots)) {
-			return TPromise.as(void 0);
-		}
-
-		// Apply to config
-		if (newWorkspaceRoots.length) {
-			const workspaceConfigFolder = dirname(workspace.configuration.fsPath);
-			const value: IStoredWorkspaceFolder[] = newWorkspaceRoots.map(newWorkspaceRoot => {
-				if (isEqualOrParent(newWorkspaceRoot, workspaceConfigFolder, !isLinux)) {
-					newWorkspaceRoot = relative(workspaceConfigFolder, newWorkspaceRoot) || '.'; // absolute paths get converted to relative ones to workspace location if possible
-				}
-
-				return { path: newWorkspaceRoot };
-			});
-
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value }, true);
-		} else {
-			// TODO: Sandeep - Removing all roots?
-		}
-
-		return TPromise.as(null);
-	}
-
-	private validateRoots(roots: URI[]): string[] {
-		if (!roots) {
-			return [];
-		}
-
-		// Prevent duplicates
-		return distinct(roots.map(root => root.fsPath), root => isLinux ? root : root.toLowerCase());
+			return resource.toString().toLowerCase() === toCheck.toString().toLowerCase();
+		});
 	}
 }

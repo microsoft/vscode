@@ -5,6 +5,7 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 export const CONFIG_DEFAULT_NAME = 'settings';
 export const WORKSPACE_CONFIG_FOLDER_DEFAULT_NAME = '.vscode';
@@ -19,6 +20,10 @@ export interface IWorkspaceConfigurationService extends IConfigurationService {
 	 */
 	getUnsupportedWorkspaceKeys(): string[];
 
+	/**
+	 * Returns the raw folders configuration for this workspace.
+	 */
+	getFoldersConfiguration(): IStoredWorkspaceFolder[];
 }
 
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = {
