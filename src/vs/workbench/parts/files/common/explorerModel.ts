@@ -25,7 +25,7 @@ export class Model {
 	private _roots: FileStat[];
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map((uri, index) => new FileStat(uri, undefined, undefined, undefined, undefined, undefined, undefined, index));
+		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
 		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
 		setRoots();
 	}
@@ -74,7 +74,7 @@ export class FileStat implements IFileStat {
 	public exists: boolean;
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string, public rootIndex?: number) {
+	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
