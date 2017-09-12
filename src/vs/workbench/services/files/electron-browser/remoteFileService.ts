@@ -6,10 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
+import Event from 'vs/base/common/event';
 import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event from 'vs/base/common/event';
-import { EventEmitter } from 'events';
 import { basename } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as Ftp from './ftpFileSystemProvider';
@@ -25,6 +24,7 @@ import { groupBy, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compare } from 'vs/base/common/strings';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
+import { decodeStream } from 'vs/base/node/encoding';
 
 
 export interface IStat {
@@ -198,7 +198,7 @@ export class RemoteFileService extends FileService {
 	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			return this._doResolveContent(provider, resource);
+			return this._doResolveContent(provider, resource).then(RemoteFileService._asContent);
 		} else {
 			return super.resolveContent(resource, options);
 		}
@@ -207,25 +207,28 @@ export class RemoteFileService extends FileService {
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			return this._doResolveContent(provider, resource).then(RemoteFileService._asStreamContent);
+			return this._doResolveContent(provider, resource);
 		} else {
 			return super.resolveStreamContent(resource, options);
 		}
 	}
 
-	private async _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IContent> {
+	private async _doResolveContent(provider: IRemoteFileSystemProvider, resource: URI): TPromise<IStreamContent> {
 
-		const chunks: Uint8Array[] = [];
-		await provider.read(resource, new Progress<Uint8Array>(chunk => chunks.push(chunk)));
 		const stat = await toIFileStat(provider, await provider.stat(resource), false);
 
+		const encoding = this.getEncoding(resource);
+		const stream = decodeStream(encoding);
+		await provider.read(resource, new Progress<Uint8Array>(chunk => stream.write(<Buffer>chunk)));
+		stream.end();
+
 		return {
-			value: [].concat(...chunks).toString(),
+			encoding,
+			value: stream,
 			resource: stat.resource,
 			name: stat.name,
 			etag: stat.etag,
 			mtime: stat.mtime,
-			encoding: this.getEncoding(resource)
 		};
 	}
 
@@ -258,16 +261,20 @@ export class RemoteFileService extends FileService {
 		return fileStat;
 	}
 
-	private static _asStreamContent(content: IContent): IStreamContent {
-		const emitter = new EventEmitter();
-		const { value } = content;
-		const result = <IStreamContent><any>content;
-		result.value = emitter;
-		setTimeout(() => {
-			emitter.emit('data', value);
-			emitter.emit('end');
-		}, 0);
-		return result;
+	private static _asContent(content: IStreamContent): TPromise<IContent> {
+		return new TPromise<IContent>((resolve, reject) => {
+			let result: IContent = {
+				value: '',
+				encoding: content.encoding,
+				etag: content.etag,
+				mtime: content.mtime,
+				name: content.name,
+				resource: content.resource
+			};
+			content.value.on('data', chunk => result.value += chunk);
+			content.value.on('error', reject);
+			content.value.on('end', () => resolve(result));
+		});
 	}
 
 	// --- delete
