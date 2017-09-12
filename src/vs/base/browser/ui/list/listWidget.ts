@@ -348,8 +348,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
 		this.view.domNode.focus();
 
 		let reference = this.list.getFocus()[0];
@@ -373,9 +371,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -388,9 +383,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
