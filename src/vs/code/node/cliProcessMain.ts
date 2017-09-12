@@ -133,8 +133,8 @@ class Main {
 
 	private uninstallExtension(extensions: string[]): TPromise<any> {
 		function extension2id(extension): TPromise<string> {
-			if ( !/\.vsix$/i.test ( extension ) ) {
-				return TPromise.as ( extension );
+			if (!/\.vsix$/i.test(extension)) {
+				return TPromise.as(extension);
 			} else {
 				const zipPath = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 				return validateLocalExtension(zipPath).then(getId);
