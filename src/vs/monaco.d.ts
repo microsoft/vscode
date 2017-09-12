@@ -4237,14 +4237,10 @@ declare module monaco.languages {
 		/**
 		 * Character that triggered the completion item provider.
 		 *
-		 * Undefined if provider was not triggered by a character.
+		 * `undefined` if provider was not triggered by a character.
 		 */
 		triggerCharacter?: string;
 	}
-
-	export type ProviderCompletionItems = (document: editor.IReadOnlyModel, position: Position, token: CancellationToken) => CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-
-	export type ProviderCompletionItemsForContext = (document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken) => CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 	/**
 	 * The completion item provider interface defines the contract between extensions and
@@ -4262,7 +4258,8 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems: ProviderCompletionItems | ProviderCompletionItemsForContext;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).

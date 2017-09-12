@@ -2726,13 +2726,10 @@ declare module 'vscode' {
 		/**
 		 * Character that triggered the completion item provider.
 		 *
-		 * Undefined if provider was not triggered by a character.
+		 * `undefined` if provider was not triggered by a character.
 		 */
 		readonly triggerCharacter?: string;
 	}
-
-	export type ProviderCompletionItems = (document: TextDocument, position: Position, token: CancellationToken) => ProviderResult<CompletionItem[] | CompletionList>;
-	export type ProviderCompletionItemsForContext = (document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken) => ProviderResult<CompletionItem[] | CompletionList>;
 
 	/**
 	 * The completion item provider interface defines the contract between extensions and
@@ -2759,7 +2756,8 @@ declare module 'vscode' {
 		 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
 		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCompletionItems: ProviderCompletionItems | ProviderCompletionItemsForContext;
+		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CompletionItem[] | CompletionList>;
+		provideCompletionItems(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionItem[] | CompletionList>;
 
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
