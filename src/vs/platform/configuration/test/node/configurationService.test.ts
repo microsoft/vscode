@@ -5,18 +5,18 @@
 
 'use strict';
 
-import assert = require('assert');
-import os = require('os');
-import path = require('path');
-import fs = require('fs');
+import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import extfs = require('vs/base/node/extfs');
-import uuid = require('vs/base/common/uuid');
+import * as extfs from 'vs/base/node/extfs';
+import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class SettingsTestEnvironmentService extends EnvironmentService {

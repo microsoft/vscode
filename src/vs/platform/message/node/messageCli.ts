@@ -5,7 +5,8 @@
 
 import * as readline from 'readline';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 
 export class ChoiceCliService implements IChoiceService {
 

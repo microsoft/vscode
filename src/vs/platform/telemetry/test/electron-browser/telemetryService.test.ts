@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import Errors = require('vs/base/common/errors');
+import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
 import { getConfigurationValue } from 'vs/platform/configuration/common/configuration';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -78,4 +78,4 @@ export interface IChoiceService {
 	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number>;
 }
 
-export import Severity = Severity;
+// export import Severity = Severity;

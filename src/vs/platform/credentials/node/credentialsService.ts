@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-
+var keytar = require('keytar');
 export class CredentialsService implements ICredentialsService {
 
 	_serviceBrand: any;
@@ -29,6 +29,6 @@ export class CredentialsService implements ICredentialsService {
 
 	private getKeytar() {
 		// Avoids https://github.com/Microsoft/vscode/issues/33998
-		return TPromise.wrap(import('keytar'));
+		return TPromise.wrap(keytar);
 	}
 }

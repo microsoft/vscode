@@ -5,7 +5,7 @@
 'use strict';
 
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';

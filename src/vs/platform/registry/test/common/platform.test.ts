@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Platform = require('vs/platform/registry/common/platform');
-import Types = require('vs/base/common/types');
+import * as assert from 'assert';
+import * as Platform from 'vs/platform/registry/common/platform';
+import * as Types from 'vs/base/common/types';
 
 suite('Platform / Registry', () => {
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
@@ -28,7 +28,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
