@@ -727,8 +727,8 @@ export class ExplorerView extends CollapsibleView {
 		let targetsToExpand: URI[] = [];
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
 			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		} else if (this.contextService.hasFolderWorkspace() || (this.contextService.hasMultiFolderWorkspace() && this.model.roots.length === 1)) {
-			targetsToExpand = this.model.roots.map(root => root.resource); // always expand single folder workspace and multi folder workspace with only 1 root
+		} else if (this.model.roots.length === 1) {
+			targetsToExpand = this.model.roots.map(root => root.resource); // always expand if there is just one root
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
@@ -778,7 +778,7 @@ export class ExplorerView extends CollapsibleView {
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
-			const input = this.contextService.hasFolderWorkspace() ? this.model.roots[0] : this.model;
+			const input = this.contextService.getWorkspace().configuration ? this.model : this.model.roots[0];
 			if (input === this.explorerViewer.getInput()) {
 				return this.explorerViewer.refresh();
 			}
