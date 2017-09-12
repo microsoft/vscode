@@ -176,7 +176,7 @@ export abstract class EditorInput implements IEditorInput {
 	 * Returns the description of this input that can be shown to the user. Examples include showing the description of
 	 * the input above the editor area to the side of the name of the input.
 	 */
-	public getDescription(): string {
+	public getDescription(verbosity?: Verbosity): string {
 		return null;
 	}
 
@@ -806,7 +806,8 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
-			swipeToNavigate: boolean
+			swipeToNavigate: boolean,
+			labelFormat: 'default' | 'short' | 'medium' | 'long';
 		}
 	};
 }

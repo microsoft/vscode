@@ -54,6 +54,7 @@ import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from '
 import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Color } from 'vs/base/common/color';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -428,7 +429,9 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderSettings(content, manifest, layout),
 					this.renderCommands(content, manifest, layout),
 					this.renderLanguages(content, manifest, layout),
-					this.renderThemes(content, manifest, layout),
+					this.renderColorThemes(content, manifest, layout),
+					this.renderIconThemes(content, manifest, layout),
+					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
 					this.renderViews(content, manifest, layout)
@@ -536,6 +539,8 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
+
+
 	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.debuggers || [];
@@ -587,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private renderThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
 		const contrib = contributes && contributes.themes || [];
 
@@ -596,13 +601,75 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', null, localize('themes', "Themes ({0})", contrib.length)),
+			$('summary', null, localize('colorThemes', "Color Themes ({0})", contrib.length)),
 			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
 		);
 
 		append(container, details);
 		return true;
 	}
+
+	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.iconThemes || [];
+
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('iconThemes', "Icon Themes ({0})", contrib.length)),
+			$('ul', null, ...contrib.map(theme => $('li', null, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const colors = contributes && contributes.colors;
+
+		if (!colors || !colors.length) {
+			return false;
+		}
+
+		function colorPreview(colorReference: string): Node[] {
+			let result: Node[] = [];
+			if (colorReference && colorReference[0] === '#') {
+				let color = Color.fromHex(colorReference);
+				if (color) {
+					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
+				}
+			}
+			result.push($('code', null, colorReference));
+			return result;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('colors', "Colors ({0})", colors.length)),
+			$('table', null,
+				$('tr', null,
+					$('th', null, localize('colorId', "Id")),
+					$('th', null, localize('description', "Description")),
+					$('th', null, localize('defaultDark', "Dark Default")),
+					$('th', null, localize('defaultLight', "Light Default")),
+					$('th', null, localize('defaultHC', "High Contrast Default"))
+				),
+				...colors.map(color => $('tr', null,
+					$('td', null, $('code', null, color.id)),
+					$('td', null, color.description),
+					$('td', null, ...colorPreview(color.defaults.dark)),
+					$('td', null, ...colorPreview(color.defaults.light)),
+					$('td', null, ...colorPreview(color.defaults.highContrast))
+				))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
 
 	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;

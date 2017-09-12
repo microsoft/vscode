@@ -141,8 +141,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
-			// --wait: we quit when all windows are closed
-			if (this.quitRequested || process.platform !== 'darwin' || this.environmentService.wait) {
+			if (this.quitRequested || process.platform !== 'darwin') {
 				app.quit();
 			}
 		});

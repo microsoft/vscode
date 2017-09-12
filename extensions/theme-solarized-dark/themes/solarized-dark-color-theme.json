@@ -8,6 +8,13 @@
 			}
 		},
 		{
+			"scope": "meta.embedded",
+			"settings": {
+				"background": "#002B36",
+				"foreground": "#93A1A1"
+			}
+		},
+		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {

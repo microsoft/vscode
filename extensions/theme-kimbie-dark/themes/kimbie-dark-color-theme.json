@@ -55,6 +55,13 @@
 			}
 		},
 		{
+			"scope": "meta.embedded",
+			"settings": {
+				"background": "#221a0f",
+				"foreground": "#d3af86"
+			}
+		},
+		{
 			"name": "Text",
 			"scope": "variable.parameter.function",
 			"settings": {

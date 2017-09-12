@@ -215,8 +215,18 @@ export class FileWalker {
 		let leftover = '';
 		let first = true;
 		const tree = this.initDirectoryTree();
+
 		const useRipgrep = this.config.useRipgrep;
-		const cmd = useRipgrep ? spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder)).cmd : this.spawnFindCmd(folderQuery);
+		let cmd: childProcess.ChildProcess;
+		let noSiblingsClauses: boolean;
+		if (useRipgrep) {
+			const ripgrep = spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder));
+			cmd = ripgrep.cmd;
+			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
+		} else {
+			cmd = this.spawnFindCmd(folderQuery);
+		}
+
 		this.collectStdout(cmd, 'utf8', (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
@@ -243,6 +253,19 @@ export class FileWalker {
 
 			if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
 				done(new Error('Splitting up files failed'));
+				return;
+			}
+
+			this.cmdResultCount += relativeFiles.length;
+
+			if (useRipgrep && noSiblingsClauses) {
+				for (const relativePath of relativeFiles) {
+					const basename = path.basename(relativePath);
+					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
+				}
+				if (last) {
+					done();
+				}
 				return;
 			}
 
@@ -382,8 +405,6 @@ export class FileWalker {
 	}
 
 	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFiles: string[], onResult: (result: IRawFileMatch) => void) {
-		this.cmdResultCount += relativeFiles.length;
-
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFiles.indexOf(this.filePattern) !== -1) {
 			const basename = path.basename(this.filePattern);

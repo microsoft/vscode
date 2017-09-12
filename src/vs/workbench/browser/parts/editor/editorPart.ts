@@ -24,7 +24,7 @@ import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/
 import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupOrientation, GroupArrangement, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -91,7 +91,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private editorGroupsControl: IEditorGroupsControl;
 	private memento: object;
 	private stacks: EditorStacksModel;
-	private tabOptions: ITabOptions;
+	private tabOptions: IEditorTabOptions;
 	private forceHideTabs: boolean;
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
@@ -100,7 +100,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<ITabOptions>;
+	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	private textCompareEditorVisible: IContextKey<boolean>;
 
@@ -134,7 +134,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 		this._onGroupOrientationChanged = new Emitter<void>();
-		this._onTabOptionsChanged = new Emitter<ITabOptions>();
+		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
 
 		this.visibleEditors = [];
 
@@ -159,7 +159,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: editorConfig.enablePreview,
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
-				tabCloseButton: editorConfig.tabCloseButton
+				tabCloseButton: editorConfig.tabCloseButton,
+				labelFormat: editorConfig.labelFormat,
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
@@ -170,7 +171,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: true,
 				showIcons: false,
 				showTabs: true,
-				tabCloseButton: 'right'
+				tabCloseButton: 'right',
+				labelFormat: 'default',
 			};
 
 			this.revealIfOpen = false;
@@ -221,7 +223,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				previewEditors: newPreviewEditors,
 				showIcons: editorConfig.showIcons,
 				tabCloseButton: editorConfig.tabCloseButton,
-				showTabs: this.forceHideTabs ? false : editorConfig.showTabs
+				showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
+				labelFormat: editorConfig.labelFormat,
 			};
 
 			if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
@@ -278,11 +281,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onGroupOrientationChanged.event;
 	}
 
-	public get onTabOptionsChanged(): Event<ITabOptions> {
+	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
 		return this._onTabOptionsChanged.event;
 	}
 
-	public getTabOptions(): ITabOptions {
+	public getTabOptions(): IEditorTabOptions {
 		return this.tabOptions;
 	}
 

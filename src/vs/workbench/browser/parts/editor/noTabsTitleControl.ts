@@ -118,7 +118,15 @@ export class NoTabsTitleControl extends TitleControl {
 		// Editor Label
 		const resource = toResource(editor, { supportSideBySide: true });
 		const name = editor.getName() || '';
-		const description = isActive ? (editor.getDescription() || '') : '';
+
+		const labelFormat = this.editorGroupService.getTabOptions().labelFormat;
+		let description: string;
+		if (labelFormat === 'default' && !isActive) {
+			description = ''; // hide description when group is not active and style is 'default'
+		} else {
+			description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
+		}
+
 		let title = editor.getTitle(Verbosity.LONG);
 		if (description === title) {
 			title = ''; // dont repeat what is already shown
@@ -133,5 +141,13 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();
+	}
+
+	private getVerbosity(style: string): Verbosity {
+		switch (style) {
+			case 'short': return Verbosity.SHORT;
+			case 'long': return Verbosity.LONG;
+			default: return Verbosity.MEDIUM;
+		}
 	}
 }

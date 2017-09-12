@@ -32,7 +32,7 @@ import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, Lifecycl
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEditorGroupService, GroupArrangement, GroupOrientation, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -56,6 +56,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -220,7 +222,9 @@ export class TestTextFileService extends TextFileService {
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	const configService = new TestConfigurationService();
+	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
 	instantiationService.stub(IWorkbenchEditorService, new TestEditorService());
@@ -436,14 +440,14 @@ export class TestEditorGroupService implements IEditorGroupService {
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onGroupOrientationChanged: Emitter<void>;
-	private _onTabOptionsChanged: Emitter<ITabOptions>;
+	private _onTabOptionsChanged: Emitter<IEditorTabOptions>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorsChanged = new Emitter<void>();
 		this._onGroupOrientationChanged = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
-		this._onTabOptionsChanged = new Emitter<ITabOptions>();
+		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
 
 		let services = new ServiceCollection();
 
@@ -479,7 +483,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onGroupOrientationChanged.event;
 	}
 
-	public get onTabOptionsChanged(): Event<ITabOptions> {
+	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
 		return this._onTabOptionsChanged.event;
 	}
 
@@ -536,7 +540,7 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this.stacksModel;
 	}
 
-	public getTabOptions(): ITabOptions {
+	public getTabOptions(): IEditorTabOptions {
 		return {};
 	}
 }
@@ -1162,3 +1166,21 @@ export class TestWindowsService implements IWindowsService {
 	}
 }
 
+export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
+
+	_serviceBrand: any;
+
+	constructor(private configurationService = new TestConfigurationService()) {
+	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
+	}
+
+	public getConfiguration(resource: URI, section?: string): any;
+	public getConfiguration(resource: URI, position?: IPosition, section?: string): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any;
+	public getConfiguration(resource: any, position?: any, section?: any): any {
+		return this.configurationService.getConfiguration(section, { resource });
+	}
+}

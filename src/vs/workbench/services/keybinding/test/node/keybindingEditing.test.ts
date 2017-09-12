@@ -17,7 +17,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
@@ -74,7 +74,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

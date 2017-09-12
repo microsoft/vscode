@@ -28,7 +28,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/browser/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -1078,5 +1078,10 @@ registerThemingParticipant((theme, collector) => {
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor .suggest-widget { color: ${foreground}; }`);
+	}
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-editor .suggest-widget a { color: ${link}; }`);
 	}
 });

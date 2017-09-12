@@ -33,7 +33,7 @@ import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SUPPORTED_ENCODINGS, IFileService } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -46,6 +46,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
@@ -1058,7 +1059,7 @@ export class ChangeEncodingAction extends Action {
 		actionLabel: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private fileService: IFileService
 	) {
 		super(actionId, actionLabel);
@@ -1112,7 +1113,10 @@ export class ChangeEncodingAction extends Action {
 				})
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
-					const configuredEncoding = this.configurationService.lookup('files.encoding', { resource }).value;
+
+					const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
+					const configuredEncoding = config && config.files && config.files.encoding;
+
 					let directMatchIndex: number;
 					let aliasMatchIndex: number;
 

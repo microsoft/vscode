@@ -19,14 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual, isEqualOrParent } from 'vs/base/common/paths';
 import { coalesce } from 'vs/base/common/arrays';
 import { createHash } from 'crypto';
-import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
-
-// TODO@Ben migration
-export interface ILegacyStoredWorkspace {
-	id: string;
-	folders: string[];
-}
 
 export class WorkspacesMainService implements IWorkspacesMainService {
 
@@ -106,13 +99,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 			storedWorkspace = json.parse(contents); // use fault tolerant parser
 		} catch (error) {
 			throw new Error(`${path} cannot be parsed as JSON file (${error}).`);
-		}
-
-		// TODO@Ben migration
-		const legacyStoredWorkspace = (<any>storedWorkspace) as ILegacyStoredWorkspace;
-		if (legacyStoredWorkspace.folders.some(folder => typeof folder === 'string')) {
-			storedWorkspace.folders = legacyStoredWorkspace.folders.map(folder => ({ path: URI.parse(folder).fsPath }));
-			writeFileSync(path, JSON.stringify(storedWorkspace, null, '\t'));
 		}
 
 		// Filter out folders which do not have a path set

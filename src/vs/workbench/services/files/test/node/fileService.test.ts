@@ -19,26 +19,26 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('FileService', () => {
 	let service: FileService;
-	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
 	setup(function (done) {
-		let id = uuid.generateUuid();
+		const id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
-		let sourceDir = require.toUrl('./fixtures/service');
+		const sourceDir = require.toUrl('./fixtures/service');
 
 		extfs.copy(sourceDir, testDir, (error) => {
 			if (error) {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -487,7 +487,7 @@ suite('FileService', () => {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
 			assert.equal(r.children.length, 6);
 
-			let deep = utils.getByName(r, 'deep');
+			const deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
 
 			done();
@@ -503,7 +503,7 @@ suite('FileService', () => {
 
 			assert.equal(r1.children.length, 6);
 
-			let deep = utils.getByName(r1, 'deep');
+			const deep = utils.getByName(r1, 'deep');
 			assert.equal(deep.children.length, 4);
 
 			const r2 = res[1].stat;
@@ -527,7 +527,7 @@ suite('FileService', () => {
 	});
 
 	test('updateContent', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'small.txt'));
+		const resource = uri.file(path.join(testDir, 'small.txt'));
 
 		service.resolveContent(resource).done(c => {
 			assert.equal(c.value, 'Small File');
@@ -543,8 +543,8 @@ suite('FileService', () => {
 	});
 
 	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'small.txt'));
-		let encoding = 'utf16be';
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+		const encoding = 'utf16be';
 
 		service.resolveContent(resource).done(c => {
 			c.encoding = encoding;
@@ -564,8 +564,8 @@ suite('FileService', () => {
 	});
 
 	test('updateContent - encoding preserved (UTF 16 LE)', function (done: () => void) {
-		let encoding = 'utf16le';
-		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
+		const encoding = 'utf16le';
+		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
 		service.resolveContent(resource).done(c => {
 			assert.equal(c.encoding, encoding);
@@ -587,7 +587,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_IS_BINARY', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'binary.txt'));
+		const resource = uri.file(path.join(testDir, 'binary.txt'));
 
 		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
@@ -601,7 +601,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_IS_DIRECTORY', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'deep'));
+		const resource = uri.file(path.join(testDir, 'deep'));
 
 		service.resolveContent(resource).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
@@ -611,7 +611,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_NOT_FOUND', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, '404.html'));
+		const resource = uri.file(path.join(testDir, '404.html'));
 
 		service.resolveContent(resource).done(null, (e: FileOperationError) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
@@ -621,7 +621,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_NOT_MODIFIED_SINCE', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'index.html'));
+		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
 			return service.resolveContent(resource, { etag: c.etag }).then(null, (e: FileOperationError) => {
@@ -633,7 +633,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_MODIFIED_SINCE', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'index.html'));
+		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
 			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
@@ -647,8 +647,8 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - encoding picked up', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'index.html'));
-		let encoding = 'windows1252';
+		const resource = uri.file(path.join(testDir, 'index.html'));
+		const encoding = 'windows1252';
 
 		service.resolveContent(resource, { encoding: encoding }).done(c => {
 			assert.equal(c.encoding, encoding);
@@ -658,7 +658,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - user overrides BOM', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
+		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
 		service.resolveContent(resource, { encoding: 'windows1252' }).done(c => {
 			assert.equal(c.encoding, 'windows1252');
@@ -668,7 +668,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - BOM removed', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
+		const resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
 			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
@@ -678,7 +678,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - invalid encoding', function (done: () => void) {
-		let resource = uri.file(path.join(testDir, 'index.html'));
+		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource, { encoding: 'superduper' }).done(c => {
 			assert.equal(c.encoding, 'utf8');
@@ -688,7 +688,7 @@ suite('FileService', () => {
 	});
 
 	test('watchFileChanges', function (done: () => void) {
-		let toWatch = uri.file(path.join(testDir, 'index.html'));
+		const toWatch = uri.file(path.join(testDir, 'index.html'));
 
 		service.watchFileChanges(toWatch);
 
@@ -705,7 +705,7 @@ suite('FileService', () => {
 	});
 
 	test('watchFileChanges - support atomic save', function (done: () => void) {
-		let toWatch = uri.file(path.join(testDir, 'index.html'));
+		const toWatch = uri.file(path.join(testDir, 'index.html'));
 
 		service.watchFileChanges(toWatch);
 
@@ -729,21 +729,23 @@ suite('FileService', () => {
 	test('options - encoding', function (done: () => void) {
 
 		// setup
-		let _id = uuid.generateUuid();
-		let _testDir = path.join(parentDir, _id);
-		let _sourceDir = require.toUrl('./fixtures/service');
+		const _id = uuid.generateUuid();
+		const _testDir = path.join(parentDir, _id);
+		const _sourceDir = require.toUrl('./fixtures/service');
 
 		extfs.copy(_sourceDir, _testDir, () => {
-			let encodingOverride: IEncodingOverride[] = [];
+			const encodingOverride: IEncodingOverride[] = [];
 			encodingOverride.push({
 				resource: uri.file(path.join(testDir, 'deep')),
 				encoding: 'utf16le'
 			});
 
-			let configurationService = new TestConfigurationService();
+			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration('files', { encoding: 'windows1252' });
 
-			let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), configurationService, {
+			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
+
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), textResourceConfigurationService, configurationService, {
 				encodingOverride,
 				disableWatcher: true
 			});
@@ -765,12 +767,12 @@ suite('FileService', () => {
 	test('UTF 8 BOMs', function (done: () => void) {
 
 		// setup
-		let _id = uuid.generateUuid();
-		let _testDir = path.join(parentDir, _id);
-		let _sourceDir = require.toUrl('./fixtures/service');
-		let resource = uri.file(path.join(testDir, 'index.html'));
+		const _id = uuid.generateUuid();
+		const _testDir = path.join(parentDir, _id);
+		const _sourceDir = require.toUrl('./fixtures/service');
+		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		let _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), new TestConfigurationService(), {
+		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, [uri.file(_testDir)])), new TestTextResourceConfigurationService(), new TestConfigurationService(), {
 			disableWatcher: true
 		});
 

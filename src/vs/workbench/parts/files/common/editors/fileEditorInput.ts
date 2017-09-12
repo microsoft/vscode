@@ -32,8 +32,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private textModelReference: TPromise<IReference<ITextEditorModel>>;
 
 	private name: string;
-	private description: string;
-	private verboseDescription: string;
+
+	private shortDescription: string;
+	private mediumDescription: string;
+	private longDescription: string;
 
 	private shortTitle: string;
 	private mediumTitle: string;
@@ -128,18 +130,22 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.decorateOrphanedFiles(this.name);
 	}
 
-	public getDescription(verbose?: boolean): string {
-		if (verbose) {
-			if (!this.verboseDescription) {
-				this.verboseDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService);
-			}
-		} else {
-			if (!this.description) {
-				this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
-			}
+	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription ? this.shortDescription : (this.shortDescription = paths.basename(labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService)));
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription ? this.longDescription : (this.longDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), void 0, this.environmentService));
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription ? this.mediumDescription : (this.mediumDescription = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService));
+				break;
 		}
 
-		return verbose ? this.verboseDescription : this.description;
+		return description;
 	}
 
 	public getTitle(verbosity: Verbosity): string {

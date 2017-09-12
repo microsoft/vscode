@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Proto from '../protocol';
+import { MarkdownString } from 'vscode';
 
 export function plain(parts: Proto.SymbolDisplayPart[]): string {
 	if (!parts) {
@@ -24,20 +25,15 @@ export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 		.join('  \n\n');
 }
 
-function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
-	return (tags || [])
-		.map(tag => {
-			const label = `@${tag.name}`;
-			if (!tag.text) {
-				return label;
-			}
-			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
-		})
-		.join('\n\ngit');
-}
-
-export function plainDocumentation(documentation: Proto.SymbolDisplayPart[], tags: Proto.JSDocTagInfo[]): string {
-	const processedDocumentation = plain(documentation).replace(/\n([ \t]*\n)?/gm, (x) => x.length >= 2 ? '\n\n' : ' ');
-	const parts = [processedDocumentation, tagsPlainPreview(tags)];
-	return parts.filter(x => x).join('\n\n');
+export function markdownDocumentation(
+	documentation: Proto.SymbolDisplayPart[],
+	tags: Proto.JSDocTagInfo[]
+): MarkdownString {
+	const out = new MarkdownString();
+	out.appendMarkdown(plain(documentation));
+	const tagsPreview = tagsMarkdownPreview(tags);
+	if (tagsPreview) {
+		out.appendMarkdown('\n\n' + tagsPreview);
+	}
+	return out;
 }

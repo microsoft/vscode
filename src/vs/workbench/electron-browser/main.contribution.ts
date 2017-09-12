@@ -129,6 +129,23 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
 		'default': true
 	},
+	'workbench.editor.labelFormat': {
+		'type': 'string',
+		'enum': ['default', 'short', 'medium', 'long'],
+		'enumDescriptions': [
+			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path is added. When tabs are disabled, the path relative to workspace root is shown if the editor is active."),
+			nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
+			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace root."),
+			nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
+		],
+		'default': 'default',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
+			`Controls the format of the label for an editor. Changing this setting can for example make it easier to understand the location of a file:
+- short:   'parent'
+- medium:  'workspace/src/parent'
+- long:    '/home/user/workspace/src/parent'
+- default: '.../parent', when another tab shares the same title, or the relative workspace path if tabs are disabled`),
+	},
 	'workbench.editor.tabCloseButton': {
 		'type': 'string',
 		'enum': ['left', 'right', 'off'],

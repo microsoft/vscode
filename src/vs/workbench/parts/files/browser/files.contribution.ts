@@ -201,15 +201,18 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.encoding': {
 			'type': 'string',
+			'overridable': true,
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
-			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
-			'scope': ConfigurationScope.RESOURCE
+			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can be configured per language too."),
+			'scope': ConfigurationScope.RESOURCE,
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
+			'overridable': true,
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files"),
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files. This setting can be configured per language too."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.eol': {

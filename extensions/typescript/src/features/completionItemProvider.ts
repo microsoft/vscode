@@ -251,7 +251,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			const detail = details[0];
 			item.detail = Previewer.plain(detail.displayParts);
 
-			item.documentation = Previewer.plainDocumentation(detail.documentation, detail.tags);
+			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {

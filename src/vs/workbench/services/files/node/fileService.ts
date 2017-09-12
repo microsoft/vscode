@@ -36,6 +36,7 @@ import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/file
 import { toFileChangesEvent, normalize, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEncodingOverride {
@@ -93,8 +94,9 @@ export class FileService implements IFileService {
 
 	constructor(
 		private contextService: IWorkspaceContextService,
+		private textResourceConfigurationService: ITextResourceConfigurationService,
 		private configurationService: IConfigurationService,
-		options: IFileServiceOptions,
+		options: IFileServiceOptions
 	) {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
@@ -638,13 +640,13 @@ export class FileService implements IFileService {
 	}
 
 	private configuredAutoGuessEncoding(resource: uri): boolean {
-		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
 
 		return config && config.files && config.files.autoGuessEncoding === true;
 	}
 
 	private configuredEncoding(resource: uri): string {
-		const config = this.configurationService.getConfiguration(void 0, { resource }) as IFilesConfiguration;
+		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
 
 		return config && config.files && config.files.encoding;
 	}

@@ -79,9 +79,9 @@ export class TextEditorState {
 	}
 }
 
-interface ISerializedFileHistoryEntry {
-	resource?: string;
-	resourceJSON: object;
+interface ISerializedEditorHistoryEntry {
+	resourceJSON?: object;
+	editorInputJSON?: { typeId: string; deserialized: string; };
 }
 
 interface IEditorIdentifier {
@@ -224,7 +224,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.save()));
+		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
 		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
 		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
@@ -710,34 +710,58 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.loaded = true;
 	}
 
-	private save(): void {
+	private saveHistory(): void {
 		if (!this.history) {
 			return; // nothing to save because history was not used
 		}
 
-		const entries: ISerializedFileHistoryEntry[] = this.history.map(input => {
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+
+		const entries: ISerializedEditorHistoryEntry[] = this.history.map(input => {
+
+			// Editor input: try via factory
 			if (input instanceof EditorInput) {
-				return void 0; // only file resource inputs are serializable currently
+				const factory = registry.getEditorInputFactory(input.getTypeId());
+				if (factory) {
+					return { editorInputJSON: { typeId: input.getTypeId(), deserialized: factory.serialize(input) } } as ISerializedEditorHistoryEntry;
+				}
 			}
 
-			return { resourceJSON: (input as IResourceInput).resource.toJSON() };
+			// File resource: via URI.toJSON()
+			else {
+				return { resourceJSON: (input as IResourceInput).resource.toJSON() } as ISerializedEditorHistoryEntry;
+			}
+
+			return void 0;
 		}).filter(serialized => !!serialized);
 
 		this.storageService.store(HistoryService.STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE);
 	}
 
 	private loadHistory(): void {
-		let entries: ISerializedFileHistoryEntry[] = [];
+		let entries: ISerializedEditorHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			entries = JSON.parse(entriesRaw);
 		}
 
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+
 		this.history = entries.map(entry => {
-			const serializedFileInput = entry as ISerializedFileHistoryEntry;
-			if (serializedFileInput.resource || serializedFileInput.resourceJSON) {
-				return { resource: !!serializedFileInput.resourceJSON ? URI.revive(serializedFileInput.resourceJSON) : URI.parse(serializedFileInput.resource) } as IResourceInput;
+			const serializedEditorHistoryEntry = entry as ISerializedEditorHistoryEntry;
+
+			// File resource: via URI.revive()
+			if (serializedEditorHistoryEntry.resourceJSON) {
+				return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) } as IResourceInput;
+			}
+
+			// Editor input: via factory
+			if (serializedEditorHistoryEntry.editorInputJSON) {
+				const factory = registry.getEditorInputFactory(serializedEditorHistoryEntry.editorInputJSON.typeId);
+				if (factory) {
+					return factory.deserialize(this.instantiationService, serializedEditorHistoryEntry.editorInputJSON.deserialized);
+				}
 			}
 
 			return void 0;
