@@ -9,6 +9,7 @@ var util = require('./lib/util');
 var common = require('./lib/optimize');
 var es = require('event-stream');
 var File = require('vinyl');
+var compilation = require('./lib/compilation');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
@@ -196,6 +197,15 @@ gulp.task('analyze-editor-distro', function() {
 
 	console.log(JSON.stringify(detailed, null, '\t'));
 });
+
+const rootDir = path.join(__dirname, '../src');
+const tsOptions = require('../src/tsconfig.esm.json').compilerOptions;
+tsOptions.verbose = false;
+tsOptions.sourceMap = true;
+tsOptions.rootDir = rootDir;
+tsOptions.sourceRoot = util.toFileUri(rootDir);
+gulp.task('clean-client-esm-build', util.rimraf('out-build-esm'));
+gulp.task('compile-client-esm-build', ['clean-client-esm-build'], compilation.compileEditorTask('out-build-esm', true, tsOptions));
 
 function filterStream(testFunc) {
 	return es.through(function(data) {

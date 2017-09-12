@@ -22,18 +22,18 @@ import * as fs from 'fs';
 const reporter = createReporter();
 
 const rootDir = path.join(__dirname, '../../src');
-const options = require('../../src/tsconfig.json').compilerOptions;
-options.verbose = false;
-options.sourceMap = true;
-options.rootDir = rootDir;
-options.sourceRoot = util.toFileUri(rootDir);
+const tsOptions = require('../../src/tsconfig.json').compilerOptions;
+tsOptions.verbose = false;
+tsOptions.sourceMap = true;
+tsOptions.rootDir = rootDir;
+tsOptions.sourceRoot = util.toFileUri(rootDir);
 
-function createCompile(build: boolean, emitError?: boolean): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
-	const opts = _.clone(options);
-	opts.inlineSources = !!build;
-	opts.noFilesystemLookup = true;
+function createCompile(build: boolean, options: { emitError?: boolean, overrideTSOptions?: any }): (token?: util.ICancellationToken) => NodeJS.ReadWriteStream {
+	const tsOpts = _.clone(options.overrideTSOptions ? options.overrideTSOptions : tsOptions);
+	tsOpts.inlineSources = !!build;
+	tsOpts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
+	const ts = tsb.create(tsOpts, null, null, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -56,10 +56,10 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
-				sourceRoot: options.sourceRoot
+				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(emitError));
+			.pipe(reporter.end(options.emitError));
 
 		return es.duplex(input, output);
 	};
@@ -68,7 +68,7 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 export function compileTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile(build, true);
+		const compile = createCompile(build, { emitError: true });
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
@@ -85,7 +85,7 @@ export function compileTask(out: string, build: boolean): () => NodeJS.ReadWrite
 export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
-		const compile = createCompile(build);
+		const compile = createCompile(build, {});
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
@@ -97,6 +97,31 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(util.incremental(compile, src, true))
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, true));
+	};
+}
+
+export function compileEditorTask(out: string, build: boolean, overrideTSOptions: any): () => NodeJS.ReadWriteStream {
+	return function () {
+		const compile = createCompile(build, { emitError: true, overrideTSOptions: overrideTSOptions });
+
+		const src = es.merge(
+			gulp.src([
+				"src/**",
+				"src/vs/base/**/*",
+				"!src/vs/code/**/*",
+				"!src/vs/workbench/**",
+				"!**/test/**",
+				"!**/node/**",
+				"!**/electron-main/**",
+				"!**/electron-browser/**"
+			], { base: 'src' }),
+			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+		);
+
+		return src
+			.pipe(compile())
+			.pipe(gulp.dest(out))
+			.pipe(monacodtsTask(out, false));
 	};
 }
 

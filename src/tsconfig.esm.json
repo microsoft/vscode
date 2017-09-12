@@ -1,0 +1,18 @@
+{
+	"compilerOptions": {
+		"module": "es2015",
+		"moduleResolution": "classic",
+		"noImplicitAny": false,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"target": "es5",
+		"sourceMap": false,
+		"experimentalDecorators": true,
+		"declaration": true,
+		"noImplicitReturns": true,
+		"baseUrl": ".",
+		"typeRoots": [
+			"typings"
+		]
+	}
+}

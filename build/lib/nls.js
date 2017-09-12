@@ -1,8 +1,8 @@
-"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+"use strict";
 var ts = require("typescript");
 var lazy = require("lazy.js");
 var event_stream_1 = require("event-stream");
@@ -44,7 +44,7 @@ function template(lines) {
         indent = '\t';
         wrap = '\n';
     }
-    return "/*---------------------------------------------------------\n * Copyright (C) Microsoft Corporation. All rights reserved.\n *--------------------------------------------------------*/\ndefine([], [" + (wrap + lines.map(function (l) { return indent + l; }).join(',\n') + wrap) + "]);";
+    return "var brackets = [" + (wrap + lines.map(function (l) { return indent + l; }).join(',\n') + wrap) + "];\nexport const localize = function(index, params) {\n\treturn brackets[index];\n}";
 }
 /**
  * Returns a stream containing the patched JavaScript and source maps.
@@ -94,7 +94,7 @@ function isImportNode(node) {
         return { line: position.line - 1, character: position.column };
     }
     nls_1.lcFrom = lcFrom;
-    var SingleFileServiceHost = /** @class */ (function () {
+    var SingleFileServiceHost = (function () {
         function SingleFileServiceHost(options, filename, contents) {
             var _this = this;
             this.options = options;
@@ -200,7 +200,7 @@ function isImportNode(node) {
         };
     }
     nls_1.analyze = analyze;
-    var TextModel = /** @class */ (function () {
+    var TextModel = (function () {
         function TextModel(contents) {
             var regex = /\r\n|\r|\n/g;
             var index = 0;

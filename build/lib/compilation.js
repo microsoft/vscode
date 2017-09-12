@@ -19,16 +19,16 @@ var monacodts = require("../monaco/api");
 var fs = require("fs");
 var reporter = reporter_1.createReporter();
 var rootDir = path.join(__dirname, '../../src');
-var options = require('../../src/tsconfig.json').compilerOptions;
-options.verbose = false;
-options.sourceMap = true;
-options.rootDir = rootDir;
-options.sourceRoot = util.toFileUri(rootDir);
-function createCompile(build, emitError) {
-    var opts = _.clone(options);
-    opts.inlineSources = !!build;
-    opts.noFilesystemLookup = true;
-    var ts = tsb.create(opts, null, null, function (err) { return reporter(err.toString()); });
+var tsOptions = require('../../src/tsconfig.json').compilerOptions;
+tsOptions.verbose = false;
+tsOptions.sourceMap = true;
+tsOptions.rootDir = rootDir;
+tsOptions.sourceRoot = util.toFileUri(rootDir);
+function createCompile(build, options) {
+    var tsOpts = _.clone(options.overrideTSOptions ? options.overrideTSOptions : tsOptions);
+    tsOpts.inlineSources = !!build;
+    tsOpts.noFilesystemLookup = true;
+    var ts = tsb.create(tsOpts, null, null, function (err) { return reporter(err.toString()); });
     return function (token) {
         var utf8Filter = util.filter(function (data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
         var tsFilter = util.filter(function (data) { return /\.ts$/.test(data.path); });
@@ -47,16 +47,16 @@ function createCompile(build, emitError) {
             .pipe(sourcemaps.write('.', {
             addComment: false,
             includeContent: !!build,
-            sourceRoot: options.sourceRoot
+            sourceRoot: tsOptions.sourceRoot
         }))
             .pipe(tsFilter.restore)
-            .pipe(reporter.end(emitError));
+            .pipe(reporter.end(options.emitError));
         return es.duplex(input, output);
     };
 }
 function compileTask(out, build) {
     return function () {
-        var compile = createCompile(build, true);
+        var compile = createCompile(build, { emitError: true });
         var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
         return src
             .pipe(compile())
@@ -67,7 +67,7 @@ function compileTask(out, build) {
 exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
-        var compile = createCompile(build);
+        var compile = createCompile(build, {});
         var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
         var watchSrc = watch('src/**', { base: 'src' });
         return watchSrc
@@ -77,6 +77,26 @@ function watchTask(out, build) {
     };
 }
 exports.watchTask = watchTask;
+function compileEditorTask(out, build, overrideTSOptions) {
+    return function () {
+        var compile = createCompile(build, { emitError: true, overrideTSOptions: overrideTSOptions });
+        var src = es.merge(gulp.src([
+            "src/**",
+            "src/vs/base/**/*",
+            "!src/vs/code/**/*",
+            "!src/vs/workbench/**",
+            "!**/test/**",
+            "!**/node/**",
+            "!**/electron-main/**",
+            "!**/electron-browser/**"
+        ], { base: 'src' }), gulp.src('node_modules/typescript/lib/lib.d.ts'));
+        return src
+            .pipe(compile())
+            .pipe(gulp.dest(out))
+            .pipe(monacodtsTask(out, false));
+    };
+}
+exports.compileEditorTask = compileEditorTask;
 function reloadTypeScriptNodeModule() {
     var util = require('gulp-util');
     function log(message) {

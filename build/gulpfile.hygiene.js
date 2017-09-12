@@ -65,7 +65,9 @@ const indentationFilter = [
 	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
 	'!**/vs/base/common/marked/raw.marked.js',
+	'!**/vs/base/common/marked/raw.marked.esm.js',
 	'!**/vs/base/common/winjs.base.raw.js',
+	'!**/vs/base/common/winjs.base.esm.js',
 	'!**/vs/base/node/terminateProcess.sh',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
@@ -107,7 +109,9 @@ const eslintFilter = [
 	'!src/vs/css.build.js',
 	'!src/vs/nls.build.js',
 	'!src/**/winjs.base.raw.js',
+	'!src/**/winjs.base.esm.js',
 	'!src/**/raw.marked.js',
+	'!src/**/raw.marked.esm.js',
 	'!**/test/**'
 ];
 

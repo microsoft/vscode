@@ -57,10 +57,10 @@ function template(lines: string[]): string {
 		wrap = '\n';
 	}
 
-	return `/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
+	return `var brackets = [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}];
+export const localize = function(index, params) {
+	return brackets[index];
+}`;
 }
 
 /**
