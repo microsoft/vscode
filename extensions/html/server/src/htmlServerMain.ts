@@ -54,7 +54,7 @@ documents.onDidClose(e => {
 });
 
 function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
-	console.log('scopedSettingsSupport ' + scopedSettingsSupport + 'needsSettings ' + needsDocumentSettings());
+	console.log('scopedSettingsSupport ' + scopedSettingsSupport + ' needsSettings ' + needsDocumentSettings());
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
