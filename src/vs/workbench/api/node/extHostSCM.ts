@@ -287,6 +287,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._label;
 	}
 
+	get rootUri(): vscode.Uri | undefined {
+		return this._rootUri;
+	}
+
 	private _inputBox: ExtHostSCMInputBox;
 	get inputBox(): ExtHostSCMInputBox { return this._inputBox; }
 
@@ -356,9 +360,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
+		private _rootUri?: vscode.Uri
 	) {
 		this._inputBox = new ExtHostSCMInputBox(this._proxy, this.handle);
-		this._proxy.$registerSourceControl(this.handle, _id, _label);
+		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri && _rootUri.toString());
 	}
 
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
@@ -468,9 +473,9 @@ export class ExtHostSCM {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label);
+		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];

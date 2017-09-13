@@ -486,14 +486,14 @@ export function createApiFactory(
 			get inputBox() {
 				return extHostSCM.getLastInputBox(extension);
 			},
-			createSourceControl(id: string, label: string) {
+			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				mainThreadTelemetry.$publicLog('registerSCMProvider', {
 					extensionId: extension.id,
 					providerId: id,
 					providerLabel: label
 				});
 
-				return extHostSCM.createSourceControl(extension, id, label);
+				return extHostSCM.createSourceControl(extension, id, label, rootUri);
 			}
 		};
 
