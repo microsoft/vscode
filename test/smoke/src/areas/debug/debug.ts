@@ -63,8 +63,8 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
 		await this.spectron.client.waitFor(async () => {
 			const output = await this.getConsoleOutput();
-			return output.pop();
-		}, text => text === 'Debugger attached.');
+			return output.join('');
+		}, text => text.indexOf('Debugger listening on') >= 0);
 	}
 
 	async stepOver(): Promise<any> {
