@@ -25,12 +25,12 @@ describe('Dataloss', () => {
 		await app.reload();
 		await app.screenCapturer.capture('After reload');
 
-		await app.workbench.waitForActiveOpen(fileName, true);
+		await app.workbench.waitForActiveTab(fileName, true);
 		await app.screenCapturer.capture(`${fileName} after reload`);
 		let actual = await app.workbench.editor.getEditorFirstLineText();
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 
-		await app.workbench.waitForOpen(untitled, true);
+		await app.workbench.waitForTab(untitled, true);
 		await app.workbench.selectTab('Untitled-1', true);
 		await app.screenCapturer.capture('Untitled file after reload');
 		actual = await app.workbench.editor.getEditorFirstLineText();

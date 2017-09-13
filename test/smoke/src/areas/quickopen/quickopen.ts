@@ -52,8 +52,7 @@ export class QuickOpen {
 
 		await this.getQuickOpenElements();
 		await this.spectron.client.keys(['Enter', 'NULL']);
-		await this.spectron.client.waitForElement(`.tabs-container div[aria-selected="true"][aria-label="${fileName}, tab"]`);
-		await this.spectron.client.waitForElement(`div.editor-container[aria-label="${fileName}. Text file editor., Group 1."]`);
+		await this.spectron.workbench.waitForActiveTab(fileName);
 		await this.spectron.workbench.waitForEditorFocus(fileName);
 	}
 

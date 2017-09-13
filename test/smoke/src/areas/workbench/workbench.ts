@@ -63,30 +63,28 @@ export class Workbench {
 
 	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
 		await this.spectron.client.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
-		await this.waitForActiveOpen(tabName);
 		await this.waitForEditorFocus(tabName, untitled);
 	}
 
 	public async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
-		await this.spectron.client.waitForElement(`.editor-container[aria-label="${fileName}. ${untitled ? 'Untitled file text editor.' : 'Text file editor.'}, Group 1."] .monaco-editor.focused`);
+		await this.waitForActiveTab(fileName);
+		await this.spectron.client.waitForElement(`.editor-container[aria-label="${fileName}. ${untitled ? 'Untitled file text editor.' : 'Text file editor.'}, Group 1."] .monaco-editor textarea:focus`);
 	}
 
-	public async waitForActiveOpen(fileName: string, isDirty: boolean = false): Promise<boolean> {
+	public async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
 		return this.spectron.client.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`).then(() => true);
 	}
 
-	public async waitForOpen(fileName: string, isDirty: boolean = false): Promise<boolean> {
+	public async waitForTab(fileName: string, isDirty: boolean = false): Promise<boolean> {
 		return this.spectron.client.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`).then(() => true);
 	}
 
 	public async newUntitledFile(): Promise<void> {
 		await this.spectron.command('workbench.action.files.newUntitledFile');
-		await this.waitForActiveOpen('Untitled-1');
 		await this.waitForEditorFocus('Untitled-1', true);
 	}
 
 	async openFile(fileName: string): Promise<void> {
 		await this.quickopen.openFile(fileName);
-		await this.spectron.client.waitForElement(`.monaco-editor.focused`);
 	}
 }

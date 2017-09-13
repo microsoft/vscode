@@ -104,7 +104,7 @@ export class Debug extends Viewlet {
 	async focusStackFrame(name: string): Promise<any> {
 		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
-		await this.spectron.workbench.waitForOpen(name);
+		await this.spectron.workbench.waitForTab(name);
 	}
 
 	async console(text: string): Promise<string> {
