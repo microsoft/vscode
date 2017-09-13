@@ -7,7 +7,7 @@
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { ISearchService, QueryType, ISearchQuery, ISearchProgressItem, ISearchComplete } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -53,13 +53,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspaceState() === WorkspaceState.EMPTY ? null : this._contextService.getWorkspace());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		if (this._contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return undefined;
 		}
 

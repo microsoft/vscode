@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -179,7 +179,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, workspaceSettingsUri);
 		}
 
-		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.FOLDER, uri);
 		}
 
@@ -191,7 +191,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(): TPromise<IEditor> {
-		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
@@ -299,7 +299,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private resolveSettingsContentFromWorkspaceConfiguration(): TPromise<string> {
-		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			return this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)
 				.then(reference => {
 					const model = reference.object.textEditorModel;
@@ -316,7 +316,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
-				if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					return null;
 				}
 				const workspace = this.contextService.getWorkspace();
@@ -333,7 +333,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
-		if (this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
 			if (!this.configurationService.keys().workspace.length) {
 				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
 			}

@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { RunOnceScheduler, wireCancellationToken } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID } from 'vs/workbench/parts/output/common/output';
 import { MonacoWebWorker, createWebWorker } from 'vs/editor/common/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/parts/output/common/outputLinkComputer';
@@ -43,7 +43,7 @@ export class OutputLinkProvider {
 	private updateLinkProviderWorker(): void {
 
 		// We have a workspace
-		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 
 			// Register link provider unless done already
 			if (!this.linkProviderRegistration) {

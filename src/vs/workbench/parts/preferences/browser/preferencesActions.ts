@@ -11,7 +11,7 @@ import { Action } from 'vs/base/common/actions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 export class OpenGlobalSettingsAction extends Action {
@@ -80,7 +80,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
-		this.enabled = this.workspaceContextService.getWorkspaceState() !== WorkspaceState.EMPTY;
+		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -101,7 +101,7 @@ export class OpenFolderSettingsAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
-		this.enabled = this.workspaceContextService.getWorkspaceState() === WorkspaceState.WORKSPACE;
+		this.enabled = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 	}
 
 	public run(): TPromise<any> {

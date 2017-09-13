@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import product from 'vs/platform/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -70,7 +70,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		if (this.dropdown) {
-			this.dropdown.label.style('background-color', this.getColor(this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+			this.dropdown.label.style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
 

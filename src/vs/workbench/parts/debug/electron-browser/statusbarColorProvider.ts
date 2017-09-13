@@ -9,7 +9,7 @@ import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorReg
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
 import { addClass, removeClass } from 'vs/base/browser/dom';
 
@@ -75,7 +75,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 		// Not debugging
 		if (!this.isDebugging()) {
-			if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 				return normalColor;
 			}
 

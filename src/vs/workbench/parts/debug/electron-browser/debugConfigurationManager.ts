@@ -26,7 +26,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, DEBUG_SCHEME, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
@@ -353,7 +353,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private initLaunches(): void {
-		this.launches = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.contextService.getWorkspace().roots.map(root => this.instantiationService.createInstance(Launch, this, root)) : [];
+		this.launches = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots.map(root => this.instantiationService.createInstance(Launch, this, root)) : [];
 		if (this.launches.indexOf(this._selectedLaunch) === -1) {
 			this._selectedLaunch = undefined;
 		}

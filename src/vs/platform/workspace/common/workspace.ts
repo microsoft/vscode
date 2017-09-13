@@ -14,7 +14,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export enum WorkspaceState {
+export enum WorkbenchState {
 	EMPTY = 1,
 	FOLDER,
 	WORKSPACE
@@ -30,13 +30,13 @@ export interface IWorkspaceContextService {
 	getWorkspace(): IWorkspace;
 
 	/**
-	 * Return the state of the current workspace.
+	 * Return the state of the workbench.
 	 *
-	 * WorkspaceState.EMPTY - if the application was opened with empty window or file
-	 * WorkspaceState.FOLDER - if the application was opened with a folder
-	 * WorkspaceState.WORKSPACE - if the application was opened with a workspace
+	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
+	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
+	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
 	 */
-	getWorkspaceState(): WorkspaceState;
+	getWorkbenchState(): WorkbenchState;
 
 	/**
 	 * An event which fires on workspace name changes.

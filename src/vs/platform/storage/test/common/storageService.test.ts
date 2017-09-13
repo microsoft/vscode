@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, IWorkspace, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
@@ -19,7 +19,7 @@ suite('Workbench StorageSevice', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		contextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
-			getWorkspaceState: () => WorkspaceState.FOLDER,
+			getWorkbenchState: () => WorkbenchState.FOLDER,
 			getWorkspace: () => {
 				return <IWorkspace>TestWorkspace;
 			}

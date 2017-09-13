@@ -11,7 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
@@ -152,7 +152,7 @@ export class WorkspaceStats {
 		tags['workbench.filesToCreate'] = filesToCreate && filesToCreate.length || undefined;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || undefined;
 
-		const isEmpty = this.contextService.getWorkspaceState() === WorkspaceState.EMPTY;
+		const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const workspace = this.contextService.getWorkspace();
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.roots.length;
 		tags['workspace.empty'] = isEmpty;

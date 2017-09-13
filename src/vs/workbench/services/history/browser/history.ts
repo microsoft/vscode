@@ -15,7 +15,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -769,7 +769,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public getLastActiveWorkspaceRoot(): URI {
-		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return void 0;
 		}
 

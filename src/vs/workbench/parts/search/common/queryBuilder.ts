@@ -12,7 +12,7 @@ import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -184,7 +184,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.EMPTY || !searchPaths || !searchPaths.length) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}
@@ -212,7 +212,7 @@ export class QueryBuilder {
 			return [paths.normalize(searchPath)];
 		}
 
-		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
 			return [paths.normalize(
 				paths.join(this.workspaceContextService.getWorkspace().roots[0].fsPath, searchPath))];
 		} else if (searchPath === './') {

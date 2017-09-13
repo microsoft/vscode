@@ -18,7 +18,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { readFile, stat } from 'vs/base/node/pfs';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as extfs from 'vs/base/node/extfs';
-import { IWorkspaceContextService, IWorkspace, Workspace, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -198,14 +198,14 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspace;
 	}
 
-	public getWorkspaceState(): WorkspaceState {
+	public getWorkbenchState(): WorkbenchState {
 		if (this.workspace) {
 			if (this.workspace.configuration) {
-				return WorkspaceState.WORKSPACE;
+				return WorkbenchState.WORKSPACE;
 			}
-			return WorkspaceState.FOLDER;
+			return WorkbenchState.FOLDER;
 		}
-		return WorkspaceState.EMPTY;
+		return WorkbenchState.EMPTY;
 	}
 
 	public getRoot(resource: URI): URI {
@@ -371,7 +371,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	public getUnsupportedWorkspaceKeys(): string[] {
-		return this.getWorkspaceState() === WorkspaceState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).workspaceSettingsConfig.unsupportedKeys : [];
+		return this.getWorkbenchState() === WorkbenchState.FOLDER ? this._configuration.getFolderConfigurationModel(this.workspace.roots[0]).workspaceSettingsConfig.unsupportedKeys : [];
 	}
 
 	public initialize(trigger: boolean = true): TPromise<any> {
@@ -534,7 +534,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private initCachesForFolders(folders: URI[]): void {
 		for (const folder of folders) {
-			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.getWorkspaceState() === WorkspaceState.WORKSPACE ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW)));
+			this.cachedFolderConfigs.set(folder, this._register(new FolderConfiguration(folder, this.workspaceSettingsRootFolder, this.getWorkbenchState() === WorkbenchState.WORKSPACE ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW)));
 			this.updateFolderConfiguration(folder, new FolderConfigurationModel<any>(new FolderSettingsModel<any>(null), [], ConfigurationScope.RESOURCE), false);
 		}
 	}
@@ -603,7 +603,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 
 	private updateFolderConfiguration(folder: URI, folderConfiguration: FolderConfigurationModel<any>, compare: boolean): boolean {
 		let configurationChanged = this._configuration.updateFolderConfiguration(folder, folderConfiguration, compare);
-		if (this.getWorkspaceState() === WorkspaceState.FOLDER) {
+		if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
 			// Workspace configuration changed
 			configurationChanged = this.updateWorkspaceConfiguration(compare) || configurationChanged;
 		}
@@ -611,7 +611,7 @@ export class WorkspaceServiceImpl extends WorkspaceService {
 	}
 
 	private updateWorkspaceConfiguration(compare: boolean): boolean {
-		const workspaceConfiguration = this.getWorkspaceState() === WorkspaceState.WORKSPACE ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]);
+		const workspaceConfiguration = this.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.workspaceConfiguration.workspaceConfigurationModel.workspaceConfiguration : this._configuration.getFolderConfigurationModel(this.workspace.roots[0]);
 		return this._configuration.updateWorkspaceConfiguration(workspaceConfiguration, compare);
 	}
 

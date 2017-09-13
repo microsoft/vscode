@@ -16,7 +16,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IWorkspaceContextService, Workspace, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { EmptyWorkspaceServiceImpl, WorkspaceServiceImpl, WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -79,7 +79,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkspaceState() === WorkspaceState.EMPTY);
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(configuration, workspaceService, environmentService);
 
 		timerService.beforeDOMContentLoaded = Date.now();
@@ -153,16 +153,16 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
 
-	switch (workspaceService.getWorkspaceState()) {
+	switch (workspaceService.getWorkbenchState()) {
 
 		// in multi root workspace mode we use the provided ID as key for workspace storage
-		case WorkspaceState.WORKSPACE:
+		case WorkbenchState.WORKSPACE:
 			workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
 			break;
 
 		// in single folder mode we use the path of the opened folder as key for workspace storage
 		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
-		case WorkspaceState.FOLDER:
+		case WorkbenchState.FOLDER:
 			workspaceId = workspace.roots[0].toString();
 			secondaryWorkspaceId = workspace.ctime;
 			break;
@@ -173,7 +173,7 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 		// dirty files in the workspace.
 		// We use basename() to produce a short identifier, we do not need the full path. We use a custom
 		// scheme so that we can later distinguish these identifiers from the workspace one.
-		case WorkspaceState.EMPTY:
+		case WorkbenchState.EMPTY:
 			if (configuration.backupPath) {
 				workspaceId = uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }).toString();
 			}

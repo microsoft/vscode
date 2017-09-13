@@ -27,7 +27,7 @@ import nls = require('vs/nls');
 import * as labels from 'vs/base/common/labels';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
@@ -199,7 +199,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Single Root Workspace: always the root single workspace in this case
 		// Multi Root Workspace: root folder of the currently active file if any
 		let folder: URI;
-		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			if (workspace.roots.length === 1) {
 				folder = workspace.roots[0];
 			} else {

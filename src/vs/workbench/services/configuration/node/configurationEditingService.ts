@@ -21,7 +21,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -252,7 +252,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
-		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
 		}
 
@@ -328,7 +328,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 
-		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 
 			const workspace = this.contextService.getWorkspace();
 
@@ -336,7 +336,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 				return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);
 			}
 
-			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
+			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 				if (resource) {
 					const root = this.contextService.getRoot(resource);
 					if (root) {

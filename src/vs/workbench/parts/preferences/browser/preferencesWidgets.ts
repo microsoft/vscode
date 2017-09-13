@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -293,7 +293,7 @@ export class SettingsTargetsWidget extends Widget {
 
 	private create(parent: HTMLElement): void {
 		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
-		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkspaceState() === WorkspaceState.WORKSPACE ? '200px' : '150px';
+		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? '200px' : '150px';
 
 		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
 		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
@@ -337,7 +337,7 @@ export class SettingsTargetsWidget extends Widget {
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
 
-		if (this.workspaceContextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',
@@ -348,7 +348,7 @@ export class SettingsTargetsWidget extends Widget {
 			});
 		}
 
-		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.WORKSPACE) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			actions.push(new Separator());
 			actions.push(...this.workspaceContextService.getWorkspace().roots.map((root, index) => {
 				return <IAction>{

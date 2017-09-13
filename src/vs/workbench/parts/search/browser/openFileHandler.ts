@@ -28,7 +28,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
@@ -164,7 +164,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		const folderResources = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots : [];
 		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
@@ -199,7 +199,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 
-		const folderResources = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots : [];
 		const query = this.queryBuilder.file(folderResources, options);
 
 		return query;

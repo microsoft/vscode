@@ -11,7 +11,7 @@ import nls = require('vs/nls');
 import { distinct } from 'vs/base/common/arrays';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -75,7 +75,7 @@ export abstract class BaseWorkspacesAction extends Action {
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {
 		let defaultPath: string;
-		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const workspace = this.contextService.getWorkspace();
 			if (workspace.roots.length > 0) {
 				defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
@@ -110,15 +110,15 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		switch (this.contextService.getWorkspaceState()) {
+		switch (this.contextService.getWorkbenchState()) {
 
-			case WorkspaceState.EMPTY:
+			case WorkbenchState.EMPTY:
 				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
 
-			case WorkspaceState.FOLDER:
+			case WorkbenchState.FOLDER:
 				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 
-			case WorkspaceState.WORKSPACE:
+			case WorkbenchState.WORKSPACE:
 				const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
 				if (!folders || !folders.length) {
 					return TPromise.as(null);
@@ -202,8 +202,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const workspaceState = this.contextService.getWorkspaceState();
-		if (workspaceState === WorkspaceState.EMPTY) {
+		const workspaceState = this.contextService.getWorkbenchState();
+		if (workspaceState === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('saveEmptyWorkspaceNotSupported', "Please open a workspace first to save."));
 			return TPromise.as(null);
 		}
@@ -212,11 +212,11 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		if (configPath) {
 			switch (workspaceState) {
 
-				case WorkspaceState.FOLDER:
+				case WorkbenchState.FOLDER:
 					const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.fsPath);
 					return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 
-				case WorkspaceState.WORKSPACE:
+				case WorkbenchState.WORKSPACE:
 					return this.windowService.saveAndOpenWorkspace(configPath);
 			}
 		}

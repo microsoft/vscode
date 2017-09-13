@@ -41,7 +41,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -239,7 +239,7 @@ export class SearchViewlet extends Viewlet {
 		}).getHTMLElement();
 
 		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
-		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 
@@ -468,7 +468,7 @@ export class SearchViewlet extends Viewlet {
 			this.results = div;
 			this.results.addClass('show-file-icons');
 
-			let dataSource = new SearchDataSource(this.contextService.getWorkspaceState() === WorkspaceState.WORKSPACE);
+			let dataSource = new SearchDataSource(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
@@ -753,7 +753,7 @@ export class SearchViewlet extends Viewlet {
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
-		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 		this.searchWidget.clear();
@@ -870,9 +870,9 @@ export class SearchViewlet extends Viewlet {
 
 	public searchInFolder(resource: URI): void {
 		let folderPath = null;
-		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY && resource) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && resource) {
 			const workspace = this.contextService.getWorkspace();
-			if (this.contextService.getWorkspaceState() === WorkspaceState.FOLDER) {
+			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
@@ -960,7 +960,7 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-		const folderResources = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots : [];
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
@@ -1123,7 +1123,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						let editorPromise = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
+						let editorPromise = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
 						editorPromise.done(editor => {
 							if (editor instanceof PreferencesEditor) {
 								editor.focusSearch('.exclude');
@@ -1148,7 +1148,7 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
-				if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
+				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 					this.searchWithoutFolderMessage(div);
 				}
 			} else {
