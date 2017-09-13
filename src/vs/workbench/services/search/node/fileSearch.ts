@@ -49,6 +49,7 @@ interface IDirectoryTree {
 
 export class FileWalker {
 	private config: IRawSearch;
+	private useRipgrep: boolean;
 	private filePattern: string;
 	private normalizedFilePatternLowercase: string;
 	private includePattern: glob.ParsedExpression;
@@ -73,6 +74,7 @@ export class FileWalker {
 
 	constructor(config: IRawSearch) {
 		this.config = config;
+		this.useRipgrep = config.useRipgrep !== false;
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || null;
@@ -153,7 +155,7 @@ export class FileWalker {
 
 			let traverse = this.nodeJSTraversal;
 			if (!this.maxFilesize) {
-				if (this.config.useRipgrep) {
+				if (this.useRipgrep) {
 					this.traversal = Traversal.Ripgrep;
 					traverse = this.cmdTraversal;
 				} else if (platform.isMacintosh) {
@@ -216,11 +218,11 @@ export class FileWalker {
 		let first = true;
 		const tree = this.initDirectoryTree();
 
-		const useRipgrep = this.config.useRipgrep;
+		const useRipgrep = this.useRipgrep;
 		let cmd: childProcess.ChildProcess;
 		let noSiblingsClauses: boolean;
 		if (useRipgrep) {
-			const ripgrep = spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder));
+			const ripgrep = spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
 		} else {
@@ -236,7 +238,7 @@ export class FileWalker {
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? strings.normalizeNFC(stdout) : stdout);
 			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
-			if (first && normalized.length >= 2) {
+			if (!useRipgrep && first && normalized.length >= 2) {
 				first = false;
 				relativeFiles[0] = relativeFiles[0].trim().substr(2);
 			}
@@ -367,7 +369,7 @@ export class FileWalker {
 
 		cmd.on('close', (code: number) => {
 			if (code !== 0) {
-				done(new Error(`find failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
+				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				done(null, '', true);
 			}
@@ -710,8 +712,8 @@ class AbsoluteAndRelativeParsedExpression {
 	private absoluteParsedExpr: glob.ParsedExpression;
 	private relativeParsedExpr: glob.ParsedExpression;
 
-	constructor(expr: glob.IExpression, private root: string) {
-		this.init(expr);
+	constructor(public expression: glob.IExpression, private root: string) {
+		this.init(expression);
 	}
 
 	/**
