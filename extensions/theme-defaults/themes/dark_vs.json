@@ -248,11 +248,12 @@
 			}
 		},
 		{
-			"name": "JavaScript string interpolation ${}",
+			"name": "String interpolation",
 			"scope": [
 				"punctuation.definition.template-expression.begin",
 				"punctuation.definition.template-expression.end",
-				"punctuation.section.embedded"
+				"punctuation.section.embedded",
+				"constant.character.format.placeholder"
 			],
 			"settings": {
 				"foreground": "#569cd6"
