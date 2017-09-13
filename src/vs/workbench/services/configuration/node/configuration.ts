@@ -208,10 +208,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return WorkspaceState.EMPTY;
 	}
 
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
-	}
-
 	public getRoot(resource: URI): URI {
 		return this.workspace ? this.workspace.getRoot(resource) : null;
 	}

@@ -18,7 +18,7 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -104,7 +104,7 @@ export class CloseWorkspaceAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);

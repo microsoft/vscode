@@ -191,7 +191,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openWorkspaceSettings(): TPromise<IEditor> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}

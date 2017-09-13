@@ -239,7 +239,7 @@ export class SearchViewlet extends Viewlet {
 		}).getHTMLElement();
 
 		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 
@@ -753,7 +753,7 @@ export class SearchViewlet extends Viewlet {
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.searchWithoutFolderMessage(this.clearMessage());
 		}
 		this.searchWidget.clear();
@@ -960,7 +960,7 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.contextService.getWorkspace().roots : [];
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
@@ -1123,7 +1123,7 @@ export class SearchViewlet extends Viewlet {
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
-						let editorPromise = this.contextService.hasWorkspace() ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
+						let editorPromise = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
 						editorPromise.done(editor => {
 							if (editor instanceof PreferencesEditor) {
 								editor.focusSearch('.exclude');
@@ -1148,7 +1148,7 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 
-				if (!this.contextService.hasWorkspace()) {
+				if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 					this.searchWithoutFolderMessage(div);
 				}
 			} else {

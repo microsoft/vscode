@@ -252,7 +252,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
-		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && !this.contextService.hasWorkspace()) {
+		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
 		}
 

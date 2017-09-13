@@ -104,10 +104,6 @@ export class TestContextService implements IWorkspaceContextService {
 		return WorkspaceState.EMPTY;
 	}
 
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
-	}
-
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}

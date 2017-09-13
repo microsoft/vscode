@@ -79,7 +79,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
-		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !workspaceService.hasWorkspace());
+		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkspaceState() === WorkspaceState.EMPTY);
 		const storageService = createStorageService(configuration, workspaceService, environmentService);
 
 		timerService.beforeDOMContentLoaded = Date.now();

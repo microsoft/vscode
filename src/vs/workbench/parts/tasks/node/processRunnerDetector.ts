@@ -18,7 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import * as TaskConfig from './taskConfiguration';
@@ -156,7 +156,7 @@ export class ProcessRunnerDetector {
 		this.taskConfiguration = config;
 		this._stderr = [];
 		this._stdout = [];
-		this._cwd = this.contextService.hasWorkspace() ? Paths.normalize(this.contextService.getWorkspace().roots[0].fsPath, true) : '';
+		this._cwd = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? Paths.normalize(this.contextService.getWorkspace().roots[0].fsPath, true) : '';
 	}
 
 	public get stderr(): string[] {

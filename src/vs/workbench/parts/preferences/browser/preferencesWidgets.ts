@@ -337,7 +337,7 @@ export class SettingsTargetsWidget extends Widget {
 			run: () => this.onTargetClicked(userSettingsResource)
 		});
 
-		if (this.workspaceContextService.hasWorkspace()) {
+		if (this.workspaceContextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
 			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
 			actions.push(<IAction>{
 				id: 'workspaceSettingsTarget',

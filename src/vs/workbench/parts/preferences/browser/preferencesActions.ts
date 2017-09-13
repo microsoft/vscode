@@ -80,7 +80,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
-		this.enabled = this.workspaceContextService.hasWorkspace();
+		this.enabled = this.workspaceContextService.getWorkspaceState() !== WorkspaceState.EMPTY;
 	}
 
 	public run(event?: any): TPromise<any> {

@@ -108,22 +108,23 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		if (!this.contextService.hasWorkspace()) {
-			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
-		}
+		switch (this.contextService.getWorkspaceState()) {
 
-		if (this.contextService.getWorkspaceState() === WorkspaceState.FOLDER) {
-			return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
-		}
+			case WorkspaceState.EMPTY:
+				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
 
-		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
-		if (!folders || !folders.length) {
-			return TPromise.as(null);
-		}
+			case WorkspaceState.FOLDER:
+				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 
-		return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
-			return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
-		});
+			case WorkspaceState.WORKSPACE:
+				const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
+				if (!folders || !folders.length) {
+					return TPromise.as(null);
+				}
+				return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
+					return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
+				});
+		}
 	}
 }
 

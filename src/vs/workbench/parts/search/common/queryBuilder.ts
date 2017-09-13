@@ -184,7 +184,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (!this.workspaceContextService.hasWorkspace() || !searchPaths || !searchPaths.length) {
+		if (this.workspaceContextService.getWorkspaceState() === WorkspaceState.EMPTY || !searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}

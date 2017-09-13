@@ -67,7 +67,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IConfigurationEditingService, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -113,7 +113,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 	}
 
 	public run(event?: any): TPromise<IEditor> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return TPromise.as(undefined);
 		}
@@ -308,7 +308,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		this.icons.forEach(icon => {
-			icon.style.backgroundColor = this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
+			icon.style.backgroundColor = this.getColor(this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 		});
 	}
 
@@ -1547,7 +1547,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
-		let result = this.contextService.hasWorkspace() ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().roots[0] }) : undefined;
+		let result = this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().roots[0] }) : undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
 		}
@@ -1589,7 +1589,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private hasDetectorSupport(config: TaskConfig.ExternalTaskRunnerConfiguration): boolean {
-		if (!config.command || !this.contextService.hasWorkspace()) {
+		if (!config.command || this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			return false;
 		}
 		return ProcessRunnerDetector.supports(config.command);
@@ -1700,7 +1700,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private canRunCommand(): boolean {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() === WorkspaceState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return false;
 		}

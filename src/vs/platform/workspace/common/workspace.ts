@@ -24,6 +24,12 @@ export interface IWorkspaceContextService {
 	_serviceBrand: any;
 
 	/**
+	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
+	 * without workspace (empty);
+	 */
+	getWorkspace(): IWorkspace;
+
+	/**
 	 * Return the state of the current workspace.
 	 *
 	 * WorkspaceState.EMPTY - if the application was opened with empty window or file
@@ -31,17 +37,6 @@ export interface IWorkspaceContextService {
 	 * WorkspaceState.WORKSPACE - if the application was opened with a workspace
 	 */
 	getWorkspaceState(): WorkspaceState;
-
-	/**
-	 * Returns if the application was opened with a workspace or not.
-	 */
-	hasWorkspace(): boolean;
-
-	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
-	 */
-	getWorkspace(): IWorkspace;
 
 	/**
 	 * An event which fires on workspace name changes.

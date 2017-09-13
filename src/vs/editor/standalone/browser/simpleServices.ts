@@ -553,10 +553,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
 	}
 
-	public hasWorkspace(): boolean {
-		return true;
-	}
-
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}

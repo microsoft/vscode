@@ -19,7 +19,7 @@ import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
@@ -745,7 +745,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Check for workspace settings file
-		if (this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
 			return this.contextService.getWorkspace().roots.some(root => {
 				return paths.isEqualOrParent(this.resource.fsPath, path.join(root.fsPath, '.vscode'));
 			});
