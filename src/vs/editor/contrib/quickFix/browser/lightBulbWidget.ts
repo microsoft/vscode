@@ -29,11 +29,11 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-		this._editor.addContentWidget(this);
-
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'lightbulb-glyph';
+
+		this._editor = editor;
+		this._editor.addContentWidget(this);
 
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => {
 			// a bit of extra work to make sure the menu

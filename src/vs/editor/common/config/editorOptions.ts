@@ -115,6 +115,17 @@ export interface IEditorMinimapOptions {
 }
 
 /**
+ * Configuration options for editor minimap
+ */
+export interface IEditorLightbulbOptions {
+	/**
+	 * Enable the lightbulb code action.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * Configuration options for the editor.
  */
 export interface IEditorOptions {
@@ -463,6 +474,10 @@ export interface IEditorOptions {
 	 */
 	referenceInfos?: boolean;
 	/**
+	 * Control the behavior and rendering of the code action lightbulb.
+	 */
+	lightbulb?: IEditorLightbulbOptions;
+	/**
 	 * Enable code folding
 	 * Defaults to true in vscode and to false in monaco-editor.
 	 */
@@ -795,6 +810,7 @@ export interface EditorContribOptions {
 	readonly matchBrackets: boolean;
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
+	readonly lightbulbEnabled: boolean;
 }
 
 /**
@@ -1140,6 +1156,7 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
+			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
 
@@ -1669,6 +1686,7 @@ export class EditorOptionsValidator {
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
+			lightbulbEnabled: _boolean(opts.lightbulb.enabled, defaults.lightbulbEnabled)
 		};
 	}
 }
@@ -1766,7 +1784,8 @@ export class InternalEditorOptionsFactory {
 				showFoldingControls: opts.contribInfo.showFoldingControls,
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
-				colorDecorators: opts.contribInfo.colorDecorators
+				colorDecorators: opts.contribInfo.colorDecorators,
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
 			}
 		};
 	}
@@ -2205,6 +2224,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false
 		},
-		colorDecorators: true
+		colorDecorators: true,
+		lightbulbEnabled: true
 	},
 };
