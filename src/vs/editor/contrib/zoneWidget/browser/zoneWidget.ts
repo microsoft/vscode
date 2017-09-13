@@ -206,6 +206,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		this.editor.deltaDecorations(this._positionMarkerId, []);
+		super.dispose();
 	}
 
 	public create(): void {
