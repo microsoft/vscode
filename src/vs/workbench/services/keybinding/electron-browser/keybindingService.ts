@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -296,7 +295,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._firstTimeComputingResolver = true;
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
-		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
+		this.toDispose.push(this.userKeybindings);
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;

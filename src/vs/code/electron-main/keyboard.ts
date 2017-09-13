@@ -174,4 +174,9 @@ export class KeybindingsResolver {
 
 		return this.keybindings[commandId];
 	}
+
+	public dispose(): void {
+		this._onKeybindingsChanged.dispose();
+		this.keybindingsWatcher.dispose();
+	}
 }
