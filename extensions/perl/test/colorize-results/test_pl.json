@@ -388,11 +388,11 @@
 		"c": "\\s",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -410,11 +410,11 @@
 		"c": "\\s",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -432,11 +432,11 @@
 		"c": "\\(",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -454,11 +454,11 @@
 		"c": "\\)",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -476,11 +476,11 @@
 		"c": "\\)",
 		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -674,11 +674,11 @@
 		"c": "\\n",
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -949,11 +949,11 @@
 		"c": "\\n",
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -1444,11 +1444,11 @@
 		"c": "\\n",
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -2280,11 +2280,11 @@
 		"c": "\\n",
 		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{

@@ -20716,11 +20716,11 @@
 		"c": "\\\\",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss constant.character.escape.scss",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -20837,11 +20837,11 @@
 		"c": "\\'",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss constant.character.escape.scss",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
@@ -20914,11 +20914,11 @@
 		"c": "\\\"",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss constant.character.escape.scss",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.character.escape: #C586C0",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{

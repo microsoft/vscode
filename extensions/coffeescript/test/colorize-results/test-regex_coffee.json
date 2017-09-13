@@ -80,11 +80,11 @@
 		"c": "\\d",
 		"t": "source.coffee string.regexp.coffee meta.group.regexp constant.character.character-class.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character: #569CD6",
+			"light_plus": "constant.character: #0000FF",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
