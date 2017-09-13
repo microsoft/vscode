@@ -25,7 +25,7 @@ import uri from 'vs/base/common/uri';
 import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
@@ -101,7 +101,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceRootsCount = contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? contextService.getWorkspace().roots.length : 0;
+		this.currentWorkspaceRootsCount = contextService.getWorkspace().roots.length;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -129,7 +129,7 @@ export class FileService implements IFileService {
 	}
 
 	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots.length : 0;
+		const newRootCount = this.contextService.getWorkspace().roots.length;
 
 		let restartWorkspaceWatcher = false;
 		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {

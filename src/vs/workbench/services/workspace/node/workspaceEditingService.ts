@@ -53,10 +53,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private isSupported(): boolean {
-		const workspace = this.contextService.getWorkspace();
 		return (
 			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& workspace && !!workspace.configuration // we need a workspace configuration file to begin with
+			&& !!this.contextService.getWorkspace().configuration // we need a workspace configuration file to begin with
 		);
 	}
 

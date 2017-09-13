@@ -22,7 +22,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import path = require('path');
 import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
@@ -80,7 +79,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
-		const storageService = createStorageService(configuration, workspaceService, environmentService);
+		const storageService = createStorageService(workspaceService, environmentService);
 
 		timerService.beforeDOMContentLoaded = Date.now();
 
@@ -116,10 +115,10 @@ function createAndInitializeWorkspaceService(configuration: IWindowConfiguration
 		if (configuration.workspace || configuration.folderPath) {
 			workspaceService = new WorkspaceServiceImpl(configuration.workspace || configuration.folderPath, environmentService, workspacesService);
 		} else {
-			workspaceService = new EmptyWorkspaceServiceImpl(environmentService);
+			workspaceService = new EmptyWorkspaceServiceImpl(configuration, environmentService);
 		}
 
-		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(environmentService));
+		return workspaceService.initialize().then(() => workspaceService, error => new EmptyWorkspaceServiceImpl(configuration, environmentService));
 	});
 }
 
@@ -147,8 +146,7 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 	});
 }
 
-function createStorageService(configuration: IWindowConfiguration, workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
-	const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
+function createStorageService(workspaceService: IWorkspaceContextService, environmentService: IEnvironmentService): IStorageService {
 
 	let workspaceId: string;
 	let secondaryWorkspaceId: number;
@@ -157,12 +155,13 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 
 		// in multi root workspace mode we use the provided ID as key for workspace storage
 		case WorkbenchState.WORKSPACE:
-			workspaceId = uri.from({ path: workspace.id, scheme: 'root' }).toString();
+			workspaceId = uri.from({ path: workspaceService.getWorkspace().id, scheme: 'root' }).toString();
 			break;
 
 		// in single folder mode we use the path of the opened folder as key for workspace storage
 		// the ctime is used as secondary workspace id to clean up stale UI state if necessary
 		case WorkbenchState.FOLDER:
+			const workspace: Workspace = <Workspace>workspaceService.getWorkspace();
 			workspaceId = workspace.roots[0].toString();
 			secondaryWorkspaceId = workspace.ctime;
 			break;
@@ -174,9 +173,7 @@ function createStorageService(configuration: IWindowConfiguration, workspaceServ
 		// We use basename() to produce a short identifier, we do not need the full path. We use a custom
 		// scheme so that we can later distinguish these identifiers from the workspace one.
 		case WorkbenchState.EMPTY:
-			if (configuration.backupPath) {
-				workspaceId = uri.from({ path: path.basename(configuration.backupPath), scheme: 'empty' }).toString();
-			}
+			workspaceId = workspaceService.getWorkspace().id;
 			break;
 	}
 

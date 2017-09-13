@@ -75,11 +75,9 @@ export abstract class BaseWorkspacesAction extends Action {
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {
 		let defaultPath: string;
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const workspace = this.contextService.getWorkspace();
-			if (workspace.roots.length > 0) {
-				defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
-			}
+		const workspace = this.contextService.getWorkspace();
+		if (workspace.roots.length > 0) {
+			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showOpenDialog({
@@ -110,23 +108,16 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		switch (this.contextService.getWorkbenchState()) {
-
-			case WorkbenchState.EMPTY:
-				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, []).run();
-
-			case WorkbenchState.FOLDER:
-				return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
-
-			case WorkbenchState.WORKSPACE:
-				const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
-				if (!folders || !folders.length) {
-					return TPromise.as(null);
-				}
-				return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
-					return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
-				});
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
+			if (!folders || !folders.length) {
+				return TPromise.as(null);
+			}
+			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
+				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
+			});
 		}
+		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
 	}
 }
 
@@ -277,8 +268,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	) {
 		super(id, label);
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		this.enabled = workspace && !!workspace.configuration;
+		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
 	public run(): TPromise<any> {

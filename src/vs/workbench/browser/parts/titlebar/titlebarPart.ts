@@ -192,27 +192,17 @@ export class TitlebarPart extends Part implements ITitleService {
 		const input = this.editorService.getActiveEditorInput();
 		const workspace = this.contextService.getWorkspace();
 
-		// root resource is either workspace configuration file or the first root
-		let root: URI = workspace ? workspace.configuration || workspace.roots[0] : null;
-
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
-		// Multi Root Workspace: root folder of the currently active file if any
-		let folder: URI;
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			if (workspace.roots.length === 1) {
-				folder = workspace.roots[0];
-			} else {
-				folder = this.contextService.getRoot(toResource(input, { supportSideBySide: true, filter: 'file' }));
-			}
-		}
+		// Otherwise: root folder of the currently active file if any
+		let folder: URI = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.roots[0] : this.contextService.getRoot(toResource(input, { supportSideBySide: true, filter: 'file' }));
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const rootName = workspace ? workspace.name : '';
-		const rootPath = root ? labels.getPathLabel(root, void 0, this.environmentService) : '';
+		const rootName = workspace.name;
+		const rootPath = labels.getPathLabel(workspace.configuration || workspace.roots[0], void 0, this.environmentService) || '';
 		const folderName = folder ? (paths.basename(folder.fsPath) || folder.fsPath) : '';
 		const folderPath = folder ? labels.getPathLabel(folder, void 0, this.environmentService) : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';

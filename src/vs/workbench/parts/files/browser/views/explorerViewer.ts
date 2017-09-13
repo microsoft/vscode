@@ -838,7 +838,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.contextService.getWorkspace().roots.every(r => r.toString() !== target.resource.toString())) {
+			if (this.contextService.getWorkspace().roots.every(r => r.toString() !== target.resource.toString())) {
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 			}
 		}

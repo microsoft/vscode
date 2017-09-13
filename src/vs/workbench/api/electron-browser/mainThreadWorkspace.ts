@@ -59,11 +59,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
-		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		const workspace = this._contextService.getWorkspace();
+		if (!workspace.roots.length) {
 			return undefined;
 		}
-
-		const workspace = this._contextService.getWorkspace();
 		const query: ISearchQuery = {
 			folderQueries: workspace.roots.map(root => ({ folder: root })),
 			type: QueryType.File,

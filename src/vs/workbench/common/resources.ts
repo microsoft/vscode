@@ -8,7 +8,7 @@
 import URI from 'vs/base/common/uri';
 import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -106,17 +106,15 @@ export class ResourceGlobMatcher {
 		let changed = false;
 
 		// Add excludes per workspaces that got added
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.contextService.getWorkspace().roots.forEach(root => {
-				const rootExcludes = this.globFn(root);
-				if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
-					changed = true;
+		this.contextService.getWorkspace().roots.forEach(root => {
+			const rootExcludes = this.globFn(root);
+			if (!this.mapRootToExpressionConfig.has(root.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(root.toString()), rootExcludes)) {
+				changed = true;
 
-					this.mapRootToParsedExpression.set(root.toString(), this.parseFn(rootExcludes));
-					this.mapRootToExpressionConfig.set(root.toString(), objects.clone(rootExcludes));
-				}
-			});
-		}
+				this.mapRootToParsedExpression.set(root.toString(), this.parseFn(rootExcludes));
+				this.mapRootToExpressionConfig.set(root.toString(), objects.clone(rootExcludes));
+			}
+		});
 
 		// Remove excludes per workspace no longer present
 		this.mapRootToExpressionConfig.forEach((value, root) => {

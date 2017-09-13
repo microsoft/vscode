@@ -56,7 +56,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -886,12 +886,10 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 			return true;
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			for (const root of this.workspaceContextService.getWorkspace().roots) {
-				const folderSettingsResource = this.preferencesService.getFolderSettingsResource(root);
-				if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
-					return true;
-				}
+		for (const root of this.workspaceContextService.getWorkspace().roots) {
+			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(root);
+			if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
+				return true;
 			}
 		}
 

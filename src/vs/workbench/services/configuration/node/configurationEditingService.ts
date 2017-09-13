@@ -296,14 +296,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 				// Check for prefix
 				if (config.key === key) {
-					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key] : [];
+					const jsonPath = workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key] : [];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
+					const jsonPath = workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 			}
@@ -316,7 +316,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		const resource = this.getConfigurationFileResource(target, WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
-		if (workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
+		if (workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
 			jsonPath = ['settings', ...jsonPath];
 		}
 		return { key, jsonPath, value: config.value, resource };

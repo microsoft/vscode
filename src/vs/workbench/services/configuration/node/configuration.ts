@@ -34,6 +34,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/exten
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 interface IStat {
 	resource: URI;
@@ -199,21 +200,22 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	public getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
+		// Workspace has configuration file
+		if (this.workspace.configuration) {
+			return WorkbenchState.WORKSPACE;
+		}
+
+		// Folder has single root
+		if (this.workspace.roots.length === 1) {
 			return WorkbenchState.FOLDER;
 		}
+
+		// Empty
 		return WorkbenchState.EMPTY;
 	}
 
 	public getRoot(resource: URI): URI {
-		return this.workspace ? this.workspace.getRoot(resource) : null;
-	}
-
-	private get workspaceUri(): URI {
-		return this.workspace ? this.workspace.roots[0] : null;
+		return this.workspace.getRoot(resource);
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -221,19 +223,17 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		if (!this.workspace) {
-			return false;
+		switch (this.getWorkbenchState()) {
+			case WorkbenchState.FOLDER:
+				return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.roots[0].fsPath, workspaceIdentifier);
+			case WorkbenchState.WORKSPACE:
+				return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
 		}
-
-		if (this.workspace.configuration) {
-			return isWorkspaceIdentifier(workspaceIdentifier) && this.workspace.id === workspaceIdentifier.id;
-		}
-
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.roots[0].fsPath, workspaceIdentifier);
+		return false;
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
-		if (this.workspace && this.workspace.roots.length) {
+		if (this.workspace.roots.length) {
 			return URI.file(paths.join(this.workspace.roots[0].fsPath, workspaceRelativePath));
 		}
 		return null;
@@ -312,8 +312,10 @@ export class EmptyWorkspaceServiceImpl extends WorkspaceService {
 
 	private baseConfigurationService: GlobalConfigurationService<any>;
 
-	constructor(environmentService: IEnvironmentService) {
+	constructor(configuration: IWindowConfiguration, environmentService: IEnvironmentService) {
 		super();
+		let id = configuration.backupPath ? URI.from({ path: paths.basename(configuration.backupPath), scheme: 'empty' }).toString() : '';
+		this.workspace = new Workspace(id, '', []);
 		this.baseConfigurationService = this._register(new GlobalConfigurationService(environmentService));
 		this._register(this.baseConfigurationService.onDidUpdateConfiguration(e => this.onBaseConfigurationChanged(e)));
 		this.resetCaches();

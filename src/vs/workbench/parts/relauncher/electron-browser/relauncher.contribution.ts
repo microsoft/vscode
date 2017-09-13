@@ -14,7 +14,7 @@ import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface IConfiguration extends IWindowsConfiguration {
@@ -43,13 +43,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const workspace = this.contextService.getWorkspace();
-			this.rootCount = workspace.roots.length;
-			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-		} else {
-			this.rootCount = 0;
-		}
+		const workspace = this.contextService.getWorkspace();
+		this.rootCount = workspace.roots.length;
+		this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 

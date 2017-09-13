@@ -15,7 +15,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Action } from 'vs/base/common/actions';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -146,11 +146,9 @@ export class FileService implements IFileService {
 	private getEncodingOverrides(): IEncodingOverride[] {
 		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.contextService.getWorkspace().roots.forEach(root => {
-				encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
-			});
-		}
+		this.contextService.getWorkspace().roots.forEach(root => {
+			encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
+		});
 
 		return encodingOverride;
 	}

@@ -324,8 +324,7 @@ export class WorkspaceStats {
 	}
 
 	public reportCloudStats(): void {
-		const workspace = this.contextService.getWorkspace();
-		const uris = workspace && workspace.roots;
+		const uris = this.contextService.getWorkspace().roots;
 		if (uris && uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
 			this.reportRemotes(uris);

@@ -870,8 +870,8 @@ export class SearchViewlet extends Viewlet {
 
 	public searchInFolder(resource: URI): void {
 		let folderPath = null;
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && resource) {
-			const workspace = this.contextService.getWorkspace();
+		const workspace = this.contextService.getWorkspace();
+		if (resource) {
 			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
 				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
@@ -960,7 +960,7 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-		const folderResources = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().roots;
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
