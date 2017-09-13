@@ -14,7 +14,7 @@ import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkspaceState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface IConfiguration extends IWindowsConfiguration {
@@ -43,8 +43,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
+		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+			const workspace = this.contextService.getWorkspace();
 			this.rootCount = workspace.roots.length;
 			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
 		} else {
@@ -102,8 +102,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private onDidChangeWorkspaceRoots(): void {
 		const workspace = this.contextService.getWorkspace();
 
-		const newRootCount = workspace ? workspace.roots.length : 0;
-		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		const newRootCount = workspace.roots.length;
+		const newFirstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
 
 		let reloadWindow = false;
 		let reloadExtensionHost = false;

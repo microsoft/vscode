@@ -327,9 +327,10 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return URI.file(this.environmentService.appSettingsPath);
 		}
 
-		const workspace = this.contextService.getWorkspace();
 
-		if (workspace) {
+		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+
+			const workspace = this.contextService.getWorkspace();
 
 			if (target === ConfigurationTarget.WORKSPACE) {
 				return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);

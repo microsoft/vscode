@@ -74,10 +74,12 @@ export abstract class BaseWorkspacesAction extends Action {
 	}
 
 	protected pickFolders(buttonLabel: string, title: string): string[] {
-		const workspace = this.contextService.getWorkspace();
 		let defaultPath: string;
-		if (workspace && workspace.roots.length > 0) {
-			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
+		if (this.contextService.getWorkspaceState() !== WorkspaceState.EMPTY) {
+			const workspace = this.contextService.getWorkspace();
+			if (workspace.roots.length > 0) {
+				defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
+			}
 		}
 
 		return this.windowService.showOpenDialog({
