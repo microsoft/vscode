@@ -544,11 +544,26 @@ export interface CompletionList {
  */
 export interface CompletionContext {
 	/**
+	 * How the completion was triggered.
+	 */
+	readonly trigger: 'auto' | 'manual';
+
+	/**
 	 * Character that triggered the completion item provider.
 	 *
 	 * `undefined` if provider was not triggered by a character.
 	 */
 	triggerCharacter?: string;
+}
+
+export namespace CompletionItemProvider {
+	export interface ProvideCompletionItems {
+		(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	}
+
+	export interface ProvideCompletionItemsForContext {
+		(document: editorCommon.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	}
 }
 
 /**
@@ -567,8 +582,7 @@ export interface CompletionItemProvider {
 	/**
 	 * Provide completion items for the given position and document.
 	 */
-	provideCompletionItems(document: editorCommon.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-	provideCompletionItems(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	provideCompletionItems: CompletionItemProvider.ProvideCompletionItems | CompletionItemProvider.ProvideCompletionItemsForContext;
 
 	/**
 	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -657,8 +671,8 @@ class SuggestAdapter {
 
 	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
 		const result = this._provider.provideCompletionItems.length <= 3
-			? this._provider.provideCompletionItems(model, position, token)
-			: this._provider.provideCompletionItems(model, position, context, token);
+			? (this._provider.provideCompletionItems as CompletionItemProvider.ProvideCompletionItems)(model, position, token)
+			: (this._provider.provideCompletionItems as CompletionItemProvider.ProvideCompletionItemsForContext)(model, position, context, token);
 
 		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {

@@ -251,6 +251,7 @@ export interface ISuggestResult {
  * @internal
  */
 export interface SuggestContext {
+	trigger: 'auto' | 'manual';
 	triggerCharacter?: string;
 }
 

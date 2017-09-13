@@ -42,8 +42,6 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 	return old;
 }
 
-const emptySuggestContext: SuggestContext = {};
-
 export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
@@ -58,6 +56,8 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 	if (snippetConfig !== 'none' && _snippetSuggestSupport) {
 		supports.unshift([_snippetSuggestSupport]);
 	}
+
+	const suggestConext = context || { trigger: 'auto' };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -75,7 +75,7 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 					return undefined;
 				}
 
-				return asWinJsPromise(token => support.provideCompletionItems(model, position, context || emptySuggestContext, token)).then(container => {
+				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
 					const len = allSuggestions.length;
 

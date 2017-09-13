@@ -357,7 +357,8 @@ export class SuggestModel implements IDisposable {
 			this.editor.getConfiguration().contribInfo.snippetSuggestions,
 			onlyFrom,
 			{
-				triggerCharacter: context.triggerCharacter
+				triggerCharacter: context.triggerCharacter,
+				trigger: context.auto ? 'auto' : 'manual'
 			}
 		).then(items => {
 

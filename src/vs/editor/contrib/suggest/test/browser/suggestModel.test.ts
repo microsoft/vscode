@@ -463,6 +463,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems(doc, pos, context) {
+				assert.equal(context.trigger, 'auto');
 				triggerCharacter = context.triggerCharacter;
 				return <ISuggestResult>{
 					currentWord: '',

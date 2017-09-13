@@ -4235,11 +4235,32 @@ declare module monaco.languages {
 	 */
 	export interface CompletionContext {
 		/**
+		 * How the completion was triggered.
+		 */
+		readonly trigger: 'auto' | 'manual';
+		/**
 		 * Character that triggered the completion item provider.
 		 *
 		 * `undefined` if provider was not triggered by a character.
 		 */
 		triggerCharacter?: string;
+	}
+
+	export namespace CompletionItemProvider {
+		interface ProvideCompletionItems {
+			(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		}
+		interface ProvideCompletionItemsForContext {
+			(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		}
+	}
+
+	interface ProvideCompletionItems {
+		(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	}
+
+	interface ProvideCompletionItemsForContext {
+		(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 	}
 
 	/**
@@ -4258,8 +4279,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, context: CompletionContext, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems: CompletionItemProvider.ProvideCompletionItems | CompletionItemProvider.ProvideCompletionItemsForContext;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).
