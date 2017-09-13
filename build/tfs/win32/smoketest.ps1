@@ -38,7 +38,7 @@ step "Build minified" {
 }
 
 step "Run smoke test" {
-	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketests-screenshots"
+	$Screenshots = "$env:AGENT_BUILDDIRECTORY\smoketest-screenshots"
 	Remove-Item -Recurse -Force -ErrorAction Ignore $Screenshots
 
 	exec { & Push-Location test\smoke }
