@@ -45,6 +45,7 @@ describe('Debug', () => {
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
+		await app.screenCapturer.capture('launch.json file');
 		const content = await app.workbench.editor.getEditorVisibleText();
 
 		// TODO@isidor: sometimes on the linux build agent,
@@ -74,7 +75,7 @@ describe('Debug', () => {
 				http.get(`http://localhost:3000`)
 					.on('error', e => void 0);
 				c();
-			}, 400);
+			}, 600);
 		});
 
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
@@ -108,7 +109,7 @@ describe('Debug', () => {
 				http.get(`http://localhost:3000`)
 					.on('error', e => void 0);
 				c();
-			}, 400);
+			}, 600);
 		});
 
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
