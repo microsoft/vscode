@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { PersistentViewsViewlet, CollapsibleView, IViewletViewOptions, IViewletView, IViewOptions } from 'vs/workbench/browser/parts/views/views';
 import { append, $, toggleClass, trackFocus } from 'vs/base/browser/dom';
@@ -35,7 +35,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
-import { ActionBar, IActionItemProvider, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource } from './scmUtil';
 import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -52,6 +52,8 @@ import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { Command } from 'vs/editor/common/modes';
+import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -104,9 +106,39 @@ class ProvidersListDelegate implements IDelegate<ISCMRepository> {
 
 interface RepositoryTemplateData {
 	checkbox: HTMLInputElement;
-	name: HTMLElement;
+	title: HTMLElement;
 	type: HTMLElement;
+	actionBar: ActionBar;
 	disposable: IDisposable;
+	templateDisposable: IDisposable;
+}
+
+class StatusBarAction extends Action {
+
+	constructor(
+		private command: Command,
+		private commandService: ICommandService
+	) {
+		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		this.tooltip = command.tooltip;
+	}
+
+	run(): TPromise<void> {
+		return this.commandService.executeCommand(this.command.id, ...this.command.arguments);
+	}
+}
+
+class StatusBarActionItem extends ActionItem {
+
+	constructor(action: StatusBarAction) {
+		super(null, action, {});
+	}
+
+	_updateLabel(): void {
+		if (this.options.label) {
+			this.$e.innerHtml(renderOcticons(this.getAction().label));
+		}
+	}
 }
 
 class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateData> {
@@ -114,36 +146,68 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 	readonly templateId = 'provider';
 
 	constructor(
-		protected viewModel: IViewModel
+		protected viewModel: IViewModel,
+		@ICommandService protected commandService: ICommandService
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplateData {
 		const provider = append(container, $('.scm-provider'));
 		const checkbox = append(provider, $('input', { type: 'checkbox', checked: 'true' })) as HTMLInputElement;
 		const name = append(provider, $('.name'));
-		const type = append(provider, $('.type'));
+		const title = append(name, $('span.title'));
+		const type = append(name, $('span.type'));
+		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
+		const disposable = EmptyDisposable;
+		const templateDisposable = combinedDisposable([actionBar]);
 
-		return { checkbox, name, type, disposable: EmptyDisposable };
+		return { checkbox, title, type, actionBar, disposable, templateDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
+		const disposables: IDisposable[] = [];
 
 		if (repository.provider.rootUri) {
-			templateData.name.textContent = basename(repository.provider.rootUri.fsPath);
+			templateData.title.textContent = basename(repository.provider.rootUri.fsPath);
 			templateData.type.textContent = repository.provider.label;
 		} else {
-			templateData.name.textContent = repository.provider.label;
+			templateData.title.textContent = repository.provider.label;
 			templateData.type.textContent = '';
 		}
 
 		templateData.checkbox.checked = this.viewModel.isRepositoryVisible(repository);
 		const onClick = domEvent(templateData.checkbox, 'change');
-		templateData.disposable = onClick(() => this.viewModel.toggleRepositoryVisibility(repository, templateData.checkbox.checked));
+		disposables.push(onClick(() => this.viewModel.toggleRepositoryVisibility(repository, templateData.checkbox.checked)));
+
+		// const disposables = commands.map(c => this.statusbarService.addEntry({
+		// 	text: c.title,
+		// 	tooltip: `${repository.provider.label} - ${c.tooltip}`,
+		// 	command: c.id,
+		// 	arguments: c.arguments
+		// }, MainThreadStatusBarAlignment.LEFT, 10000));
+
+		const actions = [];
+		const disposeActions = () => dispose(actions);
+		disposables.push({ dispose: disposeActions });
+
+		const updateActions = () => {
+			disposeActions();
+
+			const commands = repository.provider.statusBarCommands || [];
+			actions.splice(0, actions.length, ...commands.map(c => new StatusBarAction(c, this.commandService)));
+			templateData.actionBar.clear();
+			templateData.actionBar.push(actions);
+		};
+
+		repository.provider.onDidChange(updateActions, null, disposables);
+		updateActions();
+
+		templateData.disposable = combinedDisposable(disposables);
 	}
 
 	disposeTemplate(templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }
 
@@ -157,7 +221,8 @@ class ProvidersView extends CollapsibleView {
 		options: IViewletViewOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@ISCMService protected scmService: ISCMService
+		@ISCMService protected scmService: ISCMService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(initialSize, {
 			...(options as IViewOptions),
@@ -175,7 +240,7 @@ class ProvidersView extends CollapsibleView {
 
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
-		const renderer = new ProviderRenderer(this.viewModel);
+		const renderer = this.instantiationService.createInstance(ProviderRenderer, this.viewModel);
 		this.list = new List<ISCMRepository>(container, delegate, [renderer]);
 
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.toDispose);
@@ -418,15 +483,16 @@ class ProviderView extends CollapsibleView {
 	}
 
 	renderHeader(container: HTMLElement): void {
-		const title = append(container, $('.title.scm-provider'));
-		const name = append(title, $('span.name'));
-		const type = append(title, $('span.type'));
+		const header = append(container, $('.title.scm-provider'));
+		const name = append(header, $('.name'));
+		const title = append(name, $('span.title'));
+		const type = append(name, $('span.type'));
 
 		if (this.repository.provider.rootUri) {
-			name.textContent = basename(this.repository.provider.rootUri.fsPath);
+			title.textContent = basename(this.repository.provider.rootUri.fsPath);
 			type.textContent = this.repository.provider.label;
 		} else {
-			name.textContent = this.repository.provider.label;
+			title.textContent = this.repository.provider.label;
 			type.textContent = '';
 		}
 
