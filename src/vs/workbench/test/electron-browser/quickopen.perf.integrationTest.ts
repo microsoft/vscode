@@ -188,7 +188,6 @@ class TestExperimentService implements IExperimentService {
 	getExperiments(): IExperiments {
 		return {
 			ripgrepQuickSearch: true,
-			deployToAzureQuickLink: false
 		};
 	}
 }
