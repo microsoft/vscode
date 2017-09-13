@@ -48,6 +48,7 @@ export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
 	showHover?: boolean;
+	colorize?: boolean;
 }
 
 function replaceWhitespace(value: string): string {
@@ -66,12 +67,16 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
-	} else if (!isNaN(+value)) {
-		dom.addClass(container, 'number');
-	} else if (booleanRegex.test(value)) {
-		dom.addClass(container, 'boolean');
-	} else if (stringRegex.test(value)) {
-		dom.addClass(container, 'string');
+	}
+
+	if (options.colorize) {
+		if (!isNaN(+value)) {
+			dom.addClass(container, 'number');
+		} else if (booleanRegex.test(value)) {
+			dom.addClass(container, 'boolean');
+		} else if (stringRegex.test(value)) {
+			dom.addClass(container, 'string');
+		}
 	}
 
 	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
@@ -104,7 +109,8 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			preserveWhitespace: false,
-			showHover: true
+			showHover: true,
+			colorize: true
 		});
 	} else {
 		data.value.textContent = '';
@@ -944,7 +950,8 @@ export class WatchExpressionsRenderer implements IRenderer {
 				showChanged: true,
 				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 				preserveWhitespace: false,
-				showHover: true
+				showHover: true,
+				colorize: true
 			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
