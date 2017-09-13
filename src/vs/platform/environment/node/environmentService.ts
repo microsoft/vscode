@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -155,11 +155,15 @@ export class EnvironmentService implements IEnvironmentService {
 
 		try {
 			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
+
+			if (!isUUID(this.machineUUID)) {
+				throw new Error('Not a UUID');
+			}
 		} catch (err) {
 			this.machineUUID = generateUuid();
 
 			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID);
+				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
 			} catch (err) {
 				console.warn('Could not store machine ID');
 			}
