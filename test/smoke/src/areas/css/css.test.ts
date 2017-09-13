@@ -15,10 +15,10 @@ describe('CSS', () => {
 
 	it('verifies quick outline', async () => {
 		await app.workbench.quickopen.openFile('style.css');
+
 		const outline = await app.workbench.editor.openOutline();
-		const elements = await outline.getQuickOpenElements();
-		await app.screenCapturer.capture('CSS Outline result');
-		assert.equal(elements.length, 2, `Did not find two outline elements`);
+
+		await outline.waitForQuickOpenElements(2);
 	});
 
 	it('verifies warnings for the empty rule', async () => {

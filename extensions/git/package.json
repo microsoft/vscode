@@ -530,6 +530,11 @@
           "when": "config.git.enabled && scmProvider == git"
         },
         {
+          "command": "git.stageAll",
+          "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
           "command": "git.unstageAll",
           "group": "4_stage",
           "when": "config.git.enabled && scmProvider == git"

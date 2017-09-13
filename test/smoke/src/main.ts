@@ -101,10 +101,10 @@ function getKeybindingPlatform(): string {
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
-		return `file:///${path.replace(/\\/g, '/')}`;
+		return `${path.replace(/\\/g, '/')}`;
 	}
 
-	return `file://${path}`;
+	return `${path}`;
 }
 
 async function setup(): Promise<void> {
@@ -127,11 +127,16 @@ async function setup(): Promise<void> {
 	if (!fs.existsSync(workspacePath)) {
 		console.log('*** Creating workspace file...');
 		const workspace = {
-			id: (Date.now() + Math.round(Math.random() * 1000)).toString(),
 			folders: [
-				toUri(path.join(testRepoLocalDir, 'public')),
-				toUri(path.join(testRepoLocalDir, 'routes')),
-				toUri(path.join(testRepoLocalDir, 'views'))
+				{
+					path: toUri(path.join(testRepoLocalDir, 'public'))
+				},
+				{
+					path: toUri(path.join(testRepoLocalDir, 'routes'))
+				},
+				{
+					path: toUri(path.join(testRepoLocalDir, 'views'))
+				}
 			]
 		};
 
@@ -190,7 +195,7 @@ import './areas/css/css.test';
 import './areas/editor/editor.test';
 import './areas/debug/debug.test';
 import './areas/git/git.test';
-import './areas/terminal/terminal.test';
+// import './areas/terminal/terminal.test';
 import './areas/statusbar/statusbar.test';
 import './areas/extensions/extensions.test';
 import './areas/workbench/localization.test';

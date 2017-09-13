@@ -93,7 +93,7 @@ export class ColorExtensionPoint {
 
 				extensionValue.forEach(extension => {
 					if (typeof extension.id !== 'string' || extension.id.length === 0) {
-						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined an can not be empty"));
+						collector.error(nls.localize('invalid.id', "'configuration.colors.id' must be defined and can not be empty"));
 						return;
 					}
 					if (!extension.id.match(colorIdPattern)) {
@@ -101,7 +101,7 @@ export class ColorExtensionPoint {
 						return;
 					}
 					if (typeof extension.description !== 'string' || extension.id.length === 0) {
-						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined an can not be empty"));
+						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
 						return;
 					}
 					let defaults = extension.defaults;

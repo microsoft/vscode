@@ -115,7 +115,7 @@ describe('Debug', () => {
 	});
 
 	it('debug console', async function () {
-		const result = await app.workbench.debug.console('2 + 2 \n', 'number');
+		const result = await app.workbench.debug.console('2 + 2 \n');
 		assert.equal(result, '4');
 	});
 

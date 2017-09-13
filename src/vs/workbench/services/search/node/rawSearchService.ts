@@ -83,6 +83,7 @@ export class SearchService implements IRawSearchService {
 				includePattern: config.includePattern,
 				excludePattern: config.excludePattern,
 				filePattern: config.filePattern,
+				useRipgrep: false,
 				maxFilesize: MAX_FILE_SIZE
 			}),
 			this.textSearchWorkerProvider);

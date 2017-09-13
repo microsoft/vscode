@@ -68,7 +68,7 @@ describe('Git', () => {
 		await app.workbench.scm.commit('first commit');
 		await app.client.waitForText(SYNC_STATUSBAR, ' 0↓ 1↑');
 
-		await app.workbench.commandPallette.runCommand('Git: Stage All Changes');
+		await app.workbench.quickopen.runCommand('Git: Stage All Changes');
 		await app.workbench.scm.waitForChange(c => c.name === 'index.jade' && c.type === 'Index Modified');
 
 		await app.workbench.scm.commit('second commit');

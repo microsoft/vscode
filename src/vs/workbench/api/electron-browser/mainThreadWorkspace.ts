@@ -20,6 +20,7 @@ import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecyc
 import { RemoteFileService } from 'vs/workbench/services/files/electron-browser/remoteFileService';
 import { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -35,6 +36,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IExperimentService private experimentService: IExperimentService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
@@ -70,6 +72,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			maxResults,
 			includePattern: { [include]: true },
 			excludePattern: { [exclude]: true },
+			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 		this._searchService.extendQuery(query);
 

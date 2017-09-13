@@ -11,7 +11,7 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
 import severity from 'vs/base/common/severity';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ITree, IAccessibilityProvider, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
@@ -430,5 +430,9 @@ export class ReplExpressionsController extends BaseDebugController {
 		this.lastSelectedString = selection.toString();
 
 		return true;
+	}
+
+	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
+		return super.onContextMenu(tree, element, event, false);
 	}
 }

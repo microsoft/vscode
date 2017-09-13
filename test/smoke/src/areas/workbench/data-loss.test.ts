@@ -16,21 +16,24 @@ describe('Dataloss', () => {
 		const textToType = 'Hello, Code', textToTypeInUntitled = 'Hello, Unitled Code', fileName = 'readme.md', untitled = 'Untitled-1';
 		await app.workbench.newUntitledFile();
 		await app.client.type(textToTypeInUntitled);
+		await app.screenCapturer.capture('Untitled file before reload');
 		await app.workbench.explorer.openFile(fileName);
 		await app.client.type(textToType);
+		await app.screenCapturer.capture(`${fileName} before reload`);
+		await app.screenCapturer.capture('Before reload');
 
 		await app.reload();
 		await app.screenCapturer.capture('After reload');
 
 		await app.workbench.waitForActiveOpen(fileName, true);
+		await app.screenCapturer.capture(`${fileName} after reload`);
 		let actual = await app.workbench.editor.getEditorFirstLineText();
-		await app.screenCapturer.capture(fileName + ' text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
 
 		await app.workbench.waitForOpen(untitled, true);
 		await app.workbench.selectTab('Untitled-1', true);
+		await app.screenCapturer.capture('Untitled file after reload');
 		actual = await app.workbench.editor.getEditorFirstLineText();
-		await app.screenCapturer.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
 	});
 });
