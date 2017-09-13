@@ -221,6 +221,7 @@ export class FileWalker {
 		const useRipgrep = this.useRipgrep;
 		let cmd: childProcess.ChildProcess;
 		let noSiblingsClauses: boolean;
+		let filePatternSeen = false;
 		if (useRipgrep) {
 			const ripgrep = spawnRipgrepCmd(folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
 			cmd = ripgrep.cmd;
@@ -262,11 +263,28 @@ export class FileWalker {
 
 			if (useRipgrep && noSiblingsClauses) {
 				for (const relativePath of relativeFiles) {
+					if (relativePath === this.filePattern) {
+						filePatternSeen = true;
+					}
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: rootFolder, relativePath, basename });
 				}
 				if (last) {
-					done();
+					if (!filePatternSeen) {
+						this.checkFilePatternRelativeMatch(folderQuery.folder, (match, size) => {
+							if (match) {
+								this.resultCount++;
+								onResult({
+									base: folderQuery.folder,
+									relativePath: this.filePattern,
+									basename: path.basename(this.filePattern),
+								});
+							}
+							done();
+						});
+					} else {
+						done();
+					}
 				}
 				return;
 			}
