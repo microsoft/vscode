@@ -910,9 +910,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			// Handle dropped files (only support FileStat as target)
 			else if (target instanceof FileStat) {
 				const importAction = this.instantiationService.createInstance(ImportFileAction, tree, target, null);
-				return importAction.run({
-					input: { paths: droppedResources.map(res => res.resource.fsPath) }
-				});
+
+				return importAction.run(droppedResources.map(res => res.resource));
 			}
 
 			return void 0;
