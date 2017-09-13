@@ -100,17 +100,16 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
+	get rootUri(): URI | undefined { return this._rootUri; }
 	get contextValue(): string { return this._contextValue; }
 
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
+	get count(): number | undefined { return this.features.count; }
 
 	private _onDidChangeCommitTemplate = new Emitter<string>();
 	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
-
-	private _count: number | undefined = undefined;
-	get count(): number | undefined { return this._count; }
 
 	private _onDidChange = new Emitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
@@ -120,15 +119,12 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private _handle: number,
 		private _contextValue: string,
 		private _label: string,
+		private _rootUri: URI | undefined,
 		@ISCMService scmService: ISCMService,
 		@ICommandService private commandService: ICommandService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
-		if ('count' in features) {
-			this._count = features.count;
-		}
-
 		this.features = assign(this.features, features);
 		this._onDidChange.fire();
 
@@ -275,8 +271,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables = dispose(this._disposables);
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, this.scmService, this.commandService);
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void {
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService, this.commandService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories[handle] = repository;
 

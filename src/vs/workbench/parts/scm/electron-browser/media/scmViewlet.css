@@ -27,8 +27,15 @@
 	height: 100%;
 }
 
-.scm-viewlet .scm-provider {
+.scm-viewlet .monaco-list-row > .scm-provider {
 	display: flex;
+	align-items: center;
+}
+
+.scm-viewlet .scm-provider > .type {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
 }
 
 .scm-viewlet .monaco-list-row {

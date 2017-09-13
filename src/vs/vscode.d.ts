@@ -5507,6 +5507,11 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
+		 * The (optional) Uri of the root of this source control.
+		 */
+		readonly rootUri: Uri | undefined;
+
+		/**
 		 * The [input box](#SourceControlInputBox) for this source control.
 		 */
 		readonly inputBox: SourceControlInputBox;
@@ -5574,9 +5579,10 @@ declare module 'vscode' {
 		 *
 		 * @param id An `id` for the source control. Something short, eg: `git`.
 		 * @param label A human-readable string for the source control. Eg: `Git`.
+		 * @param rootUri An optional Uri of the root of the source control. Eg: `Uri.parse(workspaceRoot)`.
 		 * @return An instance of [source control](#SourceControl).
 		 */
-		export function createSourceControl(id: string, label: string): SourceControl;
+		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
 	}
 
 	/**

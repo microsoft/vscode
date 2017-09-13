@@ -9,6 +9,7 @@ import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { chain } from 'vs/base/common/event';
+import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
@@ -104,6 +105,7 @@ class ProvidersListDelegate implements IDelegate<ISCMRepository> {
 interface RepositoryTemplateData {
 	checkbox: HTMLInputElement;
 	name: HTMLElement;
+	type: HTMLElement;
 	disposable: IDisposable;
 }
 
@@ -119,14 +121,21 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const provider = append(container, $('.scm-provider'));
 		const checkbox = append(provider, $('input', { type: 'checkbox', checked: 'true' })) as HTMLInputElement;
 		const name = append(provider, $('.name'));
+		const type = append(provider, $('.type'));
 
-		return { checkbox, name, disposable: EmptyDisposable };
+		return { checkbox, name, type, disposable: EmptyDisposable };
 	}
 
 	renderElement(repository: ISCMRepository, index: number, templateData: RepositoryTemplateData): void {
 		templateData.disposable.dispose();
 
-		templateData.name.textContent = repository.provider.label;
+		if (repository.provider.rootUri) {
+			templateData.name.textContent = basename(repository.provider.rootUri.fsPath);
+			templateData.type.textContent = repository.provider.label;
+		} else {
+			templateData.name.textContent = repository.provider.label;
+			templateData.type.textContent = '';
+		}
 
 		templateData.checkbox.checked = this.viewModel.isRepositoryVisible(repository);
 		const onClick = domEvent(templateData.checkbox, 'change');
@@ -197,7 +206,7 @@ class ProvidersView extends CollapsibleView {
 	}
 
 	private getExpandedBodySize(): number {
-		return Math.min(10, this.scmService.repositories.length) * 22;
+		return Math.min(5, this.scmService.repositories.length) * 22;
 	}
 }
 
@@ -356,7 +365,11 @@ class ProviderViewDescriptor implements IViewDescriptor {
 	readonly id: string;
 
 	get repository(): ISCMRepository { return this._repository; }
-	get name(): string { return this._repository.provider.label; }
+	get name(): string {
+		return this._repository.provider.rootUri
+			? `${basename(this._repository.provider.rootUri.fsPath)} (${this._repository.provider.label})`
+			: this._repository.provider.label;
+	}
 	get ctor(): any { return null; }
 	get location(): ViewLocation { return ViewLocation.SCM; }
 
@@ -405,8 +418,17 @@ class ProviderView extends CollapsibleView {
 	}
 
 	renderHeader(container: HTMLElement): void {
-		const title = append(container, $('div.title'));
-		title.textContent = this.name;
+		const title = append(container, $('.title.scm-provider'));
+		const name = append(title, $('span.name'));
+		const type = append(title, $('span.type'));
+
+		if (this.repository.provider.rootUri) {
+			name.textContent = basename(this.repository.provider.rootUri.fsPath);
+			type.textContent = this.repository.provider.label;
+		} else {
+			name.textContent = this.repository.provider.label;
+			type.textContent = '';
+		}
 
 		super.renderHeader(container);
 	}
