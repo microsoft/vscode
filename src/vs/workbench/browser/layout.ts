@@ -24,6 +24,7 @@ const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
 const MIN_EDITOR_PART_WIDTH = 220;
 const MIN_PANEL_PART_HEIGHT = 77;
+const MIN_PANEL_PART_WIDTH = 70;
 const DEFAULT_PANEL_HEIGHT_COEFFICIENT = 0.4;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
@@ -35,7 +36,7 @@ interface PartLayoutInfo {
 	titlebar: { height: number; };
 	activitybar: { width: number; };
 	sidebar: { minWidth: number; };
-	panel: { minHeight: number; };
+	panel: { minHeight: number; minWidth: number; };
 	editor: { minWidth: number; minHeight: number; };
 	statusbar: { height: number; };
 }
@@ -46,7 +47,9 @@ interface PartLayoutInfo {
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static sashXWidthSettingsKey = 'workbench.sidebar.width';
-	private static sashYHeightSettingsKey = 'workbench.panel.height';
+	private static panelHeightSettingsKey = 'workbench.panel.height';
+	private static panelWidthSettingsKey = 'workbench.panel.width';
+	private static panelPositionSettingsKey = 'workbench.panel.position';
 
 	private parent: Builder;
 	private workbenchContainer: Builder;
@@ -62,6 +65,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private workbenchSize: Dimension;
 	private sashX: Sash;
 	private sashY: Sash;
+	private sashZ: Sash;
 	private startSidebarWidth: number;
 	private sidebarWidth: number;
 	private sidebarHeight: number;
@@ -69,10 +73,11 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private activitybarWidth: number;
 	private statusbarHeight: number;
 	private startPanelHeight: number;
-	private panelHeight: number;
 	private panelHeightBeforeMaximized: number;
 	private panelMaximized: boolean;
 	private panelWidth: number;
+	private panelHeight: number;
+	private panelPosition: string;
 	private layoutEditorGroupsVertically: boolean;
 
 	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
@@ -115,12 +120,18 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 
 		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
+			baseSize: 4
+		});
+
+		this.sashZ = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 4,
-			orientation: Orientation.HORIZONTAL
+			orientation: Orientation.VERTICAL
 		});
 
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
-		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
+		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.panelHeightSettingsKey, StorageScope.GLOBAL, 0);
+		this.panelWidth = this.storageService.getInteger(WorkbenchLayout.panelWidthSettingsKey, StorageScope.GLOBAL, 0);
+		this.panelPosition = this.storageService.get(WorkbenchLayout.panelPositionSettingsKey, StorageScope.GLOBAL, "BOTTOM")
 
 		this.layoutEditorGroupsVertically = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
@@ -143,7 +154,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				minWidth: MIN_SIDEBAR_PART_WIDTH
 			},
 			panel: {
-				minHeight: MIN_PANEL_PART_HEIGHT
+				minHeight: MIN_PANEL_PART_HEIGHT,
+				minWidth: MIN_PANEL_PART_WIDTH
 			},
 			editor: {
 				minWidth: MIN_EDITOR_PART_WIDTH,
@@ -252,13 +264,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 
 		this.sashY.addListener('end', () => {
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
-		});
-
-		this.sashY.addListener('reset', () => {
-			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
-			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
+			this.storageService.store(WorkbenchLayout.panelHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		});
 
 		this.sashX.addListener('reset', () => {
@@ -267,6 +273,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.sidebarWidth = Math.max(MIN_SIDEBAR_PART_WIDTH, optimalWidth || 0);
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
+		});
+
+		this.sashY.addListener('reset', () => {
+			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
+			this.storageService.store(WorkbenchLayout.panelHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		});
 	}
 
@@ -414,7 +426,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		if (!isPanelHidden) {
 			this.panelHeight = panelDimension.height;
-			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.storageService.store(WorkbenchLayout.panelHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		}
 
 		// Workbench
