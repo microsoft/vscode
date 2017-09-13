@@ -234,24 +234,24 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	// test('Files: *.* exclude with unicode', function (done: () => void) {
-	// 	let engine = new FileSearchEngine({
-	// 		folderQueries: ROOT_FOLDER_QUERY,
-	// 		filePattern: '*.*',
-	// 		excludePattern: { '**/üm laut汉语': true }
-	// 	});
+	test('Files: *.* exclude with unicode', function (done: () => void) {
+		let engine = new FileSearchEngine({
+			folderQueries: ROOT_FOLDER_QUERY,
+			filePattern: '*.*',
+			excludePattern: { '**/üm laut汉语': true }
+		});
 
-	// 	let count = 0;
-	// 	engine.search((result) => {
-	// 		if (result) {
-	// 			count++;
-	// 		}
-	// 	}, () => { }, (error) => {
-	// 		assert.ok(!error);
-	// 		assert.equal(count, 13);
-	// 		done();
-	// 	});
-	// });
+		let count = 0;
+		engine.search((result) => {
+			if (result) {
+				count++;
+			}
+		}, () => { }, (error) => {
+			assert.ok(!error);
+			assert.equal(count, 13);
+			done();
+		});
+	});
 
 	test('Files: multiroot with exclude', function (done: () => void) {
 		const folderQueries: IFolderSearch[] = [
