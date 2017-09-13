@@ -773,7 +773,7 @@ declare module 'vscode' {
 	export interface ThemableDecorationRenderOptions {
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
-		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
+		 * Alternatively a color from the color registry can be [referenced](#ThemeColor).
 		 */
 		backgroundColor?: string | ThemeColor;
 
