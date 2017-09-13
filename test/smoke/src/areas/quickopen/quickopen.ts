@@ -69,17 +69,12 @@ export class QuickOpen {
 		await this.spectron.client.waitAndClick(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT);
 	}
 
-	protected waitForQuickOpenOpened(): Promise<Element> {
+	public waitForQuickOpenOpened(): Promise<Element> {
 		return this.spectron.client.waitForElement(QuickOpen.QUICK_OPEN_FOCUSSED_INPUT);
 	}
 
-	protected waitForQuickOpenClosed(): Promise<Element> {
+	public waitForQuickOpenClosed(): Promise<Element> {
 		return this.spectron.client.waitForElement(QuickOpen.QUICK_OPEN_HIDDEN);
-	}
-
-	public async isQuickOpenVisible(): Promise<boolean> {
-		await this.waitForQuickOpenOpened();
-		return true;
 	}
 
 	public async submit(text: string): Promise<void> {
