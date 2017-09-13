@@ -45,6 +45,7 @@ export interface IJSONSchema {
 	patternErrorMessage?: string; // VSCode extension
 	deprecationMessage?: string; // VSCode extension
 	enumDescriptions?: string[]; // VSCode extension
+	doNotSuggest?: boolean; // VSCode extension
 }
 
 export interface IJSONSchemaMap {
