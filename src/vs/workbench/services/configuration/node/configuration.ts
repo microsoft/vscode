@@ -34,6 +34,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/exten
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, schemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { createHash } from 'crypto';
 import { getWorkspaceLabel, IWorkspacesService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 interface IStat {
 	resource: URI;
@@ -55,9 +56,7 @@ type IWorkspaceFoldersConfiguration = { [rootFolder: string]: { folders: string[
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
-// BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+const configurationEntrySchema: IJSONSchema = {
 	type: 'object',
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
@@ -93,20 +92,25 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 			}
 		}
 	}
+};
+
+
+// BEGIN VSCode extension point `configuration`
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
+	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+	oneOf: [
+		configurationEntrySchema,
+		{
+			type: 'array',
+			items: configurationEntrySchema
+		}
+	]
 });
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
-
-	for (let i = 0; i < extensions.length; i++) {
-		const configuration = <IConfigurationNode>objects.clone(extensions[i].value);
-		const collector = extensions[i].collector;
-
-		if (configuration.type && configuration.type !== 'object') {
-			collector.warn(nls.localize('invalid.type', "if set, 'configuration.type' must be set to 'object"));
-		} else {
-			configuration.type = 'object';
-		}
+	function handleConfiguration(node: IConfigurationNode, id: string, collector: ExtensionMessageCollector) {
+		let configuration = objects.clone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
 			collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
@@ -114,10 +118,20 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, collector);
 
-		configuration.id = extensions[i].description.id;
+		configuration.id = id;
 		configurations.push(configuration);
-	}
+	};
 
+	for (let extension of extensions) {
+		const collector = extension.collector;
+		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
+		const id = extension.description.id;
+		if (!Array.isArray(value)) {
+			handleConfiguration(value, id, collector);
+		} else {
+			value.forEach(v => handleConfiguration(v, id, collector));
+		}
+	}
 	configurationRegistry.registerConfigurations(configurations, false);
 });
 // END VSCode extension point `configuration`
@@ -167,6 +181,7 @@ function validateProperties(configuration: IConfigurationNode, collector: Extens
 	}
 	let subNodes = configuration.allOf;
 	if (subNodes) {
+		collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
 		for (let node of subNodes) {
 			validateProperties(node, collector);
 		}
