@@ -231,7 +231,7 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.marked-docs {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
 	white-space: initial;
 }
 
