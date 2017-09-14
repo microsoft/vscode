@@ -21,6 +21,8 @@ class TestView implements IView {
 	private _onDidRender = new Emitter<{ container: HTMLElement; orientation: Orientation }>();
 	readonly onDidRender = this._onDidRender.event;
 
+	private _size = 0;
+	get size(): number { return this._size; }
 	private _onDidLayout = new Emitter<{ size: number; orientation: Orientation }>();
 	readonly onDidLayout = this._onDidLayout.event;
 
@@ -39,6 +41,7 @@ class TestView implements IView {
 	}
 
 	layout(size: number, orientation: Orientation): void {
+		this._size = size;
 		this._onDidLayout.fire({ size, orientation });
 	}
 
@@ -54,14 +57,16 @@ class TestView implements IView {
 	}
 }
 
+const TOTAL_SIZE = 200;
+
 suite('Splitview', () => {
 	let container: HTMLElement;
 
 	setup(() => {
 		container = document.createElement('div');
 		container.style.position = 'absolute';
-		container.style.width = '200px';
-		container.style.height = '200px';
+		container.style.width = `${TOTAL_SIZE}px`;
+		container.style.height = `${TOTAL_SIZE}px`;
 	});
 
 	teardown(() => {
@@ -75,12 +80,14 @@ suite('Splitview', () => {
 	});
 
 	test('splitview has views as sashes as children', () => {
-		const view = new TestView(20, 20);
+		const view1 = new TestView(20, 20);
+		const view2 = new TestView(20, 20);
+		const view3 = new TestView(20, 20);
 		const splitview = new SplitView(container);
 
-		splitview.addView(view, 20);
-		splitview.addView(view, 20);
-		splitview.addView(view, 20);
+		splitview.addView(view1, 20);
+		splitview.addView(view2, 20);
+		splitview.addView(view3, 20);
 
 		let viewQuery = container.querySelectorAll('.monaco-split-view > .split-view-view');
 		assert.equal(viewQuery.length, 3, 'split view should have 3 views');
@@ -113,6 +120,67 @@ suite('Splitview', () => {
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.dispose();
+		view1.dispose();
+		view2.dispose();
+		view3.dispose();
+	});
+
+	test('splitview calls view methods on addView and removeView', () => {
+		const view = new TestView(20, 20);
+		const splitview = new SplitView(container);
+
+		let didLayout = false;
+		const layoutDisposable = view.onDidLayout(() => didLayout = true);
+
+		let didRender = false;
+		const renderDisposable = view.onDidRender(() => didRender = true);
+
+		splitview.addView(view, 20);
+
+		assert.equal(view.size, 20, 'view has right size');
+		assert(didLayout, 'layout was called');
+		assert(didLayout, 'render was called');
+
+		splitview.dispose();
+		layoutDisposable.dispose();
+		renderDisposable.dispose();
 		view.dispose();
+	});
+
+	test('splitview stretches view to viewport', () => {
+		const view = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(TOTAL_SIZE);
+
+		splitview.addView(view, 20);
+		assert.equal(view.size, TOTAL_SIZE, 'view was stretched');
+
+		splitview.dispose();
+		view.dispose();
+	});
+
+	test('splitview respects preferred sizes', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(TOTAL_SIZE);
+
+		splitview.addView(view1, 20);
+		assert.equal(view1.size, TOTAL_SIZE, 'view1 was stretched');
+
+		splitview.addView(view2, 20);
+		assert.equal(view1.size, 20, 'view1 size was restored');
+		assert.equal(view2.size, TOTAL_SIZE - 20, 'view2 was stretched');
+
+		splitview.addView(view3, 20);
+		assert.equal(view1.size, 20, 'view1 size was restored');
+		assert.equal(view2.size, 20, 'view2 size was restored');
+		assert.equal(view3.size, TOTAL_SIZE - 20 * 2, 'view3 was stretched');
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
 	});
 });
