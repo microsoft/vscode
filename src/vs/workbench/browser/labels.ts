@@ -218,8 +218,8 @@ export class FileLabel extends ResourceLabel {
 
 		this.setLabel({
 			resource,
-			name: (options && options.hideLabel) ? void 0 : paths.basename(resource.fsPath),
-			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : void 0
+			name: (options && options.hideLabel) ? void 0 : paths.basename(resource.toString()),
+			description: !hidePath ? getPathLabel(paths.dirname(resource.toString()), rootProvider, this.environmentService) : void 0
 		}, options);
 	}
 }
