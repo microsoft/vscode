@@ -1,6 +1,7 @@
 
 
 import { Readable } from 'stream';
+import { EventEmitter } from 'events';
 
 declare namespace JSFtp {
 
@@ -10,6 +11,7 @@ declare namespace JSFtp {
 		port?: number | 21;
 		user?: string | 'anonymous';
 		pass?: string | '@anonymous';
+		useList?: boolean
 	}
 
 	interface Callback<T> {
@@ -25,11 +27,13 @@ declare namespace JSFtp {
 	}
 }
 
-interface JSFtp {
+interface JSFtp extends EventEmitter {
 	keepAlive(wait?: number): void;
 	ls(path: string, callback: JSFtp.Callback<JSFtp.Entry[]>): void;
+	list(path: string, callback: JSFtp.Callback<any>): void;
 	put(buffer: Buffer, path: string, callback: JSFtp.Callback<void>): void;
 	get(path: string, callback: JSFtp.Callback<Readable>): void;
+	setType(type: 'A' | 'AN' | 'AT' | 'AC' | 'E' | 'I' | 'L', callback: JSFtp.Callback<any>): void;
 	raw<T = any>(command: string, args: any[], callback: JSFtp.Callback<T>): void
 }
 

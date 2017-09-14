@@ -12,7 +12,7 @@ import * as JSFtp from 'jsftp';
 import { ninvoke } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Readable } from 'stream';
-import { join } from 'path';
+import { join, dirname, basename } from 'path';
 import { IStat, FileType, IFileSystemProvider } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 
@@ -34,27 +34,32 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 	}
 
 	stat(resource: URI): TPromise<IStat> {
+		const { path } = resource;
+		if (path === '/') {
+			// root directory
+			return TPromise.as(<IStat>{
+				type: FileType.Dir,
+				resource,
+				mtime: 0,
+				size: 0
+			});
+		}
 
-		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, resource.path).then(entries => {
-
-			if (entries.length === 1) {
-				// stat one file
-				const [entry] = entries;
+		const name = basename(path);
+		const dir = dirname(path);
+		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, dir).then(entries => {
+			for (const entry of entries) {
+				if (entry.name === name) {
 				return {
 					resource,
 					mtime: entry.time,
 					size: entry.size,
-					type: FileType.File
+						type: entry.type
 				};
 			}
-
-			// stat directory
-			return <IStat>{
-				resource,
-				mtime: 0,
-				size: 0,
-				type: FileType.Dir,
-			};
+			}
+			console.log(entries, name, resource);
+			throw new Error(`NotFound: ${resource.path}`);
 		});
 	}
 
