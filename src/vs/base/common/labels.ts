@@ -17,10 +17,10 @@ export interface ILabelProvider {
 	getLabel(element: any): string;
 }
 
-export interface IRootProvider {
-	getRoot(resource: URI): URI;
+export interface IWorkspaceFolderProvider {
+	getWorkspaceFolder(resource: URI): URI;
 	getWorkspace(): {
-		roots: URI[];
+		folders: URI[];
 	};
 }
 
@@ -28,7 +28,7 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IRootProvider, userHomeProvider?: IUserHomeProvider): string {
+export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFolderProvider, userHomeProvider?: IUserHomeProvider): string {
 	if (!resource) {
 		return null;
 	}
@@ -38,9 +38,9 @@ export function getPathLabel(resource: URI | string, rootProvider?: IRootProvide
 	}
 
 	// return early if we can resolve a relative path label from the root
-	const baseResource = rootProvider ? rootProvider.getRoot(resource) : null;
+	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
 	if (baseResource) {
-		const hasMultipleRoots = rootProvider.getWorkspace().roots.length > 1;
+		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 		let pathLabel: string;
 		if (isEqual(baseResource.fsPath, resource.fsPath, !platform.isLinux /* ignorecase */)) {

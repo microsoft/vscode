@@ -257,7 +257,7 @@ export class Configuration<T> {
 
 	lookupLegacy<C>(key: string): IConfigurationValue<C> {
 		if (!this._legacyWorkspaceConsolidatedConfiguration) {
-			this._legacyWorkspaceConsolidatedConfiguration = this._workspace ? new ConfigurationModel<any>().merge(this._workspaceConfiguration).merge(this.folders.get(this._workspace.roots[0])) : null;
+			this._legacyWorkspaceConsolidatedConfiguration = this._workspace ? new ConfigurationModel<any>().merge(this._workspaceConfiguration).merge(this.folders.get(this._workspace.folders[0])) : null;
 		}
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel({});
 		return {
@@ -325,7 +325,7 @@ export class Configuration<T> {
 			return this._workspaceConsolidatedConfiguration;
 		}
 
-		const root = this._workspace.getRoot(resource);
+		const root = this._workspace.getFolder(resource);
 		if (!root) {
 			return this._workspaceConsolidatedConfiguration;
 		}
@@ -338,7 +338,7 @@ export class Configuration<T> {
 			return null;
 		}
 
-		const root = this._workspace.getRoot(resource);
+		const root = this._workspace.getFolder(resource);
 		return root ? this.folders.get(root) : null;
 	}
 

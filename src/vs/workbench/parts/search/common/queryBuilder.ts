@@ -12,7 +12,7 @@ import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -184,7 +184,7 @@ export class QueryBuilder {
 	 * Split search paths (./ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
 	 */
 	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (!this.workspaceContextService.hasWorkspace() || !searchPaths || !searchPaths.length) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || !searchPaths || !searchPaths.length) {
 			// No workspace => ignore search paths
 			return [];
 		}
@@ -212,17 +212,16 @@ export class QueryBuilder {
 			return [paths.normalize(searchPath)];
 		}
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		if (this.workspaceContextService.hasFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
 			return [paths.normalize(
-				paths.join(workspace.roots[0].fsPath, searchPath))];
+				paths.join(this.workspaceContextService.getWorkspace().folders[0].fsPath, searchPath))];
 		} else if (searchPath === './') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = workspace.roots.filter(root => paths.basename(root.fsPath) === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.fsPath) === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?

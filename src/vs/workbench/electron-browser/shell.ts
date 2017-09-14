@@ -63,7 +63,7 @@ import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -202,7 +202,7 @@ export class WorkbenchShell {
 		this.telemetryService.publicLog('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: !this.contextService.hasWorkspace(),
+			emptyWorkbench: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpen': filesToOpen && filesToOpen.length || void 0,
 			'workbench.filesToCreate': filesToCreate && filesToCreate.length || void 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || void 0,

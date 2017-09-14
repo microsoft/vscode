@@ -33,27 +33,27 @@ describe('Statusbar', () => {
 
 	it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
 		await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for branch indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for indentation indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for encoding indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for EOL indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for language indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 	});
 
 	it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
 		await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
-		assert.ok(await app.workbench.problems.isVisible());
+		await app.workbench.problems.waitForProblemsView();
 	});
 
 	if (app.build !== VSCODE_BUILD.DEV) {
@@ -67,7 +67,7 @@ describe('Statusbar', () => {
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
 
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened line number selection.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 
 		await app.workbench.quickopen.submit('15');
 		await app.workbench.editor.waitForHighlightingLine(15);
@@ -77,7 +77,7 @@ describe('Statusbar', () => {
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened line number selection.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 
 		app.workbench.quickopen.selectQuickOpenElement(1);
 		await app.workbench.statusbar.waitForEOL('CRLF');

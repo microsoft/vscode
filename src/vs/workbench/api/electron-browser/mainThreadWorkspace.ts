@@ -7,7 +7,7 @@
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { ISearchService, QueryType, ISearchQuery, ISearchProgressItem, ISearchComplete } from 'vs/platform/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -40,7 +40,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -55,19 +55,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- workspace ---
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkspace());
+		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
 	}
 
 	// --- search ---
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
-		if (!workspace) {
+		if (!workspace.folders.length) {
 			return undefined;
 		}
-
 		const query: ISearchQuery = {
-			folderQueries: workspace.roots.map(root => ({ folder: root })),
+			folderQueries: workspace.folders.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },

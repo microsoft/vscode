@@ -57,10 +57,19 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
 	}
 
-	async startDebugging(): Promise<any> {
+	async startDebugging(): Promise<number> {
 		await this.spectron.client.waitAndClick(START);
 		await this.spectron.client.waitForElement(PAUSE);
 		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
+		const portPrefix = 'Port: ';
+		await this.spectron.client.waitFor(async () => {
+			const output = await this.getConsoleOutput();
+			return output.join('');
+		}, text => !!text && text.indexOf(portPrefix) >= 0);
+		const output = await this.getConsoleOutput();
+		const lastOutput = output.pop();
+
+		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
 	}
 
 	async stepOver(): Promise<any> {
@@ -100,7 +109,7 @@ export class Debug extends Viewlet {
 	async focusStackFrame(name: string): Promise<any> {
 		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
-		await this.spectron.workbench.waitForOpen(name);
+		await this.spectron.workbench.waitForTab(name);
 	}
 
 	async console(text: string): Promise<string> {

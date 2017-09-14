@@ -74,7 +74,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			fontFamily,
 			fontSize,
 			lineHeight,
-			charWidth: Math.ceil(rect.width),
+			charWidth: rect.width,
 			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;

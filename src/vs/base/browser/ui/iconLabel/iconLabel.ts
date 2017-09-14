@@ -11,7 +11,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IRootProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
+import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
@@ -152,13 +152,13 @@ export class IconLabel {
 
 export class FileLabel extends IconLabel {
 
-	constructor(container: HTMLElement, file: uri, provider: IRootProvider, userHome?: IUserHomeProvider) {
+	constructor(container: HTMLElement, file: uri, provider: IWorkspaceFolderProvider, userHome?: IUserHomeProvider) {
 		super(container);
 
 		this.setFile(file, provider, userHome);
 	}
 
-	public setFile(file: uri, provider: IRootProvider, userHome: IUserHomeProvider): void {
+	public setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
 		const parent = paths.dirname(file.fsPath);
 
 		this.setValue(paths.basename(file.fsPath), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });

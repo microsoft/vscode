@@ -16,7 +16,7 @@ import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -56,7 +56,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	public focus(): void {
 		super.focus();
 
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.views[0].focusBody();
 		}
 
@@ -69,7 +69,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		if (!this.actions) {
 			this.actions = [];
 			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-			if (this.contextService.hasWorkspace()) {
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
 			}
 			this.actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
@@ -83,7 +83,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID && this.contextService.hasWorkspace()) {
+		if (action.id === StartAction.ID && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}

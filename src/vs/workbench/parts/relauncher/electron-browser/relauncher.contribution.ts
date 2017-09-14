@@ -30,8 +30,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
-	private rootCount: number;
-	private firstRootPath: string;
+	private foldersCount: number;
+	private firstFolderPath: string;
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService,
@@ -44,12 +44,8 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace) {
-			this.rootCount = workspace.roots.length;
-			this.firstRootPath = workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
-		} else {
-			this.rootCount = 0;
-		}
+		this.foldersCount = workspace.folders.length;
+		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].fsPath : void 0;
 
 		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
 
@@ -58,7 +54,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
 	}
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
@@ -99,27 +95,27 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		}
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
+	private onDidChangeWorkspaceFolders(): void {
 		const workspace = this.contextService.getWorkspace();
 
-		const newRootCount = workspace ? workspace.roots.length : 0;
-		const newFirstRootPath = workspace && workspace.roots.length > 0 ? workspace.roots[0].fsPath : void 0;
+		const newFoldersCount = workspace.folders.length;
+		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].fsPath : void 0;
 
 		let reloadWindow = false;
 		let reloadExtensionHost = false;
 
-		if (this.rootCount === 0 && newRootCount > 0) {
+		if (this.foldersCount === 0 && newFoldersCount > 0) {
 			reloadWindow = true; // transition: from 0 folders to 1+
-		} else if (this.rootCount > 0 && newRootCount === 0) {
+		} else if (this.foldersCount > 0 && newFoldersCount === 0) {
 			reloadWindow = true; // transition: from 1+ folders to 0
 		}
 
-		if (this.firstRootPath !== newFirstRootPath) {
+		if (this.firstFolderPath !== newFirstFolderPath) {
 			reloadExtensionHost = true; // first root folder changed (impact on deprecated workspace.rootPath API)
 		}
 
-		this.rootCount = newRootCount;
-		this.firstRootPath = newFirstRootPath;
+		this.foldersCount = newFoldersCount;
+		this.firstFolderPath = newFirstFolderPath;
 
 		// Reload window if this is needed
 		if (reloadWindow) {

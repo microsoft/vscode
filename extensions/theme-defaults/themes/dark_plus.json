@@ -107,7 +107,9 @@
 				"punctuation.definition.group.regexp",
 				"punctuation.definition.group.assertion.regexp",
 				"punctuation.definition.character-class.regexp",
-				"keyword.operator.negation.regexp"
+				"keyword.operator.negation.regexp",
+				"support.other.parenthesis.regexp",
+				"meta.character.set.regexp"
 			],
 			"settings": {
 				"foreground": "#d7ba7d"
@@ -124,6 +126,19 @@
 			"settings": {
 				"foreground": "#C586C0"
 			}
+		},
+		{
+			"scope": "constant.character",
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
+			"scope": "constant.character.escape",
+			"settings": {
+				"foreground": "#C586C0"
+			}
 		}
+
 	]
 }

@@ -22,7 +22,7 @@ import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEdit
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -78,7 +78,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 
 		viewDescriptors.push(this.createOpenEditorsViewDescriptor());
 
-		if (this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			viewDescriptors.push(this.createExplorerViewDescriptor());
 		} else {
 			viewDescriptors.push(this.createEmptyViewDescriptor());
@@ -122,7 +122,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 	}
 
 	private onConfigurationUpdated(): void {
-		this.openEditorsVisibleContextKey.set(!this.contextService.hasWorkspace() || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
+		this.openEditorsVisibleContextKey.set(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || (<IFilesConfiguration>this.configurationService.getConfiguration()).explorer.openEditors.visible !== 0);
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, initialSize: number, options: IViewletViewOptions): IViewletView {

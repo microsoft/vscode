@@ -133,24 +133,22 @@ export class FileService implements IFileService {
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Root changes
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
+	private onDidChangeWorkspaceFolders(): void {
 		this.updateOptions({ encodingOverride: this.getEncodingOverrides() });
 	}
 
 	private getEncodingOverrides(): IEncodingOverride[] {
 		const encodingOverride: IEncodingOverride[] = [];
 		encodingOverride.push({ resource: uri.file(this.environmentService.appSettingsHome), encoding: encoding.UTF8 });
-		if (this.contextService.hasWorkspace()) {
-			this.contextService.getWorkspace().roots.forEach(root => {
-				encodingOverride.push({ resource: uri.file(paths.join(root.fsPath, '.vscode')), encoding: encoding.UTF8 });
-			});
-		}
+		this.contextService.getWorkspace().folders.forEach(folder => {
+			encodingOverride.push({ resource: uri.file(paths.join(folder.fsPath, '.vscode')), encoding: encoding.UTF8 });
+		});
 
 		return encodingOverride;
 	}

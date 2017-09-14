@@ -9,10 +9,11 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, WORKSPACE_PATH } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
+	let port: number;
 
 	if (app.build === VSCODE_BUILD.DEV) {
 		const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
@@ -45,11 +46,8 @@ describe('Debug', () => {
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
-		const content = await app.workbench.editor.getEditorVisibleText();
-
-		// TODO@isidor: sometimes on the linux build agent,
-		// you get the contents of app.js here, so everything
-		// blows up
+		await app.screenCapturer.capture('launch.json file');
+		const content = fs.readFileSync(path.join(WORKSPACE_PATH, '.vscode', 'launch.json'), 'utf8');
 		const json = JSON.parse(stripJsonComments(content));
 
 		assert.equal(json.configurations[0].request, 'launch');
@@ -67,15 +65,8 @@ describe('Debug', () => {
 	});
 
 	it('start debugging', async function () {
-		await app.workbench.debug.startDebugging();
-
-		await new Promise(c => {
-			setTimeout(() => {
-				http.get(`http://localhost:3000`)
-					.on('error', e => void 0);
-				c();
-			}, 400);
-		});
+		port = await app.workbench.debug.startDebugging();
+		http.get(`http://localhost:${port}`).on('error', e => void 0);
 
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
@@ -102,15 +93,7 @@ describe('Debug', () => {
 
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-
-		await new Promise(c => {
-			setTimeout(() => {
-				http.get(`http://localhost:3000`)
-					.on('error', e => void 0);
-				c();
-			}, 400);
-		});
-
+		http.get(`http://localhost:${port}`).on('error', e => void 0);
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 

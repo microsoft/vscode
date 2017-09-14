@@ -17,6 +17,6 @@ suite('Workspace', () => {
 		let roots = [URI.file('/some/path'), URI.file('/some/path')];
 		let ws = new Workspace('id', 'name', roots, URI.file('/config'));
 
-		assert.equal(ws.roots.length, 1);
+		assert.equal(ws.folders.length, 1);
 	});
 });
