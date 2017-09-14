@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -527,4 +527,22 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 	});
 
 	return emitter.event;
+}
+
+export class Relay<T> implements IDisposable {
+
+	private emitter = new Emitter<T>();
+	readonly output: Event<T> = this.emitter.event;
+
+	private disposable: IDisposable = EmptyDisposable;
+
+	set input(event: Event<T>) {
+		this.disposable.dispose();
+		this.disposable = event(this.emitter.fire, this.emitter);
+	}
+
+	dispose() {
+		this.disposable.dispose();
+		this.emitter.dispose();
+	}
 }
