@@ -32,41 +32,41 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addRoots(rootsToAdd: URI[]): TPromise<void> {
+	public addFolders(foldersToAdd: URI[]): TPromise<void> {
 		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const currentWorkspaceFolders = this.contextService.getWorkspace().roots;
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
 		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
 		const storedFoldersToAdd: IStoredWorkspaceFolder[] = [];
 
 		const workspaceConfigFolder = dirname(this.contextService.getWorkspace().configuration.fsPath);
 
-		rootsToAdd.forEach(rootToAdd => {
-			if (this.contains(currentWorkspaceFolders, rootToAdd)) {
+		foldersToAdd.forEach(foldersToAdd => {
+			if (this.contains(currentWorkspaceFolders, foldersToAdd)) {
 				return; // already existing
 			}
 
 			storedFoldersToAdd.push({
-				path: massageFolderPathForWorkspace(rootToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
+				path: massageFolderPathForWorkspace(foldersToAdd.fsPath, workspaceConfigFolder, currentStoredFolders)
 			});
 		});
 
 		if (storedFoldersToAdd.length > 0) {
-			return this.doSetRoots([...currentStoredFolders, ...storedFoldersToAdd]);
+			return this.doSetFolders([...currentStoredFolders, ...storedFoldersToAdd]);
 		}
 
 		return TPromise.as(void 0);
 	}
 
-	public removeRoots(rootsToRemove: URI[]): TPromise<void> {
+	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
 		if (!this.isSupported()) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
 
-		const currentWorkspaceFolders = this.contextService.getWorkspace().roots;
+		const currentWorkspaceFolders = this.contextService.getWorkspace().folders;
 		const currentStoredFolders = this.workspaceConfigurationService.getFoldersConfiguration();
 
 		const newStoredFolders: IStoredWorkspaceFolder[] = currentStoredFolders.filter((folder, index) => {
@@ -74,23 +74,23 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 				return true; // keep entries which are unrelated
 			}
 
-			return !this.contains(rootsToRemove, currentWorkspaceFolders[index]); // keep entries which are unrelated
+			return !this.contains(foldersToRemove, currentWorkspaceFolders[index]); // keep entries which are unrelated
 		});
 
 		if (newStoredFolders.length !== currentStoredFolders.length) {
-			return this.doSetRoots(newStoredFolders);
+			return this.doSetFolders(newStoredFolders);
 		}
 
 		return TPromise.as(void 0);
 	}
 
-	private doSetRoots(roots: IStoredWorkspaceFolder[]): TPromise<void> {
-		if (roots.length) {
+	private doSetFolders(folders: IStoredWorkspaceFolder[]): TPromise<void> {
+		if (folders.length) {
 			const workspace = this.contextService.getWorkspace();
 
-			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: roots }, true);
+			return this.jsonEditingService.write(workspace.configuration, { key: 'folders', value: folders }, true);
 		} else {
-			// TODO: Sandeep - Removing all roots?
+			// TODO: Sandeep - Removing all folders?
 		}
 
 		return TPromise.as(void 0);
