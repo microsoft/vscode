@@ -296,22 +296,20 @@ class RenameFileAction extends BaseRenameAction {
 	}
 
 	public runAction(newName: string): TPromise<any> {
-
 		const dirty = this.textFileService.getDirty().filter(d => paths.isEqualOrParent(d.fsPath, this.element.resource.fsPath, !isLinux /* ignorecase */));
 		const dirtyRenamed: URI[] = [];
 		return TPromise.join(dirty.map(d => {
-
-			const targetPath = paths.join(this.element.parent.resource.fsPath, newName);
 			let renamed: URI;
 
 			// If the dirty file itself got moved, just reparent it to the target folder
+			const targetPath = paths.join(this.element.parent.resource.path, newName);
 			if (paths.isEqual(this.element.resource.fsPath, d.fsPath)) {
-				renamed = URI.file(targetPath);
+				renamed = this.element.parent.resource.with({ path: targetPath });
 			}
 
 			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
 			else {
-				renamed = URI.file(paths.join(targetPath, d.fsPath.substr(this.element.resource.fsPath.length + 1)));
+				renamed = this.element.parent.resource.with({ path: paths.join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
 			}
 
 			dirtyRenamed.push(renamed);
