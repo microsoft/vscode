@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR } from '../../spectron/application';
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
@@ -47,7 +47,7 @@ describe('Debug', () => {
 		await app.workbench.openFile('app.js');
 		await app.workbench.debug.configure();
 		await app.screenCapturer.capture('launch.json file');
-		const content = fs.readFileSync(path.join(WORKSPACE_PATH, '.vscode', 'launch.json'), 'utf8');
+		const content = await app.workbench.editor.getEditorVisibleText();
 		const json = JSON.parse(stripJsonComments(content));
 
 		assert.equal(json.configurations[0].request, 'launch');
