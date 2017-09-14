@@ -174,7 +174,6 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		if (!this._isShowing && heightInPixel < 0) {
 			// Looks like the view zone got folded away!
 			this.dispose();
-			this._onDidClose.fire(this);
 			return;
 		}
 

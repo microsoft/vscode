@@ -18,7 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import * as TaskConfig from './taskConfiguration';
@@ -156,7 +156,7 @@ export class ProcessRunnerDetector {
 		this.taskConfiguration = config;
 		this._stderr = [];
 		this._stdout = [];
-		this._cwd = this.contextService.hasWorkspace() ? Paths.normalize(this.contextService.getLegacyWorkspace().resource.fsPath, true) : '';
+		this._cwd = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? Paths.normalize(this.contextService.getWorkspace().folders[0].fsPath, true) : '';
 	}
 
 	public get stderr(): string[] {
@@ -175,7 +175,7 @@ export class ProcessRunnerDetector {
 			let isShellCommand = !!this.taskConfiguration.isShellCommand;
 			// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
 			return this.runDetection(
-				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, args), isShellCommand, options),
+				new LineProcess(this.taskConfiguration.command, this.configurationResolverService.resolve(this.contextService.getWorkspace().folders[0], args), isShellCommand, options),
 				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
 			if (detectSpecific) {
@@ -219,10 +219,10 @@ export class ProcessRunnerDetector {
 		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
 		let result = Objects.clone(options);
 		if (result.cwd) {
-			result.cwd = this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, result.cwd);
+			result.cwd = this.configurationResolverService.resolve(this.contextService.getWorkspace().folders[0], result.cwd);
 		}
 		if (result.env) {
-			result.env = this.configurationResolverService.resolve(this.contextService.getLegacyWorkspace().resource, result.env);
+			result.env = this.configurationResolverService.resolve(this.contextService.getWorkspace().folders[0], result.env);
 		}
 		return result;
 	}

@@ -37,7 +37,7 @@ const textSearchWorkerProvider = new TextSearchWorkerProvider();
 
 function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
 	return new TPromise<void>((resolve, reject) => {
-		let engine = new TextSearchEngine(config, new FileWalker(config), textSearchWorkerProvider);
+		let engine = new TextSearchEngine(config, new FileWalker({ ...config, useRipgrep: false }), textSearchWorkerProvider);
 
 		let c = 0;
 		engine.search((result) => {

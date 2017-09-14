@@ -12,7 +12,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
-import { getPathLabel, IRootProvider } from 'vs/base/common/labels';
+import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -211,9 +211,9 @@ export class FileLabel extends ResourceLabel {
 
 	public setFile(resource: uri, options?: IFileLabelOptions): void {
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
-		const rootProvider: IRootProvider = (options && options.root) ? {
-			getRoot(): uri { return options.root; },
-			getWorkspace(): { roots: uri[]; } { return { roots: [options.root] }; },
+		const rootProvider: IWorkspaceFolderProvider = (options && options.root) ? {
+			getWorkspaceFolder(): uri { return options.root; },
+			getWorkspace(): { folders: uri[]; } { return { folders: [options.root] }; },
 		} : this.contextService;
 
 		this.setLabel({

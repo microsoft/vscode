@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/php.cson",
+		"This file has been converted from https://github.com/roblourens/language-php/blob/revertBraceMatching/grammars/php.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/efab9c83b91c02f04b8cfd0236e0239e14c4af52",
+	"version": "https://github.com/roblourens/language-php/commit/91d50ab5f871ea2d11b4c511dc0b9a972e4ac5ce",
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -1429,6 +1429,14 @@
 					"include": "#comments"
 				},
 				{
+					"match": "{",
+					"name": "punctuation.section.scope.begin.php"
+				},
+				{
+					"match": "}",
+					"name": "punctuation.section.scope.end.php"
+				},
+				{
 					"begin": "(?i)^\\s*(interface)\\s+([a-z_\\x{7f}-\\x{ff}][a-z0-9_\\x{7f}-\\x{ff}]*)\\s*(extends)?\\s*",
 					"beginCaptures": {
 						"1": {
@@ -2085,25 +2093,6 @@
 				},
 				{
 					"include": "#string-backtick"
-				},
-				{
-					"begin": "{",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.begin.bracket.curly.php"
-						}
-					},
-					"end": "}",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.end.bracket.curly.php"
-						}
-					},
-					"patterns": [
-						{
-							"include": "#language"
-						}
-					]
 				},
 				{
 					"begin": "\\[",

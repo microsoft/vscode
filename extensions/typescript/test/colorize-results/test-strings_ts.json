@@ -100,12 +100,12 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.ts meta.var.expr.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.var.expr.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -353,40 +353,40 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "a",
-		"t": "source.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "+",
-		"t": "source.ts string.template.ts meta.template.expression.ts keyword.operator.arithmetic.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -397,35 +397,35 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "b",
-		"t": "source.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -463,40 +463,40 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "a",
-		"t": "source.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "*",
-		"t": "source.ts string.template.ts meta.template.expression.ts keyword.operator.arithmetic.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts keyword.operator.arithmetic.ts",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -507,35 +507,35 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "b",
-		"t": "source.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.ts string.template.ts meta.template.expression.ts",
+		"t": "source.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts",
 		"r": {
-			"dark_plus": "meta.template.expression: #D4D4D4",
-			"light_plus": "meta.template.expression: #000000",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
-			"hc_black": "meta.template.expression: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{

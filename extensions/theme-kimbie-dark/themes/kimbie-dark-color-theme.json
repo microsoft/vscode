@@ -55,7 +55,7 @@
 			}
 		},
 		{
-			"scope": "meta.embedded",
+			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
 				"background": "#221a0f",
 				"foreground": "#d3af86"

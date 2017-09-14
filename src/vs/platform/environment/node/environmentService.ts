@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -31,9 +31,13 @@ function getUniqueUserId(): string {
 	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/Microsoft/vscode/issues/30624
+const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+
 function getNixIPCHandle(userDataPath: string, type: string): string {
-	if (process.env['XDG_RUNTIME_DIR']) {
-		return path.join(process.env['XDG_RUNTIME_DIR'], `${pkg.name}-${pkg.version}-${type}.sock`);
+	if (xdgRuntimeDir) {
+		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
 	}
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
@@ -151,11 +155,15 @@ export class EnvironmentService implements IEnvironmentService {
 
 		try {
 			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
+
+			if (!isUUID(this.machineUUID)) {
+				throw new Error('Not a UUID');
+			}
 		} catch (err) {
 			this.machineUUID = generateUuid();
 
 			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID);
+				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
 			} catch (err) {
 				console.warn('Could not store machine ID');
 			}

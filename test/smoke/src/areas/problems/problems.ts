@@ -21,7 +21,7 @@ export class Problems {
 	public async showProblemsView(): Promise<any> {
 		if (!await this.isVisible()) {
 			await this.spectron.command('workbench.actions.view.problems');
-			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+			await this.waitForProblemsView();
 		}
 	}
 
@@ -35,6 +35,10 @@ export class Problems {
 	public async isVisible(): Promise<boolean> {
 		const element = await this.spectron.client.element(Problems.PROBLEMS_VIEW_SELECTOR);
 		return !!element;
+	}
+
+	public async waitForProblemsView(): Promise<void> {
+		await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
 	}
 
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {

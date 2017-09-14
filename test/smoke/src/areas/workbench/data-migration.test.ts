@@ -36,7 +36,7 @@ describe('Data Migration', () => {
 		await app.start('Data Migration');
 		app.screenCapturer.testName = 'Untitled is restorted';
 
-		assert.ok(await app.workbench.waitForActiveOpen('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
+		assert.ok(await app.workbench.waitForActiveTab('Untitled-1', true), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
 		await app.screenCapturer.capture('Untitled file text');
 		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
@@ -52,7 +52,7 @@ describe('Data Migration', () => {
 		await app.start('Data Migration');
 		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
-		await app.workbench.waitForActiveOpen(fileName);
+		await app.workbench.waitForActiveTab(fileName);
 		await app.client.type(firstTextPart);
 		await app.workbench.saveOpenedFile();
 		await app.client.type(secondTextPart);
@@ -65,7 +65,7 @@ describe('Data Migration', () => {
 		await app.start('Data Migration');
 		app.screenCapturer.testName = 'Newly created dirty file is restorted';
 
-		assert.ok(await app.workbench.waitForActiveOpen(fileName.split('/')[1]), `Untitled-1 tab is not present after migration.`);
+		assert.ok(await app.workbench.waitForActiveTab(fileName.split('/')[1]), `Untitled-1 tab is not present after migration.`);
 		const actual = await app.workbench.editor.getEditorFirstLineText();
 		await app.screenCapturer.capture(fileName + ' text');
 		assert.ok(actual.startsWith(firstTextPart.concat(secondTextPart)), `${actual} did not start with ${firstTextPart.concat(secondTextPart)}`);
@@ -88,8 +88,8 @@ describe('Data Migration', () => {
 		await app.start('Data Migration');
 		app.screenCapturer.testName = 'Opened tabs are restored';
 
-		assert.ok(await app.workbench.waitForOpen(fileName1), `${fileName1} tab was not restored after migration.`);
-		assert.ok(await app.workbench.waitForOpen(fileName2), `${fileName2} tab was not restored after migration.`);
-		assert.ok(await app.workbench.waitForOpen(fileName3), `${fileName3} tab was not restored after migration.`);
+		assert.ok(await app.workbench.waitForTab(fileName1), `${fileName1} tab was not restored after migration.`);
+		assert.ok(await app.workbench.waitForTab(fileName2), `${fileName2} tab was not restored after migration.`);
+		assert.ok(await app.workbench.waitForTab(fileName3), `${fileName3} tab was not restored after migration.`);
 	});
 });

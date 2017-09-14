@@ -12,7 +12,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { Emitter } from 'vs/base/common/event';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
@@ -21,9 +21,7 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 		let workspaceContextService = instantiationService.get(IWorkspaceContextService);
 		if (!workspaceContextService) {
 			workspaceContextService = instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{
-				hasWorkspace: () => {
-					return true;
-				},
+				getWorkbenchState: () => WorkbenchState.FOLDER,
 			});
 		}
 		service = instantiationService.stub(IStorageService, instantiationService.createInstance(StorageService, new InMemoryLocalStorage(), new InMemoryLocalStorage()));
@@ -73,7 +71,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test when no extensions are disabled for workspace when there is no workspace', (done) => {
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => {
-				instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
+				instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
 				assert.deepEqual([], testObject.getWorkspaceDisabledExtensions());
 			})
 			.then(done, done);
@@ -178,7 +176,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test disable an extension for workspace when there is no workspace throws error', (done) => {
-		instantiationService.stub(IWorkspaceContextService, 'hasWorkspace', false);
+		instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => assert.fail('should throw an error'), error => assert.ok(error))
 			.then(done, done);

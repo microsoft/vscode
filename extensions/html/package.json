@@ -92,7 +92,7 @@
             "null"
           ],
           "scope": "resource",
-          "default": "a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, select, small, span, strong, sub, sup, textarea, tt, var",
+          "default": "",
           "description": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
@@ -101,7 +101,7 @@
             "null"
           ],
           "scope": "resource",
-          "default": "pre",
+          "default": "pre,code,textarea",
           "description": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {

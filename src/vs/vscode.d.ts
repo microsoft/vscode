@@ -773,7 +773,7 @@ declare module 'vscode' {
 	export interface ThemableDecorationRenderOptions {
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
-		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
+		 * Alternatively a color from the color registry can be [referenced](#ThemeColor).
 		 */
 		backgroundColor?: string | ThemeColor;
 
@@ -4947,7 +4947,7 @@ declare module 'vscode' {
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is changed. This usually happens
 		 * when the [contents](#TextDocument.getText) changes but also when other things like the
-		 * [dirty](TextDocument#isDirty)-state changes.
+		 * [dirty](#TextDocument.isDirty)-state changes.
 		 */
 		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 

@@ -391,16 +391,6 @@
 			}
 		],
 		"duplicate-imports": true,
-		"allow-async": [
-			true,
-			[
-				"node",
-				"electron-main",
-				"electron-browser",
-				"extensions",
-				"smoke"
-			]
-		],
 		"translation-remind": true
 	}
 }

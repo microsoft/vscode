@@ -24,7 +24,7 @@ const TOOLBAR_HIDDEN = `.debug-actions-widget.builder-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression`;
-const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression`;
+const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 const SCOPE = `${VIEWLET} .debug-variables .scope`;
 
 const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor.focused';
@@ -57,10 +57,19 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(BREAKPOINT_GLYPH);
 	}
 
-	async startDebugging(): Promise<any> {
+	async startDebugging(): Promise<number> {
 		await this.spectron.client.waitAndClick(START);
 		await this.spectron.client.waitForElement(PAUSE);
 		await this.spectron.client.waitForElement(DEBUG_STATUS_BAR);
+		const portPrefix = 'Port: ';
+		await this.spectron.client.waitFor(async () => {
+			const output = await this.getConsoleOutput();
+			return output.join('');
+		}, text => !!text && text.indexOf(portPrefix) >= 0);
+		const output = await this.getConsoleOutput();
+		const lastOutput = output.pop();
+
+		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
 	}
 
 	async stepOver(): Promise<any> {
@@ -100,14 +109,14 @@ export class Debug extends Viewlet {
 	async focusStackFrame(name: string): Promise<any> {
 		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
-		await this.spectron.workbench.waitForOpen(name);
+		await this.spectron.workbench.waitForTab(name);
 	}
 
-	async console(text: string, type: string): Promise<string> {
+	async console(text: string): Promise<string> {
 		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
 		await this.spectron.client.waitForElement(REPL_FOCUSED);
 		await this.spectron.client.type(text);
-		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT + ` .${type}`);
+		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
 
 		const result = await this.getConsoleOutput();
 		return result[result.length - 1] || '';

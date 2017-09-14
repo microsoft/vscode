@@ -8,7 +8,7 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -100,7 +100,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// TODO@Ben multi root
 		return (
 			this.environmentService.appQuality !== 'stable'  // not yet enabled in stable
-			&& this.contextService.hasMultiFolderWorkspace() // we need a multi folder workspace to begin with
+			&& this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE // we need a multi folder workspace to begin with
 		);
 	}
 
