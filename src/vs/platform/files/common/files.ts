@@ -167,12 +167,13 @@ export interface IStat {
 export interface IFileSystemProvider {
 	onDidChange?: Event<FileChangesEvent>;
 	stat(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<URI[]>;
-	mkdir(resource: URI): TPromise<void>;
 	read(resource: URI, progress: IProgress<Uint8Array>): TPromise<void>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
+	unlink(resource: URI): TPromise<void>;
 	rename(resource: URI, target: URI): TPromise<void>;
-	del(resource: URI): TPromise<void>;
+	mkdir(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<URI[]>;
+	rmdir(resource: URI): TPromise<void>;
 }
 
 

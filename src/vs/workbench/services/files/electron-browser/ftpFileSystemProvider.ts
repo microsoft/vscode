@@ -93,21 +93,16 @@ export class FtpFileSystemProvider implements IFileSystemProvider {
 		return ninvoke(this._connection, this._connection.put, content, resource.path);
 	}
 
-	del(resource: URI): TPromise<void> {
-
-		return ninvoke<JSFtp.Entry[]>(this._connection, this._connection.ls, resource.path).then(entries => {
-			if (entries.length === 1) {
-				// file;
-		return ninvoke(this._connection, this._connection.raw, 'DELE', [resource.path]);
-			} else {
-				// dir
-				return ninvoke(this._connection, this._connection.raw, 'RMD', [resource.path]);
-			}
-		});
+	rmdir(resource: URI): TPromise<void> {
+		return ninvoke(this._connection, this._connection.raw, 'RMD', [resource.path]);
 	}
 
 	mkdir(resource: URI): TPromise<void> {
 		return ninvoke(this._connection, this._connection.raw, 'MKD', [resource.path]);
+	}
+
+	unlink(resource: URI): TPromise<void> {
+		return ninvoke(this._connection, this._connection.raw, 'DELE', [resource.path]);
 	}
 
 	rename(resource: URI, target: URI): TPromise<void> {

@@ -258,7 +258,8 @@ export class RemoteFileService extends FileService {
 	async del(resource: URI, useTrash?: boolean): TPromise<void> {
 		const provider = this._provider.get(resource.scheme);
 		if (provider) {
-			await provider.del(resource);
+			const stat = await provider.stat(resource);
+			await stat.type === FileType.Dir ? provider.rmdir(resource) : provider.unlink(resource);
 			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 		} else {
 			return super.del(resource, useTrash);
