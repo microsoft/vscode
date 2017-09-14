@@ -26,7 +26,7 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void {
-		let basePath: string = normalize(this.contextService.getWorkspace().roots[0].fsPath);
+		let basePath: string = normalize(this.contextService.getWorkspace().folders[0].fsPath);
 
 		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {
 			// for some weird reason, node adds a trailing slash to UNC paths

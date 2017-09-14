@@ -44,15 +44,15 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceName: Event<void>;
 
 	/**
-	 * An event which fires on workspace roots change.
+	 * An event which fires on workspace folders change.
 	 */
-	onDidChangeWorkspaceRoots: Event<void>;
+	onDidChangeWorkspaceFolders: Event<void>;
 
 	/**
-	 * Returns the root for the given resource from the workspace.
+	 * Returns the folder for the given resource from the workspace.
 	 * Can be null if there is no workspace or the resource is not inside the workspace.
 	 */
-	getRoot(resource: URI): URI;
+	getWorkspaceFolder(resource: URI): URI;
 
 	/**
 	 * Return `true` if the current workspace has the given identifier otherwise `false`.
@@ -83,9 +83,9 @@ export interface IWorkspace {
 	readonly name: string;
 
 	/**
-	 * Roots in the workspace.
+	 * Folders in the workspace.
 	 */
-	readonly roots: URI[];
+	readonly folders: URI[];
 
 	/**
 	 * the location of the workspace configuration
@@ -95,30 +95,30 @@ export interface IWorkspace {
 
 export class Workspace implements IWorkspace {
 
-	private _rootsMap: TrieMap<URI> = new TrieMap<URI>();
-	private _roots: URI[];
+	private _foldersMap: TrieMap<URI> = new TrieMap<URI>();
+	private _folders: URI[];
 
 	constructor(
 		public readonly id: string,
 		private _name: string,
-		roots: URI[],
+		folders: URI[],
 		private _configuration: URI = null,
 		public readonly ctime?: number
 	) {
-		this.roots = roots;
+		this.folders = folders;
 	}
 
-	private ensureUnique(roots: URI[]): URI[] {
-		return distinct(roots, root => isLinux ? root.fsPath : root.fsPath.toLowerCase());
+	private ensureUnique(folders: URI[]): URI[] {
+		return distinct(folders, folder => isLinux ? folder.fsPath : folder.fsPath.toLowerCase());
 	}
 
-	public get roots(): URI[] {
-		return this._roots;
+	public get folders(): URI[] {
+		return this._folders;
 	}
 
-	public set roots(roots: URI[]) {
-		this._roots = this.ensureUnique(roots);
-		this.updateRootsMap();
+	public set folders(folders: URI[]) {
+		this._folders = this.ensureUnique(folders);
+		this.updateFoldersMap();
 	}
 
 	public get name(): string {
@@ -137,22 +137,22 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	public getRoot(resource: URI): URI {
+	public getFolder(resource: URI): URI {
 		if (!resource) {
 			return null;
 		}
 
-		return this._rootsMap.findSubstr(resource.fsPath);
+		return this._foldersMap.findSubstr(resource.fsPath);
 	}
 
-	private updateRootsMap(): void {
-		this._rootsMap = new TrieMap<URI>();
-		for (const root of this.roots) {
-			this._rootsMap.insert(root.fsPath, root);
+	private updateFoldersMap(): void {
+		this._foldersMap = new TrieMap<URI>();
+		for (const folder of this.folders) {
+			this._foldersMap.insert(folder.fsPath, folder);
 		}
 	}
 
 	public toJSON(): IWorkspace {
-		return { id: this.id, roots: this.roots, name: this.name };
+		return { id: this.id, folders: this.folders, name: this.name };
 	}
 }

@@ -781,13 +781,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			const resourceInput = input as IResourceInput;
-			const resourceWorkspace = this.contextService.getRoot(resourceInput.resource);
+			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceInput.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace;
 			}
 		}
 
 		// fallback to first workspace
-		return this.contextService.getWorkspace().roots[0];
+		return this.contextService.getWorkspace().folders[0];
 	}
 }

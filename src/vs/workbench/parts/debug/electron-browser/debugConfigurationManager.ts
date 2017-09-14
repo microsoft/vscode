@@ -341,7 +341,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 		});
 
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => {
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.initLaunches();
 			this.selectConfiguration();
 		}));
@@ -353,7 +353,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	private initLaunches(): void {
-		this.launches = this.contextService.getWorkspace().roots.map(root => this.instantiationService.createInstance(Launch, this, root));
+		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
 		if (this.launches.indexOf(this._selectedLaunch) === -1) {
 			this._selectedLaunch = undefined;
 		}

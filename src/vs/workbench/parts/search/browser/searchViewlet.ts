@@ -874,19 +874,19 @@ export class SearchViewlet extends Viewlet {
 		if (resource) {
 			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
-				folderPath = paths.relative(workspace.roots[0].fsPath, resource.fsPath);
+				folderPath = paths.relative(workspace.folders[0].fsPath, resource.fsPath);
 				if (folderPath && folderPath !== '.') {
 					folderPath = './' + folderPath;
 				}
 			} else {
-				const owningRoot = this.contextService.getRoot(resource);
-				if (owningRoot) {
-					const owningRootBasename = paths.basename(owningRoot.fsPath);
+				const owningFolder = this.contextService.getWorkspaceFolder(resource);
+				if (owningFolder) {
+					const owningRootBasename = paths.basename(owningFolder.fsPath);
 
 					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueRoot = workspace.roots.filter(root => paths.basename(root.fsPath) === owningRootBasename).length === 1;
-					if (isUniqueRoot) {
-						folderPath = `./${owningRootBasename}/${paths.relative(owningRoot.fsPath, resource.fsPath)}`;
+					const isUniqueFolder = workspace.folders.filter(root => paths.basename(root.fsPath) === owningRootBasename).length === 1;
+					if (isUniqueFolder) {
+						folderPath = `./${owningRootBasename}/${paths.relative(owningFolder.fsPath, resource.fsPath)}`;
 					} else {
 						folderPath = resource.fsPath;
 					}
@@ -960,7 +960,7 @@ export class SearchViewlet extends Viewlet {
 			excludePattern,
 			includePattern
 		};
-		const folderResources = this.contextService.getWorkspace().roots;
+		const folderResources = this.contextService.getWorkspace().folders;
 
 		const onQueryValidationError = (err: Error) => {
 			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });

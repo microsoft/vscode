@@ -76,8 +76,8 @@ export abstract class BaseWorkspacesAction extends Action {
 	protected pickFolders(buttonLabel: string, title: string): string[] {
 		let defaultPath: string;
 		const workspace = this.contextService.getWorkspace();
-		if (workspace.roots.length > 0) {
-			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
+		if (workspace.folders.length > 0) {
+			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showOpenDialog({
@@ -113,11 +113,11 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 			if (!folders || !folders.length) {
 				return TPromise.as(null);
 			}
-			return this.workspaceEditingService.addRoots(folders.map(folder => URI.file(folder))).then(() => {
+			return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => {
 				return this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
 			});
 		}
-		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().roots).run();
+		return this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders).run();
 	}
 }
 
@@ -170,7 +170,7 @@ export class RemoveRootFolderAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.workspaceEditingService.removeRoots([this.rootUri]);
+		return this.workspaceEditingService.removeFolders([this.rootUri]);
 	}
 }
 
@@ -204,7 +204,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (workspaceState) {
 
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().roots.map(root => root.fsPath);
+					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.fsPath);
 					return this.windowService.createAndOpenWorkspace(workspaceFolders, configPath);
 
 				case WorkbenchState.WORKSPACE:
@@ -220,8 +220,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 		let defaultPath: string;
 		if (workspace.configuration && !this.isUntitledWorkspace(workspace.configuration.fsPath)) {
 			defaultPath = workspace.configuration.fsPath;
-		} else if (workspace.roots.length > 0) {
-			defaultPath = dirname(workspace.roots[0].fsPath); // pick the parent of the first root by default
+		} else if (workspace.folders.length > 0) {
+			defaultPath = dirname(workspace.folders[0].fsPath); // pick the parent of the first root by default
 		}
 
 		return this.windowService.showSaveDialog({

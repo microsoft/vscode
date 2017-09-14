@@ -133,7 +133,7 @@ export class ExplorerView extends CollapsibleView {
 		const titleSpan = $('span').appendTo(titleDiv);
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
-			const title = workspace.roots.map(root => labels.getPathLabel(root.fsPath, void 0, this.environmentService)).join();
+			const title = workspace.folders.map(folder => labels.getPathLabel(folder.fsPath, void 0, this.environmentService)).join();
 			titleSpan.text(this.name).title(title);
 		};
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceName(() => setHeader()));
@@ -166,7 +166,7 @@ export class ExplorerView extends CollapsibleView {
 		};
 
 		this.toDispose.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.refreshFromEvent()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.refreshFromEvent()));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
@@ -735,17 +735,17 @@ export class ExplorerView extends CollapsibleView {
 		if (!this.isCreated) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
-				const root = this.contextService.getRoot(activeFile);
-				if (root) {
-					const found = targetsToResolve.filter(t => t.root.resource.toString() === root.toString()).pop();
+				const workspaceFolder = this.contextService.getWorkspaceFolder(activeFile);
+				if (workspaceFolder) {
+					const found = targetsToResolve.filter(t => t.root.resource.toString() === workspaceFolder.toString()).pop();
 					found.options.resolveTo.push(activeFile);
 				}
 			}
 
 			targetsToExpand.forEach(toExpand => {
-				const root = this.contextService.getRoot(toExpand);
-				if (root) {
-					const found = targetsToResolve.filter(ttr => ttr.resource.toString() === root.toString()).pop();
+				const workspaceFolder = this.contextService.getWorkspaceFolder(toExpand);
+				if (workspaceFolder) {
+					const found = targetsToResolve.filter(ttr => ttr.resource.toString() === workspaceFolder.toString()).pop();
 					found.options.resolveTo.push(toExpand);
 				}
 			});
@@ -855,7 +855,7 @@ export class ExplorerView extends CollapsibleView {
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource] };
-		const rootUri = this.contextService.getRoot(resource) || this.model.roots[0].resource;
+		const rootUri = this.contextService.getWorkspaceFolder(resource) || this.model.roots[0].resource;
 		return this.fileService.resolveFile(rootUri, options).then(stat => {
 
 			// Convert to model

@@ -333,14 +333,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			const workspace = this.contextService.getWorkspace();
 
 			if (target === ConfigurationTarget.WORKSPACE) {
-				return workspace.configuration || this.toResource(relativePath, workspace.roots[0]);
+				return workspace.configuration || this.toResource(relativePath, workspace.folders[0]);
 			}
 
 			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 				if (resource) {
-					const root = this.contextService.getRoot(resource);
-					if (root) {
-						return this.toResource(relativePath, root);
+					const folder = this.contextService.getWorkspaceFolder(resource);
+					if (folder) {
+						return this.toResource(relativePath, folder);
 					}
 				}
 			}
@@ -348,7 +348,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return null;
 	}
 
-	private toResource(relativePath: string, root: URI): URI {
-		return URI.file(paths.join(root.fsPath, relativePath));
+	private toResource(relativePath: string, folder: URI): URI {
+		return URI.file(paths.join(folder.fsPath, relativePath));
 	}
 }

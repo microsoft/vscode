@@ -63,7 +63,7 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {

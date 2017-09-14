@@ -73,25 +73,25 @@ export class TestContextService implements IWorkspaceContextService {
 	private options: any;
 
 	private _onDidChangeWorkspaceName: Emitter<void>;
-	private _onDidChangeWorkspaceRoots: Emitter<void>;
+	private _onDidChangeWorkspaceFolders: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceRoots = new Emitter<void>();
+		this._onDidChangeWorkspaceFolders = new Emitter<void>();
 	}
 
 	public get onDidChangeWorkspaceName(): Event<void> {
 		return this._onDidChangeWorkspaceName.event;
 	}
 
-	public get onDidChangeWorkspaceRoots(): Event<void> {
-		return this._onDidChangeWorkspaceRoots.event;
+	public get onDidChangeWorkspaceFolders(): Event<void> {
+		return this._onDidChangeWorkspaceFolders.event;
 	}
 
 	public getFolders(): URI[] {
-		return this.workspace ? this.workspace.roots : [];
+		return this.workspace ? this.workspace.folders : [];
 	}
 
 	public getWorkbenchState(): WorkbenchState {
@@ -108,8 +108,8 @@ export class TestContextService implements IWorkspaceContextService {
 		return this.workspace;
 	}
 
-	public getRoot(resource: URI): URI {
-		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
+	public getWorkspaceFolder(resource: URI): URI {
+		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -126,7 +126,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.roots[0].fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.folders[0].fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
@@ -137,7 +137,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.roots[0].fsPath, workspaceIdentifier);
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].fsPath, workspaceIdentifier);
 	}
 
 	private pathEquals(path1: string, path2: string): boolean {

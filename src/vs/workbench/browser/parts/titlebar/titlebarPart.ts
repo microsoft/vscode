@@ -101,7 +101,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.onConfigurationChanged(true)));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.onDidChangeWorkspaceName()));
 	}
 
@@ -115,7 +115,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.updateStyles();
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
+	private onDidChangeWorkspaceFolders(): void {
 		this.setTitle(this.getWindowTitle());
 	}
 
@@ -195,14 +195,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		let folder: URI = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.roots[0] : this.contextService.getRoot(toResource(input, { supportSideBySide: true, filter: 'file' }));
+		let folder: URI = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(input, { supportSideBySide: true, filter: 'file' }));
 
 		// Variables
 		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace.name;
-		const rootPath = labels.getPathLabel(workspace.configuration || workspace.roots[0], void 0, this.environmentService) || '';
+		const rootPath = labels.getPathLabel(workspace.configuration || workspace.folders[0], void 0, this.environmentService) || '';
 		const folderName = folder ? (paths.basename(folder.fsPath) || folder.fsPath) : '';
 		const folderPath = folder ? labels.getPathLabel(folder, void 0, this.environmentService) : '';
 		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';

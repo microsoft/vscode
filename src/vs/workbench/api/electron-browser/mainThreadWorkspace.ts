@@ -38,7 +38,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
-		this._contextService.onDidChangeWorkspaceRoots(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -60,11 +60,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
-		if (!workspace.roots.length) {
+		if (!workspace.folders.length) {
 			return undefined;
 		}
 		const query: ISearchQuery = {
-			folderQueries: workspace.roots.map(root => ({ folder: root })),
+			folderQueries: workspace.folders.map(root => ({ folder: root })),
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [include]: true },

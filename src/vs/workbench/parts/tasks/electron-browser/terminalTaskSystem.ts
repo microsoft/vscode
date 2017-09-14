@@ -647,7 +647,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 
 	private resolveVariable(value: string): string {
 		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
-		return this.configurationResolverService.resolve(this.contextService.getWorkspace().roots[0], value);
+		return this.configurationResolverService.resolve(this.contextService.getWorkspace().folders[0], value);
 	}
 
 	private resolveOptions(options: CommandOptions): CommandOptions {

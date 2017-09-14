@@ -37,7 +37,7 @@ export class OutputLinkProvider {
 	}
 
 	private registerListeners(): void {
-		this.contextService.onDidChangeWorkspaceRoots(() => this.updateLinkProviderWorker());
+		this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker());
 	}
 
 	private updateLinkProviderWorker(): void {
@@ -55,7 +55,7 @@ export class OutputLinkProvider {
 			}
 
 			// Update link provider worker if workspace roots changed
-			const newWorkspacesCount = this.contextService.getWorkspace().roots.length;
+			const newWorkspacesCount = this.contextService.getWorkspace().folders.length;
 			if (this.workspacesCount !== newWorkspacesCount) {
 				this.workspacesCount = newWorkspacesCount;
 
@@ -80,7 +80,7 @@ export class OutputLinkProvider {
 
 		if (!this.worker) {
 			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace().roots.map(root => root.toString())
+				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.toString())
 			};
 
 			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {

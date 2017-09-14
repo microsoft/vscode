@@ -526,13 +526,13 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
 	private readonly _onDidChangeWorkspaceRoots: Emitter<void> = new Emitter<void>();
-	public readonly onDidChangeWorkspaceRoots: Event<void> = this._onDidChangeWorkspaceRoots.event;
+	public readonly onDidChangeWorkspaceFolders: Event<void> = this._onDidChangeWorkspaceRoots.event;
 
 	private readonly workspace: IWorkspace;
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', roots: [resource], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [resource], name: resource.fsPath };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -549,8 +549,8 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
-	public getRoot(resource: URI): URI {
-		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.roots[0] : void 0;
+	public getWorkspaceFolder(resource: URI): URI {
+		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME ? this.workspace.folders[0] : void 0;
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {

@@ -301,7 +301,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateStyles()));
+		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
@@ -1547,7 +1547,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
-		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().roots[0] }) : undefined;
+		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: this.contextService.getWorkspace().folders[0] }) : undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
 		}
