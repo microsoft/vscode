@@ -244,6 +244,7 @@ export interface ExtensionTaskSource {
 	kind: 'extension';
 	label: string;
 	extension: string;
+	workspaceFolder: WorkspaceFolder | undefined;
 }
 
 export interface CompositeTaskSource {
@@ -414,6 +415,16 @@ export namespace Task {
 			return task.identifier;
 		} else {
 			return task.defines._key;
+		}
+	}
+
+	export function getWorkspaceFolder(task: Task): WorkspaceFolder | undefined {
+		if (CustomTask.is(task)) {
+			return task._source.config.workspaceFolder;
+		} else if (ContributedTask.is(task)) {
+			return task._source.workspaceFolder;
+		} else {
+			return undefined;
 		}
 	}
 

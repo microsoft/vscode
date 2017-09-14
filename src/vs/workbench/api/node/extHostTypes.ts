@@ -1218,6 +1218,7 @@ export class Task implements vscode.Task {
 
 	private _definition: vscode.TaskDefinition;
 	private _definitionKey: string;
+	private _workspaceFolder: vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
 	private _problemMatchers: string[];
@@ -1227,11 +1228,23 @@ export class Task implements vscode.Task {
 	private _group: TaskGroup;
 	private _presentationOptions: vscode.TaskPresentationOptions;
 
-	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]) {
+	constructor(definition: vscode.TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, workspaceFolder: vscode.WorkspaceFolder, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+	constructor(definition: vscode.TaskDefinition, arg2: string | vscode.WorkspaceFolder, arg3: any, arg4?: any, arg5?: any, arg6?: any) {
 		this.definition = definition;
-		this.name = name;
-		this.source = source;
-		this.execution = execution;
+		let problemMatchers: string | string[];
+		if (typeof arg2 === 'string') {
+			this.name = arg2;
+			this.source = arg3;
+			this.execution = arg4;
+			problemMatchers = arg5;
+		} else {
+			this.workspaceFolder = arg2;
+			this.name = arg3;
+			this.source = arg4;
+			this.execution = arg5;
+			problemMatchers = arg6;
+		}
 		if (typeof problemMatchers === 'string') {
 			this._problemMatchers = [problemMatchers];
 			this._hasDefinedMatchers = true;
@@ -1264,6 +1277,14 @@ export class Task implements vscode.Task {
 			this._definitionKey = hash.digest('hex');
 		}
 		return this._definitionKey;
+	}
+
+	get workspaceFolder(): vscode.WorkspaceFolder {
+		return this._workspaceFolder;
+	}
+
+	set workspaceFolder(value: vscode.WorkspaceFolder) {
+		this._workspaceFolder = value;
 	}
 
 	get name(): string {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
@@ -347,7 +348,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(external, { uri: undefined }, reporter);
+	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -358,7 +359,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(external, { uri: undefined }, reporter);
+	let result = parse({ uri: URI.file('/Workspace/folderOne') }, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}

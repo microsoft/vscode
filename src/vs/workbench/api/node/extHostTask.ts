@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
@@ -326,10 +327,11 @@ namespace Tasks {
 			return undefined;
 		}
 		command.presentation = PresentationOptions.from(task.presentationOptions);
-		let source = {
+		let source: TaskSystem.ExtensionTaskSource = {
 			kind: TaskSystem.TaskSourceKind.Extension,
 			label: typeof task.source === 'string' ? task.source : extension.name,
-			extension: extension.id
+			extension: extension.id,
+			workspaceFolder: task.workspaceFolder ? { uri: task.workspaceFolder.uri as URI } : undefined
 		};
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;
