@@ -152,7 +152,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				linkUrls.forEach(linkUrl => {
 					supportedLinkFormats.forEach(linkFormatInfo => {
-						console.log('linkFormatInfo: ', linkFormatInfo);
+						// console.log('linkFormatInfo: ', linkFormatInfo);
 						testLink(
 							strings.format(linkFormatInfo.urlFormat, linkUrl, linkFormatInfo.line, linkFormatInfo.column),
 							linkUrl,
