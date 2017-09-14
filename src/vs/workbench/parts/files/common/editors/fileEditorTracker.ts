@@ -205,8 +205,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
-							const index = indexOf(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */);
-							reopenFileResource = newResource.with({ path: paths.join(newResource.fsPath, resource.fsPath.substr(index + oldResource.fsPath.length + 1)) }); // parent folder got moved
+							const index = indexOf(resource.path, oldResource.path, !isLinux /* ignorecase */);
+							reopenFileResource = newResource.with({ path: paths.join(newResource.path, resource.path.substr(index + oldResource.path.length + 1)) }); // parent folder got moved
 						}
 
 						// Reopen
