@@ -90,7 +90,7 @@ export class FileService implements IFileService {
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
 	private activeWorkspaceChangeWatcher: IDisposable;
-	private currentWorkspaceRootsCount: number;
+	private currentWorkspaceFoldersCount: number;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -101,7 +101,7 @@ export class FileService implements IFileService {
 		this.toDispose = [];
 		this.options = options || Object.create(null);
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
-		this.currentWorkspaceRootsCount = contextService.hasWorkspace() ? contextService.getWorkspace().roots.length : 0;
+		this.currentWorkspaceFoldersCount = contextService.getWorkspace().folders.length;
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toDispose.push(this._onFileChanges);
@@ -113,7 +113,7 @@ export class FileService implements IFileService {
 			this.options.errorLogger = console.error;
 		}
 
-		if (this.currentWorkspaceRootsCount > 0 && !this.options.disableWatcher) {
+		if (this.currentWorkspaceFoldersCount > 0 && !this.options.disableWatcher) {
 			this.setupWorkspaceWatching();
 		}
 
@@ -125,16 +125,16 @@ export class FileService implements IFileService {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.onDidChangeWorkspaceRoots()));
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
 	}
 
-	private onDidChangeWorkspaceRoots(): void {
-		const newRootCount = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots.length : 0;
+	private onDidChangeWorkspaceFolders(): void {
+		const newFoldersCount = this.contextService.getWorkspace().folders.length;
 
 		let restartWorkspaceWatcher = false;
-		if (this.currentWorkspaceRootsCount <= 1 && newRootCount > 1) {
+		if (this.currentWorkspaceFoldersCount <= 1 && newFoldersCount > 1) {
 			restartWorkspaceWatcher = true; // transition: from 1 or 0 folders to 2+
-		} else if (this.currentWorkspaceRootsCount > 1 && newRootCount <= 1) {
+		} else if (this.currentWorkspaceFoldersCount > 1 && newFoldersCount <= 1) {
 			restartWorkspaceWatcher = true; // transition: from 2+ folders to 1 or 0
 		}
 
@@ -142,7 +142,7 @@ export class FileService implements IFileService {
 			this.setupWorkspaceWatching();
 		}
 
-		this.currentWorkspaceRootsCount = newRootCount;
+		this.currentWorkspaceFoldersCount = newFoldersCount;
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -167,7 +167,7 @@ export class FileService implements IFileService {
 		}
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
-		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().roots.length > 1) {
+		if (this.options.useExperimentalFileWatcher || this.contextService.getWorkspace().folders.length > 1) {
 			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 

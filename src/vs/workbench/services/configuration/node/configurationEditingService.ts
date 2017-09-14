@@ -21,7 +21,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -252,7 +252,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
-		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && !this.contextService.hasWorkspace()) {
+		if ((target === ConfigurationTarget.WORKSPACE || target === ConfigurationTarget.FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
 		}
 
@@ -296,14 +296,14 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 				// Check for prefix
 				if (config.key === key) {
-					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key] : [];
+					const jsonPath = workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key] : [];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					const jsonPath = workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
+					const jsonPath = workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource, isWorkspaceStandalone: true };
 				}
 			}
@@ -316,7 +316,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		}
 
 		const resource = this.getConfigurationFileResource(target, WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
-		if (workspace && workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
+		if (workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
 			jsonPath = ['settings', ...jsonPath];
 		}
 		return { key, jsonPath, value: config.value, resource };
@@ -327,19 +327,20 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return URI.file(this.environmentService.appSettingsPath);
 		}
 
-		const workspace = this.contextService.getWorkspace();
 
-		if (workspace) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+
+			const workspace = this.contextService.getWorkspace();
 
 			if (target === ConfigurationTarget.WORKSPACE) {
-				return this.contextService.hasMultiFolderWorkspace() ? workspace.configuration : this.toResource(relativePath, workspace.roots[0]);
+				return workspace.configuration || this.toResource(relativePath, workspace.folders[0]);
 			}
 
-			if (target === ConfigurationTarget.FOLDER && this.contextService.hasMultiFolderWorkspace()) {
+			if (target === ConfigurationTarget.FOLDER && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 				if (resource) {
-					const root = this.contextService.getRoot(resource);
-					if (root) {
-						return this.toResource(relativePath, root);
+					const folder = this.contextService.getWorkspaceFolder(resource);
+					if (folder) {
+						return this.toResource(relativePath, folder);
 					}
 				}
 			}
@@ -347,7 +348,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return null;
 	}
 
-	private toResource(relativePath: string, root: URI): URI {
-		return URI.file(paths.join(root.fsPath, relativePath));
+	private toResource(relativePath: string, folder: URI): URI {
+		return URI.file(paths.join(folder.fsPath, relativePath));
 	}
 }

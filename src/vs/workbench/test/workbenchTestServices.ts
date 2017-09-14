@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
-import { ILegacyWorkspace, IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -54,7 +54,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -73,49 +73,43 @@ export class TestContextService implements IWorkspaceContextService {
 	private options: any;
 
 	private _onDidChangeWorkspaceName: Emitter<void>;
-	private _onDidChangeWorkspaceRoots: Emitter<void>;
+	private _onDidChangeWorkspaceFolders: Emitter<void>;
 
 	constructor(workspace: any = TestWorkspace, options: any = null) {
 		this.workspace = workspace;
 		this.id = generateUuid();
 		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceRoots = new Emitter<void>();
+		this._onDidChangeWorkspaceFolders = new Emitter<void>();
 	}
 
 	public get onDidChangeWorkspaceName(): Event<void> {
 		return this._onDidChangeWorkspaceName.event;
 	}
 
-	public get onDidChangeWorkspaceRoots(): Event<void> {
-		return this._onDidChangeWorkspaceRoots.event;
+	public get onDidChangeWorkspaceFolders(): Event<void> {
+		return this._onDidChangeWorkspaceFolders.event;
 	}
 
 	public getFolders(): URI[] {
-		return this.workspace ? this.workspace.roots : [];
+		return this.workspace ? this.workspace.folders : [];
 	}
 
-	public hasWorkspace(): boolean {
-		return !!this.workspace;
-	}
-
-	public hasFolderWorkspace(): boolean {
-		return this.workspace && !this.workspace.configuration;
-	}
-
-	public hasMultiFolderWorkspace(): boolean {
-		return this.workspace && !!this.workspace.configuration;
-	}
-
-	public getLegacyWorkspace(): ILegacyWorkspace {
-		return this.workspace ? { resource: this.workspace.roots[0] } : void 0;
+	public getWorkbenchState(): WorkbenchState {
+		if (this.workspace) {
+			if (this.workspace.configuration) {
+				return WorkbenchState.WORKSPACE;
+			}
+			return WorkbenchState.FOLDER;
+		}
+		return WorkbenchState.EMPTY;
 	}
 
 	public getWorkspace(): IWorkbenchWorkspace {
 		return this.workspace;
 	}
 
-	public getRoot(resource: URI): URI {
-		return this.isInsideWorkspace(resource) ? this.workspace.roots[0] : null;
+	public getWorkspaceFolder(resource: URI): URI {
+		return this.isInsideWorkspace(resource) ? this.workspace.folders[0] : null;
 	}
 
 	public setWorkspace(workspace: any): void {
@@ -132,7 +126,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return paths.isEqualOrParent(resource.fsPath, this.workspace.roots[0].fsPath, !isLinux /* ignorecase */);
+			return paths.isEqualOrParent(resource.fsPath, this.workspace.folders[0].fsPath, !isLinux /* ignorecase */);
 		}
 
 		return false;
@@ -140,6 +134,19 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public toResource(workspaceRelativePath: string): URI {
 		return URI.file(paths.join('C:\\', workspaceRelativePath));
+	}
+
+	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && this.pathEquals(this.workspace.folders[0].fsPath, workspaceIdentifier);
+	}
+
+	private pathEquals(path1: string, path2: string): boolean {
+		if (!isLinux) {
+			path1 = path1.toLowerCase();
+			path2 = path2.toLowerCase();
+		}
+
+		return path1 === path2;
 	}
 }
 

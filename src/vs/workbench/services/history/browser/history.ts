@@ -15,7 +15,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -761,7 +761,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	public getLastActiveWorkspaceRoot(): URI {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return void 0;
 		}
 
@@ -773,13 +773,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			const resourceInput = input as IResourceInput;
-			const resourceWorkspace = this.contextService.getRoot(resourceInput.resource);
+			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceInput.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace;
 			}
 		}
 
 		// fallback to first workspace
-		return this.contextService.getWorkspace().roots[0];
+		return this.contextService.getWorkspace().folders[0];
 	}
 }

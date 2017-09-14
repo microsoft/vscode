@@ -41,7 +41,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -444,7 +444,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Empty workbench
-		else if (!this.contextService.hasWorkspace() && this.openUntitledFile()) {
+		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
 			if (this.editorPart.hasEditorsToRestore()) {
 				return TPromise.as([]); // do not open any empty untitled file if we have editors to restore
 			}
@@ -635,7 +635,7 @@ export class Workbench implements IPartService {
 	private initSettings(): void {
 
 		// Sidebar visibility
-		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, !this.contextService.hasWorkspace());
+		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
@@ -830,7 +830,7 @@ export class Workbench implements IPartService {
 		return promise.then(() => {
 
 			// Remember in settings
-			const defaultHidden = !this.contextService.hasWorkspace();
+			const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			if (hidden !== defaultHidden) {
 				this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 			} else {
@@ -1054,7 +1054,7 @@ export class Workbench implements IPartService {
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
 		// or setting is disabled. Also enabled when running with --wait from the command line.
-		if (visibleEditors === 0 && !this.contextService.hasWorkspace() && !this.environmentService.isExtensionDevelopment) {
+		if (visibleEditors === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
 			const closeWhenEmpty = this.configurationService.lookup<boolean>(Workbench.closeWhenEmptyConfigurationKey).value;
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();

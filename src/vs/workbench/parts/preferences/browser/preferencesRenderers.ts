@@ -31,7 +31,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
@@ -1064,7 +1064,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	public render(): void {
-		if (this.workspaceContextService.hasMultiFolderWorkspace()) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []));
 
 			const ranges: IRange[] = [];

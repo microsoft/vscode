@@ -14,7 +14,7 @@ import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -147,7 +147,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			.div({ 'class': 'watermark' });
 		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
-		const folder = this.contextService.hasWorkspace();
+		const folder = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {

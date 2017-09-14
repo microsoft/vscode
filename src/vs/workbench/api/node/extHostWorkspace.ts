@@ -32,10 +32,10 @@ class Workspace2 extends Workspace {
 	private readonly _structure = new TrieMap<vscode.WorkspaceFolder>(s => s.split('/'));
 
 	private constructor(data: IWorkspaceData) {
-		super(data.id, data.name, data.roots);
+		super(data.id, data.name, data.folders);
 
 		// setup the workspace folder data structure
-		this.roots.forEach((uri, index) => {
+		this.folders.forEach((uri, index) => {
 			const folder = {
 				name: basename(uri.fsPath),
 				uri,
@@ -46,7 +46,7 @@ class Workspace2 extends Workspace {
 		});
 	}
 
-	get folders(): vscode.WorkspaceFolder[] {
+	get workspaceFolders(): vscode.WorkspaceFolder[] {
 		return this._folder.slice(0);
 	}
 
@@ -92,7 +92,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (!this._workspace) {
 			return undefined;
 		} else {
-			return this._workspace.folders.slice(0);
+			return this._workspace.workspaceFolders.slice(0);
 		}
 	}
 
@@ -110,11 +110,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (!this._workspace) {
 			return undefined;
 		}
-		const { roots } = this._workspace;
-		if (roots.length === 0) {
+		const { folders } = this._workspace;
+		if (folders.length === 0) {
 			return undefined;
 		}
-		return roots[0].fsPath;
+		return folders[0].fsPath;
 	}
 
 	getRelativePath(pathOrUri: string | vscode.Uri, includeWorkspace?: boolean): string {
@@ -140,7 +140,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		if (typeof includeWorkspace === 'undefined') {
-			includeWorkspace = this.workspace.roots.length > 1;
+			includeWorkspace = this.workspace.folders.length > 1;
 		}
 
 		let result = relative(folder.uri.fsPath, path);
@@ -155,10 +155,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		// keep old workspace folder, build new workspace, and
 		// capture new workspace folders. Compute delta between
 		// them send that as event
-		const oldRoots = this._workspace ? this._workspace.folders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+		const oldRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
 
 		this._workspace = Workspace2.fromData(data);
-		const newRoots = this._workspace ? this._workspace.folders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+		const newRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
 
 		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareWorkspaceFolder);
 		this._onDidChangeWorkspace.fire(Object.freeze({

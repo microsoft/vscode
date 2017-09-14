@@ -145,7 +145,7 @@ export class ExtensionHostMain {
 	}
 
 	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
-		if (!this._workspace || this._workspace.roots.length === 0) {
+		if (!this._workspace || this._workspace.folders.length === 0) {
 			return TPromise.as(null);
 		}
 
@@ -177,7 +177,7 @@ export class ExtensionHostMain {
 				}
 
 				const query: ISearchQuery = {
-					folderQueries: this._workspace.roots.map(root => ({ folder: root })),
+					folderQueries: this._workspace.folders.map(root => ({ folder: root })),
 					type: QueryType.File,
 					maxResults: 1,
 					includePattern: { [p]: true }
@@ -187,7 +187,7 @@ export class ExtensionHostMain {
 			} else {
 				// find exact path
 				return (async resolve => {
-					for (const { fsPath } of this._workspace.roots) {
+					for (const { fsPath } of this._workspace.folders) {
 						if (await pfs.exists(join(fsPath, p))) {
 							return p;
 						}

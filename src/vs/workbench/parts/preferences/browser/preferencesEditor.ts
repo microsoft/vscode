@@ -152,7 +152,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 
 		this.preferencesRenderers = this._register(new PreferencesRenderers());
-		this._register(this.workspaceContextService.onDidChangeWorkspaceRoots(() => this.onWorkspaceRootsChanged()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -226,7 +226,7 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.preferencesService.workspaceSettingsResource.fsPath === resource.fsPath) {
 			return ConfigurationTarget.WORKSPACE;
 		}
-		if (this.workspaceContextService.getRoot(resource)) {
+		if (this.workspaceContextService.getWorkspaceFolder(resource)) {
 			return ConfigurationTarget.FOLDER;
 		}
 		return null;
@@ -240,10 +240,10 @@ export class PreferencesEditor extends BaseEditor {
 			return resource;
 		}
 
-		return this.workspaceContextService.getRoot(resource);
+		return this.workspaceContextService.getWorkspaceFolder(resource);
 	}
 
-	private onWorkspaceRootsChanged(): void {
+	private onWorkspaceFoldersChanged(): void {
 		if (this.input) {
 			const settingsResource = toResource((<PreferencesEditorInput>this.input).master);
 			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
@@ -886,13 +886,10 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 			return true;
 		}
 
-		const workspace = this.workspaceContextService.getWorkspace();
-		if (workspace) {
-			for (const root of workspace.roots) {
-				const folderSettingsResource = this.preferencesService.getFolderSettingsResource(root);
-				if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
-					return true;
-				}
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
+			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder);
+			if (folderSettingsResource && folderSettingsResource.fsPath === model.uri.fsPath) {
+				return true;
 			}
 		}
 

@@ -131,7 +131,7 @@ suite('ExtHostConfiguration', function () {
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
-				'roots': [URI.file('foo')],
+				'folders': [URI.file('foo')],
 				'name': 'foo'
 			}),
 			{
@@ -203,7 +203,7 @@ suite('ExtHostConfiguration', function () {
 			new class extends mock<MainThreadConfigurationShape>() { },
 			new ExtHostWorkspace(new TestThreadService(), {
 				'id': 'foo',
-				'roots': [firstRoot, secondRoot],
+				'folders': [firstRoot, secondRoot],
 				'name': 'foo'
 			}),
 			{

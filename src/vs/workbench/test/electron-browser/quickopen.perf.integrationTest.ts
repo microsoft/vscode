@@ -7,7 +7,7 @@
 
 import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
-import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService } from 'vs/platform/search/common/search';
@@ -30,6 +30,7 @@ import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleS
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -74,7 +75,7 @@ suite('QuickOpen performance (integration)', () => {
 			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],

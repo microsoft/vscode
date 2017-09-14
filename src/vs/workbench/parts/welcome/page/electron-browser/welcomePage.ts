@@ -35,7 +35,6 @@ import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_w
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
-import { isLinux } from 'vs/base/common/platform';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
@@ -232,18 +231,8 @@ class WelcomePage {
 		});
 
 		recentlyOpened.then(({ workspaces }) => {
-			const context = this.contextService.getWorkspace();
-			workspaces = workspaces.filter(workspace => {
-				if (this.contextService.hasMultiFolderWorkspace() && typeof workspace !== 'string' && context.id === workspace.id) {
-					return false; // do not show current workspace
-				}
-
-				if (this.contextService.hasFolderWorkspace() && isSingleFolderWorkspaceIdentifier(workspace) && this.pathEquals(context.roots[0].fsPath, workspace)) {
-					return false; // do not show current workspace (single folder case)
-				}
-
-				return true;
-			});
+			// Filter out the current workspace
+			workspaces = workspaces.filter(workspace => !this.contextService.isCurrentWorkspace(workspace));
 			if (!workspaces.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;
 				recent.classList.add('emptyRecent');
@@ -358,15 +347,6 @@ class WelcomePage {
 				}
 			});
 		}
-	}
-
-	private pathEquals(path1: string, path2: string): boolean {
-		if (!isLinux) {
-			path1 = path1.toLowerCase();
-			path2 = path2.toLowerCase();
-		}
-
-		return path1 === path2;
 	}
 
 	private installExtension(extensionSuggestion: ExtensionSuggestion, strings: Strings): void {

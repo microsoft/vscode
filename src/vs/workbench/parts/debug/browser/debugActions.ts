@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
@@ -98,7 +98,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
@@ -140,7 +140,7 @@ export class StartAction extends AbstractDebugAction {
 		if (state === State.Initializing) {
 			return false;
 		}
-		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
+		if (this.contextService && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
 		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {

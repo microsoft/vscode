@@ -15,7 +15,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDebugService, IConfig, IEnablement, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
@@ -204,7 +204,7 @@ export function registerCommands(): void {
 		primary: undefined,
 		handler: (accessor, workspaceUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
-			if (!accessor.get(IWorkspaceContextService).hasWorkspace()) {
+			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
