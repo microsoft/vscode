@@ -76,6 +76,7 @@ export class SpectronApplication {
 		await this.startApplication(testSuiteName, codeArgs);
 		await this.checkWindowReady();
 		await this.waitForWelcome();
+		await this.screenCapturer.capture('Application started');
 	}
 
 	public async reload(): Promise<any> {
@@ -87,6 +88,7 @@ export class SpectronApplication {
 
 	public async stop(): Promise<any> {
 		if (this.spectron && this.spectron.isRunning()) {
+			await this.screenCapturer.capture('Stopping application');
 			return await this.spectron.stop();
 		}
 	}
