@@ -249,8 +249,10 @@ class SuggestionDetails {
 		}
 		removeClass(this.el, 'no-docs');
 		if (typeof item.suggestion.documentation === 'string') {
+			removeClass(this.docs, 'marked-docs');
 			this.docs.textContent = item.suggestion.documentation;
 		} else {
+			addClass(this.docs, 'marked-docs');
 			this.docs.innerHTML = this.markdownRenderer.render(item.suggestion.documentation).innerHTML;
 		}
 

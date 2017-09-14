@@ -228,6 +228,11 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;
+	white-space: pre-wrap;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.marked-docs {
+	white-space: initial;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
