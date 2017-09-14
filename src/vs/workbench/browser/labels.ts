@@ -216,10 +216,12 @@ export class FileLabel extends ResourceLabel {
 			getWorkspace(): { folders: uri[]; } { return { folders: [options.root] }; },
 		} : this.contextService;
 
+		const name = resource.fsPath.length > 1 ? paths.basename(resource.fsPath) : resource.authority;
+		const description = resource.fsPath.length > 1 ? getPathLabel(paths.dirname(resource.fsPath), rootProvider, this.environmentService) : resource.authority;
 		this.setLabel({
 			resource,
-			name: (options && options.hideLabel) ? void 0 : paths.basename(resource.toString()),
-			description: !hidePath ? getPathLabel(paths.dirname(resource.toString()), rootProvider, this.environmentService) : void 0
+			name: (options && options.hideLabel) ? void 0 : name,
+			description: !hidePath ? description : void 0
 		}, options);
 	}
 }
