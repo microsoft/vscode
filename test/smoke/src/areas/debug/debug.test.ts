@@ -13,6 +13,7 @@ import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, WORKSPACE_PATH } fro
 
 describe('Debug', () => {
 	let app: SpectronApplication = new SpectronApplication();
+	let port: number;
 
 	if (app.build === VSCODE_BUILD.DEV) {
 		const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
@@ -64,15 +65,8 @@ describe('Debug', () => {
 	});
 
 	it('start debugging', async function () {
-		await app.workbench.debug.startDebugging();
-
-		await new Promise(c => {
-			setTimeout(() => {
-				http.get(`http://localhost:3000`)
-					.on('error', e => void 0);
-				c();
-			}, 400);
-		});
+		port = await app.workbench.debug.startDebugging();
+		http.get(`http://localhost:${port}`).on('error', e => void 0);
 
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
@@ -99,7 +93,7 @@ describe('Debug', () => {
 
 	it('continue', async function () {
 		await app.workbench.debug.continue();
-		http.get(`http://localhost:3000`).on('error', e => void 0);
+		http.get(`http://localhost:${port}`).on('error', e => void 0);
 		await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6);
 	});
 
